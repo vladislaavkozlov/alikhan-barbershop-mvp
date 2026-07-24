@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Алихан · Премиум мужские стрижки · Ставрополь</title>
+<meta name="description" content="Алихан - премиум мужские стрижки в Ставрополе. Онлайн-запись: мастер, услуга, дата - только свободные слоты">
+<!-- TODO: вставить ID счётчика Яндекс.Метрики -->
+<style>
+  :root{
+    --bg: #12201A;
+    --surface: #1C2E24;
+    --surface-2: #24392C;
+    --accent: #C6A15B;
+    --accent-hover: #B58F45;
+    --wood: #B98B54;
+    --text: #F3EFE4;
+    --text-muted: #B9B2A2;
+    --border: rgba(198, 161, 91, 0.25);
+    --leather: #17140F;
+    --error: #C97155;
+    --ok: #7FAE86;
+  }
+
+  *{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+  body{
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3{
+    font-family: Charter, 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+    font-weight: 400;
+    margin: 0 0 12px;
+  }
+  p{ margin: 0 0 12px; line-height: 1.55; }
+  a{ color: var(--accent); }
+  img{ max-width: 100%; display: block; }
+
+  .wrap{ max-width: 1080px; margin: 0 auto; padding: 0 clamp(18px, 5vw, 40px); }
+
+  /* honeycomb decorative motif - one place only, per Design.md */
+  .honeycomb-bg{
+    background-image: radial-gradient(circle at 20% 20%, var(--border) 0, transparent 45%);
+  }
+
+  /* ---------- header ---------- */
+  header.site{
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(18,32,26,0.92);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav{
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px clamp(18px, 5vw, 40px);
+  }
+  .brand{
+    font-family: Charter, Georgia, serif;
+    font-size: 1.3rem; letter-spacing: 0.04em;
+    color: var(--text); text-decoration: none;
+  }
+  .brand em{ color: var(--accent); font-style: normal; }
+  .btn{
+    display: inline-block;
+    background: var(--accent); color: var(--leather);
+    padding: 10px 20px; border-radius: 6px;
+    text-decoration: none; font-weight: 600; font-size: 0.92rem;
+    border: none; cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .btn:hover{ background: var(--accent-hover); }
+  .btn.secondary{
+    background: transparent; color: var(--accent);
+    border: 1px solid var(--border);
+  }
+  .btn.secondary:hover{ background: var(--surface-2); }
+  .btn:disabled{ opacity: 0.5; cursor: not-allowed; }
+
+  /* ---------- hero ---------- */
+  .hero{
+    position: relative;
+    padding: clamp(48px, 9vw, 96px) 0 clamp(40px, 7vw, 72px);
+    overflow: hidden;
+  }
+  .hero-grid{
+    display: grid; grid-template-columns: 1fr; gap: 36px; align-items: center;
+  }
+  @media (min-width: 860px){
+    .hero-grid{ grid-template-columns: 1.1fr 0.9fr; gap: 56px; }
+  }
+  .badge{
+    display: inline-block;
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 14px;
+    margin-bottom: 18px;
+  }
+  h1.pitch{
+    font-size: clamp(2.4rem, 5vw + 1rem, 3.6rem);
+    line-height: 1.05;
+    margin-bottom: 16px;
+  }
+  .hero-sub{
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    max-width: 46ch;
+    margin-bottom: 22px;
+  }
+  .hero-cta-row{ display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }
+  .proof-bar{
+    display: flex; flex-wrap: wrap; gap: 10px;
+  }
+  .proof-chip{
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 14px;
+    font-size: 0.86rem; color: var(--text-muted);
+  }
+  .proof-chip b{ color: var(--text); font-weight: 600; }
+  .hero-photo{
+    border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: 0 30px 60px -30px rgba(0,0,0,0.6);
+  }
+  .hero-photo img{ width: 100%; height: 100%; object-fit: cover; aspect-ratio: 4/5; }
+
+  .facts-row{
+    display: flex; flex-wrap: wrap; gap: 20px 32px;
+    margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--border);
+    font-size: 0.92rem; color: var(--text-muted);
+  }
+  .facts-row b{ color: var(--text); font-weight: 600; display: block; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+
+  /* ---------- section shell ---------- */
+  section{ padding: clamp(44px, 7vw, 76px) 0; }
+  section.alt{ background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .eyebrow{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 10px;
+  }
+  .section-head{ max-width: 60ch; margin-bottom: 32px; }
+  .section-desc{ color: var(--text-muted); }
+
+  /* ---------- price ---------- */
+  .price-grid{
+    display: grid; grid-template-columns: 1fr; gap: 14px;
+  }
+  @media (min-width: 700px){
+    .price-grid{ grid-template-columns: 1fr 1fr; }
+  }
+  .price-card{
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px;
+  }
+  .price-card-head{
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    margin-bottom: 6px;
+  }
+  .price-card-head h3{ font-size: 1.08rem; margin: 0; }
+  .price-card-price{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--accent); font-weight: 600; font-size: 1.05rem; white-space: nowrap;
+  }
+  .price-card-duration{ font-size: 0.78rem; color: var(--text-muted); margin-bottom: 10px; }
+  .price-card-comp{ font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; margin: 0; }
+
+  /* ---------- masters ---------- */
+  .masters-grid{
+    display: grid; grid-template-columns: 1fr; gap: 16px;
+  }
+  @media (min-width: 700px){
+    .masters-grid{ grid-template-columns: repeat(3, 1fr); }
+  }
+  .master-card{
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; text-align: center;
+  }
+  .master-avatar{
+    width: 64px; height: 64px; border-radius: 50%;
+    background: var(--surface-2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px; font-size: 1.4rem; color: var(--accent);
+  }
+  .master-name{ font-size: 1.05rem; font-weight: 600; margin-bottom: 6px; }
+  .master-placeholder-tag{
+    display: inline-block; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase;
+    background: var(--surface-2); color: var(--text-muted);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 3px 10px; margin-bottom: 10px;
+  }
+  .master-window{ font-size: 0.84rem; color: var(--text-muted); }
+  .masters-disclaimer{
+    margin-top: 18px; padding: 14px 16px;
+    background: var(--surface-2); border-radius: 8px; border: 1px solid var(--border);
+    font-size: 0.86rem; color: var(--text-muted); max-width: 60ch;
+  }
+
+  /* ---------- booking form ---------- */
+  .booking-shell{
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: clamp(20px, 4vw, 36px);
+    max-width: 640px;
+  }
+  .field{ margin-bottom: 18px; }
+  .field label{
+    display: block; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 8px;
+  }
+  .field select, .field input{
+    width: 100%; padding: 12px 14px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-size: 1rem;
+    font-family: inherit;
+  }
+  .field select:disabled, .field input:disabled{ opacity: 0.5; }
+  .field select:focus, .field input:focus{ outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .slots-wrap{ min-height: 44px; }
+  .slots-hint{ font-size: 0.86rem; color: var(--text-muted); }
+  .slots-grid{
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .slot-btn{
+    font-size: 0.86rem; padding: 9px 14px;
+    border-radius: 7px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  .slot-btn:hover{ border-color: var(--accent); }
+  .slot-btn.selected{
+    background: var(--accent); color: var(--leather);
+    border-color: var(--accent); font-weight: 600;
+  }
+
+  .form-msg{
+    margin-top: 16px; padding: 12px 14px; border-radius: 8px;
+    font-size: 0.9rem; display: none;
+  }
+  .form-msg.show{ display: block; }
+  .form-msg.error{ background: rgba(201,113,85,0.15); border: 1px solid var(--error); color: #E8B8A8; }
+  .form-msg.ok{ background: rgba(127,174,134,0.15); border: 1px solid var(--ok); color: #C4E0C8; }
+
+  .submit-row{ margin-top: 22px; }
+
+  /* ---------- contacts ---------- */
+  .contacts-grid{
+    display: grid; grid-template-columns: 1fr; gap: 32px;
+  }
+  @media (min-width: 760px){
+    .contacts-grid{ grid-template-columns: 1fr 1fr; }
+  }
+  .contact-list{ list-style: none; margin: 0; padding: 0; }
+  .contact-list li{
+    padding: 12px 0; border-top: 1px solid var(--border);
+    display: flex; gap: 14px; font-size: 0.95rem;
+  }
+  .contact-list li:last-child{ border-bottom: 1px solid var(--border); }
+  .contact-list .k{ color: var(--text-muted); flex: 0 0 110px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; padding-top: 2px; }
+  .contact-list .v a{ color: var(--text); text-decoration: none; }
+  .contact-list .v a:hover{ color: var(--accent); }
+  .proof-links{ display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  .proof-link{
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; font-size: 0.86rem;
+    text-decoration: none; color: var(--text);
+  }
+  .proof-link:hover{ border-color: var(--accent); }
+  .proof-link .num{ color: var(--accent); font-weight: 600; }
+
+  .contact-photo{ border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .contact-photo img{ width: 100%; height: 100%; object-fit: cover; aspect-ratio: 4/3; }
+
+  footer.site{
+    border-top: 1px solid var(--border);
+    padding: 28px 0 40px;
+    font-size: 0.8rem; color: var(--text-muted);
+  }
+  footer.site .wrap{ display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+
+  .sr-only{
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0,0,0,0); white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="nav">
+    <a href="#top" class="brand">АЛИХАН</a>
+    <a href="#booking" class="btn">Записаться</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <span class="badge">Премиум мужские стрижки · Ставрополь</span>
+          <h1 class="pitch">Алихан</h1>
+          <p class="hero-sub">Стрижка как процедура, а не конвейерная услуга - в каждой позиции прайса консультация по форме лица, профессиональный уход и расслабляющий массаж, не только сам срез волос</p>
+          <div class="hero-cta-row">
+            <a href="#booking" class="btn">Записаться онлайн</a>
+            <a href="#price" class="btn secondary">Смотреть прайс</a>
+          </div>
+          <div class="proof-bar">
+            <a class="proof-chip" href="https://2gis.ru/stavropol/geo/70000001114087480" target="_blank" rel="noopener"><b>5.0★</b> 2ГИС</a>
+            <a class="proof-chip" href="https://yandex.ru/maps/-/CTfqYO~P" target="_blank" rel="noopener"><b>4.1★</b> Яндекс.Карты</a>
+            <span class="proof-chip"><b>2</b> точки в Ставрополе</span>
+          </div>
+          <div class="facts-row">
+            <div><b>Адрес</b>Ставрополь, ул. Андрея Голуба 16</div>
+            <div><b>Часы работы</b>ежедневно 10:00-20:00</div>
+            <div><b>Телефон</b><a href="tel:+79899977070">+7 989 997 70 70</a></div>
+          </div>
+        </div>
+        <div class="hero-photo">
+          <img src="assets/hero-night.jpg" alt="Вывеска Алихан, вечер, реальный фасад" loading="eager">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="price" class="alt">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Прайс-лист</p>
+        <h2>Полный список услуг</h2>
+        <p class="section-desc">Дословно из прайс-листа салона, ничего не округлено и не выдумано</p>
+      </div>
+      <div id="price-grid" class="price-grid"></div>
+    </div>
+  </section>
+
+  <section id="masters">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Мастера</p>
+        <h2>Кто стрижёт</h2>
+        <p class="section-desc">Рабочее окно каждого мастера - 10:00-20:00 ежедневно</p>
+      </div>
+      <div id="masters-grid" class="masters-grid"></div>
+      <div class="masters-disclaimer">
+        Это демо-версия сайта с примерными именами мастеров - настоящие имена и фото подставляются на следующем шаге, после согласования с владельцем
+      </div>
+    </div>
+  </section>
+
+  <section id="booking" class="alt">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Онлайн-запись</p>
+        <h2>Записаться без звонка администратору</h2>
+        <p class="section-desc">Выберите мастера, услугу и дату - система покажет только реально свободное время</p>
+      </div>
+
+      <form id="booking-form" class="booking-shell" novalidate>
+        <div class="field">
+          <label for="f-master">Мастер</label>
+          <select id="f-master" name="master" required>
+            <option value="" disabled selected>Выберите мастера</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="f-service">Услуга</label>
+          <select id="f-service" name="service" required disabled>
+            <option value="" disabled selected>Сначала выберите мастера</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="f-date">Дата</label>
+          <input type="date" id="f-date" name="date" required disabled>
+        </div>
+
+        <div class="field">
+          <label>Свободное время</label>
+          <div id="slots-wrap" class="slots-wrap">
+            <p class="slots-hint">Сначала выберите мастера, услугу и дату</p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="f-name">Ваше имя</label>
+          <input type="text" id="f-name" name="clientName" required maxlength="80" autocomplete="name">
+        </div>
+
+        <div class="field">
+          <label for="f-phone">Телефон</label>
+          <input type="tel" id="f-phone" name="clientPhone" required maxlength="20" autocomplete="tel" placeholder="+7 900 000 00 00">
+        </div>
+
+        <div class="submit-row">
+          <button type="submit" class="btn" id="f-submit" disabled>Подтвердить запись</button>
+        </div>
+
+        <div id="form-msg" class="form-msg" role="status" aria-live="polite"></div>
+      </form>
+    </div>
+  </section>
+
+  <section id="contacts">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Контакты</p>
+        <h2>Где мы находимся</h2>
+      </div>
+      <div class="contacts-grid">
+        <div>
+          <ul class="contact-list">
+            <li><span class="k">Адрес</span><span class="v">Ставрополь, ул. Андрея Голуба 16</span></li>
+            <li><span class="k">Часы</span><span class="v">ежедневно 10:00-20:00</span></li>
+            <li><span class="k">Телефон</span><span class="v"><a href="tel:+79899977070">+7 989 997 70 70</a></span></li>
+            <li><span class="k">Instagram</span><span class="v"><a href="https://instagram.com/ali.khanbarbershop" target="_blank" rel="noopener">@ali.khanbarbershop</a></span></li>
+          </ul>
+          <div class="proof-links">
+            <a class="proof-link" href="https://2gis.ru/stavropol/geo/70000001114087480" target="_blank" rel="noopener"><span class="num">5.0★</span> 2ГИС (6 оценок, 4 отзыва)</a>
+            <a class="proof-link" href="https://yandex.ru/maps/-/CTfqYO~P" target="_blank" rel="noopener"><span class="num">4.1★</span> Яндекс.Карты (2 отзыва, 4 оценки)</a>
+          </div>
+        </div>
+        <div class="contact-photo">
+          <img src="assets/interior-honeycomb.jpg" alt="Интерьер салона, соты-подсветка, зелёные стены" loading="lazy">
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>Алихан · премиум мужские стрижки · Ставрополь</span>
+    <span>Демо-MVP · мастера примерные · 24.07.2026</span>
+  </div>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

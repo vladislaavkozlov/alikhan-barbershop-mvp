@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Алихан — CRM (демо)</title>
+<style>
+  :root {
+    --bg: #12201A;
+    --surface: #1C2E24;
+    --surface-2: #24392C;
+    --accent: #C6A15B;
+    --accent-hover: #B58F45;
+    --wood: #B98B54;
+    --text: #F3EFE4;
+    --text-muted: #B9B2A2;
+    --border: rgba(198, 161, 91, 0.25);
+    --leather: #17140F;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  h1 {
+    margin: 0 0 4px;
+    color: var(--accent);
+  }
+
+  .subtitle {
+    color: var(--text-muted);
+    margin: 0 0 20px;
+  }
+
+  .banner {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  section h2 {
+    margin-top: 0;
+    color: var(--accent);
+    font-size: 18px;
+  }
+
+  .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .filter-row label {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  input[type="date"] {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+
+  button {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: var(--accent);
+    color: var(--leather);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  #bookingsEmpty {
+    color: var(--text-muted);
+    padding: 12px 0;
+  }
+
+  .payroll-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+  }
+
+  .payroll-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .payroll-card h3 {
+    margin: 0 0 8px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .badge {
+    font-size: 11px;
+    text-transform: uppercase;
+    background: var(--wood);
+    color: var(--leather);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .payroll-total {
+    margin: 4px 0;
+    color: var(--text);
+  }
+
+  .payroll-range {
+    margin: 4px 0;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .payroll-note {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<h1>Алихан — записи и зарплата</h1>
+<p class="subtitle">Внутренняя демо-панель, не для клиентов</p>
+
+<div class="banner">
+  Мастера («Иван 1», «Иван 2», «Иван 3») — примерные плейсхолдер-данные, не реальные сотрудники.
+  Расчёт зарплаты — ориентировочный по ставке 45-50%, до уточнения реальных условий у владельца.
+</div>
+
+<section>
+  <h2>Записи</h2>
+  <div class="filter-row">
+    <label for="filterDate">Фильтр по дате:</label>
+    <input type="date" id="filterDate" />
+    <button type="button" id="filterReset">Показать все</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Клиент</th>
+        <th>Телефон</th>
+        <th>Мастер</th>
+        <th>Услуга</th>
+        <th>Дата</th>
+        <th>Время</th>
+      </tr>
+    </thead>
+    <tbody id="bookingsBody"></tbody>
+  </table>
+  <p id="bookingsEmpty" hidden>Записей пока нет.</p>
+</section>
+
+<section>
+  <h2>Зарплата по мастерам (ориентировочно)</h2>
+  <div class="payroll-cards" id="payrollCards"></div>
+</section>
+
+<script type="module" src="admin.js"></script>
+</body>
+</html>
