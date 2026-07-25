@@ -98,20 +98,137 @@ function renderAll(filterDate) {
   renderPayroll(filterDate);
 }
 
-function init() {
-  const filterInput = document.getElementById('filterDate');
-  const resetButton = document.getElementById('filterReset');
+/* ---------- custom date picker (same component as index.html booking form) ----------
+   Difference from the booking-form calendar: no past-date disabling - the owner needs
+   to look up history, not just book ahead. */
+const dateToggle = document.getElementById('date-toggle');
+const dateToggleLabel = document.getElementById('date-toggle-label');
+const datePopover = document.getElementById('date-popover');
+const calPrev = document.getElementById('cal-prev');
+const calNext = document.getElementById('cal-next');
+const calMonthLabel = document.getElementById('cal-month-label');
+const calGrid = document.getElementById('cal-grid');
+const filterResetBtn = document.getElementById('filterReset');
 
-  filterInput.addEventListener('change', () => {
-    renderAll(filterInput.value || undefined);
-  });
+const today = new Date();
+let calViewYear = today.getFullYear();
+let calViewMonth = today.getMonth();
+let selectedFilterDate = null;
 
-  resetButton.addEventListener('click', () => {
-    filterInput.value = '';
-    renderAll(undefined);
-  });
-
-  renderAll(undefined);
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-document.addEventListener('DOMContentLoaded', init);
+function formatDateRu(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+function daysInMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function isoDate(year, month, day) {
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function renderCalendar() {
+  const label = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' }).format(
+    new Date(calViewYear, calViewMonth, 1),
+  );
+  calMonthLabel.textContent = label;
+
+  calGrid.replaceChildren();
+  const firstWeekday = (new Date(calViewYear, calViewMonth, 1).getDay() + 6) % 7;
+  for (let i = 0; i < firstWeekday; i++) {
+    const empty = document.createElement('span');
+    empty.className = 'cal-day-empty';
+    calGrid.append(empty);
+  }
+
+  const todayIso = todayStr();
+  const total = daysInMonth(calViewYear, calViewMonth);
+  for (let day = 1; day <= total; day++) {
+    const iso = isoDate(calViewYear, calViewMonth, day);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cal-day';
+    btn.textContent = String(day);
+
+    if (iso === todayIso) btn.classList.add('today');
+    if (iso === selectedFilterDate) btn.classList.add('selected');
+
+    btn.addEventListener('click', () => {
+      selectedFilterDate = iso;
+      dateToggleLabel.textContent = formatDateRu(iso);
+      dateToggleLabel.classList.remove('placeholder');
+      closeDatePopover();
+      renderCalendar();
+      renderAll(selectedFilterDate);
+    });
+    calGrid.append(btn);
+  }
+}
+
+function openDatePopover() {
+  datePopover.hidden = false;
+  dateToggle.setAttribute('aria-expanded', 'true');
+  document.addEventListener('click', onDocClickForDate);
+  document.addEventListener('keydown', onDocKeydownForDate);
+}
+
+function closeDatePopover() {
+  datePopover.hidden = true;
+  dateToggle.setAttribute('aria-expanded', 'false');
+  document.removeEventListener('click', onDocClickForDate);
+  document.removeEventListener('keydown', onDocKeydownForDate);
+}
+
+function onDocClickForDate(event) {
+  if (!datePopover.contains(event.target) && event.target !== dateToggle) closeDatePopover();
+}
+
+function onDocKeydownForDate(event) {
+  if (event.key === 'Escape') closeDatePopover();
+}
+
+dateToggle.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (datePopover.hidden) {
+    renderCalendar();
+    openDatePopover();
+  } else {
+    closeDatePopover();
+  }
+});
+
+calPrev.addEventListener('click', () => {
+  calViewMonth -= 1;
+  if (calViewMonth < 0) {
+    calViewMonth = 11;
+    calViewYear -= 1;
+  }
+  renderCalendar();
+});
+
+calNext.addEventListener('click', () => {
+  calViewMonth += 1;
+  if (calViewMonth > 11) {
+    calViewMonth = 0;
+    calViewYear += 1;
+  }
+  renderCalendar();
+});
+
+filterResetBtn.addEventListener('click', () => {
+  selectedFilterDate = null;
+  dateToggleLabel.textContent = 'Все даты';
+  dateToggleLabel.classList.add('placeholder');
+  calViewYear = today.getFullYear();
+  calViewMonth = today.getMonth();
+  renderCalendar();
+  renderAll(undefined);
+});
+
+renderAll(undefined);
