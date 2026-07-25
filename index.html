@@ -219,6 +219,56 @@
   .section-head{ max-width: 60ch; margin-bottom: 32px; }
   .section-desc{ color: var(--text-muted); }
 
+  /* ---------- philosophy ---------- */
+  .philosophy-quote{
+    font-family: 'Playfair Display', Charter, Georgia, serif;
+    font-weight: 600;
+    max-width: 42ch; margin: 0 auto; text-align: center;
+    font-size: clamp(1.6rem, 1.6vw + 1.15rem, 2.5rem);
+    line-height: 1.2;
+  }
+  .philosophy-quote em{ font-style: normal; color: var(--accent); }
+  .philosophy-fact{
+    text-align: center; margin: 26px 0 0;
+    font-size: 0.92rem; color: var(--text-muted);
+  }
+  .philosophy-fact b{ color: var(--text); }
+  .philosophy-placeholder{
+    margin: 36px auto 0; max-width: 58ch;
+    border: 1px dashed var(--border); border-radius: 10px;
+    padding: 18px 22px; text-align: center;
+  }
+  .philosophy-placeholder-tag{
+    display: inline-block; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 8px;
+  }
+  .philosophy-placeholder p{ font-style: italic; color: var(--text-muted); margin: 0; font-size: 0.94rem; }
+  .philosophy-ask{
+    margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border);
+    text-align: left;
+  }
+  .philosophy-ask-label{
+    font-style: normal !important; font-weight: 600;
+    font-size: 0.82rem; color: var(--accent); margin: 0 0 8px !important;
+  }
+  .philosophy-ask ol{ margin: 0; padding-left: 20px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.6; }
+  .philosophy-ask li{ margin-bottom: 3px; }
+  .philosophy-ask-note{
+    font-style: normal !important; font-size: 0.8rem; color: var(--text-muted);
+    margin: 10px 0 0 !important; opacity: 0.85;
+  }
+
+  /* ---------- team growth ---------- */
+  .team-growth-grid{
+    display: grid; grid-template-columns: 1fr; gap: 24px; align-items: center;
+  }
+  @media (min-width: 760px){
+    .team-growth-grid{ grid-template-columns: 1.1fr 0.9fr; gap: 44px; }
+  }
+  .team-growth-photo{ border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .team-growth-photo img{ width: 100%; height: 100%; object-fit: cover; aspect-ratio: 4/3.5; }
+  .team-growth-caption{ color: var(--text-muted); font-size: 1rem; line-height: 1.6; margin: 0; }
+
   /* ---------- price ---------- */
   .price-grid{
     display: grid; grid-template-columns: 1fr; gap: 14px;
@@ -505,6 +555,29 @@
     </div>
   </section>
 
+  <section id="philosophy">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Философия</p>
+        <h2>Наш принцип</h2>
+      </div>
+      <blockquote class="philosophy-quote">Стрижка как <em>процедура</em>, а не конвейерная услуга</blockquote>
+      <p class="philosophy-fact"><b>2 точки</b> в Ставрополе - один и тот же принцип на каждой</p>
+      <div class="philosophy-placeholder">
+        <p class="philosophy-placeholder-tag">Скоро - личная история</p>
+        <p>Личная история Алихана - здесь будет короткий рассказ от первого лица о том, почему салон носит его имя</p>
+        <div class="philosophy-ask">
+          <p class="philosophy-ask-label">Алихан, чтобы этот блок появился, нужны ответы на два вопроса:</p>
+          <ol>
+            <li>Почему салон назван именно «Алихан»?</li>
+            <li>Что для тебя лично значит «премиум» в стрижке - своими словами, в паре предложений?</li>
+          </ol>
+          <p class="philosophy-ask-note">Можно голосовым на 30-60 секунд вместо текста</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section id="price" class="alt">
     <div class="wrap">
       <div class="section-head">
@@ -526,6 +599,21 @@
       <div id="masters-grid" class="masters-grid"></div>
       <div class="masters-disclaimer">
         Это демо-версия сайта с примерными именами мастеров - настоящие имена и фото подставляются на следующем шаге, после согласования с владельцем
+      </div>
+    </div>
+  </section>
+
+  <section id="team-growth" class="alt">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Команда развивается</p>
+        <h2>Учимся у практикующих преподавателей</h2>
+      </div>
+      <div class="team-growth-grid">
+        <div class="team-growth-photo">
+          <img src="assets/team-masterclass-kondor.jpg" alt="Команда салона на мастер-классе с сертификатами школы Kóndor" loading="lazy">
+        </div>
+        <p class="team-growth-caption">Команда салона повышает квалификацию на мастер-классах у практикующих преподавателей - на фото сертификаты школы Kóndor</p>
       </div>
     </div>
   </section>

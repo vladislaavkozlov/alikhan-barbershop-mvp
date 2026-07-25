@@ -450,7 +450,7 @@ renderPrice();
 renderMasters();
 renderMasterOptions();
 
-for (const el of document.querySelectorAll('.section-head, .booking-shell, .contacts-grid > *')) {
+for (const el of document.querySelectorAll('.section-head, .booking-shell, .contacts-grid > *, .philosophy-quote, .philosophy-fact, .philosophy-placeholder, .team-growth-grid > *')) {
   armReveal(el);
 }
 
