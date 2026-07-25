@@ -20,6 +20,32 @@
     --leather: #17140F;
     --error: #C97155;
     --ok: #7FAE86;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @font-face{
+    font-family: 'Manrope';
+    font-style: normal; font-weight: 400; font-display: swap;
+    src: url('assets/fonts/manrope-cyrillic-400.woff2') format('woff2');
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+  }
+  @font-face{
+    font-family: 'Manrope';
+    font-style: normal; font-weight: 400; font-display: swap;
+    src: url('assets/fonts/manrope-latin-400.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+2000-206F, U+2122;
+  }
+  @font-face{
+    font-family: 'Playfair Display';
+    font-style: normal; font-weight: 600; font-display: swap;
+    src: url('assets/fonts/playfair-cyrillic-600.woff2') format('woff2');
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+  }
+  @font-face{
+    font-family: 'Playfair Display';
+    font-style: normal; font-weight: 600; font-display: swap;
+    src: url('assets/fonts/playfair-latin-600.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+2000-206F, U+2122;
   }
 
   *{ box-sizing: border-box; }
@@ -28,12 +54,12 @@
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'Manrope', -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   h1, h2, h3{
-    font-family: Charter, 'Iowan Old Style', Georgia, 'Times New Roman', serif;
-    font-weight: 400;
+    font-family: 'Playfair Display', Charter, Georgia, serif;
+    font-weight: 600;
     margin: 0 0 12px;
   }
   p{ margin: 0 0 12px; line-height: 1.55; }
@@ -42,9 +68,28 @@
 
   .wrap{ max-width: 1080px; margin: 0 auto; padding: 0 clamp(18px, 5vw, 40px); }
 
-  /* honeycomb decorative motif - one place only, per Design.md */
-  .honeycomb-bg{
-    background-image: radial-gradient(circle at 20% 20%, var(--border) 0, transparent 45%);
+  /* honeycomb decorative motif - one place only, per Design.md - hex-tile pattern echoing the real ceiling light */
+  .honeycomb-bg{ position: relative; overflow: hidden; }
+  .honeycomb-bg::before{
+    content: ""; position: absolute; inset: -20% -10%; z-index: 0; pointer-events: none;
+    background-image: radial-gradient(circle at center, rgba(198,161,91,0.16) 0, transparent 62%),
+      repeating-linear-gradient(120deg, rgba(198,161,91,0.05) 0 2px, transparent 2px 34px),
+      repeating-linear-gradient(60deg, rgba(198,161,91,0.05) 0 2px, transparent 2px 34px),
+      repeating-linear-gradient(0deg, rgba(198,161,91,0.05) 0 2px, transparent 2px 34px);
+    opacity: 0.7;
+  }
+  .honeycomb-bg > .wrap{ position: relative; z-index: 1; }
+
+  /* motion: reveal-on-scroll, progressive enhancement only - default state is fully visible */
+  @media (prefers-reduced-motion: no-preference){
+    .reveal{ opacity: 0; transform: translateY(20px); transition: opacity 650ms var(--ease-out), transform 650ms var(--ease-out); }
+    .reveal.revealed{ opacity: 1; transform: translateY(0); }
+    @keyframes heroFadeUp{ from{ opacity: 0; transform: translateY(18px); } to{ opacity: 1; transform: translateY(0); } }
+    .hero-anim{ opacity: 0; animation: heroFadeUp 700ms var(--ease-out) forwards; }
+    .hero-anim.d1{ animation-delay: 60ms; }
+    .hero-anim.d2{ animation-delay: 140ms; }
+    .hero-anim.d3{ animation-delay: 220ms; }
+    .hero-anim.d4{ animation-delay: 100ms; }
   }
 
   /* ---------- header ---------- */
@@ -59,7 +104,8 @@
     padding: 14px clamp(18px, 5vw, 40px);
   }
   .brand{
-    font-family: Charter, Georgia, serif;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 600;
     font-size: 1.3rem; letter-spacing: 0.04em;
     color: var(--text); text-decoration: none;
   }
@@ -70,15 +116,17 @@
     padding: 10px 20px; border-radius: 6px;
     text-decoration: none; font-weight: 600; font-size: 0.92rem;
     border: none; cursor: pointer;
-    transition: background 0.15s ease;
+    transition: background 160ms var(--ease-out), transform 160ms var(--ease-out);
   }
   .btn:hover{ background: var(--accent-hover); }
+  .btn:active{ transform: scale(0.97); }
   .btn.secondary{
     background: transparent; color: var(--accent);
     border: 1px solid var(--border);
   }
   .btn.secondary:hover{ background: var(--surface-2); }
   .btn:disabled{ opacity: 0.5; cursor: not-allowed; }
+  .btn:disabled:active{ transform: none; }
 
   /* ---------- hero ---------- */
   .hero{
@@ -112,7 +160,7 @@
     max-width: 46ch;
     margin-bottom: 22px;
   }
-  .hero-cta-row{ display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }
+  .hero-cta-row{ display: flex; flex-wrap: wrap; gap: 12px; }
   .proof-bar{
     display: flex; flex-wrap: wrap; gap: 10px;
   }
@@ -121,7 +169,10 @@
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 8px; padding: 8px 14px;
     font-size: 0.86rem; color: var(--text-muted);
+    text-decoration: none;
+    transition: border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
   }
+  a.proof-chip:hover{ border-color: var(--accent); transform: translateY(-1px); }
   .proof-chip b{ color: var(--text); font-weight: 600; }
   .hero-photo{
     border-radius: 14px; overflow: hidden;
@@ -132,13 +183,16 @@
 
   .facts-row{
     display: flex; flex-wrap: wrap; gap: 20px 32px;
-    margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--border);
     font-size: 0.92rem; color: var(--text-muted);
   }
   .facts-row b{ color: var(--text); font-weight: 600; display: block; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
 
+  /* ---------- trust strip (proof + facts, split out of hero so the hero stays to one message) ---------- */
+  .trust-strip{ padding: 24px 0; border-bottom: 1px solid var(--border); }
+  .trust-strip .wrap{ display: flex; flex-wrap: wrap; gap: 18px 40px; align-items: center; justify-content: space-between; }
+
   /* ---------- section shell ---------- */
-  section{ padding: clamp(44px, 7vw, 76px) 0; }
+  section{ padding: clamp(44px, 7vw, 76px) 0; scroll-margin-top: 84px; }
   section.alt{ background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   .eyebrow{
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -158,7 +212,9 @@
   .price-card{
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 10px; padding: 18px 20px;
+    transition: border-color 200ms var(--ease-out), transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
   }
+  .price-card:hover{ border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 16px 30px -20px rgba(0,0,0,0.5); }
   .price-card-head{
     display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
     margin-bottom: 6px;
@@ -172,6 +228,11 @@
   .price-card-comp{ font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; margin: 0; }
 
   /* ---------- masters ---------- */
+  #masters{
+    position: relative;
+    background-image: linear-gradient(180deg, var(--bg) 0%, rgba(18,32,26,0.88) 40%, var(--bg) 100%), url('assets/facade-day.jpg');
+    background-size: cover; background-position: center;
+  }
   .masters-grid{
     display: grid; grid-template-columns: 1fr; gap: 16px;
   }
@@ -181,7 +242,9 @@
   .master-card{
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 10px; padding: 20px; text-align: center;
+    transition: border-color 200ms var(--ease-out), transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
   }
+  .master-card:hover{ border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 16px 30px -20px rgba(0,0,0,0.6); }
   .master-avatar{
     width: 64px; height: 64px; border-radius: 50%;
     background: var(--surface-2); border: 1px solid var(--border);
@@ -213,32 +276,53 @@
     display: block; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase;
     color: var(--text-muted); margin-bottom: 8px;
   }
-  .field select, .field input{
+  .field input{
     width: 100%; padding: 12px 14px;
     background: var(--surface-2); border: 1px solid var(--border);
     border-radius: 8px; color: var(--text); font-size: 1rem;
     font-family: inherit;
   }
-  .field select:disabled, .field input:disabled{ opacity: 0.5; }
-  .field select:focus, .field input:focus{ outline: 2px solid var(--accent); outline-offset: 1px; }
+  .field input:disabled{ opacity: 0.5; }
+  .field input:focus{ outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* browser autofill otherwise paints its own light background, breaking the dark theme */
+  .field input:-webkit-autofill,
+  .field input:-webkit-autofill:hover,
+  .field input:-webkit-autofill:focus{
+    -webkit-text-fill-color: var(--text);
+    -webkit-box-shadow: 0 0 0px 1000px var(--surface-2) inset;
+    caret-color: var(--text);
+    transition: background-color 5000s ease-in-out 0s;
+  }
 
   .slots-wrap{ min-height: 44px; }
   .slots-hint{ font-size: 0.86rem; color: var(--text-muted); }
-  .slots-grid{
+  .slots-grid, .option-grid{
     display: flex; flex-wrap: wrap; gap: 8px;
   }
-  .slot-btn{
+  .slot-btn, .option-card{
     font-size: 0.86rem; padding: 9px 14px;
     border-radius: 7px; border: 1px solid var(--border);
     background: var(--surface); color: var(--text);
     font-variant-numeric: tabular-nums;
     cursor: pointer;
+    transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out), transform 160ms var(--ease-out);
   }
-  .slot-btn:hover{ border-color: var(--accent); }
-  .slot-btn.selected{
+  .slot-btn:hover, .option-card:hover{ border-color: var(--accent); }
+  .slot-btn:active, .option-card:active{ transform: scale(0.97); }
+  .slot-btn.selected, .option-card.selected{
     background: var(--accent); color: var(--leather);
     border-color: var(--accent); font-weight: 600;
   }
+  .option-card{
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    text-align: left; min-width: 150px; flex: 1 1 150px;
+  }
+  .option-card .opt-name{ font-weight: 600; }
+  .option-card .opt-meta{ font-size: 0.78rem; color: var(--text-muted); }
+  .option-card.selected .opt-meta{ color: var(--leather); opacity: 0.75; }
+  .option-grid[aria-disabled="true"]{ opacity: 0.5; pointer-events: none; }
+  .option-hint{ font-size: 0.86rem; color: var(--text-muted); }
 
   .form-msg{
     margin-top: 16px; padding: 12px 14px; border-radius: 8px;
@@ -307,27 +391,32 @@
     <div class="wrap">
       <div class="hero-grid">
         <div>
-          <span class="badge">Премиум мужские стрижки · Ставрополь</span>
-          <h1 class="pitch">Алихан</h1>
-          <p class="hero-sub">Стрижка как процедура, а не конвейерная услуга - в каждой позиции прайса консультация по форме лица, профессиональный уход и расслабляющий массаж, не только сам срез волос</p>
-          <div class="hero-cta-row">
+          <span class="badge hero-anim">Премиум мужские стрижки · Ставрополь</span>
+          <h1 class="pitch hero-anim d1">Алихан</h1>
+          <p class="hero-sub hero-anim d2">Стрижка как процедура, а не конвейерная услуга - в каждой позиции прайса консультация по форме лица, профессиональный уход и расслабляющий массаж, не только сам срез волос</p>
+          <div class="hero-cta-row hero-anim d3">
             <a href="#booking" class="btn">Записаться онлайн</a>
             <a href="#price" class="btn secondary">Смотреть прайс</a>
           </div>
-          <div class="proof-bar">
-            <a class="proof-chip" href="https://2gis.ru/stavropol/geo/70000001114087480" target="_blank" rel="noopener"><b>5.0★</b> 2ГИС</a>
-            <a class="proof-chip" href="https://yandex.ru/maps/-/CTfqYO~P" target="_blank" rel="noopener"><b>4.1★</b> Яндекс.Карты</a>
-            <span class="proof-chip"><b>2</b> точки в Ставрополе</span>
-          </div>
-          <div class="facts-row">
-            <div><b>Адрес</b>Ставрополь, ул. Андрея Голуба 16</div>
-            <div><b>Часы работы</b>ежедневно 10:00-20:00</div>
-            <div><b>Телефон</b><a href="tel:+79899977070">+7 989 997 70 70</a></div>
-          </div>
         </div>
-        <div class="hero-photo">
+        <div class="hero-photo hero-anim d4">
           <img src="assets/hero-night.jpg" alt="Вывеска Алихан, вечер, реальный фасад" loading="eager">
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="trust-strip honeycomb-bg">
+    <div class="wrap">
+      <div class="proof-bar">
+        <a class="proof-chip" href="https://2gis.ru/stavropol/geo/70000001114087480" target="_blank" rel="noopener"><b>5.0★</b> 2ГИС</a>
+        <a class="proof-chip" href="https://yandex.ru/maps/-/CTfqYO~P" target="_blank" rel="noopener"><b>4.1★</b> Яндекс.Карты</a>
+        <span class="proof-chip"><b>2</b> точки в Ставрополе</span>
+      </div>
+      <div class="facts-row">
+        <div><b>Адрес</b>Ставрополь, ул. Андрея Голуба 16</div>
+        <div><b>Часы работы</b>ежедневно 10:00-20:00</div>
+        <div><b>Телефон</b><a href="tel:+79899977070">+7 989 997 70 70</a></div>
       </div>
     </div>
   </section>
@@ -367,17 +456,15 @@
 
       <form id="booking-form" class="booking-shell" novalidate>
         <div class="field">
-          <label for="f-master">Мастер</label>
-          <select id="f-master" name="master" required>
-            <option value="" disabled selected>Выберите мастера</option>
-          </select>
+          <label id="f-master-label">Мастер</label>
+          <div id="master-grid" class="option-grid" role="group" aria-labelledby="f-master-label"></div>
         </div>
 
         <div class="field">
-          <label for="f-service">Услуга</label>
-          <select id="f-service" name="service" required disabled>
-            <option value="" disabled selected>Сначала выберите мастера</option>
-          </select>
+          <label id="f-service-label">Услуга</label>
+          <div id="service-grid" class="option-grid" role="group" aria-labelledby="f-service-label" aria-disabled="true">
+            <p class="option-hint">Сначала выберите мастера</p>
+          </div>
         </div>
 
         <div class="field">

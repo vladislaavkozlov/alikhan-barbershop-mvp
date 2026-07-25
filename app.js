@@ -7,8 +7,8 @@ const services = getServices();
 const priceGrid = document.getElementById('price-grid');
 const mastersGrid = document.getElementById('masters-grid');
 const form = document.getElementById('booking-form');
-const masterSelect = document.getElementById('f-master');
-const serviceSelect = document.getElementById('f-service');
+const masterGrid = document.getElementById('master-grid');
+const serviceGrid = document.getElementById('service-grid');
 const dateInput = document.getElementById('f-date');
 const slotsWrap = document.getElementById('slots-wrap');
 const nameInput = document.getElementById('f-name');
@@ -16,7 +16,27 @@ const phoneInput = document.getElementById('f-phone');
 const submitBtn = document.getElementById('f-submit');
 const formMsg = document.getElementById('form-msg');
 
+let selectedMaster = null;
+let selectedService = null;
 let selectedSlot = null;
+
+// scroll-reveal is progressive enhancement only - reduced-motion users get the plain static page
+const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const revealObserver = REDUCE_MOTION ? null : new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('revealed');
+      revealObserver.unobserve(entry.target);
+    }
+  }
+}, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+function armReveal(el, delayMs = 0) {
+  if (REDUCE_MOTION) return;
+  el.classList.add('reveal');
+  if (delayMs) el.style.transitionDelay = `${delayMs}ms`;
+  revealObserver.observe(el);
+}
 
 function todayStr() {
   const d = new Date();
@@ -25,6 +45,7 @@ function todayStr() {
 
 function renderPrice() {
   priceGrid.replaceChildren();
+  let i = 0;
   for (const service of services) {
     const card = document.createElement('div');
     card.className = 'price-card';
@@ -51,11 +72,14 @@ function renderPrice() {
 
     card.append(head, duration, comp);
     priceGrid.append(card);
+    armReveal(card, i * 50);
+    i += 1;
   }
 }
 
 function renderMasters() {
   mastersGrid.replaceChildren();
+  let i = 0;
   for (const master of masters) {
     const card = document.createElement('div');
     card.className = 'master-card';
@@ -81,31 +105,68 @@ function renderMasters() {
 
     card.append(avatar, tag, name, win);
     mastersGrid.append(card);
+    armReveal(card, i * 50);
+    i += 1;
   }
 }
 
-function populateMasterSelect() {
+function renderMasterOptions() {
+  masterGrid.replaceChildren();
   for (const master of masters) {
-    const opt = document.createElement('option');
-    opt.value = master.id;
-    opt.textContent = `${master.name} (пример)`;
-    masterSelect.append(opt);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'option-card';
+
+    const name = document.createElement('span');
+    name.className = 'opt-name';
+    name.textContent = master.name;
+
+    const meta = document.createElement('span');
+    meta.className = 'opt-meta';
+    meta.textContent = `${master.workWindow.start}-${master.workWindow.end}${master.isPlaceholder ? ' · пример' : ''}`;
+
+    btn.append(name, meta);
+    btn.addEventListener('click', () => {
+      selectedMaster = master;
+      for (const el of masterGrid.querySelectorAll('.option-card')) {
+        el.classList.toggle('selected', el === btn);
+      }
+      serviceGrid.removeAttribute('aria-disabled');
+      dateInput.disabled = false;
+      renderServiceOptions();
+      resetSlots('Выберите услугу и дату');
+      clearMsg();
+    });
+    masterGrid.append(btn);
   }
 }
 
-function populateServiceSelect() {
-  const placeholder = document.createElement('option');
-  placeholder.value = '';
-  placeholder.disabled = true;
-  placeholder.selected = true;
-  placeholder.textContent = 'Выберите услугу';
-  serviceSelect.replaceChildren(placeholder);
-
+function renderServiceOptions() {
+  selectedService = null;
+  serviceGrid.replaceChildren();
   for (const service of services) {
-    const opt = document.createElement('option');
-    opt.value = service.id;
-    opt.textContent = `${service.name} · ${service.priceLabel} · ${service.durationLabel}`;
-    serviceSelect.append(opt);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'option-card';
+
+    const name = document.createElement('span');
+    name.className = 'opt-name';
+    name.textContent = service.name;
+
+    const meta = document.createElement('span');
+    meta.className = 'opt-meta';
+    meta.textContent = `${service.priceLabel} · ${service.durationLabel}`;
+
+    btn.append(name, meta);
+    btn.addEventListener('click', () => {
+      selectedService = service;
+      for (const el of serviceGrid.querySelectorAll('.option-card')) {
+        el.classList.toggle('selected', el === btn);
+      }
+      refreshSlots();
+      clearMsg();
+    });
+    serviceGrid.append(btn);
   }
 }
 
@@ -129,22 +190,15 @@ function resetSlots(hintText) {
   slotsWrap.append(hint);
 }
 
-function currentService() {
-  return services.find((s) => s.id === serviceSelect.value);
-}
-
 function refreshSlots() {
-  const masterId = masterSelect.value;
-  const serviceId = serviceSelect.value;
   const date = dateInput.value;
 
-  if (!masterId || !serviceId || !date) {
+  if (!selectedMaster || !selectedService || !date) {
     resetSlots('Сначала выберите мастера, услугу и дату');
     return;
   }
 
-  const service = currentService();
-  const slots = store.getFreeSlots(masterId, date, service.durationMin);
+  const slots = store.getFreeSlots(selectedMaster.id, date, selectedService.durationMin);
 
   selectedSlot = null;
   submitBtn.disabled = true;
@@ -178,19 +232,6 @@ function refreshSlots() {
   slotsWrap.append(grid);
 }
 
-masterSelect.addEventListener('change', () => {
-  serviceSelect.disabled = false;
-  dateInput.disabled = false;
-  populateServiceSelect();
-  resetSlots('Выберите услугу и дату');
-  clearMsg();
-});
-
-serviceSelect.addEventListener('change', () => {
-  refreshSlots();
-  clearMsg();
-});
-
 dateInput.addEventListener('change', () => {
   refreshSlots();
   clearMsg();
@@ -200,8 +241,8 @@ form.addEventListener('submit', (event) => {
   event.preventDefault();
   clearMsg();
 
-  const masterId = masterSelect.value;
-  const serviceId = serviceSelect.value;
+  const masterId = selectedMaster ? selectedMaster.id : null;
+  const serviceId = selectedService ? selectedService.id : null;
   const date = dateInput.value;
   const clientName = nameInput.value.trim();
   const clientPhone = phoneInput.value.trim();
@@ -238,5 +279,9 @@ form.addEventListener('submit', (event) => {
 
 renderPrice();
 renderMasters();
-populateMasterSelect();
+renderMasterOptions();
 dateInput.min = todayStr();
+
+for (const el of document.querySelectorAll('.section-head, .booking-shell, .contacts-grid > *')) {
+  armReveal(el);
+}
