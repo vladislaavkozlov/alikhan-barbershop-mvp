@@ -104,12 +104,19 @@
     padding: 14px clamp(18px, 5vw, 40px);
   }
   .brand{
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
+  }
+  .brand-logo{
+    width: 40px; height: 40px; border-radius: 50%; object-fit: cover;
+    border: 1px solid var(--border); flex-shrink: 0;
+  }
+  .brand-name{
     font-family: 'Playfair Display', Georgia, serif;
     font-weight: 600;
-    font-size: 1.3rem; letter-spacing: 0.04em;
-    color: var(--text); text-decoration: none;
+    font-size: 1.15rem; letter-spacing: 0.03em;
+    color: var(--text);
   }
-  .brand em{ color: var(--accent); font-style: normal; }
   .btn{
     display: inline-block;
     background: var(--accent); color: var(--leather);
@@ -140,27 +147,31 @@
   @media (min-width: 860px){
     .hero-grid{ grid-template-columns: 1.1fr 0.9fr; gap: 56px; }
   }
-  .badge{
-    display: inline-block;
+  .hero-kicker{
     font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--accent);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 6px 14px;
-    margin-bottom: 18px;
+    margin-bottom: 20px;
   }
-  h1.pitch{
-    font-size: clamp(2.4rem, 5vw + 1rem, 3.6rem);
-    line-height: 1.05;
-    margin-bottom: 16px;
+  .hero-headline{
+    font-size: clamp(2.6rem, 5vw + 1.9rem, 4.75rem);
+    line-height: 1.06;
+    margin-bottom: 22px;
+    text-wrap: balance;
   }
+  .hero-headline em{ font-style: normal; color: var(--accent); }
   .hero-sub{
     color: var(--text-muted);
     font-size: 1.05rem;
     max-width: 46ch;
-    margin-bottom: 22px;
+    margin-bottom: 28px;
   }
-  .hero-cta-row{ display: flex; flex-wrap: wrap; gap: 12px; }
+  .hero-cta-row{ display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+  .btn-lg{ font-size: 1.02rem; padding: 16px 30px; }
+  .link-quiet{
+    color: var(--text-muted); text-decoration: underline; text-underline-offset: 3px;
+    font-size: 0.92rem; transition: color 160ms var(--ease-out);
+  }
+  .link-quiet:hover{ color: var(--accent); }
   .proof-bar{
     display: flex; flex-wrap: wrap; gap: 10px;
   }
@@ -179,7 +190,21 @@
     border: 1px solid var(--border);
     box-shadow: 0 30px 60px -30px rgba(0,0,0,0.6);
   }
-  .hero-photo img{ width: 100%; height: 100%; object-fit: cover; aspect-ratio: 4/5; }
+  .hero-photo img{ width: 100%; height: 112%; object-fit: cover; aspect-ratio: 4/5; }
+  /* subtle depth: photo drifts and settles as the hero scrolls out of view - progressive enhancement */
+  @supports (animation-timeline: view()){
+    @media (prefers-reduced-motion: no-preference){
+      .hero-photo img{
+        animation: heroDrift linear forwards;
+        animation-timeline: view();
+        animation-range: entry 0% cover 60%;
+      }
+      @keyframes heroDrift{
+        from{ transform: translateY(-4%) scale(1.04); }
+        to{ transform: translateY(2%) scale(1); }
+      }
+    }
+  }
 
   .facts-row{
     display: flex; flex-wrap: wrap; gap: 20px 32px;
@@ -226,6 +251,18 @@
   }
   .price-card-duration{ font-size: 0.78rem; color: var(--text-muted); margin-bottom: 10px; }
   .price-card-comp{ font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; margin: 0; }
+
+  /* ---------- work portfolio ---------- */
+  .work-grid{ column-count: 1; column-gap: 16px; }
+  @media (min-width: 640px){ .work-grid{ column-count: 2; } }
+  @media (min-width: 960px){ .work-grid{ column-count: 3; } }
+  .work-photo{
+    break-inside: avoid; margin-bottom: 16px;
+    border-radius: 12px; overflow: hidden; border: 1px solid var(--border);
+    transition: border-color 200ms var(--ease-out), transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+  }
+  .work-photo:hover{ border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 16px 30px -20px rgba(0,0,0,0.55); }
+  .work-photo img{ width: 100%; height: auto; }
 
   /* ---------- masters ---------- */
   #masters{
@@ -300,7 +337,7 @@
   .slots-grid, .option-grid{
     display: flex; flex-wrap: wrap; gap: 8px;
   }
-  .slot-btn, .option-card{
+  .slot-btn, .option-card, .cal-day{
     font-size: 0.86rem; padding: 9px 14px;
     border-radius: 7px; border: 1px solid var(--border);
     background: var(--surface); color: var(--text);
@@ -308,12 +345,59 @@
     cursor: pointer;
     transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out), transform 160ms var(--ease-out);
   }
-  .slot-btn:hover, .option-card:hover{ border-color: var(--accent); }
-  .slot-btn:active, .option-card:active{ transform: scale(0.97); }
-  .slot-btn.selected, .option-card.selected{
+  .slot-btn:hover, .option-card:hover, .cal-day:not(.disabled):hover{ border-color: var(--accent); }
+  .slot-btn:active, .option-card:active, .cal-day:not(.disabled):active{ transform: scale(0.97); }
+  .slot-btn.selected, .option-card.selected, .cal-day.selected{
     background: var(--accent); color: var(--leather);
     border-color: var(--accent); font-weight: 600;
   }
+
+  /* ---------- custom date picker ---------- */
+  .date-field{ position: relative; }
+  .date-toggle{
+    width: 100%; padding: 12px 14px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-size: 1rem;
+    font-family: inherit; text-align: left; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    transition: border-color 160ms var(--ease-out);
+  }
+  .date-toggle:disabled{ opacity: 0.5; cursor: not-allowed; }
+  .date-toggle:not(:disabled):hover{ border-color: var(--accent); }
+  .date-toggle .cal-icon{ color: var(--accent); flex-shrink: 0; }
+  .date-toggle-label.placeholder{ color: var(--text-muted); }
+  .date-popover{
+    position: absolute; top: calc(100% + 8px); left: 0; z-index: 30;
+    width: min(320px, 100%);
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px;
+    box-shadow: 0 24px 48px -20px rgba(0,0,0,0.6);
+  }
+  .date-popover[hidden]{ display: none; }
+  .cal-head{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-month-label{ font-weight: 600; text-transform: capitalize; font-size: 0.92rem; }
+  .cal-nav{
+    width: 30px; height: 30px; border-radius: 50%;
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    cursor: pointer; font-size: 1rem; line-height: 1;
+    transition: border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+  }
+  .cal-nav:not(:disabled):hover{ border-color: var(--accent); }
+  .cal-nav:active{ transform: scale(0.93); }
+  .cal-nav:disabled{ opacity: 0.3; cursor: not-allowed; }
+  .cal-weekdays, .cal-grid{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-weekdays{ margin-bottom: 4px; }
+  .cal-weekdays span{
+    text-align: center; font-size: 0.68rem; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .cal-day{
+    aspect-ratio: 1; padding: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 0.84rem;
+  }
+  .cal-day.disabled{ opacity: 0.28; cursor: not-allowed; color: var(--text-muted); }
+  .cal-day.today:not(.selected){ border-color: var(--accent); }
+  .cal-day-empty{ aspect-ratio: 1; }
   .option-card{
     display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
     text-align: left; min-width: 150px; flex: 1 1 150px;
@@ -330,7 +414,16 @@
   }
   .form-msg.show{ display: block; }
   .form-msg.error{ background: rgba(201,113,85,0.15); border: 1px solid var(--error); color: #E8B8A8; }
-  .form-msg.ok{ background: rgba(127,174,134,0.15); border: 1px solid var(--ok); color: #C4E0C8; }
+  .form-msg.ok{ background: rgba(127,174,134,0.12); border: 1px solid var(--ok); color: var(--text); padding: 16px 18px; }
+  .receipt-title{ font-weight: 600; color: #C4E0C8; margin-bottom: 10px; font-size: 0.98rem; }
+  .receipt-row{
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 8px 0; border-top: 1px solid rgba(127,174,134,0.2);
+    font-size: 0.88rem;
+  }
+  .receipt-row:first-of-type{ border-top: none; }
+  .receipt-row span{ color: var(--text-muted); }
+  .receipt-row b{ font-weight: 600; text-align: right; }
 
   .submit-row{ margin-top: 22px; }
 
@@ -380,7 +473,10 @@
 
 <header class="site">
   <div class="nav">
-    <a href="#top" class="brand">АЛИХАН</a>
+    <a href="#top" class="brand">
+      <img src="assets/logo-alikhan.png" alt="Алихан" class="brand-logo">
+      <span class="brand-name">Алихан</span>
+    </a>
     <a href="#booking" class="btn">Записаться</a>
   </div>
 </header>
@@ -391,12 +487,12 @@
     <div class="wrap">
       <div class="hero-grid">
         <div>
-          <span class="badge hero-anim">Премиум мужские стрижки · Ставрополь</span>
-          <h1 class="pitch hero-anim d1">Алихан</h1>
-          <p class="hero-sub hero-anim d2">Стрижка как процедура, а не конвейерная услуга - в каждой позиции прайса консультация по форме лица, профессиональный уход и расслабляющий массаж, не только сам срез волос</p>
+          <p class="hero-kicker hero-anim">Премиум мужские стрижки · Ставрополь</p>
+          <h1 class="hero-headline hero-anim d1">Стрижка как <em>процедура</em>, а не конвейерная услуга</h1>
+          <p class="hero-sub hero-anim d2">В каждой позиции прайса - консультация по форме лица, профессиональный уход и расслабляющий массаж, не только сам срез волос</p>
           <div class="hero-cta-row hero-anim d3">
-            <a href="#booking" class="btn">Записаться онлайн</a>
-            <a href="#price" class="btn secondary">Смотреть прайс</a>
+            <a href="#booking" class="btn btn-lg">Записаться</a>
+            <a href="#price" class="link-quiet">Смотреть прайс →</a>
           </div>
         </div>
         <div class="hero-photo hero-anim d4">
@@ -446,6 +542,24 @@
     </div>
   </section>
 
+  <section id="work">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Наши работы</p>
+        <h2>Реальные стрижки из салона</h2>
+        <p class="section-desc">Фото из instagram-профиля салона @ali.khanbarbershop - реальные клиенты, не стоковые фото</p>
+      </div>
+      <div id="work-grid" class="work-grid">
+        <div class="work-photo"><img src="assets/portfolio/work-1.jpg" alt="Классическая стрижка с фейдом, вид сбоку" loading="lazy"></div>
+        <div class="work-photo"><img src="assets/portfolio/work-2.jpg" alt="Удлинённая классическая стрижка с укладкой набок" loading="lazy"></div>
+        <div class="work-photo"><img src="assets/portfolio/work-5.jpg" alt="Мастер салона за работой во время стрижки" loading="lazy"></div>
+        <div class="work-photo"><img src="assets/portfolio/work-3.jpg" alt="Чистый фейд, готовый результат в интерьере салона" loading="lazy"></div>
+        <div class="work-photo"><img src="assets/portfolio/work-4.jpg" alt="Чистый фейд, вид сбоку" loading="lazy"></div>
+        <div class="work-photo"><img src="assets/portfolio/work-6.jpg" alt="Аккуратная окантовка, вид сзади" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
   <section id="booking" class="alt">
     <div class="wrap">
       <div class="section-head">
@@ -467,9 +581,23 @@
           </div>
         </div>
 
-        <div class="field">
-          <label for="f-date">Дата</label>
-          <input type="date" id="f-date" name="date" required disabled>
+        <div class="field date-field">
+          <label id="f-date-label">Дата</label>
+          <button type="button" id="date-toggle" class="date-toggle" disabled aria-haspopup="dialog" aria-expanded="false" aria-labelledby="f-date-label">
+            <span id="date-toggle-label" class="date-toggle-label placeholder">Сначала выберите мастера</span>
+            <svg class="cal-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+          </button>
+          <div id="date-popover" class="date-popover" hidden role="dialog" aria-label="Выбор даты">
+            <div class="cal-head">
+              <button type="button" id="cal-prev" class="cal-nav" aria-label="Предыдущий месяц">‹</button>
+              <span id="cal-month-label" class="cal-month-label"></span>
+              <button type="button" id="cal-next" class="cal-nav" aria-label="Следующий месяц">›</button>
+            </div>
+            <div class="cal-weekdays">
+              <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+            </div>
+            <div id="cal-grid" class="cal-grid"></div>
+          </div>
         </div>
 
         <div class="field">
