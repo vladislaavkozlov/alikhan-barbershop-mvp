@@ -293,6 +293,47 @@
     font-size: 0.78rem;
     font-style: italic;
   }
+
+  /* Окно 8: минимальный логин-гейт - не финальный UI Окна 9, только чтобы
+     проверить 3 роли живьём (owner/admin/master ограничены на бэкенде). */
+  .login-gate {
+    max-width: 380px;
+    margin: 48px auto;
+    padding: 24px;
+    border: 1px solid var(--border, #333);
+    border-radius: 8px;
+  }
+  .login-form label {
+    display: block;
+    margin: 12px 0;
+    font-size: 0.85rem;
+  }
+  .login-form input {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  .login-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted, #888);
+    line-height: 1.4;
+  }
+  .login-error {
+    color: #d33;
+    font-size: 0.82rem;
+  }
+  .session-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    margin-bottom: 12px;
+  }
+  .session-bar button {
+    font-size: 0.78rem;
+  }
 </style>
 </head>
 <body>
@@ -304,7 +345,28 @@
   </div>
 </header>
 
-<main class="wrap page">
+<div id="loginGate" class="login-gate">
+  <form id="loginForm" class="login-form">
+    <h2>Вход в CRM</h2>
+    <p class="login-hint">
+      Окно 8 - тестовые логины для проверки ролей (Окно 9 сделает нормальное управление сотрудниками):<br>
+      owner-test@alikhan.test / 1234 - владелец, видит всё<br>
+      admin1-test@alikhan.test / 1111 - админ Точки 1<br>
+      admin2-test@alikhan.test / 2222 - админ Точки 2<br>
+      master1-test@alikhan.test / 1111 (master2/3-test - 2222/3333) - мастер, без телефонов клиентов
+    </p>
+    <label>Email<input type="email" id="loginEmail" required autocomplete="username"></label>
+    <label>PIN<input type="password" inputmode="numeric" id="loginPin" required autocomplete="current-password"></label>
+    <button type="submit">Войти</button>
+    <p id="loginError" class="login-error" hidden></p>
+  </form>
+</div>
+
+<main class="wrap page" id="crmMain" hidden>
+  <div class="session-bar">
+    <span id="sessionInfo"></span>
+    <button type="button" id="logoutBtn">Выйти</button>
+  </div>
   <h1>Записи и зарплата</h1>
   <p class="subtitle">Внутренняя демо-панель, не для клиентов</p>
 

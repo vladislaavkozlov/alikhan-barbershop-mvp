@@ -1,10 +1,103 @@
 import { createStore, createHttpBackend, getMasters, getServices } from './storage.js';
 
+// Окно 8: роли теперь ограничены на бэкенде (не только в интерфейсе) - без токена
+// сервер отдаёт /bookings в анонимной форме (без клиента вообще), поэтому админка
+// без логина больше не может показать список записей. Токен живёт в localStorage
+// этого браузера, getToken() читает его каждый раз заново - так после логина не
+// нужно пересоздавать store.
+const TOKEN_KEY = 'alikhan-crm:token';
+const STAFF_KEY = 'alikhan-crm:staff';
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+function getStaff() {
+  try {
+    return JSON.parse(localStorage.getItem(STAFF_KEY) || 'null');
+  } catch {
+    return null;
+  }
+}
+function setSession(token, staff) {
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(STAFF_KEY, JSON.stringify(staff));
+}
+function clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(STAFF_KEY);
+}
+
 // Тот же переключатель бэкенда, что в app.js - без window.ALIKHAN_API_URL админка
 // продолжает работать по-старому на localStorage (только этого же браузера).
-const store = createStore(window.ALIKHAN_API_URL ? createHttpBackend(window.ALIKHAN_API_URL) : undefined);
+const store = createStore(window.ALIKHAN_API_URL ? createHttpBackend(window.ALIKHAN_API_URL, getToken) : undefined);
 const masters = getMasters();
 const services = getServices();
+
+const loginGate = document.getElementById('loginGate');
+const crmMain = document.getElementById('crmMain');
+const loginForm = document.getElementById('loginForm');
+const loginError = document.getElementById('loginError');
+const sessionInfo = document.getElementById('sessionInfo');
+const logoutBtn = document.getElementById('logoutBtn');
+
+const ROLE_LABELS = { owner: 'владелец', admin: 'администратор точки', master: 'мастер' };
+
+function showLoggedIn(staff) {
+  loginGate.hidden = true;
+  crmMain.hidden = false;
+  sessionInfo.textContent = `${staff.name} · роль: ${ROLE_LABELS[staff.role] ?? staff.role}`;
+  renderAll(undefined);
+}
+
+function showLoginForm(message) {
+  crmMain.hidden = true;
+  loginGate.hidden = false;
+  if (message) {
+    loginError.textContent = message;
+    loginError.hidden = false;
+  } else {
+    loginError.hidden = true;
+  }
+}
+
+loginForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const pin = document.getElementById('loginPin').value.trim();
+  try {
+    const res = await fetch(`${window.ALIKHAN_API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, pin }),
+    });
+    if (!res.ok) {
+      showLoginForm('Неверный email или PIN');
+      return;
+    }
+    const data = await res.json();
+    setSession(data.token, data.staff);
+    showLoggedIn(data.staff);
+  } catch (err) {
+    showLoginForm(`Не удалось связаться с сервером: ${err.message}`);
+  }
+});
+
+logoutBtn?.addEventListener('click', () => {
+  clearSession();
+  showLoginForm();
+});
+
+const existingStaff = getStaff();
+if (window.ALIKHAN_API_URL && existingStaff && getToken()) {
+  showLoggedIn(existingStaff);
+} else if (window.ALIKHAN_API_URL) {
+  showLoginForm();
+} else {
+  // Нет бэкенда (демо на чистом localStorage, без window.ALIKHAN_API_URL) - логин
+  // не нужен, старое поведение до Окна 7/8 сохраняется как есть.
+  crmMain.hidden = false;
+  loginGate.hidden = true;
+}
 
 const masterById = (id) => masters.find((m) => m.id === id);
 const serviceById = (id) => services.find((s) => s.id === id);
@@ -35,9 +128,12 @@ async function renderBookings(filterDate) {
 
     const tr = document.createElement('tr');
 
+    // clientPhone отсутствует в ответе для роли "мастер" (Окно 8 - сервер физически
+    // не отдаёт это поле, не просто прячет в интерфейсе) - "—" вместо буквального
+    // "undefined" в ячейке.
     const cells = [
-      booking.clientName,
-      booking.clientPhone,
+      booking.clientName ?? '—',
+      'clientPhone' in booking ? booking.clientPhone : '— (скрыто для роли «мастер»)',
       master ? master.name : booking.masterId,
       service ? service.name : booking.serviceId,
       booking.date,
@@ -96,8 +192,17 @@ async function renderPayroll(filterDate) {
 }
 
 async function renderAll(filterDate) {
-  await renderBookings(filterDate);
-  await renderPayroll(filterDate);
+  try {
+    await renderBookings(filterDate);
+    await renderPayroll(filterDate);
+  } catch (err) {
+    if (String(err.message).includes('401')) {
+      clearSession();
+      showLoginForm('Сессия истекла, войдите заново');
+      return;
+    }
+    throw err;
+  }
 }
 
 /* ---------- custom date picker (same component as index.html booking form) ----------
@@ -233,4 +338,6 @@ filterResetBtn.addEventListener('click', () => {
   renderAll(undefined);
 });
 
-renderAll(undefined);
+// Первый рендер - только после логина (showLoggedIn выше) или сразу, если бэкенда
+// нет вовсе (чистое демо на localStorage, логин не нужен) - см. блок с
+// existingStaff/showLoginForm выше, он же решает, когда звать renderAll впервые.

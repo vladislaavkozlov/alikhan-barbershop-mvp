@@ -115,7 +115,19 @@ export function defaultBackend() {
 // getItem/setItem-контракт, но по сети. Все вызовы createStore() уже await'ят
 // backend.getItem/setItem, поэтому localStorage (синхронный) и этот (асинхронный)
 // бэкенды взаимозаменяемы без изменений в остальном коде.
-export function createHttpBackend(apiBaseUrl) {
+//
+// getToken - необязательная функция () => string|null. Если задана, её текущее
+// значение уходит в заголовке Authorization на каждый запрос - так вызывающий код
+// (admin.js после логина) может подставлять свежий токен, не пересоздавая бэкенд.
+// Без неё (или пока не залогинен) запросы анонимные - ровно то, что нужно
+// публичному виджету записи клиента (index.html): сервер сам решает, какие поля
+// отдавать анонимному запросу (Окно 8, роли на бэкенде).
+export function createHttpBackend(apiBaseUrl, getToken) {
+  function authHeaders() {
+    const token = typeof getToken === 'function' ? getToken() : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
   return {
     async getItem(key) {
       const res = await fetch(`${apiBaseUrl}/kv/${encodeURIComponent(key)}`);
@@ -144,6 +156,32 @@ export function createHttpBackend(apiBaseUrl) {
       if (res.status === 409) return false;
       if (!res.ok) throw new Error(`storage.js: POST /kv/${key}/cas → ${res.status}`);
       return true;
+    },
+
+    // ── Окно 8: бронирования поверх нормализованной схемы, не kv-блока ──────
+    // Присутствие этого метода на бэкенде - переключатель для createStore ниже:
+    // если он есть, createBooking/listBookings/calcPayrollEstimate идут через REST
+    // (сервер сам считает пересечения и решает, какие поля клиента отдавать по роли),
+    // если нет (localStorage/in-memory бэкенды в тестах) - используется старая логика
+    // на JSON-блоке без изменений.
+    async listBookings({ date, masterId } = {}) {
+      const params = new URLSearchParams();
+      if (date) params.set('date', date);
+      if (masterId) params.set('masterId', masterId);
+      const res = await fetch(`${apiBaseUrl}/bookings?${params.toString()}`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(`storage.js: GET /bookings → ${res.status}`);
+      const data = await res.json();
+      return data.bookings;
+    },
+    async createBooking({ masterId, serviceId, date, startTime, clientName, clientPhone }) {
+      const res = await fetch(`${apiBaseUrl}/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ masterId, serviceId, date, startTime, clientName, clientPhone }),
+      });
+      if (res.status === 409) return { ok: false, reason: 'overlap' };
+      if (!res.ok) throw new Error(`storage.js: POST /bookings → ${res.status}`);
+      return res.json();
     },
   };
 }
@@ -221,7 +259,14 @@ export function createStore(backend = defaultBackend()) {
     return run;
   }
 
+  // Богатый HTTP-бэкенд (createHttpBackend, Окно 8) сам знает, что отдавать по роли
+  // и как фильтровать по дате/мастеру на сервере - используем его метод напрямую.
+  // localStorage/in-memory бэкенды (тесты, Окна 1-7) такого метода не имеют -
+  // работает старая логика на JSON-блоке без единого изменения.
+  const isRichBackend = typeof backend.createBooking === 'function' && typeof backend.listBookings === 'function';
+
   async function listBookings({ date, masterId } = {}) {
+    if (isRichBackend) return backend.listBookings({ date, masterId });
     const all = await readBookings(backend);
     return all.filter((b) => (date ? b.date === date : true) && (masterId ? b.masterId === masterId : true));
   }
@@ -244,6 +289,13 @@ export function createStore(backend = defaultBackend()) {
   }
 
   async function createBooking({ masterId, serviceId, date, startTime, clientName, clientPhone }) {
+    if (isRichBackend) {
+      // CAS/пересечение слотов теперь проверяет и гарантирует сервер (pg_advisory_xact_lock
+      // на паре мастер+дата в server.mjs) - тот же принцип, что был в CAS поверх kv_store,
+      // просто перенесён на сторону базы вместе со схемой. Локальная serialized()-очередь
+      // здесь не нужна: нет общего JSON-блока, который можно было бы гонкой затереть.
+      return backend.createBooking({ masterId, serviceId, date, startTime, clientName, clientPhone });
+    }
     return serialized(async () => {
       const service = findService(serviceId);
       const endTime = minutesToTime(toMinutes(startTime) + service.durationMin);
@@ -285,7 +337,9 @@ export function createStore(backend = defaultBackend()) {
   }
 
   async function calcPayrollEstimate({ masterId, from, to } = {}) {
-    const all = await readBookings(backend);
+    // Сервер не умеет фильтровать по диапазону дат (только точная дата или всё) -
+    // берём весь список этого мастера и фильтруем диапазон здесь же, как раньше.
+    const all = isRichBackend ? await backend.listBookings({ masterId }) : await readBookings(backend);
     const filtered = all.filter((b) => {
       if (masterId && b.masterId !== masterId) return false;
       if (from && b.date < from) return false;
