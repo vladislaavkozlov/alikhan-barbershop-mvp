@@ -1,6 +1,9 @@
-import { createStore, getMasters, getServices } from './storage.js';
+import { createStore, createHttpBackend, getMasters, getServices } from './storage.js';
 
-const store = createStore();
+// Если на странице задан window.ALIKHAN_API_URL (см. index.html) - работаем через
+// реальный бэкенд на Amvera, синхронизация между устройствами реальна. Если нет -
+// откатываемся на localStorage (старое поведение демо, только для одного браузера).
+const store = createStore(window.ALIKHAN_API_URL ? createHttpBackend(window.ALIKHAN_API_URL) : undefined);
 const masters = getMasters();
 const services = getServices();
 
@@ -332,7 +335,7 @@ function resetSlots(hintText) {
   slotsWrap.append(hint);
 }
 
-function refreshSlots() {
+async function refreshSlots() {
   const date = selectedDate;
 
   if (!selectedMaster || !selectedService || !date) {
@@ -340,7 +343,13 @@ function refreshSlots() {
     return;
   }
 
-  const slots = store.getFreeSlots(selectedMaster.id, date, selectedService.durationMin);
+  const requestMaster = selectedMaster;
+  const requestService = selectedService;
+  const requestDate = date;
+  const slots = await store.getFreeSlots(requestMaster.id, requestDate, requestService.durationMin);
+  // Пока ждали ответ сети, пользователь мог переключить мастера/услугу/дату - тогда
+  // этот ответ уже устарел, не перерисовываем поверх более свежего выбора.
+  if (selectedMaster !== requestMaster || selectedService !== requestService || selectedDate !== requestDate) return;
 
   selectedSlot = null;
   submitBtn.disabled = true;
@@ -401,7 +410,7 @@ function renderReceipt(booking, master, service) {
   }
 }
 
-form.addEventListener('submit', (event) => {
+form.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearMsg();
 
@@ -425,7 +434,8 @@ form.addEventListener('submit', (event) => {
     return;
   }
 
-  const result = store.createBooking({
+  submitBtn.disabled = true;
+  const result = await store.createBooking({
     masterId,
     serviceId,
     date,
@@ -436,14 +446,14 @@ form.addEventListener('submit', (event) => {
 
   if (!result.ok) {
     showMsg('Это время только что заняли - выберите другой слот', 'error');
-    refreshSlots();
+    await refreshSlots();
     return;
   }
 
   renderReceipt(result.booking, selectedMaster, selectedService);
   nameInput.value = '';
   phoneInput.value = '';
-  refreshSlots();
+  await refreshSlots();
 });
 
 renderPrice();

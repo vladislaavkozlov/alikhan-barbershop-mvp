@@ -1,6 +1,8 @@
-import { createStore, getMasters, getServices } from './storage.js';
+import { createStore, createHttpBackend, getMasters, getServices } from './storage.js';
 
-const store = createStore();
+// Тот же переключатель бэкенда, что в app.js - без window.ALIKHAN_API_URL админка
+// продолжает работать по-старому на localStorage (только этого же браузера).
+const store = createStore(window.ALIKHAN_API_URL ? createHttpBackend(window.ALIKHAN_API_URL) : undefined);
 const masters = getMasters();
 const services = getServices();
 
@@ -11,13 +13,13 @@ function formatMoney(value) {
   return `${Math.round(value).toLocaleString('ru-RU')}₽`;
 }
 
-function renderBookings(filterDate) {
+async function renderBookings(filterDate) {
   const tbody = document.getElementById('bookingsBody');
   const emptyState = document.getElementById('bookingsEmpty');
   tbody.textContent = '';
 
-  const bookings = store
-    .listBookings(filterDate ? { date: filterDate } : {})
+  const raw = await store.listBookings(filterDate ? { date: filterDate } : {});
+  const bookings = raw
     .slice()
     .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
 
@@ -52,14 +54,14 @@ function renderBookings(filterDate) {
   }
 }
 
-function renderPayroll(filterDate) {
+async function renderPayroll(filterDate) {
   const container = document.getElementById('payrollCards');
   container.textContent = '';
 
   for (const master of masters) {
     const range = filterDate
-      ? store.calcPayrollEstimate({ masterId: master.id, from: filterDate, to: filterDate })
-      : store.calcPayrollEstimate({ masterId: master.id });
+      ? await store.calcPayrollEstimate({ masterId: master.id, from: filterDate, to: filterDate })
+      : await store.calcPayrollEstimate({ masterId: master.id });
 
     const card = document.createElement('article');
     card.className = 'payroll-card';
@@ -93,9 +95,9 @@ function renderPayroll(filterDate) {
   }
 }
 
-function renderAll(filterDate) {
-  renderBookings(filterDate);
-  renderPayroll(filterDate);
+async function renderAll(filterDate) {
+  await renderBookings(filterDate);
+  await renderPayroll(filterDate);
 }
 
 /* ---------- custom date picker (same component as index.html booking form) ----------

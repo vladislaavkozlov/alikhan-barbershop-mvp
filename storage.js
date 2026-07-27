@@ -111,6 +111,43 @@ export function defaultBackend() {
   throw new Error('storage.js: нет доступного storage-бэкенда, передайте его явно (напр. in-memory в тестах)');
 }
 
+// Бэкенд поверх реального API (Amvera + Postgres) вместо localStorage - тот же
+// getItem/setItem-контракт, но по сети. Все вызовы createStore() уже await'ят
+// backend.getItem/setItem, поэтому localStorage (синхронный) и этот (асинхронный)
+// бэкенды взаимозаменяемы без изменений в остальном коде.
+export function createHttpBackend(apiBaseUrl) {
+  return {
+    async getItem(key) {
+      const res = await fetch(`${apiBaseUrl}/kv/${encodeURIComponent(key)}`);
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`storage.js: GET /kv/${key} → ${res.status}`);
+      const data = await res.json();
+      return data.value;
+    },
+    async setItem(key, value) {
+      const res = await fetch(`${apiBaseUrl}/kv/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: String(value) }),
+      });
+      if (!res.ok) throw new Error(`storage.js: PUT /kv/${key} → ${res.status}`);
+    },
+    // Атомарная запись на стороне сервера: API проверяет текущее значение в той же
+    // транзакции, что и запись, поэтому гонка между двумя устройствами реально исключена
+    // (не просто "два fetch подряд" из клиента, где между ними всегда есть окно гонки).
+    async casSetItem(key, expected, value) {
+      const res = await fetch(`${apiBaseUrl}/kv/${encodeURIComponent(key)}/cas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expected: expected ?? null, value: String(value) }),
+      });
+      if (res.status === 409) return false;
+      if (!res.ok) throw new Error(`storage.js: POST /kv/${key}/cas → ${res.status}`);
+      return true;
+    },
+  };
+}
+
 export function getMasters() {
   return MASTERS;
 }
@@ -131,8 +168,7 @@ function findService(serviceId) {
   return service;
 }
 
-function readBookings(backend) {
-  const raw = backend.getItem(STORAGE_KEY);
+function parseBookings(raw) {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -142,22 +178,59 @@ function readBookings(backend) {
   }
 }
 
-function writeBookings(backend, bookings) {
-  backend.setItem(STORAGE_KEY, JSON.stringify(bookings));
+async function readBookings(backend) {
+  const raw = await backend.getItem(STORAGE_KEY);
+  return parseBookings(raw);
+}
+
+// Compare-and-swap: пишет, только если текущее значение в хранилище всё ещё равно
+// тому, что было прочитано непосредственно перед этим - если кто-то другой (другая
+// вкладка/устройство) успел записать между чтением и записью, возвращает false и
+// вызывающий код должен перечитать заново, а не молча затирать чужую запись.
+// localStorage/in-memory бэкенды в тестах casSetItem не реализуют - им синтезируется
+// дефолтная реализация ниже (для одного JS-потока этого достаточно), у сетевого
+// бэкенда (createHttpBackend) - настоящая атомарная проверка на стороне Postgres.
+async function casWriteBookings(backend, expectedRaw, bookings) {
+  const newRaw = JSON.stringify(bookings);
+  if (typeof backend.casSetItem === 'function') {
+    return backend.casSetItem(STORAGE_KEY, expectedRaw ?? null, newRaw);
+  }
+  const current = await backend.getItem(STORAGE_KEY);
+  if ((current ?? null) !== (expectedRaw ?? null)) return false;
+  await backend.setItem(STORAGE_KEY, newRaw);
+  return true;
 }
 
 export function createStore(backend = defaultBackend()) {
-  function listBookings({ date, masterId } = {}) {
-    return readBookings(backend).filter(
-      (b) => (date ? b.date === date : true) && (masterId ? b.masterId === masterId : true)
+  // Локальная сериализация записи в пределах ОДНОГО процесса/вкладки (например два
+  // быстрых клика подряд в одном браузере). CAS ниже защищает от гонки МЕЖДУ разными
+  // процессами (два устройства бьют по одному сетевому бэкенду) - там локальной
+  // очереди нет и быть не может, оттуда и нужен retry-цикл поверх неё. Без этой
+  // локальной очереди два параллельных вызова createBooking в одном и том же сторе
+  // читают состояние ДО того как другой успел записать, и CAS-проверка (тоже
+  // основанная на чтении, отдельным сетевым/асинхронным вызовом) не успевает
+  // заметить чужую запись - оба проходят compare-and-swap с одним и тем же
+  // "старым" ожидаемым значением.
+  let writeQueue = Promise.resolve();
+  function serialized(fn) {
+    const run = writeQueue.then(fn, fn);
+    writeQueue = run.then(
+      () => {},
+      () => {}
     );
+    return run;
   }
 
-  function getFreeSlots(masterId, dateStr, serviceDurationMin, stepMin = 15) {
+  async function listBookings({ date, masterId } = {}) {
+    const all = await readBookings(backend);
+    return all.filter((b) => (date ? b.date === date : true) && (masterId ? b.masterId === masterId : true));
+  }
+
+  async function getFreeSlots(masterId, dateStr, serviceDurationMin, stepMin = 15) {
     const master = findMaster(masterId);
     const windowStart = toMinutes(master.workWindow.start);
     const windowEnd = toMinutes(master.workWindow.end);
-    const existing = listBookings({ date: dateStr, masterId });
+    const existing = await listBookings({ date: dateStr, masterId });
 
     const slots = [];
     for (let start = windowStart; start + serviceDurationMin <= windowEnd; start += stepMin) {
@@ -170,36 +243,50 @@ export function createStore(backend = defaultBackend()) {
     return slots;
   }
 
-  function createBooking({ masterId, serviceId, date, startTime, clientName, clientPhone }) {
-    const service = findService(serviceId);
-    const endTime = minutesToTime(toMinutes(startTime) + service.durationMin);
+  async function createBooking({ masterId, serviceId, date, startTime, clientName, clientPhone }) {
+    return serialized(async () => {
+      const service = findService(serviceId);
+      const endTime = minutesToTime(toMinutes(startTime) + service.durationMin);
 
-    // Проверка занятости и запись идут синхронно в одном проходе, без await между ними -
-    // иначе двойной быстрый клик в UI может проскочить мимо защиты от двойного бронирования (PM, 24.07.2026)
-    const all = readBookings(backend);
-    const sameMasterSameDay = all.filter((b) => b.masterId === masterId && b.date === date);
-    const hasOverlap = sameMasterSameDay.some((b) => intervalsOverlap(startTime, endTime, b.startTime, b.endTime));
-    if (hasOverlap) {
-      return { ok: false, reason: 'overlap' };
-    }
+      // Проверка занятости и запись должны быть атомарны относительно других
+      // параллельных попыток - иначе два устройства могут оба прочитать "свободно"
+      // и оба записать, второй затерев первого. Локальные гонки (тот же процесс/
+      // вкладка) закрывает serialized() выше, кросс-процессные (два устройства бьют
+      // по одному сетевому бэкенду) - вот этот retry-цикл поверх CAS: пишем, только
+      // если хранилище не изменилось с момента чтения, иначе перечитываем и
+      // проверяем занятость заново, с ограничением попыток (PM, 24.07.2026 →
+      // пересмотрено 27.07.2026 при переходе на сетевой бэкенд).
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const raw = await backend.getItem(STORAGE_KEY);
+        const all = parseBookings(raw);
+        const sameMasterSameDay = all.filter((b) => b.masterId === masterId && b.date === date);
+        const hasOverlap = sameMasterSameDay.some((b) => intervalsOverlap(startTime, endTime, b.startTime, b.endTime));
+        if (hasOverlap) {
+          return { ok: false, reason: 'overlap' };
+        }
 
-    const booking = {
-      id: `${date}-${startTime}-${masterId}-${Math.random().toString(36).slice(2, 9)}`,
-      masterId,
-      serviceId,
-      date,
-      startTime,
-      endTime,
-      clientName,
-      clientPhone,
-      createdAt: new Date().toISOString(),
-    };
-    writeBookings(backend, [...all, booking]);
-    return { ok: true, booking };
+        const booking = {
+          id: `${date}-${startTime}-${masterId}-${Math.random().toString(36).slice(2, 9)}`,
+          masterId,
+          serviceId,
+          date,
+          startTime,
+          endTime,
+          clientName,
+          clientPhone,
+          createdAt: new Date().toISOString(),
+        };
+        const written = await casWriteBookings(backend, raw, [...all, booking]);
+        if (written) return { ok: true, booking };
+        // кто-то другой записал между нашим чтением и записью - перечитываем и пробуем снова
+      }
+      return { ok: false, reason: 'conflict' };
+    });
   }
 
-  function calcPayrollEstimate({ masterId, from, to } = {}) {
-    const filtered = readBookings(backend).filter((b) => {
+  async function calcPayrollEstimate({ masterId, from, to } = {}) {
+    const all = await readBookings(backend);
+    const filtered = all.filter((b) => {
       if (masterId && b.masterId !== masterId) return false;
       if (from && b.date < from) return false;
       if (to && b.date > to) return false;
