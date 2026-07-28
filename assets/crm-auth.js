@@ -111,6 +111,12 @@ export function initCrmAuth(requiredRole) {
     if (main) main.hidden = false;
     if (sessionInfo) sessionInfo.textContent = `${staff.name} · ${ROLE_LABELS[staff.role] ?? staff.role}`;
     if (logoutBtn) logoutBtn.hidden = false;
+    // Влад 28.07.2026: у сотрудника в базе ровно одна роль (staff.role, без комбинирования) -
+    // вкладки других ролей ведут в 404 или в чужой доступ, поэтому показываем только свою,
+    // не весь переключатель. Раньше здесь были ссылки на все три роли всегда.
+    document.querySelectorAll('#roleSwitch a[data-role]').forEach((a) => {
+      a.hidden = a.dataset.role !== staff.role;
+    });
     renderLiveProof(staff);
   }
 
