@@ -17,6 +17,7 @@ const nameInput = document.getElementById('f-name');
 const phoneInput = document.getElementById('f-phone');
 const submitBtn = document.getElementById('f-submit');
 const formMsg = document.getElementById('form-msg');
+const consentCheckbox = document.getElementById('f-consent');
 
 const dateToggle = document.getElementById('date-toggle');
 const dateToggleLabel = document.getElementById('date-toggle-label');
@@ -325,6 +326,17 @@ function clearMsg() {
   formMsg.className = 'form-msg';
 }
 
+// Кнопка "Подтвердить запись" разблокируется только когда выбран слот И отмечено
+// согласие на обработку персональных данных (152-ФЗ, ст.18.1 - согласие обязательно
+// ДО сбора данных, чекбокс не может быть предустановлен). Отдельно эта же проверка
+// продублирована в обработчике submit ниже - на случай если чекбокс сняли после выбора слота.
+function updateSubmitState() {
+  submitBtn.disabled = !(selectedSlot && consentCheckbox && consentCheckbox.checked);
+}
+if (consentCheckbox) {
+  consentCheckbox.addEventListener('change', () => { updateSubmitState(); clearMsg(); });
+}
+
 function resetSlots(hintText) {
   selectedSlot = null;
   submitBtn.disabled = true;
@@ -375,7 +387,7 @@ async function refreshSlots() {
       for (const el of grid.querySelectorAll('.slot-btn')) {
         el.classList.toggle('selected', el === btn);
       }
-      submitBtn.disabled = false;
+      updateSubmitState();
       clearMsg();
     });
     grid.append(btn);
@@ -431,6 +443,10 @@ form.addEventListener('submit', async (event) => {
   const phoneDigits = clientPhone.replace(/\D/g, '');
   if (phoneDigits.length < 11) {
     showMsg('Введите полный номер телефона', 'error');
+    return;
+  }
+  if (!consentCheckbox || !consentCheckbox.checked) {
+    showMsg('Подтвердите согласие на обработку персональных данных', 'error');
     return;
   }
 

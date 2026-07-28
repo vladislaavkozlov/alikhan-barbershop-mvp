@@ -468,6 +468,16 @@
 
   .submit-row{ margin-top: 22px; }
 
+  .consent-row{
+    display: flex; align-items: flex-start; gap: 10px;
+    margin-top: 18px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.5;
+  }
+  .consent-row input[type="checkbox"]{
+    flex-shrink: 0; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent);
+  }
+  .consent-row a{ color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+  .consent-row a:hover{ color: var(--accent); }
+
   /* ---------- contacts ---------- */
   .contacts-grid{
     display: grid; grid-template-columns: 1fr; gap: 32px;
@@ -689,6 +699,11 @@
           <input type="tel" id="f-phone" name="clientPhone" required maxlength="20" autocomplete="tel" placeholder="+7 900 000 00 00">
         </div>
 
+        <div class="consent-row">
+          <input type="checkbox" id="f-consent" name="consent" required>
+          <label for="f-consent">Даю согласие на обработку персональных данных (имя, телефон, дата рождения) для оформления и ведения записи, включая сведения, которые я сам укажу в комментарии к записи (например об аллергии) - в соответствии с <a href="privacy.html" target="_blank" rel="noopener">Политикой конфиденциальности</a></label>
+        </div>
+
         <div class="submit-row">
           <button type="submit" class="btn" id="f-submit" disabled>Подтвердить запись</button>
         </div>
@@ -729,7 +744,9 @@
 <footer class="site">
   <div class="wrap">
     <span>Алихан · премиум мужские стрижки · Ставрополь</span>
-    <span>Демо-MVP · мастера примерные · 24.07.2026</span>
+    <span><a href="privacy.html" style="color:inherit">Политика конфиденциальности</a></span>
+    <a href="crm-owner.html" class="btn secondary" style="padding:8px 18px;font-size:0.8rem">Вход для сотрудников</a>
+    <span>Демо-версия · мастера примерные · 24.07.2026</span>
   </div>
 </footer>
 
