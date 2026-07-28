@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Алихан — CRM · Мастер (макет)</title>
+<link rel="stylesheet" href="assets/mockup-crm.css" />
+<style>
+  #sp-day:checked ~ .panel-sp-day, #sp-week:checked ~ .panel-sp-week,
+  #sp-month:checked ~ .panel-sp-month, #sp-year:checked ~ .panel-sp-year { display: block; }
+  #sp-day:checked ~ .seg-bar label[for="sp-day"],
+  #sp-week:checked ~ .seg-bar label[for="sp-week"],
+  #sp-month:checked ~ .seg-bar label[for="sp-month"],
+  #sp-year:checked ~ .seg-bar label[for="sp-year"] { background: var(--accent); color: var(--leather); }
+
+  #zpm-calc:checked ~ .panel-zpm-calc, #zpm-pay:checked ~ .panel-zpm-pay { display: block; }
+  #zpm-calc:checked ~ .seg-bar label[for="zpm-calc"],
+  #zpm-pay:checked ~ .seg-bar label[for="zpm-pay"] { background: var(--accent); color: var(--leather); }
+
+  #zpmp-day:checked ~ .panel-zpmp-day, #zpmp-week:checked ~ .panel-zpmp-week,
+  #zpmp-month:checked ~ .panel-zpmp-month, #zpmp-period:checked ~ .panel-zpmp-period { display: block; }
+  #zpmp-day:checked ~ .seg-bar label[for="zpmp-day"],
+  #zpmp-week:checked ~ .seg-bar label[for="zpmp-week"],
+  #zpmp-month:checked ~ .seg-bar label[for="zpmp-month"],
+  #zpmp-period:checked ~ .seg-bar label[for="zpmp-period"] { background: var(--accent); color: var(--leather); }
+
+  .phone-hidden { color: var(--text-muted); }
+  .phone-hidden .why { display: block; font-size: 0.7rem; font-style: italic; margin-top: 2px; }
+
+  #wim-month:checked ~ .seg-bar label[for="wim-month"], #wim-3m:checked ~ .seg-bar label[for="wim-3m"],
+  #wim-6m:checked ~ .seg-bar label[for="wim-6m"], #wim-year:checked ~ .seg-bar label[for="wim-year"] { background: var(--accent); color: var(--leather); }
+  #wim-month:checked ~ .panel-wim-month, #wim-3m:checked ~ .panel-wim-3m,
+  #wim-6m:checked ~ .panel-wim-6m, #wim-year:checked ~ .panel-wim-year { display: block; }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="nav">
+    <a href="index.html" class="brand">АЛИХАН</a>
+    <span class="crm-tag">CRM · визуальный макет</span>
+    <div class="nav-right">
+      <span class="location-badge">Вы: <strong>Али</strong> (пример)</span>
+      <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили">🔔<span class="notif-badge">2</span></button>
+      <span id="sessionInfo" class="session-info" hidden></span>
+      <button id="logoutBtn" class="logout-btn" type="button" hidden>Выйти</button>
+      <div class="role-switch">
+        <a href="mockup-owner.html">Владелец</a>
+        <a href="mockup-admin.html">Администратор</a>
+        <a href="mockup-master.html" aria-current="page">Мастер</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap page" id="crmMain">
+  <h1>Мастер</h1>
+  <p class="subtitle">Видит только свой день и свой заработок. Не видит телефоны клиентов, не видит других сотрудников и настройки</p>
+
+  <div class="live-proof" id="liveProof"><span class="lp-dot"></span><span>Проверяю связь с боевой базой…</span></div>
+
+  <div class="banner">
+    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход и счётчики выше настоящие (Amvera, тестовый контур). «Али» ниже пока пример, не реальный сотрудник. У мастера физически нет вкладок «Сотрудники» и «Настройка ЗП» — это ограничение доступа, а не забытые экраны. Телефон клиента в карточке записи скрыт прочерком — так же будет вести себя и бэкенд (мастер не получает поле телефона).
+  </div>
+
+  <div class="retention-alert" id="retention-panel">
+    <div class="ra-head"><span class="ico">⚠</span><strong>2 моих клиента не приходили 2+ месяца</strong> <span class="badge badge-todo">новое, разд.12 ТЗ</span><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
+    <div class="ra-body">
+    <p class="section-hint" style="margin:6px 0 12px">Только мои клиенты - чужих телефонов и истории мастер не видит, как и в карточке записи</p>
+    <div class="ra-list">
+      <div class="ra-row"><span class="ra-name">Клиент Д (пример)</span><span class="ra-last">Последний визит 25.05.2026 · 2.1 мес назад</span><button class="btn-ghost btn-sm" type="button">Позвонить (пример)</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
+      <div class="ra-row"><span class="ra-name">Клиент Ж (пример)</span><span class="ra-last">Последний визит 15.04.2026 · 3.4 мес назад</span><button class="btn-ghost btn-sm" type="button">Позвонить (пример)</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
+      <div class="ra-restore" hidden><button class="btn-ghost btn-sm" type="button" onclick="restoreRetentionRows(this)">Показать скрытые (<span class="count">0</span>)</button></div>
+    </div>
+    </div>
+  </div>
+
+  <div class="page-tabs">
+    <input type="radio" name="pt" id="pt-a" checked>
+    <input type="radio" name="pt" id="pt-b">
+    <div class="tab-bar">
+      <label for="pt-a">Мой день</label>
+      <label for="pt-b">Моя зарплата</label>
+    </div>
+
+    <!-- ======================= МОЙ ДЕНЬ ======================= -->
+    <div class="tab-panel panel-a">
+      <section>
+        <h2>Мой день</h2>
+        <p class="section-hint">Разд. 16.1 — без ряда других мастеров сверху, только собственное расписание</p>
+
+        <button class="btn btn-primary btn-sm" type="button" style="margin-bottom:18px" onclick="newWalkIn()">+ Новая запись (клиент без предварительной записи)</button>
+
+        <div class="seg-tabs">
+          <input type="radio" name="sched-period" id="sp-day" checked>
+          <input type="radio" name="sched-period" id="sp-week">
+          <input type="radio" name="sched-period" id="sp-month">
+          <input type="radio" name="sched-period" id="sp-year">
+          <div class="seg-bar">
+            <label for="sp-day">День</label>
+            <label for="sp-week">Неделя</label>
+            <label for="sp-month">Месяц</label>
+            <label for="sp-year">Год</label>
+          </div>
+
+          <div class="seg-panel panel-sp-day">
+            <p class="section-hint" style="margin-top:12px">Сегодня</p>
+            <div class="schedule-scroll">
+              <div class="schedule-row-with-gutter">
+                <div class="hour-gutter">
+                  <div class="schedule-col-head"><div class="avatar">--</div><span class="name">--</span></div>
+                  <div class="hour-marks">
+                    <span style="top:0">10:00</span><span style="top:64px">11:00</span><span style="top:128px">12:00</span>
+                    <span style="top:192px">13:00</span><span style="top:256px">14:00</span><span style="top:320px">15:00</span>
+                    <span style="top:384px">16:00</span><span style="top:448px">17:00</span><span style="top:512px">18:00</span>
+                    <span style="top:576px">19:00</span><span style="top:640px">20:00</span>
+                  </div>
+                </div>
+                <div class="schedule-grid" style="grid-auto-columns: minmax(280px, 420px);">
+                  <div class="schedule-col">
+                    <div class="schedule-col-head"><div class="avatar">АЛ</div><span class="name">Али (вы)</span></div>
+                    <div class="schedule-track">
+                      <div class="appt appt--done" style="top:0px;height:43px" tabindex="0" onclick="openBooking(this)"
+                           data-client="Клиент А (пример)" data-master="Али" data-service="Стрижка · 2000₽" data-planned="10:00–10:40" data-actual="10:03"
+                           data-status="came" data-confirmed="true" data-noshow="false">
+                        <span class="t">10:00–10:40</span><span class="c">Клиент А (пример) · Стрижка</span>
+                      </div>
+                      <div class="appt appt--new" style="top:64px;height:64px" tabindex="0" onclick="openBooking(this)"
+                           data-client="Клиент Б (пример)" data-master="Али" data-service="Комплекс стрижка+борода · 3500₽" data-planned="11:00–12:00" data-actual=""
+                           data-status="wait" data-confirmed="false" data-noshow="false">
+                        <span class="t">11:00–12:00</span><span class="c">Клиент Б (пример) · Комплекс стрижка+борода</span>
+                      </div>
+                      <div class="appt appt--break" style="top:192px;height:64px">Перерыв 13:00–14:00 (пример)</div>
+                      <div class="appt appt--done" style="top:288px;height:32px" tabindex="0" onclick="openBooking(this)"
+                           data-client="Клиент В (пример)" data-master="Али" data-service="Борода · 1600₽" data-planned="14:30–15:00" data-actual="14:31"
+                           data-status="came" data-confirmed="true" data-noshow="false">
+                        <span class="t">14:30–15:00</span><span class="c">Клиент В (пример) · Борода</span>
+                      </div>
+                      <div class="appt appt--new" style="top:384px;height:64px" tabindex="0" onclick="openBooking(this)"
+                           data-client="Клиент Г (пример)" data-master="Али" data-service="СПА уход · 3000₽" data-planned="16:00–17:00" data-actual=""
+                           data-status="no" data-confirmed="true" data-noshow="true">
+                        <span class="t">16:00–17:00</span><span class="c"><span class="appt-warn">⚠</span>Клиент Г (пример) · СПА уход</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="seg-panel panel-sp-week">
+            <p class="section-hint" style="margin-top:12px">Как в Outlook - тот же грид, что и в дне, только дни недели вместо мастеров (у мастера мастер всегда один - он сам, переключателя нет)</p>
+            <div class="schedule-scroll">
+              <div class="schedule-row-with-gutter">
+                <div class="hour-gutter">
+                  <div class="schedule-col-head week-head"><span class="name">--</span></div>
+                  <div class="hour-marks">
+                    <span style="top:0">10:00</span><span style="top:64px">11:00</span><span style="top:128px">12:00</span>
+                    <span style="top:192px">13:00</span><span style="top:256px">14:00</span><span style="top:320px">15:00</span>
+                    <span style="top:384px">16:00</span><span style="top:448px">17:00</span><span style="top:512px">18:00</span>
+                    <span style="top:576px">19:00</span><span style="top:640px">20:00</span>
+                  </div>
+                </div>
+                <div class="schedule-grid schedule-grid--week">
+                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Пн</span></div>
+                    <div class="schedule-track">
+                      <div class="appt appt--done" style="top:0px;height:64px" tabindex="0" onclick="openBooking(this)"
+                           data-client="Клиент К (пример)" data-master="Али" data-service="Стрижка · 2000₽" data-planned="10:00–11:00" data-actual="10:00" data-status="came" data-confirmed="true" data-noshow="false">
+                        <span class="t">10:00–11:00</span><span class="c">Клиент К · Стрижка</span></div>
+                    </div>
+                  </div>
+                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Вт</span></div><div class="schedule-track"></div></div>
+                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Ср</span></div>
+                    <div class="schedule-track">
+                      <div class="appt appt--new" style="top:256px;height:96px" tabindex="0" onclick="openBooking(this)"
+                           data-client="Клиент Л (пример)" data-master="Али" data-service="Комплекс стрижка+борода · 3500₽" data-planned="14:00–15:30" data-actual="" data-status="wait" data-confirmed="true" data-noshow="false">
+                        <span class="t">14:00–15:30</span><span class="c">Клиент Л · Комплекс</span></div>
+                    </div>
+                  </div>
+                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Чт</span></div><div class="schedule-track"></div></div>
+                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Пт</span></div>
+                    <div class="schedule-track">
+                      <div class="appt appt--done" style="top:64px;height:43px" tabindex="0" onclick="openBooking(this)"
+                           data-client="Клиент М (пример)" data-master="Али" data-service="Борода · 1600₽" data-planned="11:00–11:40" data-actual="11:00" data-status="came" data-confirmed="true" data-noshow="false">
+                        <span class="t">11:00–11:40</span><span class="c">Клиент М · Борода</span></div>
+                    </div>
+                  </div>
+                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Сб</span></div><div class="schedule-track"></div></div>
+                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Вс</span></div><div class="schedule-track day-off"><span class="day-off-label">Выходной</span></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="seg-panel panel-sp-month">
+            <p class="section-hint" style="margin-top:12px">Пример: январь 2026, только мои записи. Праздники - по официальному календарю РФ. Клик по дню в реальной CRM откроет его как «День» - в этом макете дни не кликабельны</p>
+            <div class="month-grid">
+              <div class="wd">Пн</div><div class="wd">Вт</div><div class="wd">Ср</div><div class="wd">Чт</div><div class="wd">Пт</div><div class="wd">Сб</div><div class="wd">Вс</div>
+              <div class="month-day is-empty"></div><div class="month-day is-empty"></div><div class="month-day is-empty"></div>
+              <div class="month-day is-holiday"><span class="num">1</span><span class="holiday-label">Новый год</span></div>
+              <div class="month-day is-holiday"><span class="num">2</span><span class="holiday-label">Новогодние каникулы</span></div>
+              <div class="month-day is-holiday"><span class="num">3</span><span class="holiday-label">Новогодние каникулы</span></div>
+              <div class="month-day is-holiday"><span class="num">4</span><span class="holiday-label">Новогодние каникулы</span></div>
+              <div class="month-day is-holiday"><span class="num">5</span><span class="holiday-label">Новогодние каникулы</span></div>
+              <div class="month-day is-holiday"><span class="num">6</span><span class="holiday-label">Новогодние каникулы</span></div>
+              <div class="month-day is-holiday"><span class="num">7</span><span class="holiday-label">Рождество</span></div>
+              <div class="month-day is-holiday"><span class="num">8</span><span class="holiday-label">Новогодние каникулы</span></div>
+              <div class="month-day"><span class="num">9</span><span class="appt-count">4 записи <span class="unsure">пример</span></span></div>
+              <div class="month-day"><span class="num">10</span></div>
+              <div class="month-day"><span class="num">11</span></div>
+              <div class="month-day"><span class="num">12</span></div>
+              <div class="month-day"><span class="num">13</span></div>
+              <div class="month-day"><span class="num">14</span></div>
+              <div class="month-day"><span class="num">15</span></div>
+              <div class="month-day"><span class="num">16</span><span class="appt-count">5 записей <span class="unsure">пример</span></span></div>
+              <div class="month-day"><span class="num">17</span></div>
+              <div class="month-day"><span class="num">18</span></div>
+              <div class="month-day"><span class="num">19</span></div>
+              <div class="month-day"><span class="num">20</span></div>
+              <div class="month-day"><span class="num">21</span></div>
+              <div class="month-day"><span class="num">22</span></div>
+              <div class="month-day"><span class="num">23</span><span class="appt-count">3 записи <span class="unsure">пример</span></span></div>
+              <div class="month-day"><span class="num">24</span></div>
+              <div class="month-day"><span class="num">25</span><span class="appt-count">Татьянин день</span></div>
+              <div class="month-day"><span class="num">26</span></div>
+              <div class="month-day"><span class="num">27</span></div>
+              <div class="month-day"><span class="num">28</span></div>
+              <div class="month-day"><span class="num">29</span></div>
+              <div class="month-day"><span class="num">30</span><span class="appt-count">6 записей <span class="unsure">пример</span></span></div>
+              <div class="month-day"><span class="num">31</span></div>
+              <div class="month-day is-empty"></div>
+            </div>
+          </div>
+
+          <div class="seg-panel panel-sp-year">
+            <p class="section-hint" style="margin-top:12px">Пример: 2026 год, только мои записи. Праздники - официальный календарь РФ (нерабочие дни), не выдуманы</p>
+            <div class="year-grid">
+              <div class="year-month"><div class="ym-name">Январь</div><span class="ym-holiday">Новогодние каникулы 1-8, Рождество 7</span><div class="ym-note">38 записей <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Февраль</div><span class="ym-holiday">23 - День защитника Отечества</span><div class="ym-note">27 записей <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Март</div><span class="ym-holiday">8 - Международный женский день</span><div class="ym-note">31 запись <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Апрель</div><span class="ym-holiday">без праздников</span><div class="ym-note">28 записей <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Май</div><span class="ym-holiday">1 - Праздник Весны и Труда, 9 - День Победы</span><div class="ym-note">30 записей <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Июнь</div><span class="ym-holiday">12 - День России</span><div class="ym-note">29 записей <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Июль</div><span class="ym-holiday">без праздников</span><div class="ym-note">25 записей <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Август</div><span class="ym-holiday">без праздников</span><div class="ym-note">24 записи <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Сентябрь</div><span class="ym-holiday">без праздников</span><div class="ym-note">29 записей <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Октябрь</div><span class="ym-holiday">без праздников</span><div class="ym-note">31 запись <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Ноябрь</div><span class="ym-holiday">4 - День народного единства</span><div class="ym-note">30 записей <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Декабрь</div><span class="ym-holiday">31 - предновогодний, сокращённый</span><div class="ym-note">35 записей <span class="unsure">пример</span></div></div>
+            </div>
+          </div>
+        </div>
+
+        <details class="booking-detail" id="bd-1" open>
+          <summary><strong id="bd-now">Клиент А (пример) · Стрижка · 10:00–10:40</strong><span class="bd-hint">- телефон клиента скрыт, клик по любой записи открывает её здесь (разд. 16.2)</span></summary>
+          <div class="booking-detail-body">
+            <div class="walkin-banner" id="bk-walkin-banner" hidden>
+              <span class="ico">★</span>
+              <span>Клиент без предварительной записи - впишите имя и услугу вручную. Время прихода и статус уже проставлены автоматически</span>
+            </div>
+            <div class="status-row">
+              <input type="radio" name="bstatus" id="st-wait">
+              <input type="radio" name="bstatus" id="st-came" checked>
+              <input type="radio" name="bstatus" id="st-no">
+              <label for="st-wait">Ожидание</label>
+              <label for="st-came">Пришёл</label>
+              <label for="st-no">Не пришёл</label>
+            </div>
+            <p class="status-legend">Ожидание - запись создана, время визита ещё не наступило. Пришёл / Не пришёл - отмечаете вы или администратор по факту визита. «Подтвердил» ниже - отдельно, клиент заранее подтвердил намерение прийти</p>
+            <div class="confirm-row">
+              <input type="checkbox" id="bconfirm" checked>
+              <label for="bconfirm">Клиент подтвердил запись</label>
+            </div>
+            <div class="noshow-banner" id="bk-noshow-banner" hidden>
+              <span class="ico">⚠</span>
+              <span>У этого клиента уже есть неявка без предупреждения - следующая запись только по предоплате (правило ставит владелец/администратор, здесь только видно)</span>
+            </div>
+            <div class="birthday-banner">
+              <span class="ico">🎂</span>
+              <span>Пример: день рождения клиента - 15 августа, через 6 дней. Настройку скидки заранее делает владелец в разделе «Акции», здесь только видно</span>
+            </div>
+            <div class="field-grid">
+              <input type="hidden" id="bk-master" value="Али">
+              <div class="field"><label>Клиент</label><input id="bk-client" value="Клиент А (пример)" readonly></div>
+              <div class="field phone-hidden"><label>Телефон</label><input value="—" readonly><span class="why">скрыто - доступно только владельцу и администратору</span></div>
+              <div class="field"><label>Услуга</label><input id="bk-service" value="Стрижка · 2000₽" readonly></div>
+              <div class="field"><label>Дата рождения клиента</label><input value="15.08 (пример)" readonly></div>
+              <div class="field"><label>Клиент с нами с</label><input value="03.02.2025 (пример)" readonly></div>
+              <div class="field"><label>Плановое время</label><input id="bk-planned" value="10:00–10:40" readonly></div>
+              <div class="field"><label>Длительность услуги у этого мастера <span class="badge badge-todo">разд.12 п.7,8</span></label><input id="bk-duration" value="40 мин" readonly></div>
+              <div class="field">
+                <label>Фактическое время прихода</label>
+                <div class="arrival-row">
+                  <input id="bk-actual" value="10:03">
+                  <button class="btn btn-ghost btn-sm" type="button" onclick="markArrived(this)">Клиент пришёл</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>Моя комиссия за запись</label>
+                <input id="bk-commission" value="Не начисляется" readonly>
+                <p class="commission-note" id="bk-commission-note">Вы владелец (Али), комиссию самому себе не платите - вся сумма услуги и так остаётся в бизнесе</p>
+              </div>
+            </div>
+
+            <details class="service-edit">
+              <summary>Изменить или добавить услугу этой записи</summary>
+              <p class="section-hint">Пример на случай, если клиент пришёл не за той услугой, что планировал. Отметьте нужные пункты - пересчёт суммы и комиссии в этом макете не считается, только сам выбор</p>
+              <div class="service-picker">
+                <label class="service-check"><input type="checkbox" checked onclick="pickServiceForBooking(this)"><span><span class="sc-name">Стрижка</span><span class="sc-price">2000₽</span></span></label>
+                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Борода</span><span class="sc-price">1600₽</span></span></label>
+                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-price">3500₽</span></span></label>
+                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Бритьё</span><span class="sc-price">1500₽</span></span></label>
+                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Фирменная окантовка</span><span class="sc-price">1400₽</span></span></label>
+                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Тонировка седых волос</span><span class="sc-price">от 1500₽</span></span></label>
+                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Воск</span><span class="sc-price">от 500₽</span></span></label>
+                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">СПА уход</span><span class="sc-price">3000₽</span></span></label>
+              </div>
+            </details>
+
+            <div class="field">
+              <label>Комментарии по клиенту <span class="badge badge-todo">видна вся история, не только эта запись</span></label>
+              <div class="comment-thread" id="bk-comment-thread">
+                <div class="comment-item"><div class="ci-meta">12.07.2026 · Мамед</div><div class="ci-text">Аллергия на определённый шампунь - использовать гипоаллергенную линейку (пример)</div></div>
+                <div class="comment-item"><div class="ci-meta">03.06.2026 · Али</div><div class="ci-text">Просит стричь покороче, не любит долго ждать (пример)</div></div>
+              </div>
+              <div class="comment-add-row">
+                <input type="text" id="bk-comment-new" placeholder="Новый комментарий">
+                <button class="btn btn-ghost btn-sm" type="button" onclick="addComment(this)">Добавить</button>
+              </div>
+              <p class="commission-note">Хранится по клиенту, видно при открытии любой его записи. Срок хранения - открытый вопрос, отдельно считать сколько места потянет база (не решено в этом окне)</p>
+            </div>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <!-- ======================= МОЯ ЗАРПЛАТА ======================= -->
+    <div class="tab-panel panel-b">
+      <section>
+        <h2>Моя зарплата</h2>
+        <p class="section-hint">Разд. 16.5, только свои цифры — без вкладки «Настройка ЗП», её нет у мастера вообще</p>
+
+        <div class="seg-tabs">
+          <input type="radio" name="zpm-sub" id="zpm-calc" checked>
+          <input type="radio" name="zpm-sub" id="zpm-pay">
+          <div class="seg-bar">
+            <label for="zpm-calc">Расчёт ЗП</label>
+            <label for="zpm-pay">Выплаты ЗП</label>
+          </div>
+
+          <div class="seg-panel panel-zpm-calc">
+            <div class="seg-tabs">
+              <input type="radio" name="zpm-period" id="zpmp-day" checked>
+              <input type="radio" name="zpm-period" id="zpmp-week">
+              <input type="radio" name="zpm-period" id="zpmp-month">
+              <input type="radio" name="zpm-period" id="zpmp-period">
+              <div class="seg-bar">
+                <label for="zpmp-day">За день</label>
+                <label for="zpmp-week">За неделю</label>
+                <label for="zpmp-month">За месяц</label>
+                <label for="zpmp-period">Задать период</label>
+              </div>
+              <div class="seg-panel panel-zpmp-day">
+                <div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div>
+                <p class="payroll-note">Ставка ещё не подтверждена Алиханом (ТЗ разд.11) — плейсхолдер. Считаются только мои записи со статусом «Выполнена» (услуга оказана и оплачена)</p>
+              </div>
+              <div class="seg-panel panel-zpmp-week"><div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div></div>
+              <div class="seg-panel panel-zpmp-month"><div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div></div>
+              <div class="seg-panel panel-zpmp-period">
+                <div class="payroll-period-picker">
+                  <div class="field"><label>С</label><input type="date"></div>
+                  <div class="field"><label>По</label><input type="date"></div>
+                  <button class="btn btn-ghost btn-sm" type="button" onclick="calcCustomPayroll(this)">Показать</button>
+                </div>
+                <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
+                <p class="payroll-note">Баг исправлен: раньше даты нельзя было задать физически, теперь оба поля рабочие. Сумма всё ещё плейсхолдер - реальных записей в макете нет</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="seg-panel panel-zpm-pay">
+            <table class="payouts-table">
+              <thead><tr><th>Дата</th><th>Сумма</th><th>Статус</th></tr></thead>
+              <tbody>
+                <tr><td>20.07.2026 (пример)</td><td>000 ₽ (пример)</td><td>Выплачено</td></tr>
+                <tr><td>13.07.2026 (пример)</td><td>000 ₽ (пример)</td><td>Выплачено</td></tr>
+              </tbody>
+            </table>
+            <div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div>
+            <p class="payroll-note">Итого получено за выбранный период (пример)</p>
+            <p class="payroll-note">Настройку ставки и бонусов делает владелец — здесь только просмотр своих выплат</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Моя возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h2>
+        <p class="section-hint">Доля моих клиентов, которые вернулись повторно. Данных пока нет - плейсхолдер</p>
+        <div class="stat-cards">
+          <div class="stat-card"><div class="sc-label">3 мес</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          <div class="stat-card"><div class="sc-label">6 мес</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          <div class="stat-card"><div class="sc-label">1 год</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          <div class="stat-card"><div class="sc-label">2 года</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          <div class="stat-card"><div class="sc-label">3 года</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Как приходят мои клиенты <span class="badge badge-todo">новое, разд.12 ТЗ</span></h2>
+        <p class="section-hint">Доля визитов по предварительной записи и без записи (walk-in). Данных пока нет - плейсхолдер</p>
+        <div class="seg-tabs">
+          <input type="radio" name="wim-period" id="wim-month" checked>
+          <input type="radio" name="wim-period" id="wim-3m">
+          <input type="radio" name="wim-period" id="wim-6m">
+          <input type="radio" name="wim-period" id="wim-year">
+          <div class="seg-bar">
+            <label for="wim-month">Месяц</label>
+            <label for="wim-3m">3 мес</label>
+            <label for="wim-6m">Полгода</label>
+            <label for="wim-year">Год</label>
+          </div>
+          <div class="seg-panel panel-wim-month"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          </div></div>
+          <div class="seg-panel panel-wim-3m"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          </div></div>
+          <div class="seg-panel panel-wim-6m"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          </div></div>
+          <div class="seg-panel panel-wim-year"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          </div></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script>window.ALIKHAN_API_URL = 'https://alikhancrm1-vladislaavkozlov.amvera.io';</script>
+<script src="assets/mockup-crm.js"></script>
+<script type="module">
+  import { initCrmAuth } from './assets/crm-auth.js';
+  initCrmAuth('master');
+</script>
+</body>
+</html>

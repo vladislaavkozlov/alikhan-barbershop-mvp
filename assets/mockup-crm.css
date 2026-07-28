@@ -1,0 +1,627 @@
+/* Окно 9, часть 1 - визуальный макет CRM. Общая тема, переиспользует токены admin.html 1в1. */
+:root {
+  --bg: #12201A;
+  --surface: #1C2E24;
+  --surface-2: #24392C;
+  --surface-3: #2C4433;
+  --accent: #C6A15B;
+  --accent-hover: #B58F45;
+  --wood: #B98B54;
+  --text: #F3EFE4;
+  --text-muted: #B9B2A2;
+  --border: rgba(198, 161, 91, 0.25);
+  --leather: #17140F;
+  --danger: #C1554A;
+  --success: #6FAE7C;
+  --info: #7C93B8;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@font-face{
+  font-family: 'Manrope';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('fonts/manrope-cyrillic-400.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face{
+  font-family: 'Manrope';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('fonts/manrope-latin-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+2000-206F, U+2122;
+}
+@font-face{
+  font-family: 'Manrope';
+  font-style: normal; font-weight: 700; font-display: swap;
+  src: url('fonts/manrope-cyrillic-400.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face{
+  font-family: 'Playfair Display';
+  font-style: normal; font-weight: 600; font-display: swap;
+  src: url('fonts/playfair-cyrillic-600.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face{
+  font-family: 'Playfair Display';
+  font-style: normal; font-weight: 600; font-display: swap;
+  src: url('fonts/playfair-latin-600.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+2000-206F, U+2122;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Playfair Display', Charter, Georgia, serif;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+a { color: var(--accent); }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 clamp(18px, 5vw, 40px); }
+
+header.site {
+  position: sticky; top: 0; z-index: 30;
+  background: rgba(18,32,26,0.94);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--border);
+}
+.nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px clamp(18px, 5vw, 40px);
+  gap: 16px; flex-wrap: wrap;
+}
+.brand {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 600; font-size: 1.3rem; letter-spacing: 0.04em;
+  color: var(--text); text-decoration: none;
+}
+.crm-tag {
+  font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.nav-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+.role-switch { display: flex; gap: 6px; }
+.role-switch a {
+  font-size: 0.78rem; font-weight: 600; text-decoration: none;
+  padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
+  color: var(--text-muted); transition: all 160ms var(--ease-out);
+}
+.role-switch a:hover { border-color: var(--accent); color: var(--text); }
+.role-switch a[aria-current="page"] { background: var(--accent); color: var(--leather); border-color: var(--accent); }
+
+.location-badge {
+  font-size: 0.76rem; color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 5px 12px; white-space: nowrap;
+}
+.location-badge strong { color: var(--accent); font-weight: 600; }
+
+.page { padding: clamp(24px, 5vw, 40px) clamp(18px, 5vw, 40px) 70px; }
+
+h1 { margin: 0 0 4px; color: var(--accent); font-size: clamp(1.5rem, 1.4vw + 1.05rem, 2rem); }
+.subtitle { color: var(--text-muted); margin: 0 0 20px; font-size: 0.94rem; }
+
+.banner {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 26px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+.banner strong { color: var(--text); }
+
+/* ---------- клиенты, которые давно не приходили ---------- */
+/* Правка Влада 28.07.2026: список "не приходили" больше не встречает владельца сразу
+   на входе (красная рамка первым экраном давила негативом) - теперь это всплывающая
+   панель из колокольчика в шапке, доступна в один клик, но не бросается в глаза сама. */
+.notif-bell {
+  position: relative; background: transparent; border: 1px solid var(--border); color: var(--text);
+  width: 38px; height: 38px; border-radius: 8px; cursor: pointer; font-size: 1.05rem;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: border-color 140ms var(--ease-out);
+}
+.notif-bell:hover { border-color: var(--accent); }
+.notif-badge {
+  position: absolute; top: -6px; right: -6px; background: var(--danger); color: #fff;
+  font-size: 0.66rem; font-weight: 700; min-width: 17px; height: 17px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center; padding: 0 3px;
+  font-variant-numeric: tabular-nums; border: 2px solid var(--bg);
+}
+
+.retention-alert {
+  display: none;
+  position: fixed; top: 66px; right: max(20px, calc((100vw - 1160px) / 2));
+  width: min(460px, calc(100vw - 40px)); max-height: 76vh; overflow-y: auto;
+  background: var(--surface-2); border: 1px solid var(--danger); border-radius: 10px;
+  padding: 16px 18px; box-shadow: 0 24px 48px -12px rgba(0,0,0,0.55); z-index: 40;
+}
+.retention-alert.open { display: block; }
+.retention-alert .ra-head { display: flex; align-items: center; gap: 8px; font-size: 0.94rem; color: var(--text); }
+.retention-alert .ra-head .ico { color: var(--danger); }
+.retention-alert .ra-close {
+  margin-left: auto; background: transparent; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 1rem; padding: 2px 4px; flex-shrink: 0; line-height: 1;
+}
+.retention-alert .ra-close:hover { color: var(--text); }
+.retention-alert .ra-body { margin-top: 12px; }
+.ra-list { display: flex; flex-direction: column; gap: 8px; }
+.ra-restore { margin-top: 4px; }
+.ra-restore .count { font-variant-numeric: tabular-nums; }
+.ra-row {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+}
+/* .ra-row{display:flex} и атрибут [hidden] имеют одинаковую специфичность - без этого
+   правила hidden-строка технически скрыта в DOM (JS это видит), но всё ещё видна на
+   экране, потому что автор-стиль .ra-row перебивает встроенный [hidden]{display:none} */
+.ra-row[hidden] { display: none; }
+.ra-row .ra-name { font-weight: 600; font-size: 0.86rem; min-width: 130px; }
+.ra-row .ra-last { color: var(--text-muted); font-size: 0.78rem; flex: 1; min-width: 180px; }
+.ra-row .ra-master { color: var(--wood); font-size: 0.76rem; border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; }
+.ra-row .ra-note {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 9px; font-size: 0.76rem; color: var(--text); width: 170px;
+}
+.ra-row .ra-dismiss {
+  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+  border-radius: 6px; width: 28px; height: 28px; flex-shrink: 0; cursor: pointer; font-size: 0.9rem;
+  padding: 0; line-height: 1; font-family: inherit;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.ra-row .ra-dismiss:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ---------- top-level page tabs (Расписание / Сотрудники) ---------- */
+.page-tabs { position: relative; margin-bottom: 22px; }
+.page-tabs > input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+.page-tabs .tab-bar { display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 22px; flex-wrap: wrap; }
+.page-tabs .tab-bar label {
+  cursor: pointer; padding: 10px 4px; margin-right: 18px;
+  font-family: 'Playfair Display', Georgia, serif; font-size: 1.05rem;
+  color: var(--text-muted); border-bottom: 2px solid transparent;
+  transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out);
+}
+.page-tabs .tab-bar label:hover { color: var(--text); }
+.page-tabs .tab-panel { display: none; }
+#pt-a:checked ~ .tab-bar label[for="pt-a"],
+#pt-b:checked ~ .tab-bar label[for="pt-b"] { color: var(--accent); border-color: var(--accent); }
+#pt-a:checked ~ .panel-a { display: block; }
+#pt-b:checked ~ .panel-b { display: block; }
+
+section, .card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px clamp(18px, 3vw, 28px);
+  margin-bottom: 24px;
+}
+section h2 { margin-top: 0; color: var(--accent); font-size: 1.12rem; }
+section .section-hint { color: var(--text-muted); font-size: 0.82rem; margin: -8px 0 18px; }
+
+button, .btn {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-block; text-decoration: none;
+  transition: background 160ms var(--ease-out), color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+button:hover, .btn:hover { background: var(--accent); color: var(--leather); }
+button:active, .btn:active { transform: scale(0.96); }
+.btn-primary { background: var(--accent); color: var(--leather); }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-danger { border-color: var(--danger); color: var(--danger); }
+.btn-danger:hover { background: var(--danger); color: var(--text); }
+.btn-ghost { border-color: var(--border); color: var(--text-muted); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+.btn-sm { padding: 5px 11px; font-size: 0.76rem; }
+
+.badge {
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.64rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.03em;
+  padding: 3px 8px; border-radius: 999px;
+  display: inline-block; white-space: nowrap;
+}
+.badge-example { background: var(--wood); color: var(--leather); }
+.badge-on { background: var(--success); color: var(--leather); }
+.badge-off { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.badge-role-owner { background: var(--accent); color: var(--leather); }
+.badge-role-admin { background: var(--info); color: var(--leather); }
+.badge-role-master { background: var(--surface-3); color: var(--text); border: 1px solid var(--border); }
+.badge-todo { background: transparent; color: var(--wood); border: 1px dashed var(--wood); }
+
+.avatar {
+  width: 46px; height: 46px; border-radius: 50%;
+  background: var(--surface-3); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Playfair Display', Georgia, serif; font-weight: 600;
+  color: var(--accent); font-size: 0.95rem; flex-shrink: 0;
+}
+.avatar.lg { width: 64px; height: 64px; font-size: 1.2rem; }
+
+/* ---------- masters row (Расписание) ---------- */
+.masters-row { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 4px; }
+.master-chip {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 14px 8px 8px; flex-shrink: 0;
+}
+.master-chip .name { font-weight: 600; font-size: 0.9rem; }
+.master-chip .sub { display: block; color: var(--text-muted); font-size: 0.72rem; margin-top: 2px; }
+
+/* ---------- period tabs (День / Неделя, etc) ---------- */
+.seg-tabs { position: relative; display: block; margin-bottom: 18px; }
+.seg-tabs input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+.seg-bar { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg-bar label {
+  cursor: pointer; padding: 7px 16px; border-radius: 999px;
+  font-size: 0.82rem; font-weight: 600; color: var(--text-muted);
+  transition: all 160ms var(--ease-out); white-space: nowrap;
+}
+.seg-panel { display: none; }
+.seg-panel > .seg-tabs { margin-top: 14px; }
+
+/* ---------- schedule grid ---------- */
+/* когда календарь - первый элемент внутри панели (переключатель мастера в Неделе,
+   без поясняющего текста над ним) - нужен свой отступ сверху, иначе сетка Пн-Вс
+   касается пилюли переключателя мастеров */
+.seg-panel > .schedule-scroll:first-child { margin-top: 14px; }
+/* scrollbar-gutter резервирует место под горизонтальный скролл заранее - без этого
+   у части пользователей (классические, не оверлейные скроллбары) полоса прокрутки
+   появляется/пропадает при наведении и вся страница "пляшет" вверх-вниз */
+.schedule-scroll { overflow-x: auto; scrollbar-gutter: stable; }
+.schedule-grid {
+  display: grid; grid-auto-columns: minmax(220px, 1fr); grid-auto-flow: column;
+  gap: 14px; min-width: 100%;
+}
+.schedule-col { position: relative; }
+.schedule-col-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.schedule-col-head .name { font-weight: 600; font-size: 0.92rem; }
+.schedule-track {
+  position: relative; border: 1px solid var(--border); border-radius: 10px;
+  background-image: linear-gradient(var(--border) 1px, transparent 1px);
+  background-size: 100% 64px; background-color: var(--surface-2);
+  min-height: 640px; overflow: visible;
+}
+.schedule-track.day-off {
+  background-image: repeating-linear-gradient(135deg, var(--surface-3) 0 10px, var(--surface-2) 10px 20px);
+  display: flex; align-items: center; justify-content: center;
+}
+.day-off-label { color: var(--text-muted); font-size: 0.82rem; font-style: italic; }
+.hour-gutter { width: 44px; flex-shrink: 0; }
+.hour-gutter .schedule-col-head { visibility: hidden; }
+.hour-marks { position: relative; height: 640px; }
+.hour-marks span {
+  position: absolute; right: 6px; transform: translateY(-50%);
+  font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.schedule-row-with-gutter { display: flex; gap: 8px; }
+
+.appt {
+  position: absolute; left: 4px; right: 4px; min-height: 34px; border-radius: 7px;
+  padding: 4px 8px; font-size: 0.68rem; line-height: 1.22; overflow: hidden;
+  border: 1px solid transparent; cursor: pointer;
+  transition: transform 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+.appt:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -10px rgba(0,0,0,0.5); z-index: 5; }
+.appt .t { font-weight: 700; display: block; }
+.appt .c { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.appt .s { display: block; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.appt--done { background: rgba(111,174,124,0.24); border-color: var(--success); color: #DDEFE0; }
+.appt--new { background: rgba(198,161,91,0.28); border-color: var(--accent); color: var(--text); }
+.appt--selected { background: rgba(124,147,184,0.28); border-color: var(--info); color: #E4EAF3; }
+.appt--break {
+  background: repeating-linear-gradient(135deg, rgba(185,139,84,0.18) 0 8px, transparent 8px 16px);
+  border-color: var(--border); color: var(--text-muted); display: flex; align-items: center; justify-content: center; text-align: center;
+}
+
+/* ---------- booking detail (expands under schedule) ---------- */
+details.booking-detail { margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+details.booking-detail summary {
+  cursor: pointer; padding: 12px 16px; font-size: 0.86rem; color: var(--accent); font-weight: 600;
+  list-style: none; display: flex; align-items: center; gap: 8px;
+}
+details.booking-detail summary::-webkit-details-marker { display: none; }
+details.booking-detail summary .bd-hint { color: var(--text-muted); font-weight: 400; font-size: 0.78rem; }
+details.booking-detail summary::before { content: '▸'; transition: transform 160ms var(--ease-out); }
+details.booking-detail[open] summary::before { transform: rotate(90deg); }
+.booking-detail-body { padding: 6px 18px 20px; }
+
+.status-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.status-row label {
+  cursor: pointer; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border);
+  font-size: 0.8rem; font-weight: 600; color: var(--text-muted);
+}
+.status-row input[type="radio"] { display: none; }
+#st-wait:checked ~ label[for="st-wait"],
+#st-came:checked ~ label[for="st-came"],
+#st-no:checked ~ label[for="st-no"] { background: var(--accent); color: var(--leather); border-color: var(--accent); }
+.status-legend { color: var(--text-muted); font-size: 0.76rem; line-height: 1.55; margin: -8px 0 16px; }
+
+.field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 14px; margin-bottom: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 0.76rem; color: var(--text-muted); }
+/* поле с бейджем в лейбле (например "Закреплён за мастером") шире обычного столбца -
+   без span 2 бейдж переносится на вторую строку лейбла и весь инпут "съезжает" вниз
+   относительно соседей по той же строке сетки */
+.field--wide { grid-column: span 2; }
+.field label .badge { vertical-align: middle; }
+.field input, .field select, .field textarea {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); padding: 9px 12px; font-family: inherit; font-size: 0.88rem;
+}
+.field textarea { resize: vertical; min-height: 44px; }
+.field .masked { color: var(--text-muted); font-style: italic; }
+.confirm-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.confirm-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+.confirm-row label { font-size: 0.85rem; }
+
+/* ---------- staff list ---------- */
+.staff-filter-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.staff-search {
+  flex: 1; min-width: 180px; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 14px; color: var(--text-muted); font-size: 0.86rem;
+}
+.staff-list { display: flex; flex-direction: column; gap: 12px; }
+details.staff-card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+details.staff-card summary {
+  cursor: pointer; list-style: none; padding: 14px 18px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+details.staff-card summary::-webkit-details-marker { display: none; }
+.summary-meta { flex: 1; min-width: 160px; }
+.summary-meta .name { font-weight: 600; font-size: 0.98rem; }
+.summary-meta .role { color: var(--text-muted); font-size: 0.8rem; margin-top: 2px; }
+.summary-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.chevron { color: var(--text-muted); transition: transform 160ms var(--ease-out); flex-shrink: 0; }
+details.staff-card[open] .chevron { transform: rotate(90deg); }
+.staff-card-body { padding: 4px 18px 22px; border-top: 1px solid var(--border); margin-top: 2px; }
+.staff-card-body h4 { color: var(--text); font-size: 0.9rem; margin: 18px 0 10px; }
+.staff-card-body h4:first-child { margin-top: 18px; }
+
+.role-picker { display: flex; gap: 10px; flex-wrap: wrap; }
+.role-option {
+  flex: 1; min-width: 150px; border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; cursor: pointer; position: relative;
+}
+.role-option input { position: absolute; opacity: 0; }
+.role-option .rn { font-weight: 600; font-size: 0.88rem; display: block; margin-bottom: 3px; }
+.role-option .rd { color: var(--text-muted); font-size: 0.74rem; line-height: 1.4; }
+.role-option:has(input:checked) { border-color: var(--accent); background: rgba(198,161,91,0.1); }
+
+.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.toggle-row:last-child { border-bottom: none; }
+.toggle-row .tr-label { font-size: 0.86rem; }
+.toggle-row .tr-sub { color: var(--text-muted); font-size: 0.74rem; margin-top: 2px; }
+.switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.switch .track { position: absolute; inset: 0; background: var(--surface-3); border: 1px solid var(--border); border-radius: 999px; transition: background 160ms var(--ease-out); }
+.switch .knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--text-muted); transition: transform 160ms var(--ease-out), background 160ms var(--ease-out); }
+.switch input:checked ~ .track { background: rgba(111,174,124,0.35); border-color: var(--success); }
+.switch input:checked ~ .knob { transform: translateX(18px); background: var(--success); }
+
+.services-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.service-tag { font-size: 0.74rem; color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; }
+
+/* ---------- график (grafik) ---------- */
+.breaks-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.break-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.break-row .field { flex-direction: row; align-items: center; gap: 8px; }
+.break-row .field input { width: 100px; }
+.break-row .note { color: var(--wood); font-size: 0.72rem; font-style: italic; }
+.remove-x {
+  border: none; background: transparent; color: var(--text-muted); font-size: 1.1rem;
+  cursor: pointer; padding: 2px 8px; line-height: 1;
+}
+.remove-x:hover { background: transparent; color: var(--danger); }
+
+/* ---------- выходные дни сотрудника ---------- */
+.dayoff-picker { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.dayoff-day {
+  position: relative; cursor: pointer; width: 46px; height: 40px; border-radius: 8px;
+  border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 600; color: var(--text-muted); transition: all 160ms var(--ease-out);
+}
+.dayoff-day input { position: absolute; opacity: 0; }
+.dayoff-day:has(input:checked) { border-color: var(--wood); background: rgba(185,139,84,0.16); color: var(--text); }
+
+/* ---------- zarplata (payroll) ---------- */
+.payroll-empty { text-align: center; padding: 22px 16px; }
+.payroll-empty .pe-icon { font-size: 2.4rem; margin-bottom: 10px; }
+.payroll-empty p { color: var(--text-muted); font-size: 0.88rem; margin: 0 0 16px; }
+.payroll-sum { display: flex; align-items: baseline; gap: 10px; margin-top: 16px; margin-bottom: 6px; }
+.payroll-sum .amount { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.8rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.payroll-sum .amount .unsure { font-size: 0.9rem; color: var(--wood); font-family: 'Manrope'; font-weight: 600; }
+.payroll-note { color: var(--text-muted); font-size: 0.78rem; font-style: italic; margin: 2px 0 18px; }
+.payroll-period-picker { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.payroll-period-picker .field { min-width: 150px; }
+.payroll-period-picker .btn { margin-bottom: 1px; }
+.payouts-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.payouts-table th, .payouts-table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+.payouts-table th { color: var(--accent); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+
+.settings-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 16px; margin-top: 6px; }
+
+/* ---------- service picker (checkboxes, замена статичным тегам услуг) ---------- */
+.service-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap: 9px; }
+.service-check {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+  font-size: 0.8rem; color: var(--text-muted); transition: all 160ms var(--ease-out);
+}
+.service-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; }
+.service-check:has(input:checked) { border-color: var(--accent); background: rgba(198,161,91,0.08); color: var(--text); }
+.service-check .sc-name { font-weight: 600; display: block; }
+/* цена и длительность - одной строкой через точку, как единое "мета"-описание услуги,
+   а не два отдельных ряда мелкого текста (визуальная правка Влада 28.07.2026 - было
+   тесно и не симпатично, когда длительность появилась вторым рядом под ценой) */
+.service-check .sc-meta { display: flex; align-items: baseline; gap: 5px; margin-top: 4px; color: var(--text-muted); font-size: 0.72rem; }
+.service-check .sc-dot { opacity: 0.45; }
+.service-check .sc-duration { display: inline-flex; align-items: baseline; gap: 3px; white-space: nowrap; }
+.sc-duration-input {
+  width: 24px; background: transparent; border: none; border-bottom: 1px solid var(--border);
+  border-radius: 0; color: var(--text); padding: 0 0 1px; font-family: inherit; font-size: 0.78rem;
+  font-weight: 600; text-align: center; transition: border-color 140ms var(--ease-out);
+}
+.sc-duration-input:hover:not(:disabled) { border-bottom-color: var(--wood); }
+.sc-duration-input:focus { outline: none; border-bottom-color: var(--accent); }
+.sc-duration-input:disabled { opacity: 0.55; cursor: not-allowed; border-bottom-style: dotted; }
+/* убираем стрелки-степпер у number - в узкой инлайн-цифре они не помещаются красиво */
+.sc-duration-input::-webkit-inner-spin-button, .sc-duration-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.sc-duration-input[type="number"] { -moz-appearance: textfield; }
+
+/* ---------- месяц/год расписания ---------- */
+.month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.month-grid .wd { text-align: center; font-size: 0.72rem; color: var(--text-muted); padding-bottom: 4px; }
+.month-day {
+  position: relative; min-height: 62px; border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 8px; background: var(--surface-2); font-size: 0.78rem;
+}
+.month-day.is-empty { background: transparent; border-color: transparent; }
+.month-day .num { font-weight: 600; display: block; }
+.month-day.is-holiday { background: rgba(185,139,84,0.14); border-color: var(--wood); }
+.month-day .holiday-label { display: block; color: var(--wood); font-size: 0.64rem; margin-top: 2px; line-height: 1.3; }
+.month-day .appt-count { display: block; color: var(--text-muted); font-size: 0.64rem; margin-top: 2px; }
+
+.year-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px,1fr)); gap: 12px; }
+.year-month { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: var(--surface-2); }
+.year-month .ym-name { font-weight: 600; margin-bottom: 6px; font-family: 'Playfair Display', Georgia, serif; }
+.year-month .ym-holiday { color: var(--wood); font-size: 0.74rem; display: block; line-height: 1.4; }
+.year-month .ym-note { color: var(--text-muted); font-size: 0.72rem; margin-top: 8px; }
+
+/* ---------- недельный грид (модификатор schedule-grid под 7 дней вместо мастеров) ---------- */
+.schedule-grid--week { grid-auto-columns: minmax(128px, 1fr); }
+.week-head { justify-content: center; text-align: center; }
+.master-switch-row { margin-bottom: 16px; }
+
+/* ---------- статистика: возвращаемость / выручка ---------- */
+.stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 14px; margin-top: 4px; }
+.stat-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+.stat-card .sc-label { font-size: 0.76rem; color: var(--text-muted); margin-bottom: 6px; }
+.stat-card .sc-value { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.6rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.stat-card .sc-value .unsure { font-size: 0.78rem; color: var(--wood); font-family: 'Manrope'; font-weight: 600; }
+.stat-card .sc-note { color: var(--text-muted); font-size: 0.72rem; font-style: italic; margin-top: 6px; }
+.stat-card--net { border-color: var(--accent); }
+
+/* ---------- неявка без предупреждения -> предоплата в следующий раз ---------- */
+.noshow-banner {
+  display: flex; align-items: flex-start; gap: 10px; background: rgba(193,85,74,0.12);
+  border: 1px solid var(--danger); border-radius: 8px; padding: 10px 14px; margin: 4px 0 16px;
+  color: var(--text); font-size: 0.82rem; line-height: 1.5;
+}
+.noshow-banner[hidden] { display: none; }
+.noshow-banner .ico { flex-shrink: 0; }
+
+.walkin-banner {
+  display: flex; align-items: flex-start; gap: 10px; background: rgba(198,161,91,0.14);
+  border: 1px solid var(--accent); border-radius: 8px; padding: 10px 14px; margin: 0 0 16px;
+  color: var(--text); font-size: 0.82rem; line-height: 1.5;
+}
+.walkin-banner[hidden] { display: none; }
+.walkin-banner .ico { flex-shrink: 0; color: var(--accent); }
+
+.birthday-banner {
+  display: flex; align-items: flex-start; gap: 10px; background: rgba(111,174,124,0.12);
+  border: 1px solid var(--success); border-radius: 8px; padding: 10px 14px; margin: 0 0 16px;
+  color: var(--text); font-size: 0.82rem; line-height: 1.5;
+}
+.birthday-banner .ico { flex-shrink: 0; }
+
+/* ---------- комментарии по клиенту (вся история, не только текущая запись) ---------- */
+.comment-thread { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; max-height: 200px; overflow-y: auto; }
+.comment-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.comment-item .ci-meta { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 3px; }
+.comment-item .ci-text { font-size: 0.84rem; }
+.comment-add-row { display: flex; gap: 8px; }
+.comment-add-row input { flex: 1; min-width: 0; }
+.appt-warn { color: #FFD2CC; font-weight: 700; margin-right: 2px; }
+
+.appt--break { cursor: default; }
+
+/* ---------- фактическое время прихода: кнопка + исправимое поле ---------- */
+.arrival-row { display: flex; gap: 8px; align-items: center; }
+.arrival-row input { flex: 1; min-width: 0; }
+.arrival-row .btn-sm { white-space: nowrap; flex-shrink: 0; }
+
+/* ---------- изменить/добавить услугу в карточке записи ---------- */
+.service-edit { margin: 2px 0 16px; border: 1px dashed var(--border); border-radius: 8px; padding: 2px 14px; }
+.service-edit summary {
+  cursor: pointer; padding: 10px 0; font-size: 0.82rem; color: var(--accent); font-weight: 600;
+  list-style: none; display: flex; align-items: center; gap: 6px;
+}
+.service-edit summary::-webkit-details-marker { display: none; }
+.service-edit summary::before { content: '✎'; }
+.service-edit .section-hint { margin: 0 0 12px; }
+.service-edit .service-picker { margin-bottom: 14px; }
+
+/* ---------- комиссия мастера ---------- */
+.field .commission-note { color: var(--wood); font-size: 0.72rem; font-style: italic; margin: 4px 0 0; }
+
+/* ---------- роли: подсказка про совмещение ---------- */
+.role-hint { color: var(--text-muted); font-size: 0.78rem; line-height: 1.5; margin: 0 0 12px; }
+
+@media (max-width: 620px) {
+  .schedule-row-with-gutter { flex-direction: column; }
+  .hour-gutter { display: none; }
+}
+
+/* ---------- вход в боевую базу (правка Влада 28.07.2026 - реальный логин поверх макета) ---------- */
+.login-gate {
+  position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center;
+  justify-content: center; z-index: 999; padding: 20px;
+}
+.login-card {
+  width: min(380px, 100%); background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 14px; padding: 34px 30px; text-align: center;
+}
+.login-brand { font-family: 'Playfair Display', serif; font-size: 1.7rem; letter-spacing: 0.08em; color: var(--text); }
+.login-tag { color: var(--text-muted); font-size: 0.78rem; margin: 4px 0 26px; text-transform: uppercase; letter-spacing: 0.08em; }
+.login-card .field { text-align: left; margin-bottom: 14px; }
+.login-card button[type="submit"] { width: 100%; margin-top: 6px; }
+.login-error {
+  color: var(--danger); font-size: 0.8rem; margin: 0 0 14px; padding: 8px 10px;
+  background: rgba(193,85,74,0.12); border: 1px solid rgba(193,85,74,0.35); border-radius: 8px;
+}
+.login-hint { color: var(--text-muted); font-size: 0.72rem; margin-top: 18px; line-height: 1.5; }
+.session-info { color: var(--text-muted); font-size: 0.78rem; white-space: nowrap; }
+.logout-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+  border-radius: 8px; padding: 7px 12px; font-size: 0.78rem; cursor: pointer; transition: all 160ms var(--ease-out);
+}
+.logout-btn:hover { border-color: var(--danger); color: var(--danger); }
+.access-denied { max-width: 480px; margin: 60px auto; text-align: center; color: var(--text-muted); }
+.access-denied h2 { color: var(--text); }
+
+/* панель-доказательство, что данные реальные (не пример) - живой счёт из Postgres через API */
+.live-proof {
+  border: 1px solid var(--success); background: rgba(111,174,124,0.1); border-radius: 10px;
+  padding: 11px 16px; margin: 0 0 20px; font-size: 0.84rem; display: flex; gap: 10px;
+  align-items: center; flex-wrap: wrap;
+}
+.live-proof .lp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+.live-proof strong { color: var(--success); font-weight: 700; }
+.live-proof.lp-error { border-color: var(--danger); background: rgba(193,85,74,0.1); }
+.live-proof.lp-error .lp-dot { background: var(--danger); }
+.live-proof.lp-error strong { color: var(--danger); }
