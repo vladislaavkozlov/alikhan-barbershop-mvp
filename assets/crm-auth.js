@@ -74,9 +74,15 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function formatMoney(value) {
+  return `${Math.round(value).toLocaleString('ru-RU')} ₽`;
+}
+
 // Живое доказательство, что это не рисунок - реальный запрос к Postgres на Amvera
 // при каждой загрузке страницы. /staff и /bookings уже сами фильтруют по роли на
-// сервере (Окно 8) - владелец видит всех, мастер только себя, и т.д.
+// сервере (Окно 8) - владелец видит всех, мастер только себя, и т.д. Заодно, если на
+// странице есть блоки реальной выручки/зарплаты (id ниже) - считаем и их из тех же
+// данных, вместо статичного "000 ₽ пример" (правка Влада 28.07.2026).
 async function renderLiveProof(staff) {
   const panel = el('liveProof');
   if (!panel) return;
@@ -94,6 +100,32 @@ async function renderLiveProof(staff) {
     panel.innerHTML =
       `<span class="lp-dot"></span><strong>Живая боевая база (Amvera)</strong>` +
       `<span>сотрудников видно вам: ${staffList.length} · услуг в прайсе: ${services.length} · записей на сегодня в базе: ${bookings.length}${bookingsNote}</span>`;
+
+    const priceOf = (serviceId) => services.find((s) => s.id === serviceId)?.price ?? 0;
+    const ownerIds = new Set(staffList.filter((s) => s.role === 'owner').map((s) => s.id));
+
+    // Владелец: "Выручка по точке → Все точки → День" - реальная сумма по всем бронькам
+    // сегодня, зарплата - 45% от неё (пример-ставка, как и раньше), без брони владельца
+    // самому себе (он комиссию не получает).
+    const revenueEl = el('rvAllDayRevenue');
+    const payrollEl = el('rvAllDayPayroll');
+    const netEl = el('rvAllDayNet');
+    if (revenueEl && payrollEl && netEl) {
+      const revenue = bookings.reduce((sum, b) => sum + priceOf(b.serviceId), 0);
+      const payrollBookings = bookings.filter((b) => !ownerIds.has(b.masterId));
+      const payroll = payrollBookings.reduce((sum, b) => sum + priceOf(b.serviceId), 0) * 0.45;
+      revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
+      payrollEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
+      netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;
+    }
+
+    // Мастер: "Моя зарплата → За день" - только его брони сегодня.
+    const myPayrollEl = el('myPayrollDay');
+    if (myPayrollEl) {
+      const mine = bookings.filter((b) => b.masterId === staff.id);
+      const myRevenue = mine.reduce((sum, b) => sum + priceOf(b.serviceId), 0);
+      myPayrollEl.innerHTML = `${formatMoney(myRevenue * 0.45)} <span class="unsure">реально</span>`;
+    }
   } catch (err) {
     panel.classList.add('lp-error');
     panel.innerHTML = `<span class="lp-dot"></span><strong>Не удалось получить живые данные</strong><span>${err.message}</span>`;

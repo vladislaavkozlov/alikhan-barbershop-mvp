@@ -889,10 +889,11 @@
               </div>
               <div class="seg-panel panel-rvpa-day">
                 <div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">Выручка (обе точки)</div><div class="sc-value">000 ₽ <span class="unsure">пример</span></div><div class="sc-note">Точка 1 + Точка 2 за день</div></div>
-                  <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value">000 ₽ <span class="unsure">пример</span></div><div class="sc-note">По ставкам разд.16.5, тоже плейсхолдер</div></div>
-                  <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value">000 ₽ <span class="unsure">пример</span></div><div class="sc-note">Выручка минус зарплаты по обеим точкам</div></div>
+                  <div class="stat-card"><div class="sc-label">Выручка (обе точки)</div><div class="sc-value" id="rvAllDayRevenue">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Точка 1 + Точка 2 за день - реальная сумма по записям в базе на сегодня</div></div>
+                  <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllDayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке 45% (пример, разд.16.5) от той же реальной выручки</div></div>
+                  <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllDayNet">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Выручка минус зарплаты по обеим точкам</div></div>
                 </div>
+                <p class="section-hint" style="margin-top:10px">Разбивка по Точке 1 / Точке 2 ниже пока пример - в базе мастера ещё не привязаны к конкретной точке (открытый вопрос Алихану), реальная сумма выше показана по всем точкам вместе</p>
               </div>
               <div class="seg-panel panel-rvpa-week"><div class="stat-cards">
                 <div class="stat-card"><div class="sc-label">Выручка (обе точки)</div><div class="sc-value">000 ₽ <span class="unsure">пример</span></div></div>
