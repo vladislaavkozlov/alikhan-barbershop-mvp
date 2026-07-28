@@ -592,6 +592,7 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
   position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center;
   justify-content: center; z-index: 999; padding: 20px;
 }
+.login-gate[hidden] { display: none; }
 .login-card {
   width: min(380px, 100%); background: var(--surface-2); border: 1px solid var(--border);
   border-radius: 14px; padding: 34px 30px; text-align: center;
