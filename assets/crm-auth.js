@@ -126,9 +126,77 @@ async function renderLiveProof(staff) {
       const myRevenue = mine.reduce((sum, b) => sum + priceOf(b.serviceId), 0);
       myPayrollEl.innerHTML = `${formatMoney(myRevenue * 0.45)} <span class="unsure">реально</span>`;
     }
+
+    await renderRevenuePeriods(staffList, services, priceOf, ownerIds);
   } catch (err) {
     panel.classList.add('lp-error');
     panel.innerHTML = `<span class="lp-dot"></span><strong>Не удалось получить живые данные</strong><span>${err.message}</span>`;
+  }
+}
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+function dateToStr(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+// "С начала периода по сегодня", не скользящее окно - Неделя с понедельника текущей
+// недели, Месяц с 1 числа, Квартал с 1 числа текущего квартала, Год с 1 января. Тот
+// же принцип, что и у "День" (= сегодняшний календарный день, не последние 24ч).
+function periodStartStr(period) {
+  const d = new Date();
+  if (period === 'week') {
+    const dow = (d.getDay() + 6) % 7; // 0 = понедельник
+    d.setDate(d.getDate() - dow);
+  } else if (period === 'month') {
+    d.setDate(1);
+  } else if (period === 'quarter') {
+    d.setMonth(Math.floor(d.getMonth() / 3) * 3, 1);
+  } else if (period === 'year') {
+    d.setMonth(0, 1);
+  }
+  return dateToStr(d);
+}
+
+// Владелец: вкладка "Выручка по точке" - Неделя/Месяц/Квартал/Год и разбивка по
+// Точке 1/Точке 2 (правка 28.07.2026, см. miграция 003_staff_locations.sql - до неё
+// у всех мастеров locationId был null, разбивка была честным плейсхолдером). Один
+// запрос на весь год вместо отдельного на каждый день - дальше бакетируем на фронте.
+async function renderRevenuePeriods(staffList, services, priceOf, ownerIds) {
+  if (!el('rvAllWeekRevenue')) return; // элементов нет вне страницы владельца
+
+  const today = todayStr();
+  let bookings;
+  try {
+    const res = await fetchJson(`/bookings?from=${periodStartStr('year')}&to=${today}`);
+    bookings = res.bookings || [];
+  } catch {
+    return; // "считаю…" останется как есть - основная ошибка уже показана в панели выше
+  }
+
+  const fill = (prefix, rows) => {
+    const revenueEl = el(`${prefix}Revenue`);
+    const payrollEl = el(`${prefix}Payroll`);
+    const netEl = el(`${prefix}Net`);
+    if (!revenueEl && !payrollEl && !netEl) return;
+    const revenue = rows.reduce((sum, b) => sum + priceOf(b.serviceId), 0);
+    const payroll = rows.filter((b) => !ownerIds.has(b.masterId)).reduce((sum, b) => sum + priceOf(b.serviceId), 0) * 0.45;
+    if (revenueEl) revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
+    if (payrollEl) payrollEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
+    if (netEl) netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;
+  };
+
+  const todayRows = bookings.filter((b) => b.date === today);
+  fill('rvLoc1Day', todayRows.filter((b) => b.locationId === 1));
+  fill('rvLoc2Day', todayRows.filter((b) => b.locationId === 2));
+
+  for (const [label, key] of [['Week', 'week'], ['Month', 'month'], ['Quarter', 'quarter'], ['Year', 'year']]) {
+    const start = periodStartStr(key);
+    const rows = bookings.filter((b) => b.date >= start && b.date <= today);
+    fill(`rvAll${label}`, rows);
+    fill(`rvLoc1${label}`, rows.filter((b) => b.locationId === 1));
+    fill(`rvLoc2${label}`, rows.filter((b) => b.locationId === 2));
   }
 }
 
