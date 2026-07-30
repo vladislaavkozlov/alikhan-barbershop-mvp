@@ -14,17 +14,14 @@
   #sp-month:checked ~ .seg-bar label[for="sp-month"],
   #sp-year:checked ~ .seg-bar label[for="sp-year"] { background: var(--accent); color: var(--leather); }
 
-  #zp1-calc:checked ~ .panel-zp1-calc, #zp1-pay:checked ~ .panel-zp1-pay { display: block; }
-  #zp1-calc:checked ~ .seg-bar label[for="zp1-calc"],
-  #zp1-pay:checked ~ .seg-bar label[for="zp1-pay"] { background: var(--accent); color: var(--leather); }
+  #zp1-calc:checked ~ .panel-zp1-calc { display: block; }
+  #zp1-calc:checked ~ .seg-bar label[for="zp1-calc"] { background: var(--accent); color: var(--leather); }
 
-  /* те же вкладки Расчёт/Выплаты у карточек Мамеда и Ивана 3 (правка 28.07.2026) */
-  #zp2-calc:checked ~ .panel-zp2-calc, #zp2-pay:checked ~ .panel-zp2-pay { display: block; }
-  #zp2-calc:checked ~ .seg-bar label[for="zp2-calc"],
-  #zp2-pay:checked ~ .seg-bar label[for="zp2-pay"] { background: var(--accent); color: var(--leather); }
-  #zp3-calc:checked ~ .panel-zp3-calc, #zp3-pay:checked ~ .panel-zp3-pay { display: block; }
-  #zp3-calc:checked ~ .seg-bar label[for="zp3-calc"],
-  #zp3-pay:checked ~ .seg-bar label[for="zp3-pay"] { background: var(--accent); color: var(--leather); }
+  /* та же вкладка "Расчёт ЗП" у карточек Мамедхана и Елизаветы (Окно 10 - вкладка "Выплаты ЗП" убрана, Алихан подтвердил, что она не нужна) */
+  #zp2-calc:checked ~ .panel-zp2-calc { display: block; }
+  #zp2-calc:checked ~ .seg-bar label[for="zp2-calc"] { background: var(--accent); color: var(--leather); }
+  #zp3-calc:checked ~ .panel-zp3-calc { display: block; }
+  #zp3-calc:checked ~ .seg-bar label[for="zp3-calc"] { background: var(--accent); color: var(--leather); }
 
   #zp1p-day:checked ~ .panel-zp1p-day, #zp1p-week:checked ~ .panel-zp1p-week,
   #zp1p-month:checked ~ .panel-zp1p-month, #zp1p-period:checked ~ .panel-zp1p-period { display: block; }
@@ -121,7 +118,7 @@
   <div class="live-proof" id="liveProof"><span class="lp-dot"></span><span>Проверяю связь с боевой базой…</span></div>
 
   <div class="banner">
-    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход, роли и счётчики выше настоящие (Amvera, тестовый контур). Сам календарь записей, суммы ЗП и мастера «Али / Мамед / Иван 3» ниже пока пример (как в <code>storage.js</code>) — реальных клиентских записей и утверждённой формулы ЗП ещё нет, это осознанно отложено, не забыто. Собрано по разд. 16 ТЗ и 9 скринам личного кабинета YClients, которые прислал Алихан. Оба адреса точек в базе пока совпадают текстово (различаются только описанием фасада) — вопрос к данным, не к этому макету.
+    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход, роли и счётчики выше настоящие (Amvera, тестовый контур). Сам календарь записей, суммы ЗП и мастера «Али / Мамед / Елизавета» ниже пока пример (как в <code>storage.js</code>) — реальных клиентских записей и утверждённой формулы ЗП ещё нет, это осознанно отложено, не забыто. Собрано по разд. 16 ТЗ и 9 скринам личного кабинета YClients, которые прислал Алихан. Оба адреса точек в базе пока совпадают текстово (различаются только описанием фасада) — вопрос к данным, не к этому макету.
   </div>
 
   <div class="retention-alert" id="retention-panel">
@@ -131,7 +128,7 @@
     <div class="ra-list">
       <div class="ra-row"><span class="ra-name">Клиент Ж (пример)</span><span class="ra-last">Последний визит 15.04.2026 · 3.4 мес назад</span><span class="ra-master">Мамед</span><button class="btn-ghost btn-sm" type="button">Позвонить (пример)</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
       <div class="ra-row"><span class="ra-name">Клиент З (пример)</span><span class="ra-last">Последний визит 02.03.2026 · 4.8 мес назад</span><span class="ra-master">Али</span><button class="btn-ghost btn-sm" type="button">Позвонить (пример)</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-row"><span class="ra-name">Клиент И (пример)</span><span class="ra-last">Последний визит 20.02.2026 · 5.2 мес назад</span><span class="ra-master">Иван 3</span><button class="btn-ghost btn-sm" type="button">Позвонить (пример)</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
+      <div class="ra-row"><span class="ra-name">Клиент И (пример)</span><span class="ra-last">Последний визит 20.02.2026 · 5.2 мес назад</span><span class="ra-master">Елизавета</span><button class="btn-ghost btn-sm" type="button">Позвонить (пример)</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
       <div class="ra-restore" hidden><button class="btn-ghost btn-sm" type="button" onclick="restoreRetentionRows(this)">Показать скрытые (<span class="count">0</span>)</button></div>
     </div>
     </div>
@@ -239,7 +236,7 @@
                     </div>
                   </div>
                   <div class="schedule-col">
-                    <div class="schedule-col-head"><div class="avatar">И3</div><span class="name">Иван 3</span></div>
+                    <div class="schedule-col-head"><div class="avatar">ЕЛ</div><span class="name">Елизавета</span></div>
                     <div class="schedule-track day-off"><span class="day-off-label">Выходной (пример)</span></div>
                   </div>
                 </div>
@@ -256,7 +253,7 @@
               <div class="seg-bar">
                 <label for="wk-ivan1">Али</label>
                 <label for="wk-ivan2">Мамед</label>
-                <label for="wk-ivan3">Иван 3</label>
+                <label for="wk-ivan3">Елизавета</label>
               </div>
 
               <div class="seg-panel panel-wk-ivan1">
@@ -368,7 +365,7 @@
                       <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Вт</span></div>
                         <div class="schedule-track">
                           <div class="appt appt--done" style="top:0px;height:43px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент Р (пример)" data-phone="+7 900 000-00-17 (пример)" data-master="Иван 3"
+                               data-client="Клиент Р (пример)" data-phone="+7 900 000-00-17 (пример)" data-master="Елизавета"
                                data-service="Стрижка · 2000₽" data-planned="10:00–10:40" data-actual="10:00" data-status="came" data-confirmed="true" data-noshow="false">
                             <span class="t">10:00–10:40</span><span class="c">Клиент Р · Стрижка</span></div>
                         </div>
@@ -376,7 +373,7 @@
                       <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Ср</span></div>
                         <div class="schedule-track">
                           <div class="appt appt--new" style="top:320px;height:64px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент С (пример)" data-phone="+7 900 000-00-18 (пример)" data-master="Иван 3"
+                               data-client="Клиент С (пример)" data-phone="+7 900 000-00-18 (пример)" data-master="Елизавета"
                                data-service="Борода · 1600₽" data-planned="15:00–16:00" data-actual="" data-status="wait" data-confirmed="false" data-noshow="false">
                             <span class="t">15:00–16:00</span><span class="c">Клиент С · Борода</span></div>
                         </div>
@@ -386,7 +383,7 @@
                       <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Сб</span></div>
                         <div class="schedule-track">
                           <div class="appt appt--done" style="top:64px;height:64px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент Т (пример)" data-phone="+7 900 000-00-19 (пример)" data-master="Иван 3"
+                               data-client="Клиент Т (пример)" data-phone="+7 900 000-00-19 (пример)" data-master="Елизавета"
                                data-service="Комплекс стрижка+борода · 3500₽" data-planned="11:00–12:00" data-actual="11:02" data-status="came" data-confirmed="true" data-noshow="false">
                             <span class="t">11:00–12:00</span><span class="c">Клиент Т · Комплекс</span></div>
                         </div>
@@ -502,7 +499,7 @@
                     <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Не закреплён</div>
                     <div class="custom-select-option selected" onclick="pickCustomSelectOption(this)">Али</div>
                     <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Мамед</div>
-                    <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Иван 3</div>
+                    <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Елизавета</div>
                   </div>
                 </div>
               </div>
@@ -650,13 +647,11 @@
               </div>
               <button class="btn-ghost btn-sm" type="button" onclick="addVacationRow(this)">+ Добавить отпуск</button>
 
-              <h4>Зарплата (разд. 16.5)</h4>
+              <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
                 <input type="radio" name="zp1-sub" id="zp1-calc" checked>
-                <input type="radio" name="zp1-sub" id="zp1-pay">
                 <div class="seg-bar">
                   <label for="zp1-calc">Расчёт ЗП</label>
-                  <label for="zp1-pay">Выплаты ЗП</label>
                 </div>
 
                 <div class="seg-panel panel-zp1-calc">
@@ -673,7 +668,7 @@
                     </div>
                     <div class="seg-panel panel-zp1p-day">
                       <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">Ставка 45% ещё пример (ТЗ разд.11), но сумма считается по реальным броням этого мастера за сегодня. В расчёт пока идут все статусы - фильтра «Выполнена» ещё нет (см. открытые вопросы релиза)</p>
+                      <p class="payroll-note">100% от выручки по своим услугам (разд.17.3, подтверждено Алиханом) - сумма считается по реальным броням этого мастера за сегодня. В расчёт пока идут все статусы - фильтра «Выполнена» ещё нет (см. открытые вопросы релиза)</p>
                     </div>
                     <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div><p class="payroll-note">За неделю, тот же плейсхолдер-принцип</p></div>
                     <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div><p class="payroll-note">За месяц, тот же плейсхолдер-принцип</p></div>
@@ -688,20 +683,6 @@
                     </div>
                   </div>
                   <a class="btn btn-primary btn-sm" href="#nastroika-zp">Перейти к настройке ЗП</a>
-                  <p class="payroll-note" style="margin-top:10px">Правка Влада 28.07.2026: в реальном расчёте сумма из вкладки «Выплаты ЗП» будет вычитаться отсюда - на экране останется то, что ещё не выдано, а не вся сумма заново</p>
-                </div>
-
-                <div class="seg-panel panel-zp1-pay">
-                  <table class="payouts-table">
-                    <thead><tr><th>Дата</th><th>Сумма</th><th>Статус</th></tr></thead>
-                    <tbody>
-                      <tr><td>20.07.2026 (пример)</td><td>000 ₽ (пример)</td><td>Выплачено</td></tr>
-                      <tr><td>13.07.2026 (пример)</td><td>000 ₽ (пример)</td><td>Выплачено</td></tr>
-                    </tbody>
-                  </table>
-                  <div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div>
-                  <p class="payroll-note">Итого выплачено за выбранный период (тот же фильтр День/Неделя/Месяц/Задать период, что и во вкладке «Расчёт ЗП» - в макете не связаны, в реальной CRM это один фильтр на обе вкладки)</p>
-                  <p class="payroll-note">Это разд. 16.5 / открытый вопрос 14.2 — отдельная сущность «Выплата», не только расчёт. Суммы — плейсхолдеры. Право отмечать выплату здесь есть у владельца всегда и у администратора - только если владелец выдал это право отдельно (см. карточку Мамеда ниже, раздел «Роль»)</p>
                 </div>
               </div>
 
@@ -782,12 +763,6 @@
                 <label class="role-option"><input type="checkbox" name="role-ivan2" checked><span class="rn">Мастер</span><span class="rd">Свой день и заработок</span></label>
               </div>
 
-              <div class="toggle-row">
-                <div><div class="tr-label">Может отмечать выплаты ЗП сотрудникам <span class="badge badge-todo">новое право, разд.16.5</span></div>
-                <div class="tr-sub">Решение Влада 28.07.2026: сама вкладка «Выплаты ЗП» (отметить, выдана ли зарплата за период) - по умолчанию только у владельца. Отдельное право, которое владелец выдаёт администратору здесь, руками. Расчёт (ставки, проценты) при этом всё равно видит только владелец - право не открывает вкладку «Расчёт ЗП»</div></div>
-                <label class="switch"><input type="checkbox"><span class="track"></span><span class="knob"></span></label>
-              </div>
-
               <h4>Услуги</h4>
               <div class="service-picker">
                 <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Стрижка</span><span class="sc-meta"><span class="sc-price">2000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамед" data-svc="Стрижка" value="40" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
@@ -804,23 +779,15 @@
                 <div class="field"><label>Рабочее время с</label><input value="10:00" readonly></div>
                 <div class="field"><label>до</label><input value="20:00" readonly></div>
               </div>
-              <h4>Зарплата (разд. 16.5) <span class="badge badge-todo">без настройки ставок</span></h4>
+              <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
                 <input type="radio" name="zp2-sub" id="zp2-calc" checked>
-                <input type="radio" name="zp2-sub" id="zp2-pay">
                 <div class="seg-bar">
                   <label for="zp2-calc">Расчёт ЗП</label>
-                  <label for="zp2-pay">Выплаты ЗП</label>
                 </div>
                 <div class="seg-panel panel-zp2-calc">
                   <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                  <p class="payroll-note">За сегодня, ставка 45% ещё пример (ТЗ разд.11) - сумма реальная, по броням этого мастера в базе. Только «За день», остальные периоды - следующий шаг (как и у Али выше)</p>
-                </div>
-                <div class="seg-panel panel-zp2-pay">
-                  <div class="payroll-empty">
-                    <div class="pe-icon">💰</div>
-                    <p>Выплаты пока не отмечались - вкладка появится, когда будет первая</p>
-                  </div>
+                  <p class="payroll-note">100% от выручки по своим услугам (разд.17.3, подтверждено Алиханом отдельно от Али) - сумма реальная, по броням этого мастера в базе. Только «За день», остальные периоды - следующий шаг (как и у Али выше)</p>
                 </div>
               </div>
               <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
@@ -828,11 +795,11 @@
             </div>
           </details>
 
-          <!-- ИВАН 3 — короткая карточка, выходной -->
+          <!-- ЕЛИЗАВЕТА — короткая карточка, выходной -->
           <details class="staff-card">
             <summary>
-              <div class="avatar lg">И3</div>
-              <div class="summary-meta"><div class="name">Иван 3 <span class="badge badge-example">пример</span></div><div class="role">Мастер</div></div>
+              <div class="avatar lg">ЕЛ</div>
+              <div class="summary-meta"><div class="name">Елизавета <span class="badge badge-example">пример</span></div><div class="role">Мастер</div></div>
               <div class="summary-badges"><span class="badge badge-on">Оказывает услуги</span><span class="badge badge-off">Доступ к сервису выкл.</span></div>
               <span class="chevron">▸</span>
             </summary>
@@ -840,7 +807,7 @@
               <h4>Контакты</h4>
               <div class="field-grid">
                 <div class="field"><label>Телефон</label><input value="+7 900 000-00-03 (пример)" readonly></div>
-                <div class="field"><label>Email</label><input value="ivan3@example.com (пример)" readonly></div>
+                <div class="field"><label>Email</label><input value="elizaveta@example.com (пример)" readonly></div>
               </div>
               <h4>Роль <span class="badge badge-todo">можно несколько</span></h4>
               <div class="role-picker">
@@ -850,32 +817,32 @@
               </div>
               <h4>Услуги</h4>
               <div class="service-picker">
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Стрижка</span><span class="sc-meta"><span class="sc-price">2000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Иван 3" data-svc="Стрижка" value="40" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Борода</span><span class="sc-meta"><span class="sc-price">1600₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Иван 3" data-svc="Борода" value="30" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-meta"><span class="sc-price">3500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Иван 3" data-svc="Комплекс стрижка+борода" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Бритьё</span><span class="sc-meta"><span class="sc-price">1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Иван 3" data-svc="Бритьё" value="40" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Фирменная окантовка</span><span class="sc-meta"><span class="sc-price">1400₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Иван 3" data-svc="Фирменная окантовка" value="30" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Тонировка седых волос</span><span class="sc-meta"><span class="sc-price">от 1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Иван 3" data-svc="Тонировка седых волос" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Воск</span><span class="sc-meta"><span class="sc-price">от 500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Иван 3" data-svc="Воск" value="15" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">СПА уход</span><span class="sc-meta"><span class="sc-price">3000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Иван 3" data-svc="СПА уход" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
+                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Стрижка</span><span class="sc-meta"><span class="sc-price">1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Стрижка" value="40" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
+                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Борода</span><span class="sc-meta"><span class="sc-price">1200₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Борода" value="30" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
+                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-meta"><span class="sc-price">2500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Комплекс стрижка+борода" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
+                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Бритьё</span><span class="sc-meta"><span class="sc-price">1000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Бритьё" value="40" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
+                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Фирменная окантовка</span><span class="sc-meta"><span class="sc-price">1000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Фирменная окантовка" value="30" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
+                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Тонировка седых волос</span><span class="sc-meta"><span class="sc-price">от 1200₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Тонировка седых волос" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
+                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Воск</span><span class="sc-meta"><span class="sc-price">от 500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Воск" value="15" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
+                <label class="service-check"><input type="checkbox"><span><span class="sc-name">СПА уход</span><span class="sc-meta"><span class="sc-price">3000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="СПА уход" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
               </div>
-              <h4>Зарплата (разд. 16.5) <span class="badge badge-todo">без настройки ставок</span></h4>
-              <div class="seg-tabs">
+              <h4>Зарплата (разд. 17.3) <span class="badge badge-example">40% по умолчанию, редактируется</span></h4>
+              <div class="field-grid">
+                <div class="field">
+                  <label>Ставка от выручки, % (40 или 50 - зависит от клиентской базы, разд.17.3)</label>
+                  <input type="number" min="0" max="100" id="elizavetaPctInput" value="40">
+                </div>
+              </div>
+              <button class="btn btn-ghost btn-sm" type="button" id="elizavetaPctSave">Сохранить ставку</button>
+              <p class="payroll-note" id="elizavetaPctNote">Точный порог перехода 40→50% Алихан не назвал - не авто-расчёт, владелец меняет число здесь вручную, когда сочтёт нужным</p>
+              <div class="seg-tabs" style="margin-top:14px">
                 <input type="radio" name="zp3-sub" id="zp3-calc" checked>
-                <input type="radio" name="zp3-sub" id="zp3-pay">
                 <div class="seg-bar">
                   <label for="zp3-calc">Расчёт ЗП</label>
-                  <label for="zp3-pay">Выплаты ЗП</label>
                 </div>
                 <div class="seg-panel panel-zp3-calc">
                   <div class="payroll-sum"><span class="amount" id="payrollMaster3Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                  <p class="payroll-note">За сегодня, ставка 45% ещё пример (ТЗ разд.11) - сумма реальная, по броням этого мастера в базе. Только «За день», остальные периоды - следующий шаг (как и у Али выше)</p>
-                </div>
-                <div class="seg-panel panel-zp3-pay">
-                  <div class="payroll-empty">
-                    <div class="pe-icon">💰</div>
-                    <p>Выплаты пока не отмечались - вкладка появится, когда будет первая</p>
-                  </div>
+                  <p class="payroll-note">За сегодня, по ставке из поля выше (разд.17.3) - сумма реальная, по броням этого мастера в базе. Только «За день», остальные периоды - следующий шаг (как и у Али выше)</p>
                 </div>
               </div>
               <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
@@ -887,18 +854,16 @@
 
       <section id="nastroika-zp">
         <h2>Настройка ЗП</h2>
-        <p class="section-hint">Общий экран настройки, применяется к выбранному сотруднику. Цифры не подтверждены Алиханом (ТЗ разд.11) — явные плейсхолдеры, не финальные значения</p>
+        <p class="section-hint">Ответ Алихана 30.07.2026 (ТЗ разд.17.3): ставка зависит от МАСТЕРА, не от типа услуги - единого % на всех больше нет, редактируемая ставка теперь в карточке каждого сотрудника (вкладка «Сотрудники» → карточка мастера)</p>
         <div class="settings-form">
-          <div class="field"><label>Ставка за услугу, % (пример / уточняется)</label><input value="45%" readonly></div>
-          <div class="field"><label>Бонус за нового клиента (пример / уточняется)</label><input value="0 ₽ — уточняется" readonly></div>
-          <div class="field"><label>% за продажу косметики (пример / уточняется)</label><input value="—" readonly></div>
+          <div class="field"><label>% за продажу косметики</label><input value="200 ₽ за штуку (не проценты) - разд.17.5" readonly></div>
         </div>
-        <button class="btn btn-primary btn-sm" type="button" style="margin-top:6px">Сохранить (пример, в макете не работает)</button>
+        <p class="payroll-note" style="margin-top:6px">Бонус за нового клиента убран - Алихан подтвердил, что его не существует (разд.17.4). Косметика сейчас не продаётся вообще - поле здесь неактивно, до появления первой продажи (backlog, не блокер)</p>
 
-        <h4 style="margin-top:26px">Формула расчёта зарплаты <span class="badge badge-todo">скоро - конструктор</span></h4>
+        <h4 style="margin-top:26px">Формула расчёта зарплаты</h4>
         <div class="payroll-empty">
           <div class="pe-icon">🧮</div>
-          <p>Здесь будет конструктор формулы расчёта зарплаты - Алихан сможет сам собрать, как считать (% от услуги, фиксированная ставка, бонусы за клиента, комбинации, разные условия для разных мастеров). Сейчас в макете используется один пример-формула на всех: 45% от каждой оказанной услуги, показана полями выше</p>
+          <p>Али и Мамедхан - 100% от выручки по своим услугам. Елизавета - 40% или 50% в зависимости от клиентской базы и возвращаемости (точный порог перехода Алихан не назвал - не автоматический расчёт, а ручное поле в её карточке, владелец меняет сам когда сочтёт нужным)</p>
         </div>
       </section>
     </div>
@@ -907,7 +872,7 @@
     <div class="tab-panel panel-c">
       <section>
         <h2>Выручка по точке</h2>
-        <p class="section-hint">Выручка, зарплаты мастеров и чистый доход по точке за период - считается реально из базы (Amvera), ставка 45% ещё пример (разд.16.5), фильтра по статусу «Выполнена» пока нет, считаются все брони за период. Неделя/Месяц/Квартал/Год = "с начала периода по сегодня" (например Месяц = с 1 числа), не скользящее окно - если нужен другой принцип, скажи. Точка 1 = Али+Мамед, Точка 2 = Иван 3 (правка Влада 28.07.2026, миграция 003_staff_locations.sql)</p>
+        <p class="section-hint">Выручка, зарплаты мастеров и чистый доход по точке за период - считается реально из базы (Amvera), ставка своя у каждого мастера (100% Али/Мамедхан, 40% по умолчанию у Елизаветы - разд.17.3), фильтра по статусу «Выполнена» пока нет, считаются все брони за период. Неделя/Месяц/Квартал/Год = "с начала периода по сегодня" (например Месяц = с 1 числа), не скользящее окно - если нужен другой принцип, скажи. Точка 1 = Али+Мамед, Точка 2 = Елизавета (правка Влада 28.07.2026, миграция 003_staff_locations.sql)</p>
 
         <div class="seg-tabs">
           <input type="radio" name="rv-loc" id="rv-loc-all" checked>
@@ -937,7 +902,7 @@
               <div class="seg-panel panel-rvpa-day">
                 <div class="stat-cards">
                   <div class="stat-card"><div class="sc-label">Выручка (обе точки)</div><div class="sc-value" id="rvAllDayRevenue">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Точка 1 + Точка 2 за день - реальная сумма по записям в базе на сегодня</div></div>
-                  <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllDayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке 45% (пример, разд.16.5) от той же реальной выручки</div></div>
+                  <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllDayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке своего мастера (разд.17.3) от той же реальной выручки</div></div>
                   <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllDayNet">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Выручка минус зарплаты по обеим точкам</div></div>
                 </div>
                 <p class="section-hint" style="margin-top:10px">Разбивка по Точке 1 / Точке 2 ниже - тоже реальная сумма (правка 28.07.2026), не пример</p>
@@ -982,7 +947,7 @@
               <div class="seg-panel panel-rvp-day">
                 <div class="stat-cards">
                   <div class="stat-card"><div class="sc-label">Выручка (все мастера)</div><div class="sc-value" id="rvLoc1DayRevenue">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Сумма оплаченных услуг за день</div></div>
-                  <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc1DayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке 45% (пример, разд.16.5) от той же реальной выручки</div></div>
+                  <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc1DayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке своего мастера (разд.17.3) от той же реальной выручки</div></div>
                   <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc1DayNet">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Выручка минус зарплаты. Без аренды/расходников - это отдельный вопрос, не в этом макете</div></div>
                 </div>
               </div>
@@ -1027,7 +992,7 @@
               <div class="seg-panel panel-rv2p-day">
                 <div class="stat-cards">
                   <div class="stat-card"><div class="sc-label">Выручка (все мастера)</div><div class="sc-value" id="rvLoc2DayRevenue">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Сумма оплаченных услуг за день</div></div>
-                  <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc2DayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке 45% (пример, разд.16.5) от той же реальной выручки</div></div>
+                  <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc2DayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке своего мастера (разд.17.3) от той же реальной выручки</div></div>
                   <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc2DayNet">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Выручка минус зарплаты. Без аренды/расходников - это отдельный вопрос, не в этом макете</div></div>
                 </div>
               </div>
@@ -1087,7 +1052,7 @@
         </div>
 
         <div class="toggle-row" style="margin-top:18px">
-          <div><div class="tr-label">Отправлять клиенту поздравление</div><div class="tr-sub">Канал (СМС / WhatsApp) ещё не выбран - решаем отдельным вопросом, здесь только включает саму механику дат</div></div>
+          <div><div class="tr-label">Отправлять клиенту поздравление</div><div class="tr-sub">Канал - СМС и MAX (разд.17.7, подтверждено Алиханом, не WhatsApp), сама интеграция ещё не подключена - здесь только включает механику дат</div></div>
           <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label>
         </div>
 

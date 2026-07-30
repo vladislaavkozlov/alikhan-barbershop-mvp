@@ -13,9 +13,8 @@
   #sp-month:checked ~ .seg-bar label[for="sp-month"],
   #sp-year:checked ~ .seg-bar label[for="sp-year"] { background: var(--accent); color: var(--leather); }
 
-  #zp1-calc:checked ~ .panel-zp1-calc, #zp1-pay:checked ~ .panel-zp1-pay { display: block; }
-  #zp1-calc:checked ~ .seg-bar label[for="zp1-calc"],
-  #zp1-pay:checked ~ .seg-bar label[for="zp1-pay"] { background: var(--accent); color: var(--leather); }
+  #zp1-calc:checked ~ .panel-zp1-calc { display: block; }
+  #zp1-calc:checked ~ .seg-bar label[for="zp1-calc"] { background: var(--accent); color: var(--leather); }
 
   #zp1p-day:checked ~ .panel-zp1p-day, #zp1p-week:checked ~ .panel-zp1p-week,
   #zp1p-month:checked ~ .panel-zp1p-month, #zp1p-period:checked ~ .panel-zp1p-period { display: block; }
@@ -79,7 +78,7 @@
   <div class="live-proof" id="liveProof"><span class="lp-dot"></span><span>Проверяю связь с боевой базой…</span></div>
 
   <div class="banner">
-    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход и счётчики выше настоящие (Amvera, тестовый контур). Мастера «Али / Мамед» ниже пока пример, не реальные сотрудники, но привязка к точке - реальная (миграция 003_staff_locations.sql, правка Влада 28.07.2026): Али и Мамед - Точка 1, Иван 3 - Точка 2, поэтому ниже показаны только они. Разница с видом владельца: нет вкладки «Настройка ЗП», нет переключателя точек (админ привязан к одной), роль сотрудника — только просмотр, вкладка «Выплаты ЗП» заблокирована по умолчанию (право выдаёт владелец отдельно, см. вкладку «Сотрудники» → карточка Мамеда).
+    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход и счётчики выше настоящие (Amvera, тестовый контур). Мастера «Али / Мамед» ниже пока пример, не реальные сотрудники, но привязка к точке - реальная (миграция 003_staff_locations.sql, правка Влада 28.07.2026): Али и Мамед - Точка 1, Елизавета - Точка 2, поэтому ниже показаны только они. Разница с видом владельца: нет вкладки «Настройка ЗП», нет переключателя точек (админ привязан к одной), роль сотрудника — только просмотр (ставки не редактирует, их меняет только владелец).
   </div>
 
   <div class="retention-alert" id="retention-panel">
@@ -544,13 +543,11 @@
               </div>
               <button class="btn-ghost btn-sm" type="button" onclick="addVacationRow(this)">+ Добавить отпуск</button>
 
-              <h4>Зарплата (разд. 16.5) <span class="badge badge-todo">без настройки ставок</span></h4>
+              <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
                 <input type="radio" name="zp1-sub" id="zp1-calc" checked>
-                <input type="radio" name="zp1-sub" id="zp1-pay">
                 <div class="seg-bar">
                   <label for="zp1-calc">Расчёт ЗП</label>
-                  <label for="zp1-pay">Выплаты ЗП</label>
                 </div>
 
                 <div class="seg-panel panel-zp1-calc">
@@ -567,7 +564,7 @@
                     </div>
                     <div class="seg-panel panel-zp1p-day">
                       <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">Ставка 45% ещё пример (ТЗ разд.11), но сумма считается по реальным броням этого мастера за сегодня. Фильтра по статусу «Выполнена» пока нет</p>
+                      <p class="payroll-note">100% от выручки по своим услугам (разд.17.3, подтверждено Алиханом) - сумма считается по реальным броням этого мастера за сегодня. Фильтра по статусу «Выполнена» пока нет</p>
                     </div>
                     <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div></div>
                     <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div></div>
@@ -580,13 +577,6 @@
                       <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
                       <p class="payroll-note">Баг исправлен: раньше даты нельзя было задать физически, теперь оба поля рабочие. Сумма всё ещё плейсхолдер - реальных записей в макете нет</p>
                     </div>
-                  </div>
-                </div>
-
-                <div class="seg-panel panel-zp1-pay">
-                  <div class="payroll-empty">
-                    <div class="pe-icon">🔒</div>
-                    <p>Нет права отмечать выплаты ЗП. Решение Влада 28.07.2026: по умолчанию эта вкладка есть только у владельца - право на неё администратору выдаёт владелец отдельно, в карточке сотрудника (разд.16.5)</p>
                   </div>
                 </div>
               </div>
@@ -667,12 +657,6 @@
                 <label class="role-option"><input type="checkbox" name="role-ivan2" checked disabled><span class="rn">Мастер</span><span class="rd">Свой день и заработок</span></label>
               </div>
 
-              <div class="toggle-row">
-                <div><div class="tr-label">Право отмечать выплаты ЗП сотрудникам <span class="badge badge-todo">только просмотр</span></div>
-                <div class="tr-sub">Сейчас право не выдано - выдаёт владелец, здесь только видно текущее состояние</div></div>
-                <label class="switch"><input type="checkbox" disabled><span class="track"></span><span class="knob"></span></label>
-              </div>
-
               <h4>Услуги</h4>
               <p class="section-hint" style="margin:0 0 10px">Только просмотр - какие услуги умеет оказывать мастер, решает владелец</p>
               <div class="service-picker readonly">
@@ -685,9 +669,9 @@
                 <label class="service-check"><input type="checkbox" checked disabled><span><span class="sc-name">Воск</span><span class="sc-meta"><span class="sc-price">от 500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамед" data-svc="Воск" value="15" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
                 <label class="service-check"><input type="checkbox" disabled><span><span class="sc-name">СПА уход</span><span class="sc-meta"><span class="sc-price">3000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамед" data-svc="СПА уход" value="60" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
               </div>
-              <h4>Зарплата (разд. 16.5) <span class="badge badge-todo">без настройки ставок</span></h4>
+              <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-              <p class="payroll-note">За сегодня, ставка 45% ещё пример (ТЗ разд.11) - сумма реальная, по броням этого мастера в базе. Только «За день», остальные периоды - следующий шаг. Настройку ставки делает только владелец</p>
+              <p class="payroll-note">100% от выручки по своим услугам (разд.17.3, подтверждено Алиханом) - сумма реальная, по броням этого мастера в базе. Только «За день», остальные периоды - следующий шаг. Настройку ставки делает только владелец</p>
               <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
               <div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно (12 мес)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div>
             </div>

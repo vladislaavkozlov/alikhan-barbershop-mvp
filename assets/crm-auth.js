@@ -83,14 +83,23 @@ function formatMoney(value) {
 // сервере (Окно 8) - владелец видит всех, мастер только себя, и т.д. Заодно, если на
 // странице есть блоки реальной выручки/зарплаты (id ниже) - считаем и их из тех же
 // данных, вместо статичного "000 ₽ пример" (правка Влада 28.07.2026).
+//
+// Окно 10 (30.07.2026, разд.17.2/17.3 ТЗ): раньше цена бралась из общего /services
+// (один прайс на всех) и ставка была захардкожена 0.45 для всех не-владельцев -
+// оба предположения не подтвердились. Цена теперь по мастеру (/master-services,
+// Елизавета дешевле Али/Мамедхана), ставка тоже по мастеру (/payroll-settings,
+// master_payroll_settings: 100% у Али и Мамедхана, 40% по умолчанию у Елизаветы,
+// редактируется владельцем) - обе таблицы уже фильтруют выдачу по роли на сервере.
 async function renderLiveProof(staff) {
   const panel = el('liveProof');
   if (!panel) return;
   try {
-    const [staffList, services, bookingsRes] = await Promise.all([
+    const [staffList, services, bookingsRes, masterServices, payrollRows] = await Promise.all([
       fetchJson('/staff'),
       fetchJson('/services'),
       fetchJson(`/bookings?date=${todayStr()}`),
+      fetchJson('/master-services'),
+      fetchJson('/payroll-settings'),
     ]);
     const bookings = bookingsRes.bookings || [];
     const bookingsNote =
@@ -101,43 +110,55 @@ async function renderLiveProof(staff) {
       `<span class="lp-dot"></span><strong>Живая боевая база (Amvera)</strong>` +
       `<span>сотрудников видно вам: ${staffList.length} · услуг в прайсе: ${services.length} · записей на сегодня в базе: ${bookings.length}${bookingsNote}</span>`;
 
-    const priceOf = (serviceId) => services.find((s) => s.id === serviceId)?.price ?? 0;
+    // Цена конкретного мастера на конкретную услугу - master-services покрывает все
+    // пары (сид миграции 002/004), общий прайс /services - только страховка на
+    // случай пары, которую почему-то не завели.
+    const priceOf = (masterId, serviceId) =>
+      masterServices.find((r) => r.masterId === masterId && r.serviceId === serviceId)?.price ??
+      services.find((s) => s.id === serviceId)?.price ??
+      0;
+    // Ставка мастера (100/100/40, редактируется владельцем) - сервер уже выдал
+    // только те строки, которые видны текущей роли (себя/свою точку/всех).
+    const pctByMaster = new Map(payrollRows.map((r) => [r.masterId, r.pct]));
+    const pctOf = (masterId) => pctByMaster.get(masterId) ?? 0;
     const ownerIds = new Set(staffList.filter((s) => s.role === 'owner').map((s) => s.id));
 
-    // Владелец: "Выручка по точке → Все точки → День" - реальная сумма по всем бронькам
-    // сегодня, зарплата - 45% от неё (пример-ставка, как и раньше), без брони владельца
-    // самому себе (он комиссию не получает).
+    // Владелец: "Выручка по точке → Все точки → День" - реальная сумма по всем
+    // бронькам сегодня, зарплата - по ставке КАЖДОГО мастера (не общий %), без брони
+    // владельца самому себе (он комиссию не получает).
     const revenueEl = el('rvAllDayRevenue');
     const payrollEl = el('rvAllDayPayroll');
     const netEl = el('rvAllDayNet');
     if (revenueEl && payrollEl && netEl) {
-      const revenue = bookings.reduce((sum, b) => sum + priceOf(b.serviceId), 0);
+      const revenue = bookings.reduce((sum, b) => sum + priceOf(b.masterId, b.serviceId), 0);
       const payrollBookings = bookings.filter((b) => !ownerIds.has(b.masterId));
-      const payroll = payrollBookings.reduce((sum, b) => sum + priceOf(b.serviceId), 0) * 0.45;
+      const payroll = payrollBookings.reduce(
+        (sum, b) => sum + (priceOf(b.masterId, b.serviceId) * pctOf(b.masterId)) / 100,
+        0
+      );
       revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
       payrollEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
       netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;
     }
 
-    // Мастер: "Моя зарплата → За день" - только его брони сегодня.
+    // Мастер: "Моя зарплата → За день" - только его брони сегодня, по своей ставке.
     const myPayrollEl = el('myPayrollDay');
     if (myPayrollEl) {
       const mine = bookings.filter((b) => b.masterId === staff.id);
-      const myRevenue = mine.reduce((sum, b) => sum + priceOf(b.serviceId), 0);
-      myPayrollEl.innerHTML = `${formatMoney(myRevenue * 0.45)} <span class="unsure">реально</span>`;
+      const myRevenue = mine.reduce((sum, b) => sum + priceOf(b.masterId, b.serviceId), 0);
+      myPayrollEl.innerHTML = `${formatMoney((myRevenue * pctOf(staff.id)) / 100)} <span class="unsure">реально</span>`;
     }
 
     // Владелец/админ: карточка КАЖДОГО мастера в "Сотрудники" → "Расчёт ЗП → За
-    // день" (правка 28.07.2026) - раньше показывала либо один общий плейсхолдер
-    // (Али), либо "не установлена схема" (Мамед/Иван 3), теперь у каждого своя
-    // реальная сумма по его же броням сегодня. master-1/2/3 = порядок мастеров в
-    // /staff (Али/Мамед/Иван 3 в макете - косметические имена поверх этих id).
+    // день" - реальная сумма по его же броням сегодня, своя цена и своя ставка.
+    // master-1/2/3 = порядок мастеров в /staff (Али/Мамедхан/Елизавета в макете -
+    // косметические имена поверх этих id).
     ['master-1', 'master-2', 'master-3'].forEach((masterId, idx) => {
       const cardEl = el(`payrollMaster${idx + 1}Day`);
       if (!cardEl) return;
       const theirs = bookings.filter((b) => b.masterId === masterId);
-      const theirRevenue = theirs.reduce((sum, b) => sum + priceOf(b.serviceId), 0);
-      cardEl.innerHTML = `${formatMoney(theirRevenue * 0.45)} <span class="unsure">реально</span>`;
+      const theirRevenue = theirs.reduce((sum, b) => sum + priceOf(b.masterId, b.serviceId), 0);
+      cardEl.innerHTML = `${formatMoney((theirRevenue * pctOf(masterId)) / 100)} <span class="unsure">реально</span>`;
     });
 
     // Мастер: та же "Моя зарплата", но Неделя/Месяц (раньше "000 ₽ пример") -
@@ -154,8 +175,8 @@ async function renderLiveProof(staff) {
         const fillMine = (targetEl, start) => {
           if (!targetEl) return;
           const rows = mine.filter((b) => b.date >= start && b.date <= today);
-          const sum = rows.reduce((s, b) => s + priceOf(b.serviceId), 0);
-          targetEl.innerHTML = `${formatMoney(sum * 0.45)} <span class="unsure">реально</span>`;
+          const sum = rows.reduce((s, b) => s + priceOf(b.masterId, b.serviceId), 0);
+          targetEl.innerHTML = `${formatMoney((sum * pctOf(staff.id)) / 100)} <span class="unsure">реально</span>`;
         };
         fillMine(myWeekEl, periodStartStr('week'));
         fillMine(myMonthEl, periodStartStr('month'));
@@ -164,7 +185,38 @@ async function renderLiveProof(staff) {
       }
     }
 
-    await renderRevenuePeriods(staffList, services, priceOf, ownerIds);
+    // Владелец: поле "Ставка от выручки, %" в карточке Елизаветы (Окно 10,
+    // разд.17.3 ТЗ) - реальное, читает и пишет master_payroll_settings. Не
+    // автоматический порог 40→50%, владелец меняет число сам, когда сочтёт нужным.
+    const pctInput = el('elizavetaPctInput');
+    if (pctInput) {
+      pctInput.value = pctOf('master-3');
+      const saveBtn = el('elizavetaPctSave');
+      const pctNote = el('elizavetaPctNote');
+      if (saveBtn && !saveBtn.dataset.wired) {
+        saveBtn.dataset.wired = '1';
+        saveBtn.addEventListener('click', async () => {
+          const pct = Number(pctInput.value);
+          if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+            if (pctNote) pctNote.textContent = 'Ставка должна быть числом от 0 до 100';
+            return;
+          }
+          try {
+            const res = await fetch(`${API}/payroll-settings`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+              body: JSON.stringify({ masterId: 'master-3', pct }),
+            });
+            if (!res.ok) throw new Error(`payroll-settings → ${res.status}`);
+            if (pctNote) pctNote.textContent = `Сохранено: ${pct}%. Обновите страницу, чтобы увидеть новую сумму в "Расчёт ЗП"`;
+          } catch (err) {
+            if (pctNote) pctNote.textContent = `Не удалось сохранить: ${err.message}`;
+          }
+        });
+      }
+    }
+
+    await renderRevenuePeriods(priceOf, pctOf, ownerIds);
   } catch (err) {
     panel.classList.add('lp-error');
     panel.innerHTML = `<span class="lp-dot"></span><strong>Не удалось получить живые данные</strong><span>${err.message}</span>`;
@@ -200,7 +252,8 @@ function periodStartStr(period) {
 // Точке 1/Точке 2 (правка 28.07.2026, см. miграция 003_staff_locations.sql - до неё
 // у всех мастеров locationId был null, разбивка была честным плейсхолдером). Один
 // запрос на весь год вместо отдельного на каждый день - дальше бакетируем на фронте.
-async function renderRevenuePeriods(staffList, services, priceOf, ownerIds) {
+// priceOf/pctOf - те же функции по мастеру, что и в renderLiveProof (Окно 10).
+async function renderRevenuePeriods(priceOf, pctOf, ownerIds) {
   if (!el('rvAllWeekRevenue')) return; // элементов нет вне страницы владельца
 
   const today = todayStr();
@@ -217,8 +270,10 @@ async function renderRevenuePeriods(staffList, services, priceOf, ownerIds) {
     const payrollEl = el(`${prefix}Payroll`);
     const netEl = el(`${prefix}Net`);
     if (!revenueEl && !payrollEl && !netEl) return;
-    const revenue = rows.reduce((sum, b) => sum + priceOf(b.serviceId), 0);
-    const payroll = rows.filter((b) => !ownerIds.has(b.masterId)).reduce((sum, b) => sum + priceOf(b.serviceId), 0) * 0.45;
+    const revenue = rows.reduce((sum, b) => sum + priceOf(b.masterId, b.serviceId), 0);
+    const payroll = rows
+      .filter((b) => !ownerIds.has(b.masterId))
+      .reduce((sum, b) => sum + (priceOf(b.masterId, b.serviceId) * pctOf(b.masterId)) / 100, 0);
     if (revenueEl) revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
     if (payrollEl) payrollEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
     if (netEl) netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;

@@ -1,4 +1,4 @@
-import { createStore, createHttpBackend, getMasters, getServices } from './storage.js';
+import { createStore, createHttpBackend, getMasters, getServices, priceLabelForMaster } from './storage.js';
 
 // Если на странице задан window.ALIKHAN_API_URL (см. index.html) - работаем через
 // реальный бэкенд на Amvera, синхронизация между устройствами реальна. Если нет -
@@ -299,9 +299,14 @@ function renderServiceOptions() {
     name.className = 'opt-name';
     name.textContent = service.name;
 
+    // Цена ИМЕННО выбранного мастера (Окно 10, разд.17.2 ТЗ) - Елизавета дешевле
+    // Али/Мамедхана на большинстве услуг, priceLabelForMaster сама возвращает
+    // общую цену, если override для этого мастера не задан.
+    const priceLabel = selectedMaster ? priceLabelForMaster(selectedMaster.id, service.id) : service.priceLabel;
+
     const meta = document.createElement('span');
     meta.className = 'opt-meta';
-    meta.textContent = `${service.priceLabel} · ${service.durationLabel}`;
+    meta.textContent = `${priceLabel} · ${service.durationLabel}`;
 
     btn.append(name, meta);
     btn.addEventListener('click', () => {

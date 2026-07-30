@@ -13,9 +13,8 @@
   #sp-month:checked ~ .seg-bar label[for="sp-month"],
   #sp-year:checked ~ .seg-bar label[for="sp-year"] { background: var(--accent); color: var(--leather); }
 
-  #zpm-calc:checked ~ .panel-zpm-calc, #zpm-pay:checked ~ .panel-zpm-pay { display: block; }
-  #zpm-calc:checked ~ .seg-bar label[for="zpm-calc"],
-  #zpm-pay:checked ~ .seg-bar label[for="zpm-pay"] { background: var(--accent); color: var(--leather); }
+  #zpm-calc:checked ~ .panel-zpm-calc { display: block; }
+  #zpm-calc:checked ~ .seg-bar label[for="zpm-calc"] { background: var(--accent); color: var(--leather); }
 
   #zpmp-day:checked ~ .panel-zpmp-day, #zpmp-week:checked ~ .panel-zpmp-week,
   #zpmp-month:checked ~ .panel-zpmp-month, #zpmp-period:checked ~ .panel-zpmp-period { display: block; }
@@ -342,10 +341,8 @@
 
         <div class="seg-tabs">
           <input type="radio" name="zpm-sub" id="zpm-calc" checked>
-          <input type="radio" name="zpm-sub" id="zpm-pay">
           <div class="seg-bar">
             <label for="zpm-calc">Расчёт ЗП</label>
-            <label for="zpm-pay">Выплаты ЗП</label>
           </div>
 
           <div class="seg-panel panel-zpm-calc">
@@ -362,7 +359,7 @@
               </div>
               <div class="seg-panel panel-zpmp-day">
                 <div class="payroll-sum"><span class="amount" id="myPayrollDay">000 ₽ <span class="unsure">считаю…</span></span></div>
-                <p class="payroll-note">Ставка 45% (пример, ТЗ разд.11) от реальной суммы моих сегодняшних записей в базе - точный % ещё не подтверждён Алиханом. Пока считаются все мои записи на сегодня (фильтр по статусу «Выполнена» - следующий шаг)</p>
+                <p class="payroll-note">По своей ставке (разд.17.3 ТЗ: 100% у Али/Мамедхана, 40% по умолчанию у Елизаветы) от реальной суммы моих сегодняшних записей в базе. Пока считаются все мои записи на сегодня (фильтр по статусу «Выполнена» - следующий шаг)</p>
               </div>
               <div class="seg-panel panel-zpmp-week"><div class="payroll-sum"><span class="amount" id="myPayrollWeek">000 ₽ <span class="unsure">считаю…</span></span></div></div>
               <div class="seg-panel panel-zpmp-month"><div class="payroll-sum"><span class="amount" id="myPayrollMonth">000 ₽ <span class="unsure">считаю…</span></span></div></div>
@@ -376,19 +373,6 @@
                 <p class="payroll-note">Баг исправлен: раньше даты нельзя было задать физически, теперь оба поля рабочие. Сумма всё ещё плейсхолдер - реальных записей в макете нет</p>
               </div>
             </div>
-          </div>
-
-          <div class="seg-panel panel-zpm-pay">
-            <table class="payouts-table">
-              <thead><tr><th>Дата</th><th>Сумма</th><th>Статус</th></tr></thead>
-              <tbody>
-                <tr><td>20.07.2026 (пример)</td><td>000 ₽ (пример)</td><td>Выплачено</td></tr>
-                <tr><td>13.07.2026 (пример)</td><td>000 ₽ (пример)</td><td>Выплачено</td></tr>
-              </tbody>
-            </table>
-            <div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div>
-            <p class="payroll-note">Итого получено за выбранный период (пример)</p>
-            <p class="payroll-note">Настройку ставки и бонусов делает владелец — здесь только просмотр своих выплат</p>
           </div>
         </div>
       </section>

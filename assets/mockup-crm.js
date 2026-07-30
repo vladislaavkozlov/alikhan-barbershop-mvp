@@ -17,7 +17,7 @@ window.MASTER_SERVICE_DURATION = {};
     'Стрижка': 40, 'Борода': 30, 'Комплекс стрижка+борода': 60, 'Бритьё': 40,
     'Фирменная окантовка': 30, 'Тонировка седых волос': 60, 'Воск': 15, 'СПА уход': 60,
   };
-  ['Али', 'Мамед', 'Иван 3'].forEach((master) => {
+  ['Али', 'Мамед', 'Елизавета'].forEach((master) => {
     window.MASTER_SERVICE_DURATION[master] = { ...base };
   });
 })();
@@ -118,10 +118,14 @@ function openBooking(el) {
   }
 }
 
-// Комиссия мастера за запись. Владелец (Али) себе комиссию не платит - вся сумма
-// услуги и так его - поэтому для него поле показывает пояснение, а не сумму.
-// Для остальных - пример 45% от цены услуги (ставка ещё не подтверждена Алиханом,
-// это НЕ реальный расчёт зарплаты, просто иллюстрация одного числа в интерфейсе).
+// Комиссия мастера за запись (Окно 10, разд.17.3 ТЗ - реальная формула, не
+// единый % на всех). Владелец (Али) себе комиссию не платит - вся сумма услуги
+// и так его - поэтому для него поле показывает пояснение, а не сумму. Мамедхан -
+// тоже 100% (не владелец, но подтверждено Алиханом отдельно). Елизавета - 40%
+// (её базовая ставка по умолчанию, реальную владелец редактирует в карточке
+// сотрудника - это поле здесь только иллюстрация одного числа в интерфейсе,
+// настоящий расчёт по живым данным делает crm-auth.js).
+const MASTER_COMMISSION_PCT = { 'Мамед': 100, 'Елизавета': 40 };
 function updateCommission(master, service) {
   const input = document.getElementById('bk-commission');
   const note = document.getElementById('bk-commission-note');
@@ -133,13 +137,15 @@ function updateCommission(master, service) {
   }
   const priceMatch = (service || '').match(/([\d\s]+)\s*₽/);
   const price = priceMatch ? parseInt(priceMatch[1].replace(/\s/g, ''), 10) : null;
-  if (price) {
-    const commission = Math.round(price * 0.45);
+  const pct = MASTER_COMMISSION_PCT[master] ?? null;
+  if (price && pct != null) {
+    const commission = Math.round((price * pct) / 100);
     input.value = `${commission} ₽`;
-    if (note) note.textContent = `Пример: 45% от ${price}₽ - ставка ещё не подтверждена Алиханом (ТЗ разд.11), это не реальный расчёт`;
+    const editNote = master === 'Елизавета' ? ' - её ставку меняет владелец в карточке сотрудника' : '';
+    if (note) note.textContent = `${pct}% от ${price}₽ (разд.17.3, подтверждено Алиханом)${editNote}`;
   } else {
     input.value = '—';
-    if (note) note.textContent = 'Пример - ставка ещё не подтверждена Алиханом (ТЗ разд.11)';
+    if (note) note.textContent = 'Выберите мастера, чтобы увидеть комиссию';
   }
 }
 

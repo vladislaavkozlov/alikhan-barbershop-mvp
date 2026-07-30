@@ -1,9 +1,12 @@
 const STORAGE_KEY = 'alikhan-mvp:bookings:v1';
 
+// master-3: реальное имя Елизавета - прежний плейсхолдер не совпадал ни по имени,
+// ни по полу, подтверждено Алиханом 30.07.2026 (разд.17.1 ТЗ). master-1/master-2 не
+// трогаем в этой правке - отдельный вопрос, не часть текущей задачи (Окно 10).
 export const MASTERS = [
   { id: 'master-1', name: 'Иван 1', isPlaceholder: true, workWindow: { start: '10:00', end: '20:00' } },
   { id: 'master-2', name: 'Иван 2', isPlaceholder: true, workWindow: { start: '10:00', end: '20:00' } },
-  { id: 'master-3', name: 'Иван 3', isPlaceholder: true, workWindow: { start: '10:00', end: '20:00' } },
+  { id: 'master-3', name: 'Елизавета', isPlaceholder: true, workWindow: { start: '10:00', end: '20:00' } },
 ];
 
 export const SERVICES = [
@@ -83,6 +86,40 @@ export const SERVICES = [
       'Профессиональная косметика, распаривание лица, скрабирование кожи, чёрная маска против чёрных точек, патчи, гидрогелевая маска, мытьё лица',
   },
 ];
+
+// Цена по мастеру (Окно 10, 30.07.2026, разд.17.2 ТЗ) - Елизавета дешевле
+// Али/Мамедхана на большинстве услуг, "СПА уход" Алихан не называл, не выдумываем,
+// остаётся общей ценой. Дублирует master_services в БД (см.
+// api/migrations/004_master_prices.sql) - публичный сайт не ходит в API за
+// прайсом (тот же оффлайн-совместимый паттерн, что уже был у SERVICES/MASTERS
+// здесь до Окна 10), поэтому цифры здесь синхронизируются вручную, не фетчем.
+const MASTER_SERVICE_PRICES = {
+  'master-3': {
+    strizhka: 1500,
+    boroda: 1200,
+    'kompleks-strizhka-boroda': 2500,
+    'firmennaya-okantovka': 1000,
+    britie: 1000,
+    tonirovka: 1200,
+  },
+};
+
+// Цена конкретного мастера на услугу - override из MASTER_SERVICE_PRICES, иначе
+// общая цена услуги (findService объявлена ниже в файле, но доступна здесь по
+// hoisting - обе function-декларации в одном модуле).
+export function priceForMaster(masterId, serviceId) {
+  const override = MASTER_SERVICE_PRICES[masterId]?.[serviceId];
+  return override ?? findService(serviceId).price;
+}
+
+// Тот же формат, что и service.priceLabel ("2000₽" / "от 1500₽") - сохраняет
+// префикс "от", если он был у базовой услуги.
+export function priceLabelForMaster(masterId, serviceId) {
+  const service = findService(serviceId);
+  const price = priceForMaster(masterId, serviceId);
+  const prefix = service.priceLabel.trim().startsWith('от') ? 'от ' : '';
+  return `${prefix}${price}₽`;
+}
 
 function toMinutes(value) {
   if (typeof value === 'number') return value;
