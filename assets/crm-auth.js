@@ -127,6 +127,43 @@ async function renderLiveProof(staff) {
       myPayrollEl.innerHTML = `${formatMoney(myRevenue * 0.45)} <span class="unsure">реально</span>`;
     }
 
+    // Владелец/админ: карточка КАЖДОГО мастера в "Сотрудники" → "Расчёт ЗП → За
+    // день" (правка 28.07.2026) - раньше показывала либо один общий плейсхолдер
+    // (Али), либо "не установлена схема" (Мамед/Иван 3), теперь у каждого своя
+    // реальная сумма по его же броням сегодня. master-1/2/3 = порядок мастеров в
+    // /staff (Али/Мамед/Иван 3 в макете - косметические имена поверх этих id).
+    ['master-1', 'master-2', 'master-3'].forEach((masterId, idx) => {
+      const cardEl = el(`payrollMaster${idx + 1}Day`);
+      if (!cardEl) return;
+      const theirs = bookings.filter((b) => b.masterId === masterId);
+      const theirRevenue = theirs.reduce((sum, b) => sum + priceOf(b.serviceId), 0);
+      cardEl.innerHTML = `${formatMoney(theirRevenue * 0.45)} <span class="unsure">реально</span>`;
+    });
+
+    // Мастер: та же "Моя зарплата", но Неделя/Месяц (раньше "000 ₽ пример") -
+    // переиспользуем годовой диапазон, который уже тянет renderRevenuePeriods для
+    // владельца; для роли "мастер" его там нет, поэтому свой отдельный, но лёгкий
+    // (masterId сужает выборку на сервере - см. GET /bookings) запрос за год.
+    const myWeekEl = el('myPayrollWeek');
+    const myMonthEl = el('myPayrollMonth');
+    if (myWeekEl || myMonthEl) {
+      try {
+        const today = todayStr();
+        const yearRes = await fetchJson(`/bookings?masterId=${staff.id}&from=${periodStartStr('year')}&to=${today}`);
+        const mine = yearRes.bookings || [];
+        const fillMine = (targetEl, start) => {
+          if (!targetEl) return;
+          const rows = mine.filter((b) => b.date >= start && b.date <= today);
+          const sum = rows.reduce((s, b) => s + priceOf(b.serviceId), 0);
+          targetEl.innerHTML = `${formatMoney(sum * 0.45)} <span class="unsure">реально</span>`;
+        };
+        fillMine(myWeekEl, periodStartStr('week'));
+        fillMine(myMonthEl, periodStartStr('month'));
+      } catch {
+        // "000 ₽ пример" останется как было - основная ошибка уже видна в панели выше
+      }
+    }
+
     await renderRevenuePeriods(staffList, services, priceOf, ownerIds);
   } catch (err) {
     panel.classList.add('lp-error');

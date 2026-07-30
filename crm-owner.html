@@ -18,6 +18,14 @@
   #zp1-calc:checked ~ .seg-bar label[for="zp1-calc"],
   #zp1-pay:checked ~ .seg-bar label[for="zp1-pay"] { background: var(--accent); color: var(--leather); }
 
+  /* те же вкладки Расчёт/Выплаты у карточек Мамеда и Ивана 3 (правка 28.07.2026) */
+  #zp2-calc:checked ~ .panel-zp2-calc, #zp2-pay:checked ~ .panel-zp2-pay { display: block; }
+  #zp2-calc:checked ~ .seg-bar label[for="zp2-calc"],
+  #zp2-pay:checked ~ .seg-bar label[for="zp2-pay"] { background: var(--accent); color: var(--leather); }
+  #zp3-calc:checked ~ .panel-zp3-calc, #zp3-pay:checked ~ .panel-zp3-pay { display: block; }
+  #zp3-calc:checked ~ .seg-bar label[for="zp3-calc"],
+  #zp3-pay:checked ~ .seg-bar label[for="zp3-pay"] { background: var(--accent); color: var(--leather); }
+
   #zp1p-day:checked ~ .panel-zp1p-day, #zp1p-week:checked ~ .panel-zp1p-week,
   #zp1p-month:checked ~ .panel-zp1p-month, #zp1p-period:checked ~ .panel-zp1p-period { display: block; }
   #zp1p-day:checked ~ .seg-bar label[for="zp1p-day"],
@@ -661,8 +669,8 @@
                       <label for="zp1p-period">Задать период</label>
                     </div>
                     <div class="seg-panel panel-zp1p-day">
-                      <div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div>
-                      <p class="payroll-note">Ставка ещё не подтверждена Алиханом (ТЗ разд.11) — показан плейсхолдер, не реальная сумма. В расчёт идут только записи со статусом «Выполнена» (услуга оказана и оплачена, разд.16.5/16.9) — брони «в ожидании» и отменённые не считаются</p>
+                      <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
+                      <p class="payroll-note">Ставка 45% ещё пример (ТЗ разд.11), но сумма считается по реальным броням этого мастера за сегодня. В расчёт пока идут все статусы - фильтра «Выполнена» ещё нет (см. открытые вопросы релиза)</p>
                     </div>
                     <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div><p class="payroll-note">За неделю, тот же плейсхолдер-принцип</p></div>
                     <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div><p class="payroll-note">За месяц, тот же плейсхолдер-принцип</p></div>
@@ -793,11 +801,24 @@
                 <div class="field"><label>Рабочее время с</label><input value="10:00" readonly></div>
                 <div class="field"><label>до</label><input value="20:00" readonly></div>
               </div>
-              <h4>Зарплата</h4>
-              <div class="payroll-empty">
-                <div class="pe-icon">💰</div>
-                <p>Не установлена схема расчёта зарплаты для сотрудника</p>
-                <a class="btn btn-primary btn-sm" href="#nastroika-zp">Перейти к настройке ЗП</a>
+              <h4>Зарплата (разд. 16.5) <span class="badge badge-todo">без настройки ставок</span></h4>
+              <div class="seg-tabs">
+                <input type="radio" name="zp2-sub" id="zp2-calc" checked>
+                <input type="radio" name="zp2-sub" id="zp2-pay">
+                <div class="seg-bar">
+                  <label for="zp2-calc">Расчёт ЗП</label>
+                  <label for="zp2-pay">Выплаты ЗП</label>
+                </div>
+                <div class="seg-panel panel-zp2-calc">
+                  <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
+                  <p class="payroll-note">За сегодня, ставка 45% ещё пример (ТЗ разд.11) - сумма реальная, по броням этого мастера в базе. Только «За день», остальные периоды - следующий шаг (как и у Али выше)</p>
+                </div>
+                <div class="seg-panel panel-zp2-pay">
+                  <div class="payroll-empty">
+                    <div class="pe-icon">💰</div>
+                    <p>Выплаты пока не отмечались - вкладка появится, когда будет первая</p>
+                  </div>
+                </div>
               </div>
               <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
               <div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно (12 мес)</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">Полный период-переключатель - см. карточку Али выше</div></div></div>
@@ -835,11 +856,24 @@
                 <label class="service-check"><input type="checkbox"><span><span class="sc-name">Воск</span><span class="sc-meta"><span class="sc-price">от 500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Иван 3" data-svc="Воск" value="15" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
                 <label class="service-check"><input type="checkbox"><span><span class="sc-name">СПА уход</span><span class="sc-meta"><span class="sc-price">3000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Иван 3" data-svc="СПА уход" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
               </div>
-              <h4>Зарплата</h4>
-              <div class="payroll-empty">
-                <div class="pe-icon">💰</div>
-                <p>Не установлена схема расчёта зарплаты для сотрудника</p>
-                <a class="btn btn-primary btn-sm" href="#nastroika-zp">Перейти к настройке ЗП</a>
+              <h4>Зарплата (разд. 16.5) <span class="badge badge-todo">без настройки ставок</span></h4>
+              <div class="seg-tabs">
+                <input type="radio" name="zp3-sub" id="zp3-calc" checked>
+                <input type="radio" name="zp3-sub" id="zp3-pay">
+                <div class="seg-bar">
+                  <label for="zp3-calc">Расчёт ЗП</label>
+                  <label for="zp3-pay">Выплаты ЗП</label>
+                </div>
+                <div class="seg-panel panel-zp3-calc">
+                  <div class="payroll-sum"><span class="amount" id="payrollMaster3Day">000 ₽ <span class="unsure">считаю…</span></span></div>
+                  <p class="payroll-note">За сегодня, ставка 45% ещё пример (ТЗ разд.11) - сумма реальная, по броням этого мастера в базе. Только «За день», остальные периоды - следующий шаг (как и у Али выше)</p>
+                </div>
+                <div class="seg-panel panel-zp3-pay">
+                  <div class="payroll-empty">
+                    <div class="pe-icon">💰</div>
+                    <p>Выплаты пока не отмечались - вкладка появится, когда будет первая</p>
+                  </div>
+                </div>
               </div>
               <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
               <div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно (12 мес)</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">Полный период-переключатель - см. карточку Али выше</div></div></div>
