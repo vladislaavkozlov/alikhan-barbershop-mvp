@@ -496,12 +496,15 @@
               <div class="field"><label>Мастер записи</label><input id="bk-master" value="Али" readonly></div>
               <div class="field field--wide">
                 <label>Закреплён за мастером <span class="badge badge-todo">новое, разд.12 ТЗ</span></label>
-                <select>
-                  <option>Не закреплён</option>
-                  <option selected>Али</option>
-                  <option>Мамед</option>
-                  <option>Иван 3</option>
-                </select>
+                <div class="custom-select" data-value="Али">
+                  <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">Али</button>
+                  <div class="custom-select-list" hidden>
+                    <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Не закреплён</div>
+                    <div class="custom-select-option selected" onclick="pickCustomSelectOption(this)">Али</div>
+                    <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Мамед</div>
+                    <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Иван 3</div>
+                  </div>
+                </div>
               </div>
               <div class="field"><label>Услуга</label><input id="bk-service" value="Стрижка · 2000₽" readonly></div>
               <div class="field"><label>Дата рождения клиента</label><input value="15.08 (пример)" readonly></div>

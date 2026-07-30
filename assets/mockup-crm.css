@@ -387,6 +387,34 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
 .field select:focus { outline: none; border-color: var(--accent); }
 .field select option { background: var(--surface); color: var(--text); }
 .field textarea { resize: vertical; min-height: 44px; }
+
+/* ---------- кастомный дропдаун вместо нативного select ("Закреплён за мастером") ----------
+   Комментарий выше про .field select объяснял ограничение платформы (список опций красит
+   ОС, не CSS) - Алихан заметил именно это на живом показе 30.07.2026 на телефоне. Раз список
+   всё равно нужно рисовать самим, здесь не <select>, а кнопка + свой список, полностью в теме. */
+.custom-select { position: relative; }
+.custom-select-trigger {
+  width: 100%; text-align: left; cursor: pointer; font-family: inherit;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); padding: 9px 34px 9px 12px; font-size: 0.88rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23C6A15B' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+  transition: border-color 140ms var(--ease-out);
+}
+.custom-select-trigger:focus { outline: none; border-color: var(--accent); }
+.custom-select.open .custom-select-trigger { border-color: var(--accent); }
+.custom-select-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 20;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 24px 48px -12px rgba(0,0,0,0.55); padding: 6px;
+  max-height: 220px; overflow-y: auto;
+}
+.custom-select-list[hidden] { display: none; }
+.custom-select-option {
+  padding: 9px 10px; border-radius: 6px; font-size: 0.88rem; color: var(--text); cursor: pointer;
+}
+.custom-select-option:hover { background: var(--surface-3); }
+.custom-select-option.selected { color: var(--accent); font-weight: 600; }
 .field .masked { color: var(--text-muted); font-style: italic; }
 .confirm-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .confirm-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
@@ -599,6 +627,16 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 @media (max-width: 620px) {
   .schedule-row-with-gutter { flex-direction: column; }
   .hour-gutter { display: none; }
+  /* правка 30.07.2026: auto-fit создаёт всего 1 колонку на узком экране, а span:2
+     всё равно требует вторую - грид молча растягивал всю карточку записи за пределы
+     экрана (Алихан поймал это на живом показе на телефоне). На мобильном - всегда 1 колонка */
+  .field--wide { grid-column: span 1; }
+  /* seg-bar (Расписание День/Неделя/…, периоды ЗП/Выручки/Возвращаемости) не переносился
+     и не скроллился - 4-5 пилюль в ряд шире экрана раздвигали всю страницу по горизонтали.
+     Тот же паттерн горизонтального скролла, что уже применён у .masters-row/.schedule-scroll */
+  .seg-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .seg-bar::-webkit-scrollbar { display: none; }
+  .seg-bar label { flex-shrink: 0; }
 }
 
 /* ---------- вход в боевую базу (правка Влада 28.07.2026 - реальный логин поверх макета) ---------- */

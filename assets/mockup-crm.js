@@ -327,3 +327,42 @@ function calcCustomPayroll(btn) {
   if (amountEl) amountEl.innerHTML = '000 ₽ <span class="unsure">пример</span>';
   if (noteEl) noteEl.textContent = `Период ${fmt(from)}–${fmt(to)} задан. Сумма всё ещё плейсхолдер - реальных записей нет, но период теперь действительно выбирается`;
 }
+
+// Кастомный дропдаун "Закреплён за мастером" (правка 30.07.2026) - заменяет нативный
+// <select>, у которого список опций красит ОС, а не тема сайта (Алихан заметил это на
+// живом показе на телефоне). Один открытый список за раз - открытие нового закрывает предыдущий.
+function toggleCustomSelect(trigger) {
+  const wrap = trigger.closest('.custom-select');
+  if (!wrap) return;
+  const alreadyOpen = wrap.classList.contains('open');
+  document.querySelectorAll('.custom-select.open').forEach(closeCustomSelect);
+  if (!alreadyOpen) openCustomSelect(wrap);
+}
+function openCustomSelect(wrap) {
+  wrap.classList.add('open');
+  const list = wrap.querySelector('.custom-select-list');
+  if (list) list.hidden = false;
+}
+function closeCustomSelect(wrap) {
+  wrap.classList.remove('open');
+  const list = wrap.querySelector('.custom-select-list');
+  if (list) list.hidden = true;
+}
+function pickCustomSelectOption(option) {
+  const wrap = option.closest('.custom-select');
+  const trigger = wrap ? wrap.querySelector('.custom-select-trigger') : null;
+  if (!wrap || !trigger) return;
+  wrap.querySelectorAll('.custom-select-option').forEach((o) => o.classList.remove('selected'));
+  option.classList.add('selected');
+  trigger.textContent = option.textContent;
+  wrap.dataset.value = option.dataset.value || option.textContent;
+  closeCustomSelect(wrap);
+}
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.custom-select.open').forEach((wrap) => {
+    if (!wrap.contains(e.target)) closeCustomSelect(wrap);
+  });
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.querySelectorAll('.custom-select.open').forEach(closeCustomSelect);
+});
