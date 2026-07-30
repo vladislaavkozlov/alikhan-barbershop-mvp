@@ -535,11 +535,13 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .sc-duration-input[type="number"] { -moz-appearance: textfield; }
 
 /* ---------- месяц/год расписания ---------- */
-.month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+/* minmax(0,1fr), не голый 1fr - иначе грид не сжимает колонку меньше содержимого
+   ("Новогодние каникулы" в holiday-label) и 7 колонок раздвигают страницу на мобильном */
+.month-grid { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 6px; }
 .month-grid .wd { text-align: center; font-size: 0.72rem; color: var(--text-muted); padding-bottom: 4px; }
 .month-day {
   position: relative; min-height: 62px; border: 1px solid var(--border); border-radius: 8px;
-  padding: 6px 8px; background: var(--surface-2); font-size: 0.78rem;
+  padding: 6px 8px; background: var(--surface-2); font-size: 0.78rem; overflow: hidden;
 }
 .month-day.is-empty { background: transparent; border-color: transparent; }
 .month-day .num { font-weight: 600; display: block; }
@@ -631,11 +633,12 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
      всё равно требует вторую - грид молча растягивал всю карточку записи за пределы
      экрана (Алихан поймал это на живом показе на телефоне). На мобильном - всегда 1 колонка */
   .field--wide { grid-column: span 1; }
-  /* seg-bar (Расписание День/Неделя/…, периоды ЗП/Выручки/Возвращаемости) не переносился
-     и не скроллился - 4-5 пилюль в ряд шире экрана раздвигали всю страницу по горизонтали.
-     Тот же паттерн горизонтального скролла, что уже применён у .masters-row/.schedule-scroll */
-  .seg-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-  .seg-bar::-webkit-scrollbar { display: none; }
+  /* seg-bar (Расписание День/Неделя/…, периоды ЗП/Выручки/Возвращаемости) не переносился -
+     4-5 пилюль в ряд шире экрана раздвигали всю страницу по горизонтали. Горизонтальный
+     скролл (как у .masters-row/.schedule-scroll) технически работал, но правая пилюля
+     обрезалась по кромке экрана и выглядела визуально сломанной ("Го" вместо "Год") -
+     на коротких пилюлях перенос на вторую строку честнее, весь текст виден сразу */
+  .seg-bar { max-width: 100%; flex-wrap: wrap; row-gap: 6px; }
   .seg-bar label { flex-shrink: 0; }
 }
 
