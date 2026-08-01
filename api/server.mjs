@@ -14,6 +14,9 @@
 //   PORT - опционально, порт, на котором слушает сам сервер (по умолчанию 8080)
 import { createServer } from 'node:http';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import pg from 'pg';
 
 const { Pool } = pg;
@@ -21,6 +24,9 @@ const { Pool } = pg;
 const PORT = Number(process.env.PORT) || 8080;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 дней - простой логин, не нужен рефреш-стек
+// Задача 2 промпта корректировки Окна 13 (01.08.2026, Блок 5 в.19, Алихан): "отмена не
+// позже 2 часов" - до порога полный возврат/бесплатная отмена, после - без возврата.
+const CANCEL_FULL_REFUND_HOURS = 2;
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -33,7 +39,7 @@ const pool = new Pool({
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
@@ -191,26 +197,35 @@ async function createBookingTx({ masterId, serviceId, date, startTime, clientNam
     const locationId = staffRes.rows[0].location_id;
 
     let clientId = null;
+    let requiresPrepayment = false;
     if (clientPhone) {
       const clientRes = await client.query(
         `INSERT INTO clients (id, name, phone) VALUES ($1, $2, $3)
          ON CONFLICT (phone) DO UPDATE SET name = COALESCE(EXCLUDED.name, clients.name)
-         RETURNING id`,
+         RETURNING id, no_show_streak`,
         [`client-${randomBytes(6).toString('hex')}`, clientName ?? null, clientPhone]
       );
       clientId = clientRes.rows[0].id;
+      // Задача 3 (Окно 13, 01.08.2026, Блок 5 в.22): 2 неявки без предупреждения →
+      // на 3-ю запись нужна 100% предоплата. Онлайн-оплаты в MVP нет - это ручная
+      // пометка для владельца/администратора, не блокирующий автомат (см. миграцию
+      // 008_booking_flags.sql).
+      requiresPrepayment = clientRes.rows[0].no_show_streak >= 2;
     }
 
     const bookingId = `${date}-${startTime}-${masterId}-${randomBytes(4).toString('hex')}`;
     await client.query(
-      `INSERT INTO bookings (id, location_id, master_id, service_id, client_id, date, start_time, end_time, status, channel)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'planned', $9)`,
-      [bookingId, locationId, masterId, serviceId, clientId, date, startTime, endTime, channel ?? 'client']
+      `INSERT INTO bookings (id, location_id, master_id, service_id, client_id, date, start_time, end_time, status, channel, requires_prepayment)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'planned', $9, $10)`,
+      [bookingId, locationId, masterId, serviceId, clientId, date, startTime, endTime, channel ?? 'client', requiresPrepayment]
     );
     await client.query('COMMIT');
     return {
       status: 200,
-      body: { ok: true, booking: { id: bookingId, masterId, serviceId, date, startTime, endTime, clientName, clientPhone } },
+      body: {
+        ok: true,
+        booking: { id: bookingId, masterId, serviceId, date, startTime, endTime, clientName, clientPhone, requiresPrepayment },
+      },
     };
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -227,9 +242,12 @@ async function createBookingTx({ masterId, serviceId, date, startTime, clientNam
 async function listBookingsForRequest(url, auth) {
   const masterId = url.searchParams.get('masterId');
   const date = url.searchParams.get('date');
+  const dateFrom = url.searchParams.get('from');
+  const dateTo = url.searchParams.get('to');
 
   let query = `SELECT b.id, b.master_id, b.service_id, b.date, b.start_time, b.end_time, b.status,
-                      b.client_confirmed, b.location_id, c.name AS client_name, c.phone AS client_phone
+                      b.client_confirmed, b.location_id, b.requires_prepayment, b.review_request_pending,
+                      c.name AS client_name, c.phone AS client_phone
                FROM bookings b LEFT JOIN clients c ON c.id = b.client_id WHERE 1=1`;
   const params = [];
   if (masterId) {
@@ -239,6 +257,17 @@ async function listBookingsForRequest(url, auth) {
   if (date) {
     params.push(date);
     query += ` AND b.date = $${params.length}`;
+  }
+  // Диапазон дат (правка 28.07.2026) - для вкладок Неделя/Месяц/Квартал/Год в CRM
+  // владельца: одним запросом забираем весь нужный период, дальше бакетируем на
+  // фронте, вместо отдельного запроса на каждый день (было бы до 365 запросов на год).
+  if (dateFrom) {
+    params.push(dateFrom);
+    query += ` AND b.date >= $${params.length}`;
+  }
+  if (dateTo) {
+    params.push(dateTo);
+    query += ` AND b.date <= $${params.length}`;
   }
   if (auth?.role === 'admin') {
     params.push(auth.locationId);
@@ -257,6 +286,7 @@ async function listBookingsForRequest(url, auth) {
       id: r.id,
       masterId: r.master_id,
       serviceId: r.service_id,
+      locationId: r.location_id,
       date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : r.date,
       startTime: r.start_time,
       endTime: r.end_time,
@@ -265,7 +295,15 @@ async function listBookingsForRequest(url, auth) {
     };
     if (!auth) return base; // клиент без входа - карточек других клиентов вообще не видит
     if (auth.role === 'owner' || auth.role === 'admin') {
-      return { ...base, clientName: r.client_name, clientPhone: r.client_phone };
+      // requiresPrepayment/reviewRequestPending - видно только владельцу/администратору
+      // (Задачи 3 и 6, Окно 13, 01.08.2026) - мастеру эти пометки не нужны для работы
+      return {
+        ...base,
+        clientName: r.client_name,
+        clientPhone: r.client_phone,
+        requiresPrepayment: r.requires_prepayment,
+        reviewRequestPending: r.review_request_pending,
+      };
     }
     return { ...base, clientName: r.client_name }; // master: имя видно, телефон - нет
   });
@@ -355,7 +393,9 @@ const server = createServer(async (req, res) => {
     if (parts[0] === 'staff' && parts.length === 1 && req.method === 'GET') {
       const auth = await authenticate(req);
       if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-      let query = `SELECT id, location_id, name, photo_url, phone, email, role, employed, provides_services, has_system_access FROM staff WHERE 1=1`;
+      let query = `SELECT id, location_id, name, photo_url, phone, email, role, employed, provides_services, has_system_access,
+                          experience_text, strengths_text, certificates_text, before_after_urls
+                   FROM staff WHERE 1=1`;
       const params = [];
       if (auth.role === 'admin') {
         params.push(auth.locationId);
@@ -379,8 +419,32 @@ const server = createServer(async (req, res) => {
           employed: r.employed,
           providesServices: r.provides_services,
           hasSystemAccess: r.has_system_access,
+          // Задача 4 (Окно 13, 01.08.2026, Блок 6 в.23-26) - портфолио мастера,
+          // самредактируемые владельцем поля, см. миграцию 009_staff_portfolio.sql
+          experienceText: r.experience_text,
+          strengthsText: r.strengths_text,
+          certificatesText: r.certificates_text,
+          beforeAfterUrls: r.before_after_urls,
         }))
       );
+    }
+
+    // ── /staff/:id/portfolio - Задача 4 (Окно 13, 01.08.2026). Только владелец
+    // редактирует (тот же уровень доступа, что у /payroll-settings PUT - Алихан сам
+    // ведёт карточки сотрудников). Данных для заполнения сейчас нет (Алихан заполнит
+    // сам) - этот эндпоинт даёт саму возможность, не контент.
+    if (parts[0] === 'staff' && parts[1] && parts[2] === 'portfolio' && parts.length === 3 && req.method === 'PUT') {
+      const auth = await authenticate(req);
+      if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+      const staffId = decodeURIComponent(parts[1]);
+      const body = await readBody(req);
+      const result = await pool.query(
+        `UPDATE staff SET experience_text = $1, strengths_text = $2, certificates_text = $3, before_after_urls = $4
+         WHERE id = $5 RETURNING id`,
+        [body.experienceText ?? null, body.strengthsText ?? null, body.certificatesText ?? null, body.beforeAfterUrls ?? null, staffId]
+      );
+      if (result.rows.length === 0) return sendJson(res, 404, { error: 'staff_not_found' });
+      return sendJson(res, 200, { ok: true });
     }
 
     // ── /services - каталог, доступен любой авторизованной роли ──────────
@@ -398,6 +462,27 @@ const server = createServer(async (req, res) => {
           durationMin: r.duration_min,
           price: r.price,
           composition: r.composition,
+        }))
+      );
+    }
+
+    // ── /master-services - цена и длительность ПО МАСТЕРУ (Окно 10, разд.17.2 ТЗ) ──
+    // Один и тот же каталог услуг, разные мастера могут стоить по-разному (Елизавета
+    // дешевле Али/Мамедхана) - см. миграцию 004_master_prices.sql. Доступ как у
+    // /services - любая авторизованная роль, публичный сайт эти данные не запрашивает
+    // (index.html/app.js работают на статике storage.js, см. её комментарий).
+    if (parts[0] === 'master-services' && parts.length === 1 && req.method === 'GET') {
+      const auth = await authenticate(req);
+      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
+      const result = await pool.query('SELECT master_id, service_id, price, duration_min FROM master_services');
+      return sendJson(
+        res,
+        200,
+        result.rows.map((r) => ({
+          masterId: r.master_id,
+          serviceId: r.service_id,
+          price: r.price,
+          durationMin: r.duration_min,
         }))
       );
     }
@@ -425,6 +510,101 @@ const server = createServer(async (req, res) => {
         });
         return sendJson(res, result.status, result.body);
       }
+    }
+
+    // ── /bookings/:id/cancel - Задача 2 (Окно 13, 01.08.2026, Блок 5 в.19). Отмена
+    // сама по себе ничем не ограничена по времени - ограничено только право на полный
+    // возврат. Онлайн-оплаты в MVP нет (см. Ограничения промпта), поэтому "возврат"
+    // здесь не реальная транзакция, а флаг refundEligible в ответе, на который
+    // ориентируется сотрудник в разговоре с клиентом. Доступ сужен той же матрицей,
+    // что и видимость самой брони (listBookingsForRequest): owner - любая, admin -
+    // только своя точка, master - только свои записи.
+    if (parts[0] === 'bookings' && parts[1] && parts[2] === 'cancel' && parts.length === 3 && req.method === 'POST') {
+      const auth = await authenticate(req);
+      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
+      const bookingId = decodeURIComponent(parts[1]);
+      const bookingRes = await pool.query(
+        'SELECT id, master_id, location_id, date, start_time, status FROM bookings WHERE id = $1',
+        [bookingId]
+      );
+      if (bookingRes.rows.length === 0) return sendJson(res, 404, { error: 'booking_not_found' });
+      const booking = bookingRes.rows[0];
+      if (auth.role === 'admin' && booking.location_id !== auth.locationId) {
+        return sendJson(res, 403, { error: 'forbidden' });
+      }
+      if (auth.role === 'master' && booking.master_id !== auth.id) {
+        return sendJson(res, 403, { error: 'forbidden' });
+      }
+      if (booking.status === 'cancelled') return sendJson(res, 409, { error: 'already_cancelled' });
+
+      const bookingDate = booking.date instanceof Date ? booking.date.toISOString().slice(0, 10) : booking.date;
+      const hoursUntilBooking = (new Date(`${bookingDate}T${booking.start_time}:00`).getTime() - Date.now()) / (1000 * 60 * 60);
+      const refundEligible = hoursUntilBooking >= CANCEL_FULL_REFUND_HOURS;
+
+      await pool.query(`UPDATE bookings SET status = 'cancelled' WHERE id = $1`, [bookingId]);
+      return sendJson(res, 200, {
+        ok: true,
+        status: 'cancelled',
+        refundEligible,
+        hoursUntilBooking: Math.round(hoursUntilBooking * 100) / 100,
+      });
+    }
+
+    // ── /bookings/:id/status - Задачи 3 и 6 (Окно 13, 01.08.2026). Простановка факта
+    // визита (владелец/администратор/мастер). 'cancelled' сюда намеренно не входит -
+    // для отмены есть отдельный /bookings/:id/cancel с проверкой порога 2 часа
+    // (Задача 2), общий сеттер статуса не должен давать возможность обойти эту
+    // проверку.
+    if (parts[0] === 'bookings' && parts[1] && parts[2] === 'status' && parts.length === 3 && req.method === 'PATCH') {
+      const auth = await authenticate(req);
+      if (!requireRole(auth, ['owner', 'admin', 'master'])) return sendJson(res, 401, { error: 'unauthorized' });
+      const body = await readBody(req);
+      const allowedStatuses = ['planned', 'done', 'no_show'];
+      if (!allowedStatuses.includes(body.status)) {
+        return sendJson(res, 400, { error: 'invalid_status', allowed: allowedStatuses });
+      }
+      const bookingId = decodeURIComponent(parts[1]);
+      const bookingRes = await pool.query(
+        'SELECT id, master_id, location_id, client_id, status FROM bookings WHERE id = $1',
+        [bookingId]
+      );
+      if (bookingRes.rows.length === 0) return sendJson(res, 404, { error: 'booking_not_found' });
+      const booking = bookingRes.rows[0];
+      if (auth.role === 'admin' && booking.location_id !== auth.locationId) {
+        return sendJson(res, 403, { error: 'forbidden' });
+      }
+      if (auth.role === 'master' && booking.master_id !== auth.id) {
+        return sendJson(res, 403, { error: 'forbidden' });
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('UPDATE bookings SET status = $1 WHERE id = $2', [body.status, bookingId]);
+        if (booking.client_id && body.status === 'no_show') {
+          // Задача 3, Блок 5 в.22: счётчик неявок - поле no_show_streak уже было в
+          // схеме (002_schema.sql), просто нигде не инкрементировалось.
+          await client.query('UPDATE clients SET no_show_streak = no_show_streak + 1 WHERE id = $1', [booking.client_id]);
+        } else if (booking.client_id && body.status === 'done') {
+          // "Streak" = подряд идущие неявки - успешный визит сбрасывает счётчик. Это
+          // не слова Алихана, а прямое прочтение названия поля (см. комментарий в
+          // 002_schema.sql); решение зафиксировано отдельно в отчёте по этому окну,
+          // не выдаётся за факт от владельца.
+          await client.query('UPDATE clients SET no_show_streak = 0 WHERE id = $1', [booking.client_id]);
+        }
+        if (body.status === 'done') {
+          // Задача 6, Блок 11 в.45: только точка расширения - канал отправки отзыва
+          // не выбран (см. Ограничения промпта корректировки), реальной отправки нет.
+          await client.query('UPDATE bookings SET review_request_pending = true WHERE id = $1', [bookingId]);
+        }
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally {
+        client.release();
+      }
+      return sendJson(res, 200, { ok: true, status: body.status });
     }
 
     // ── /sales - продажа (косметика и т.п.), привязана к визиту (разд.14.3 п.2) ──
@@ -558,40 +738,47 @@ const server = createServer(async (req, res) => {
       }
     }
 
-    // ── /payroll-settings - только владелец (разд.7 ТЗ: "Изменение прайса - я") ──
+    // ── /payroll-settings - ставка ПО МАСТЕРУ (Окно 10, разд.17.3 ТЗ). Заменяет
+    // единую строку payroll_settings (% по категории услуги + бонус за нового
+    // клиента - оба подтверждённо не соответствуют реальной формуле Алихана,
+    // разд.17.3/17.4) на master_payroll_settings: у каждого мастера одна
+    // редактируемая ставка pct. Читать может любая роль (мастеру нужна своя ставка
+    // для "Моей зарплаты"), но выдача сужена по той же матрице, что и /staff -
+    // мастер видит только себя, админ только свою точку, владелец - всех. Менять
+    // ставку может только владелец (разд.7 ТЗ: "Изменение прайса - я").
     if (parts[0] === 'payroll-settings' && parts.length === 1) {
       const auth = await authenticate(req);
-      if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
 
       if (req.method === 'GET') {
-        const result = await pool.query('SELECT * FROM payroll_settings WHERE id = 1');
-        const r = result.rows[0];
-        return sendJson(res, 200, {
-          baseRatePerShift: r.base_rate_per_shift,
-          pctBaseService: Number(r.pct_base_service),
-          pctComplexService: Number(r.pct_complex_service),
-          pctCosmetics: Number(r.pct_cosmetics),
-          newClientBonus: r.new_client_bonus,
-        });
+        const masterId = url.searchParams.get('masterId');
+        let query = 'SELECT mps.master_id, mps.pct FROM master_payroll_settings mps WHERE 1=1';
+        const params = [];
+        if (auth.role === 'master') {
+          params.push(auth.id);
+          query += ` AND mps.master_id = $${params.length}`;
+        } else if (auth.role === 'admin') {
+          params.push(auth.locationId);
+          query += ` AND mps.master_id IN (SELECT id FROM staff WHERE location_id = $${params.length})`;
+        }
+        if (masterId) {
+          params.push(masterId);
+          query += ` AND mps.master_id = $${params.length}`;
+        }
+        const result = await pool.query(query, params);
+        return sendJson(res, 200, result.rows.map((r) => ({ masterId: r.master_id, pct: Number(r.pct) })));
       }
 
       if (req.method === 'PUT') {
+        if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
         const body = await readBody(req);
+        if (!body.masterId || typeof body.pct !== 'number') {
+          return sendJson(res, 400, { error: 'missing_fields' });
+        }
         await pool.query(
-          `UPDATE payroll_settings SET
-             base_rate_per_shift = COALESCE($1, base_rate_per_shift),
-             pct_base_service = COALESCE($2, pct_base_service),
-             pct_complex_service = COALESCE($3, pct_complex_service),
-             pct_cosmetics = COALESCE($4, pct_cosmetics),
-             new_client_bonus = COALESCE($5, new_client_bonus)
-           WHERE id = 1`,
-          [
-            body.baseRatePerShift ?? null,
-            body.pctBaseService ?? null,
-            body.pctComplexService ?? null,
-            body.pctCosmetics ?? null,
-            body.newClientBonus ?? null,
-          ]
+          `INSERT INTO master_payroll_settings (master_id, pct) VALUES ($1, $2)
+           ON CONFLICT (master_id) DO UPDATE SET pct = EXCLUDED.pct`,
+          [body.masterId, body.pct]
         );
         return sendJson(res, 200, { ok: true });
       }
@@ -603,6 +790,56 @@ const server = createServer(async (req, res) => {
     sendJson(res, 500, { error: 'internal_error' });
   }
 });
+
+// Простой авто-раннер миграций (правка 28.07.2026) - раньше новые .sql-файлы в
+// migrations/ применялись вручную (нет доступа к psql/консоли Amvera из Claude Code
+// между сессиями, ключ для SSH-деплоя одноразовый). Теперь при каждом старте сервер
+// сам догоняет непроменённые файлы по имени, по одному разу каждый - без внешнего
+// инструмента, без хардкода списка версий.
+const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
+
+async function runMigrations() {
+  await pool.query(
+    'CREATE TABLE IF NOT EXISTS schema_migrations (filename text primary key, applied_at timestamptz not null default now())'
+  );
+  const applied = new Set((await pool.query('SELECT filename FROM schema_migrations')).rows.map((r) => r.filename));
+
+  // 001/002 уже накатаны вручную ДО того, как появился этот раннер (staff/services/
+  // bookings в проде уже работают на этой схеме) - если таблица трекинга только что
+  // создана (пустая), помечаем эту пару "применённой" без повторного выполнения,
+  // иначе INSERT-ы сида в 002 упадут на уже существующих строках и сервер не стартует.
+  const BASELINE = ['001_kv_store.sql', '002_schema.sql'];
+  if (applied.size === 0) {
+    for (const file of BASELINE) {
+      await pool.query('INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING', [file]);
+      applied.add(file);
+    }
+  }
+
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
+  for (const file of files) {
+    if (applied.has(file)) continue;
+    const sql = readFileSync(join(MIGRATIONS_DIR, file), 'utf8');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(sql);
+      await client.query('INSERT INTO schema_migrations (filename) VALUES ($1)', [file]);
+      await client.query('COMMIT');
+      console.log(`Миграция применена: ${file}`);
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      console.error(`Миграция ${file} упала, сервер не стартует:`, err.message);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+}
+
+await runMigrations();
 
 server.listen(PORT, () => {
   console.log(`API alikhan-crm слушает порт ${PORT}`);

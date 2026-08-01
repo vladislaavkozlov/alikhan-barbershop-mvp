@@ -233,29 +233,19 @@
     font-size: 0.92rem; color: var(--text-muted);
   }
   .philosophy-fact b{ color: var(--text); }
-  .philosophy-placeholder{
+  /* Окно 13 (01.08.2026) - дословный текст Алихана вместо заглушки "скоро -
+     личная история" (см. ТЗ-разработчику-корректировка-2026-08-01.md, Задача 5) */
+  .philosophy-story{
     margin: 36px auto 0; max-width: 58ch;
-    border: 1px dashed var(--border); border-radius: 10px;
-    padding: 18px 22px; text-align: center;
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 22px 26px; text-align: left;
   }
-  .philosophy-placeholder-tag{
-    display: inline-block; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--accent); margin-bottom: 8px;
-  }
-  .philosophy-placeholder p{ font-style: italic; color: var(--text-muted); margin: 0; font-size: 0.94rem; }
-  .philosophy-ask{
-    margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border);
-    text-align: left;
-  }
-  .philosophy-ask-label{
-    font-style: normal !important; font-weight: 600;
-    font-size: 0.82rem; color: var(--accent); margin: 0 0 8px !important;
-  }
-  .philosophy-ask ol{ margin: 0; padding-left: 20px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.6; }
-  .philosophy-ask li{ margin-bottom: 3px; }
-  .philosophy-ask-note{
-    font-style: normal !important; font-size: 0.8rem; color: var(--text-muted);
-    margin: 10px 0 0 !important; opacity: 0.85;
+  .philosophy-story-text{ color: var(--text-muted); margin: 0 0 16px; font-size: 0.94rem; line-height: 1.6; }
+  .philosophy-story-text:last-of-type{ margin-bottom: 0; }
+  .philosophy-story-text strong{ display: block; color: var(--text); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+  .philosophy-story-note{
+    margin: 16px 0 0; padding-top: 16px; border-top: 1px dashed var(--border);
+    font-size: 0.8rem; color: var(--text-muted); opacity: 0.85; text-align: center;
   }
 
   /* ---------- team growth ---------- */
@@ -555,7 +545,9 @@
       <div class="proof-bar">
         <a class="proof-chip" href="https://2gis.ru/stavropol/geo/70000001114087480" target="_blank" rel="noopener"><b>5.0★</b> 2ГИС</a>
         <a class="proof-chip" href="https://yandex.ru/maps/-/CTfqYO~P" target="_blank" rel="noopener"><b>4.1★</b> Яндекс.Карты</a>
-        <span class="proof-chip"><b>2</b> точки в Ставрополе</span>
+        <!-- "2 точки" убрано (Окно 13, 01.08.2026) - у Алихана одна точка, не две,
+             см. ТЗ-разработчику-корректировка-2026-08-01.md. Замены не придумывал -
+             нечем содержательно заменить без слов Алихана, снято как есть -->
       </div>
       <div class="facts-row">
         <div><b>Адрес</b>Ставрополь, ул. Андрея Голуба 16</div>
@@ -572,18 +564,15 @@
         <h2>Наш принцип</h2>
       </div>
       <blockquote class="philosophy-quote">Стрижка как <em>процедура</em>, а не конвейерная услуга</blockquote>
-      <p class="philosophy-fact"><b>2 точки</b> в Ставрополе - один и тот же принцип на каждой</p>
-      <div class="philosophy-placeholder">
-        <p class="philosophy-placeholder-tag">Скоро - личная история</p>
-        <p>Личная история Алихана - здесь будет короткий рассказ от первого лица о том, почему салон носит его имя</p>
-        <div class="philosophy-ask">
-          <p class="philosophy-ask-label">Алихан, чтобы этот блок появился, нужны ответы на два вопроса:</p>
-          <ol>
-            <li>Почему салон назван именно «Алихан»?</li>
-            <li>Что для тебя лично значит «премиум» в стрижке - своими словами, в паре предложений?</li>
-          </ol>
-          <p class="philosophy-ask-note">Можно голосовым на 30-60 секунд вместо текста</p>
-        </div>
+      <!-- "2 точки" факт убран (Окно 13, 01.08.2026) - см. TODO ниже -->
+      <!-- TODO: формулировка про 1 точку - раньше здесь стоял факт "2 точки в
+           Ставрополе - один и тот же принцип на каждой", он больше не верен (у
+           Алихана 1 точка). Содержательной замены от лица Алихана не придумывал -
+           решение о новой формулировке (или её отсутствии) за Владом/Алиханом -->
+      <div class="philosophy-story">
+        <p class="philosophy-story-text"><strong>Почему «АлиХан»</strong>«АлиХан это непросто бренд, это история про 2 братьев. Али от имени старшего брата Алиовсад, Хан это от имени младшего брата Мамедхан»</p>
+        <p class="philosophy-story-text"><strong>Что для нас премиум</strong>«Премиум-барбершоп - это не просто салон, где делают стрижки. Это концепция, где делают акцент на комплексном подходе: сочетании высокого уровня мастерства, индивидуального внимания к клиенту, расширенного сервиса и продуманной атмосферы. Главная цель - не просто подровнять волосы, а создать для мужчины целостный и запоминающийся образ, где каждая деталь работает на его внешний вид и комфорт»</p>
+        <p class="philosophy-story-note">Слова Алихана, 01.08.2026 - историю можно дополнить позже, раздел открыт для расширения</p>
       </div>
     </div>
   </section>

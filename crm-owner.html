@@ -44,20 +44,8 @@
   #wk-ivan2:checked ~ .panel-wk-ivan2,
   #wk-ivan3:checked ~ .panel-wk-ivan3 { display: block; }
 
-  /* точка + период выручки */
-  #rv-loc-all:checked ~ .seg-bar label[for="rv-loc-all"],
-  #rv-loc1:checked ~ .seg-bar label[for="rv-loc1"],
-  #rv-loc2:checked ~ .seg-bar label[for="rv-loc2"] { background: var(--accent); color: var(--leather); }
-  #rv-loc-all:checked ~ .panel-rv-loc-all,
-  #rv-loc1:checked ~ .panel-rv-loc1, #rv-loc2:checked ~ .panel-rv-loc2 { display: block; }
-  #rvp-day:checked ~ .seg-bar label[for="rvp-day"],
-  #rvp-week:checked ~ .seg-bar label[for="rvp-week"],
-  #rvp-month:checked ~ .seg-bar label[for="rvp-month"],
-  #rvp-quarter:checked ~ .seg-bar label[for="rvp-quarter"],
-  #rvp-year:checked ~ .seg-bar label[for="rvp-year"] { background: var(--accent); color: var(--leather); }
-  #rvp-day:checked ~ .panel-rvp-day, #rvp-week:checked ~ .panel-rvp-week,
-  #rvp-month:checked ~ .panel-rvp-month, #rvp-quarter:checked ~ .panel-rvp-quarter,
-  #rvp-year:checked ~ .panel-rvp-year { display: block; }
+  /* период выручки (Окно 13, 01.08.2026 - переключатель по точкам убран, у Алихана
+     одна точка, см. Задача 1 промпта корректировки) */
   #rvpa-day:checked ~ .seg-bar label[for="rvpa-day"],
   #rvpa-week:checked ~ .seg-bar label[for="rvpa-week"],
   #rvpa-month:checked ~ .seg-bar label[for="rvpa-month"],
@@ -66,16 +54,6 @@
   #rvpa-day:checked ~ .panel-rvpa-day, #rvpa-week:checked ~ .panel-rvpa-week,
   #rvpa-month:checked ~ .panel-rvpa-month, #rvpa-quarter:checked ~ .panel-rvpa-quarter,
   #rvpa-year:checked ~ .panel-rvpa-year { display: block; }
-  /* Точка 2 - тот же период-переключатель, что у Точки 1 (rvp-*), но своя группа
-     радио (rv2p-*), чтобы не конфликтовать с чекнутым состоянием Точки 1 - правка 28.07.2026 */
-  #rv2p-day:checked ~ .seg-bar label[for="rv2p-day"],
-  #rv2p-week:checked ~ .seg-bar label[for="rv2p-week"],
-  #rv2p-month:checked ~ .seg-bar label[for="rv2p-month"],
-  #rv2p-quarter:checked ~ .seg-bar label[for="rv2p-quarter"],
-  #rv2p-year:checked ~ .seg-bar label[for="rv2p-year"] { background: var(--accent); color: var(--leather); }
-  #rv2p-day:checked ~ .panel-rv2p-day, #rv2p-week:checked ~ .panel-rv2p-week,
-  #rv2p-month:checked ~ .panel-rv2p-month, #rv2p-quarter:checked ~ .panel-rv2p-quarter,
-  #rv2p-year:checked ~ .panel-rv2p-year { display: block; }
 
   /* возвращаемость - период */
   #rt1-3:checked ~ .seg-bar label[for="rt1-3"], #rt1-6:checked ~ .seg-bar label[for="rt1-6"],
@@ -98,7 +76,7 @@
     <a href="index.html" class="brand">АЛИХАН</a>
     <span class="crm-tag">CRM · визуальный макет</span>
     <div class="nav-right">
-      <span class="location-badge">Все точки: <strong>Точка 1</strong> · <strong>Точка 2</strong></span>
+      <span class="location-badge">Ставрополь, ул. Андрея Голуба 16</span>
       <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили">🔔<span class="notif-badge">3</span></button>
       <span id="sessionInfo" class="session-info" hidden></span>
       <button id="logoutBtn" class="logout-btn" type="button" hidden>Выйти</button>
@@ -588,6 +566,17 @@
                 <div class="field"><label>Должность (свободный текст)</label><input value="Мастер" readonly></div>
               </div>
 
+              <h4>Портфолио <span class="badge badge-todo">заполняет Алихан</span></h4>
+              <p class="section-hint" style="margin:6px 0 10px">Стаж, сильные стороны, курсы/сертификаты, фото «до-после» - данных пока нет (Блок 6 в.23-26, Алихан заполнит сам), поля рабочие и сохраняются в базу. Личный инстаграм мастера - вопрос задан отдельно, ответа нет, поля здесь пока нет (в.27)</p>
+              <div class="field-grid">
+                <div class="field"><label>Стаж</label><input type="text" id="portfolioExperience-master-1" placeholder="например «5 лет барбером»"></div>
+                <div class="field"><label>Сильные стороны</label><input type="text" id="portfolioStrengths-master-1" placeholder="например «фейды, оформление бороды»"></div>
+              </div>
+              <div class="field"><label>Курсы / сертификаты (по одному на строку)</label><textarea id="portfolioCertificates-master-1" rows="2"></textarea></div>
+              <div class="field"><label>Фото «до-после» (ссылки, по одной на строку)</label><textarea id="portfolioBeforeAfter-master-1" rows="2" placeholder="https://..."></textarea></div>
+              <button class="btn btn-ghost btn-sm portfolio-save" type="button" data-master-id="master-1">Сохранить портфолио</button>
+              <p class="payroll-note" id="portfolioNote-master-1"></p>
+
               <h4>Роль <span class="badge badge-todo">можно несколько</span></h4>
               <p class="role-hint">Роли комбинируются - правка Влада 27.07.2026: владелец может дополнительно работать администратором и мастером, администратор - мастером. Отметьте все роли, которые выполняет сотрудник</p>
               <div class="role-picker">
@@ -755,6 +744,15 @@
                 <div class="field"><label>Телефон</label><input value="+7 900 000-00-02 (пример)" readonly></div>
                 <div class="field"><label>Email</label><input value="mamed@example.com (пример)" readonly></div>
               </div>
+              <h4>Портфолио <span class="badge badge-todo">заполняет Алихан</span></h4>
+              <div class="field-grid">
+                <div class="field"><label>Стаж</label><input type="text" id="portfolioExperience-master-2" placeholder="например «5 лет барбером»"></div>
+                <div class="field"><label>Сильные стороны</label><input type="text" id="portfolioStrengths-master-2" placeholder="например «фейды, оформление бороды»"></div>
+              </div>
+              <div class="field"><label>Курсы / сертификаты (по одному на строку)</label><textarea id="portfolioCertificates-master-2" rows="2"></textarea></div>
+              <div class="field"><label>Фото «до-после» (ссылки, по одной на строку)</label><textarea id="portfolioBeforeAfter-master-2" rows="2" placeholder="https://..."></textarea></div>
+              <button class="btn btn-ghost btn-sm portfolio-save" type="button" data-master-id="master-2">Сохранить портфолио</button>
+              <p class="payroll-note" id="portfolioNote-master-2"></p>
               <h4>Роль <span class="badge badge-todo">можно несколько</span></h4>
               <p class="role-hint">Пример совмещения: Мамед ведёт запись как администратор точки и сам же стрижёт как мастер</p>
               <div class="role-picker">
@@ -809,6 +807,15 @@
                 <div class="field"><label>Телефон</label><input value="+7 900 000-00-03 (пример)" readonly></div>
                 <div class="field"><label>Email</label><input value="elizaveta@example.com (пример)" readonly></div>
               </div>
+              <h4>Портфолио <span class="badge badge-todo">заполняет Алихан</span></h4>
+              <div class="field-grid">
+                <div class="field"><label>Стаж</label><input type="text" id="portfolioExperience-master-3" placeholder="например «5 лет барбером»"></div>
+                <div class="field"><label>Сильные стороны</label><input type="text" id="portfolioStrengths-master-3" placeholder="например «фейды, оформление бороды»"></div>
+              </div>
+              <div class="field"><label>Курсы / сертификаты (по одному на строку)</label><textarea id="portfolioCertificates-master-3" rows="2"></textarea></div>
+              <div class="field"><label>Фото «до-после» (ссылки, по одной на строку)</label><textarea id="portfolioBeforeAfter-master-3" rows="2" placeholder="https://..."></textarea></div>
+              <button class="btn btn-ghost btn-sm portfolio-save" type="button" data-master-id="master-3">Сохранить портфолио</button>
+              <p class="payroll-note" id="portfolioNote-master-3"></p>
               <h4>Роль <span class="badge badge-todo">можно несколько</span></h4>
               <div class="role-picker">
                 <label class="role-option"><input type="checkbox" name="role-ivan3"><span class="rn">Владелец</span><span class="rd">Видит и меняет всё</span></label>
@@ -871,153 +878,49 @@
     <!-- ======================= ВЫРУЧКА (новая вкладка, добавлена по правке Влада 27.07.2026) ======================= -->
     <div class="tab-panel panel-c">
       <section>
-        <h2>Выручка по точке</h2>
-        <p class="section-hint">Выручка, зарплаты мастеров и чистый доход по точке за период - считается реально из базы (Amvera), ставка своя у каждого мастера (100% Али/Мамедхан, 40% по умолчанию у Елизаветы - разд.17.3), фильтра по статусу «Выполнена» пока нет, считаются все брони за период. Неделя/Месяц/Квартал/Год = "с начала периода по сегодня" (например Месяц = с 1 числа), не скользящее окно - если нужен другой принцип, скажи. Точка 1 = Али+Мамед, Точка 2 = Елизавета (правка Влада 28.07.2026, миграция 003_staff_locations.sql)</p>
+        <h2>Выручка</h2>
+        <p class="section-hint">Выручка, зарплаты мастеров и чистый доход за период - считается реально из базы (Amvera), ставка своя у каждого мастера (100% Али/Мамедхан, 40% по умолчанию у Елизаветы - разд.17.3), фильтра по статусу «Выполнена» пока нет, считаются все брони за период. Неделя/Месяц/Квартал/Год = "с начала периода по сегодня" (например Месяц = с 1 числа), не скользящее окно - если нужен другой принцип, скажи. Переключатель по точкам убран (Окно 13, 01.08.2026) - у Алихана одна точка, не две (уточнено самим Алиханом)</p>
 
         <div class="seg-tabs">
-          <input type="radio" name="rv-loc" id="rv-loc-all" checked>
-          <input type="radio" name="rv-loc" id="rv-loc1">
-          <input type="radio" name="rv-loc" id="rv-loc2">
+          <input type="radio" name="rv-period-all" id="rvpa-day" checked>
+          <input type="radio" name="rv-period-all" id="rvpa-week">
+          <input type="radio" name="rv-period-all" id="rvpa-month">
+          <input type="radio" name="rv-period-all" id="rvpa-quarter">
+          <input type="radio" name="rv-period-all" id="rvpa-year">
           <div class="seg-bar">
-            <label for="rv-loc-all">Все точки</label>
-            <label for="rv-loc1">Точка 1</label>
-            <label for="rv-loc2">Точка 2</label>
+            <label for="rvpa-day">День</label>
+            <label for="rvpa-week">Неделя</label>
+            <label for="rvpa-month">Месяц</label>
+            <label for="rvpa-quarter">Квартал</label>
+            <label for="rvpa-year">Год</label>
           </div>
-
-          <div class="seg-panel panel-rv-loc-all">
-            <p class="section-hint" style="margin-top:12px">Сумма по Точке 1 и Точке 2 вместе - правка Влада 28.07.2026. Та же структура и период-переключатель, что и у одной точки ниже</p>
-            <div class="seg-tabs">
-              <input type="radio" name="rv-period-all" id="rvpa-day" checked>
-              <input type="radio" name="rv-period-all" id="rvpa-week">
-              <input type="radio" name="rv-period-all" id="rvpa-month">
-              <input type="radio" name="rv-period-all" id="rvpa-quarter">
-              <input type="radio" name="rv-period-all" id="rvpa-year">
-              <div class="seg-bar">
-                <label for="rvpa-day">День</label>
-                <label for="rvpa-week">Неделя</label>
-                <label for="rvpa-month">Месяц</label>
-                <label for="rvpa-quarter">Квартал</label>
-                <label for="rvpa-year">Год</label>
-              </div>
-              <div class="seg-panel panel-rvpa-day">
-                <div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">Выручка (обе точки)</div><div class="sc-value" id="rvAllDayRevenue">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Точка 1 + Точка 2 за день - реальная сумма по записям в базе на сегодня</div></div>
-                  <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllDayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке своего мастера (разд.17.3) от той же реальной выручки</div></div>
-                  <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllDayNet">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Выручка минус зарплаты по обеим точкам</div></div>
-                </div>
-                <p class="section-hint" style="margin-top:10px">Разбивка по Точке 1 / Точке 2 ниже - тоже реальная сумма (правка 28.07.2026), не пример</p>
-              </div>
-              <div class="seg-panel panel-rvpa-week"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка (обе точки)</div><div class="sc-value" id="rvAllWeekRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllWeekPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllWeekNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
-              <div class="seg-panel panel-rvpa-month"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка (обе точки)</div><div class="sc-value" id="rvAllMonthRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllMonthPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllMonthNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
-              <div class="seg-panel panel-rvpa-quarter"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка (обе точки)</div><div class="sc-value" id="rvAllQuarterRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllQuarterPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllQuarterNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
-              <div class="seg-panel panel-rvpa-year"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка (обе точки)</div><div class="sc-value" id="rvAllYearRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllYearPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllYearNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
+          <div class="seg-panel panel-rvpa-day">
+            <div class="stat-cards">
+              <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllDayRevenue">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">За день - реальная сумма по записям в базе на сегодня</div></div>
+              <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllDayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке своего мастера (разд.17.3) от той же реальной выручки</div></div>
+              <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllDayNet">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Выручка минус зарплаты</div></div>
             </div>
           </div>
-
-          <div class="seg-panel panel-rv-loc1">
-            <div class="seg-tabs">
-              <input type="radio" name="rv-period" id="rvp-day" checked>
-              <input type="radio" name="rv-period" id="rvp-week">
-              <input type="radio" name="rv-period" id="rvp-month">
-              <input type="radio" name="rv-period" id="rvp-quarter">
-              <input type="radio" name="rv-period" id="rvp-year">
-              <div class="seg-bar">
-                <label for="rvp-day">День</label>
-                <label for="rvp-week">Неделя</label>
-                <label for="rvp-month">Месяц</label>
-                <label for="rvp-quarter">Квартал</label>
-                <label for="rvp-year">Год</label>
-              </div>
-              <div class="seg-panel panel-rvp-day">
-                <div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">Выручка (все мастера)</div><div class="sc-value" id="rvLoc1DayRevenue">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Сумма оплаченных услуг за день</div></div>
-                  <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc1DayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке своего мастера (разд.17.3) от той же реальной выручки</div></div>
-                  <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc1DayNet">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Выручка минус зарплаты. Без аренды/расходников - это отдельный вопрос, не в этом макете</div></div>
-                </div>
-              </div>
-              <div class="seg-panel panel-rvp-week"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvLoc1WeekRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc1WeekPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc1WeekNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
-              <div class="seg-panel panel-rvp-month"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvLoc1MonthRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc1MonthPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc1MonthNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
-              <div class="seg-panel panel-rvp-quarter"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvLoc1QuarterRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc1QuarterPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc1QuarterNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
-              <div class="seg-panel panel-rvp-year"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvLoc1YearRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc1YearPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc1YearNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
-            </div>
-          </div>
-
-          <div class="seg-panel panel-rv-loc2">
-            <p class="section-hint" style="margin-top:12px">Та же структура, что у Точки 1, реальные цифры за день - остальные периоды считаются тем же запросом (правка 28.07.2026, ранее здесь была только карточка "День" без переключателя периода)</p>
-            <div class="seg-tabs">
-              <input type="radio" name="rv2-period" id="rv2p-day" checked>
-              <input type="radio" name="rv2-period" id="rv2p-week">
-              <input type="radio" name="rv2-period" id="rv2p-month">
-              <input type="radio" name="rv2-period" id="rv2p-quarter">
-              <input type="radio" name="rv2-period" id="rv2p-year">
-              <div class="seg-bar">
-                <label for="rv2p-day">День</label>
-                <label for="rv2p-week">Неделя</label>
-                <label for="rv2p-month">Месяц</label>
-                <label for="rv2p-quarter">Квартал</label>
-                <label for="rv2p-year">Год</label>
-              </div>
-              <div class="seg-panel panel-rv2p-day">
-                <div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">Выручка (все мастера)</div><div class="sc-value" id="rvLoc2DayRevenue">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Сумма оплаченных услуг за день</div></div>
-                  <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc2DayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке своего мастера (разд.17.3) от той же реальной выручки</div></div>
-                  <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc2DayNet">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Выручка минус зарплаты. Без аренды/расходников - это отдельный вопрос, не в этом макете</div></div>
-                </div>
-              </div>
-              <div class="seg-panel panel-rv2p-week"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvLoc2WeekRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc2WeekPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc2WeekNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
-              <div class="seg-panel panel-rv2p-month"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvLoc2MonthRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc2MonthPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc2MonthNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
-              <div class="seg-panel panel-rv2p-quarter"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvLoc2QuarterRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc2QuarterPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc2QuarterNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
-              <div class="seg-panel panel-rv2p-year"><div class="stat-cards">
-                <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvLoc2YearRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvLoc2YearPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
-                <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvLoc2YearNet">000 ₽ <span class="unsure">считаю…</span></div></div>
-              </div></div>
-            </div>
-          </div>
+          <div class="seg-panel panel-rvpa-week"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllWeekRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllWeekPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllWeekNet">000 ₽ <span class="unsure">считаю…</span></div></div>
+          </div></div>
+          <div class="seg-panel panel-rvpa-month"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllMonthRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllMonthPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllMonthNet">000 ₽ <span class="unsure">считаю…</span></div></div>
+          </div></div>
+          <div class="seg-panel panel-rvpa-quarter"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllQuarterRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllQuarterPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllQuarterNet">000 ₽ <span class="unsure">считаю…</span></div></div>
+          </div></div>
+          <div class="seg-panel panel-rvpa-year"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllYearRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllYearPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllYearNet">000 ₽ <span class="unsure">считаю…</span></div></div>
+          </div></div>
         </div>
       </section>
     </div>

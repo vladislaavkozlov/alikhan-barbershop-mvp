@@ -138,10 +138,14 @@ INSERT INTO services (id, name, category, duration_min, price, composition) VALU
 -- isPlaceholder: true) - реальных сотрудников/логинов Алихан ещё не присылал.
 -- location_id НЕ проставлен - реальной привязки мастер→точка нет ни в одном
 -- источнике, придумывать не стал.
+-- Правка Окна 10 (30.07.2026): 'master-3' здесь уже с реальным именем
+-- 'Елизавета (пример)' - эта миграция входит в BASELINE (server.mjs runMigrations)
+-- и на живой базе повторно не выполняется, правка нужна только для гипотетического
+-- нового окружения с нуля. Реальную строку в уже живой БД чинит 006_master3_rename.sql.
 INSERT INTO staff (id, location_id, name, role, employed, provides_services, has_system_access, email, pin_hash) VALUES
   ('master-1', NULL, 'Иван 1 (пример)', 'master', true, true, true, 'master1-test@alikhan.test', 'e049281e287b8563496b3e0437614dbf:f41db3a9a52ae800c5b7ed742ddfd523de18842d46201cbd52fb7b09d45c28c5d6df39941449e876676f966d070918ac4e3bab9e2f2c8cf5fde425a71a7d9758'),
   ('master-2', NULL, 'Иван 2 (пример)', 'master', true, true, true, 'master2-test@alikhan.test', 'c7b66b98cd787ae16964754cc5c967a1:800e2727b10416626eed334674677ea96d1d89ec59830977fdb5ca58914045651227e9a183e2c5074e7dd0ae7ca1bfc8df6b2ea345e8635b0f639743ff97f1ea'),
-  ('master-3', NULL, 'Иван 3 (пример)', 'master', true, true, true, 'master3-test@alikhan.test', '33abb9618dadfd986c15d65893e244be:7184d3969bf2cefcc752b7dd4893204a0a07e023d03e33da48e72a3e462f070ddb73111feaa3e408fec4fdd2856c309ff83a90d9ee1ce4f280dbbb852263fee3');
+  ('master-3', NULL, 'Елизавета (пример)', 'master', true, true, true, 'master3-test@alikhan.test', '33abb9618dadfd986c15d65893e244be:7184d3969bf2cefcc752b7dd4893204a0a07e023d03e33da48e72a3e462f070ddb73111feaa3e408fec4fdd2856c309ff83a90d9ee1ce4f280dbbb852263fee3');
 
 -- Тестовые логины owner/admin - реальных ФИО владелец не присылал, это учётки для
 -- живой проверки ролей (см. промпт Окна 8, Шаг 5), не выдаются за реальных людей.

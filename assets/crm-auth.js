@@ -216,11 +216,62 @@ async function renderLiveProof(staff) {
       }
     }
 
+    wirePortfolioEditors(staffList);
+
     await renderRevenuePeriods(priceOf, pctOf, ownerIds);
   } catch (err) {
     panel.classList.add('lp-error');
     panel.innerHTML = `<span class="lp-dot"></span><strong>Не удалось получить живые данные</strong><span>${err.message}</span>`;
   }
+}
+
+// Задача 4 (Окно 13, 01.08.2026, разд.17.15 ТЗ) - портфолио мастера (стаж/сильные
+// стороны/сертификаты/фото "до-после"), самредактируемые владельцем поля в карточке
+// "Сотрудники" (crm-owner.html). Читает значения из уже загруженного /staff, пишет
+// через PUT /staff/:id/portfolio (owner-only на сервере). Кнопок может не быть на
+// странице (crm-admin.html/crm-master.html) - функция тогда no-op.
+function wirePortfolioEditors(staffList) {
+  document.querySelectorAll('.portfolio-save').forEach((btn) => {
+    const masterId = btn.dataset.masterId;
+    const expEl = el(`portfolioExperience-${masterId}`);
+    const strEl = el(`portfolioStrengths-${masterId}`);
+    const certEl = el(`portfolioCertificates-${masterId}`);
+    const baEl = el(`portfolioBeforeAfter-${masterId}`);
+    if (!expEl || !strEl || !certEl || !baEl) return;
+
+    if (!btn.dataset.filled) {
+      const staff = staffList.find((s) => s.id === masterId);
+      if (staff) {
+        expEl.value = staff.experienceText ?? '';
+        strEl.value = staff.strengthsText ?? '';
+        certEl.value = staff.certificatesText ?? '';
+        baEl.value = staff.beforeAfterUrls ?? '';
+      }
+      btn.dataset.filled = '1';
+    }
+
+    if (btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    const noteEl = el(`portfolioNote-${masterId}`);
+    btn.addEventListener('click', async () => {
+      try {
+        const res = await fetch(`${API}/staff/${masterId}/portfolio`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({
+            experienceText: expEl.value.trim() || null,
+            strengthsText: strEl.value.trim() || null,
+            certificatesText: certEl.value.trim() || null,
+            beforeAfterUrls: baEl.value.trim() || null,
+          }),
+        });
+        if (!res.ok) throw new Error(`staff/${masterId}/portfolio → ${res.status}`);
+        if (noteEl) noteEl.textContent = 'Сохранено';
+      } catch (err) {
+        if (noteEl) noteEl.textContent = `Не удалось сохранить: ${err.message}`;
+      }
+    });
+  });
 }
 
 function pad2(n) {
@@ -248,11 +299,12 @@ function periodStartStr(period) {
   return dateToStr(d);
 }
 
-// Владелец: вкладка "Выручка по точке" - Неделя/Месяц/Квартал/Год и разбивка по
-// Точке 1/Точке 2 (правка 28.07.2026, см. miграция 003_staff_locations.sql - до неё
-// у всех мастеров locationId был null, разбивка была честным плейсхолдером). Один
-// запрос на весь год вместо отдельного на каждый день - дальше бакетируем на фронте.
-// priceOf/pctOf - те же функции по мастеру, что и в renderLiveProof (Окно 10).
+// Владелец: вкладка "Выручка" - Неделя/Месяц/Квартал/Год (правка 28.07.2026). Один
+// запрос на весь год вместо отдельного на каждый день - дальше бакетируем на
+// фронте. priceOf/pctOf - те же функции по мастеру, что и в renderLiveProof (Окно 10).
+// Разбивка по точкам убрана (Окно 13, 01.08.2026) - у Алихана одна точка, не две
+// (уточнено самим Алиханом 01.08.2026), инфраструктура location_id в базе остаётся
+// нетронутой на будущее (франшиза по городам, см. ТЗ-разработчику-корректировка).
 async function renderRevenuePeriods(priceOf, pctOf, ownerIds) {
   if (!el('rvAllWeekRevenue')) return; // элементов нет вне страницы владельца
 
@@ -279,16 +331,10 @@ async function renderRevenuePeriods(priceOf, pctOf, ownerIds) {
     if (netEl) netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;
   };
 
-  const todayRows = bookings.filter((b) => b.date === today);
-  fill('rvLoc1Day', todayRows.filter((b) => b.locationId === 1));
-  fill('rvLoc2Day', todayRows.filter((b) => b.locationId === 2));
-
   for (const [label, key] of [['Week', 'week'], ['Month', 'month'], ['Quarter', 'quarter'], ['Year', 'year']]) {
     const start = periodStartStr(key);
     const rows = bookings.filter((b) => b.date >= start && b.date <= today);
     fill(`rvAll${label}`, rows);
-    fill(`rvLoc1${label}`, rows.filter((b) => b.locationId === 1));
-    fill(`rvLoc2${label}`, rows.filter((b) => b.locationId === 2));
   }
 }
 
