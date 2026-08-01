@@ -161,21 +161,27 @@ async function casWrite(key, expected, value) {
 // Та же гарантия, что раньше давал casWrite по kv_store: pg_advisory_xact_lock
 // сериализует все параллельные попытки одного мастера на одну дату, поэтому два
 // устройства не могут обе "выиграть" один слот (см. storage.js/createBooking).
-async function createBookingTx({ masterId, serviceId, date, startTime, clientName, clientPhone, channel }) {
+// Задача Окна 11 (найдено Владом 30.07.2026): клиент выбирает НЕСКОЛЬКО услуг за
+// один визит, не одну - serviceIds теперь массив (минимум 1 элемент). Длительность
+// слота = сумма duration_min всех выбранных услуг ПО ЭТОМУ МАСТЕРУ (master_services,
+// Окно 10 - у Екатерины другая цена/длительность на части услуг), не общий прайс.
+async function createBookingTx({ masterId, serviceIds, date, startTime, clientName, clientPhone, channel }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booking:${masterId}:${date}`]);
 
     const msRes = await client.query(
-      'SELECT duration_min FROM master_services WHERE master_id = $1 AND service_id = $2',
-      [masterId, serviceId]
+      'SELECT service_id, duration_min, price FROM master_services WHERE master_id = $1 AND service_id = ANY($2)',
+      [masterId, serviceIds]
     );
-    if (msRes.rows.length === 0) {
+    if (msRes.rows.length !== serviceIds.length) {
       await client.query('ROLLBACK');
       return { status: 400, body: { error: 'unknown_master_service' } };
     }
-    const endTime = addMinutes(startTime, msRes.rows[0].duration_min);
+    const totalDuration = msRes.rows.reduce((sum, r) => sum + r.duration_min, 0);
+    const totalPrice = msRes.rows.reduce((sum, r) => sum + r.price, 0);
+    const endTime = addMinutes(startTime, totalDuration);
 
     const existingRes = await client.query(
       `SELECT start_time, end_time FROM bookings WHERE master_id = $1 AND date = $2 AND status != 'cancelled'`,
@@ -214,17 +220,35 @@ async function createBookingTx({ masterId, serviceId, date, startTime, clientNam
     }
 
     const bookingId = `${date}-${startTime}-${masterId}-${randomBytes(4).toString('hex')}`;
+    // service_id (единичное поле) намеренно оставляем NULL для новых броней - список
+    // услуг живёт только в booking_services, чтобы не было двух источников правды
+    // (см. миграцию 013_booking_services.sql, там же бэкфилл старых броней).
     await client.query(
       `INSERT INTO bookings (id, location_id, master_id, service_id, client_id, date, start_time, end_time, status, channel, requires_prepayment)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'planned', $9, $10)`,
-      [bookingId, locationId, masterId, serviceId, clientId, date, startTime, endTime, channel ?? 'client', requiresPrepayment]
+       VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, 'planned', $8, $9)`,
+      [bookingId, locationId, masterId, clientId, date, startTime, endTime, channel ?? 'client', requiresPrepayment]
     );
+    for (const serviceId of serviceIds) {
+      await client.query('INSERT INTO booking_services (booking_id, service_id) VALUES ($1, $2)', [bookingId, serviceId]);
+    }
     await client.query('COMMIT');
     return {
       status: 200,
       body: {
         ok: true,
-        booking: { id: bookingId, masterId, serviceId, date, startTime, endTime, clientName, clientPhone, requiresPrepayment },
+        booking: {
+          id: bookingId,
+          masterId,
+          serviceIds,
+          date,
+          startTime,
+          endTime,
+          clientName,
+          clientPhone,
+          requiresPrepayment,
+          totalDurationMin: totalDuration,
+          totalPrice,
+        },
       },
     };
   } catch (err) {
@@ -281,11 +305,27 @@ async function listBookingsForRequest(url, auth) {
   query += ' ORDER BY b.date, b.start_time';
   const result = await pool.query(query, params);
 
+  // Окно 11: несколько услуг за визит живут в booking_services (см. миграцию 013),
+  // не в единичном bookings.service_id - один доп. запрос на все id из выборки,
+  // тот же паттерн, что уже есть у schedule_breaks в обработчике /schedule ниже.
+  const bookingIds = result.rows.map((r) => r.id);
+  const servicesRes = bookingIds.length
+    ? await pool.query('SELECT booking_id, service_id FROM booking_services WHERE booking_id = ANY($1)', [bookingIds])
+    : { rows: [] };
+  const serviceIdsByBooking = new Map();
+  for (const row of servicesRes.rows) {
+    if (!serviceIdsByBooking.has(row.booking_id)) serviceIdsByBooking.set(row.booking_id, []);
+    serviceIdsByBooking.get(row.booking_id).push(row.service_id);
+  }
+
   return result.rows.map((r) => {
     const base = {
       id: r.id,
       masterId: r.master_id,
-      serviceId: r.service_id,
+      // serviceId (единичное значение) остаётся для старого кода, который его ещё
+      // читает - первая услуга из списка. serviceIds - полный список, актуальный источник.
+      serviceId: r.service_id ?? serviceIdsByBooking.get(r.id)?.[0] ?? null,
+      serviceIds: serviceIdsByBooking.get(r.id) ?? (r.service_id ? [r.service_id] : []),
       locationId: r.location_id,
       date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : r.date,
       startTime: r.start_time,
@@ -497,11 +537,16 @@ const server = createServer(async (req, res) => {
       if (req.method === 'POST') {
         const auth = await authenticate(req);
         const body = await readBody(req);
-        const required = ['masterId', 'serviceId', 'date', 'startTime'];
-        if (required.some((k) => !body[k])) return sendJson(res, 400, { error: 'missing_fields' });
+        // Окно 11: контракт принимает serviceIds (массив, 1+) - serviceId (единичное
+        // значение) остаётся принят для обратной совместимости со старыми клиентами,
+        // оборачивается в массив из одного элемента.
+        const serviceIds = Array.isArray(body.serviceIds) ? body.serviceIds : body.serviceId ? [body.serviceId] : [];
+        if (!body.masterId || !body.date || !body.startTime || serviceIds.length === 0) {
+          return sendJson(res, 400, { error: 'missing_fields' });
+        }
         const result = await createBookingTx({
           masterId: body.masterId,
-          serviceId: body.serviceId,
+          serviceIds,
           date: body.date,
           startTime: body.startTime,
           clientName: body.clientName ?? null,

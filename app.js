@@ -1,4 +1,4 @@
-import { createStore, createHttpBackend, getMasters, getServices, priceLabelForMaster } from './storage.js';
+import { createStore, createHttpBackend, getMasters, getServices, priceLabelForMaster, priceForMaster } from './storage.js';
 
 // Если на странице задан window.ALIKHAN_API_URL (см. index.html) - работаем через
 // реальный бэкенд на Amvera, синхронизация между устройствами реальна. Если нет -
@@ -12,6 +12,7 @@ const mastersGrid = document.getElementById('masters-grid');
 const form = document.getElementById('booking-form');
 const masterGrid = document.getElementById('master-grid');
 const serviceGrid = document.getElementById('service-grid');
+const serviceSummary = document.getElementById('service-summary');
 const slotsWrap = document.getElementById('slots-wrap');
 const nameInput = document.getElementById('f-name');
 const phoneInput = document.getElementById('f-phone');
@@ -28,7 +29,10 @@ const calMonthLabel = document.getElementById('cal-month-label');
 const calGrid = document.getElementById('cal-grid');
 
 let selectedMaster = null;
-let selectedService = null;
+// Окно 11 (баг найден Владом 30.07.2026): клиент должен иметь возможность выбрать
+// НЕСКОЛЬКО услуг за визит - карточки выглядели чекбоксами, но вели себя как
+// радиокнопки (selectedService было единичным значением). Теперь набор id.
+let selectedServiceIds = new Set();
 let selectedSlot = null;
 let selectedDate = null;
 
@@ -288,12 +292,13 @@ function renderMasterOptions() {
 }
 
 function renderServiceOptions() {
-  selectedService = null;
+  selectedServiceIds = new Set();
   serviceGrid.replaceChildren();
   for (const service of services) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'option-card';
+    btn.setAttribute('aria-pressed', 'false');
 
     const name = document.createElement('span');
     name.className = 'opt-name';
@@ -309,16 +314,42 @@ function renderServiceOptions() {
     meta.textContent = `${priceLabel} · ${service.durationLabel}`;
 
     btn.append(name, meta);
+    // Окно 11: клик ДОБАВЛЯЕТ/УБИРАЕТ услугу из набора, не заменяет выбор целиком -
+    // это реальный множественный выбор (чекбоксы), не радиокнопки под видом чекбоксов.
     btn.addEventListener('click', () => {
-      selectedService = service;
-      for (const el of serviceGrid.querySelectorAll('.option-card')) {
-        el.classList.toggle('selected', el === btn);
+      if (selectedServiceIds.has(service.id)) {
+        selectedServiceIds.delete(service.id);
+      } else {
+        selectedServiceIds.add(service.id);
       }
+      btn.classList.toggle('selected', selectedServiceIds.has(service.id));
+      btn.setAttribute('aria-pressed', String(selectedServiceIds.has(service.id)));
+      renderServiceSummary();
       refreshSlots();
       clearMsg();
     });
     serviceGrid.append(btn);
   }
+  renderServiceSummary();
+}
+
+// Живая сумма длительности/цены по всем отмеченным услугам ДО подтверждения записи
+// (Окно 11, п.3 промпта корректировки) - обновляется при каждом клике по услуге.
+function renderServiceSummary() {
+  if (!serviceSummary) return;
+  if (selectedServiceIds.size === 0) {
+    serviceSummary.hidden = true;
+    serviceSummary.textContent = '';
+    return;
+  }
+  const chosen = services.filter((s) => selectedServiceIds.has(s.id));
+  const totalDuration = chosen.reduce((sum, s) => sum + s.durationMin, 0);
+  const totalPrice = chosen.reduce((sum, s) => {
+    const price = selectedMaster ? priceForMaster(selectedMaster.id, s.id) : s.price;
+    return sum + price;
+  }, 0);
+  serviceSummary.hidden = false;
+  serviceSummary.textContent = `Выбрано услуг: ${chosen.length} · итого ${totalDuration} мин · ${totalPrice.toLocaleString('ru-RU')}₽`;
 }
 
 function showMsg(text, type) {
@@ -355,18 +386,25 @@ function resetSlots(hintText) {
 async function refreshSlots() {
   const date = selectedDate;
 
-  if (!selectedMaster || !selectedService || !date) {
+  if (!selectedMaster || selectedServiceIds.size === 0 || !date) {
     resetSlots('Сначала выберите мастера, услугу и дату');
     return;
   }
 
   const requestMaster = selectedMaster;
-  const requestService = selectedService;
+  // Окно 11: слот считается от СУММЫ длительностей всех выбранных услуг, не одной.
+  const requestServiceIds = new Set(selectedServiceIds);
+  const totalDuration = services
+    .filter((s) => requestServiceIds.has(s.id))
+    .reduce((sum, s) => sum + s.durationMin, 0);
   const requestDate = date;
-  const slots = await store.getFreeSlots(requestMaster.id, requestDate, requestService.durationMin);
-  // Пока ждали ответ сети, пользователь мог переключить мастера/услугу/дату - тогда
+  const slots = await store.getFreeSlots(requestMaster.id, requestDate, totalDuration);
+  // Пока ждали ответ сети, пользователь мог переключить мастера/услуги/дату - тогда
   // этот ответ уже устарел, не перерисовываем поверх более свежего выбора.
-  if (selectedMaster !== requestMaster || selectedService !== requestService || selectedDate !== requestDate) return;
+  const sameServices =
+    selectedServiceIds.size === requestServiceIds.size &&
+    [...selectedServiceIds].every((id) => requestServiceIds.has(id));
+  if (selectedMaster !== requestMaster || !sameServices || selectedDate !== requestDate) return;
 
   selectedSlot = null;
   submitBtn.disabled = true;
@@ -400,7 +438,7 @@ async function refreshSlots() {
   slotsWrap.append(grid);
 }
 
-function renderReceipt(booking, master, service) {
+function renderReceipt(booking, master, chosenServices) {
   formMsg.replaceChildren();
   formMsg.className = 'form-msg show ok';
 
@@ -409,9 +447,10 @@ function renderReceipt(booking, master, service) {
   title.textContent = 'Готово! Запись подтверждена';
   formMsg.append(title);
 
+  // Окно 11: несколько услуг в чеке - список через запятую, не одна строка.
   const rows = [
     ['Мастер', master.name],
-    ['Услуга', service.name],
+    ['Услуги', chosenServices.map((s) => s.name).join(', ')],
     ['Когда', `${formatDateRu(booking.date)} в ${booking.startTime}`],
     ['Клиент', `${booking.clientName}, ${booking.clientPhone}`],
   ];
@@ -432,12 +471,12 @@ form.addEventListener('submit', async (event) => {
   clearMsg();
 
   const masterId = selectedMaster ? selectedMaster.id : null;
-  const serviceId = selectedService ? selectedService.id : null;
+  const serviceIds = [...selectedServiceIds];
   const date = selectedDate;
   const clientName = nameInput.value.trim();
   const clientPhone = phoneInput.value.trim();
 
-  if (!masterId || !serviceId || !date || !selectedSlot) {
+  if (!masterId || serviceIds.length === 0 || !date || !selectedSlot) {
     showMsg('Выберите мастера, услугу, дату и время', 'error');
     return;
   }
@@ -458,7 +497,7 @@ form.addEventListener('submit', async (event) => {
   submitBtn.disabled = true;
   const result = await store.createBooking({
     masterId,
-    serviceId,
+    serviceIds,
     date,
     startTime: selectedSlot,
     clientName,
@@ -471,7 +510,8 @@ form.addEventListener('submit', async (event) => {
     return;
   }
 
-  renderReceipt(result.booking, selectedMaster, selectedService);
+  const chosenServices = services.filter((s) => serviceIds.includes(s.id));
+  renderReceipt(result.booking, selectedMaster, chosenServices);
   nameInput.value = '';
   phoneInput.value = '';
   await refreshSlots();

@@ -218,11 +218,13 @@ export function createHttpBackend(apiBaseUrl, getToken) {
       const data = await res.json();
       return data.bookings;
     },
-    async createBooking({ masterId, serviceId, date, startTime, clientName, clientPhone }) {
+    // Окно 11: serviceIds - массив (1+), не единичный serviceId. Сервер сам считает
+    // сумму длительности/цены по всем услугам этого мастера (master_services).
+    async createBooking({ masterId, serviceIds, date, startTime, clientName, clientPhone }) {
       const res = await fetch(`${apiBaseUrl}/bookings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ masterId, serviceId, date, startTime, clientName, clientPhone }),
+        body: JSON.stringify({ masterId, serviceIds, date, startTime, clientName, clientPhone }),
       });
       if (res.status === 409) return { ok: false, reason: 'overlap' };
       if (!res.ok) throw new Error(`storage.js: POST /bookings → ${res.status}`);
@@ -333,17 +335,23 @@ export function createStore(backend = defaultBackend()) {
     return slots;
   }
 
-  async function createBooking({ masterId, serviceId, date, startTime, clientName, clientPhone }) {
+  // Окно 11: клиент выбирает НЕСКОЛЬКО услуг за визит - serviceId (единичный) всё
+  // ещё принимается для обратной совместимости (заворачивается в массив из одного),
+  // но актуальный контракт - serviceIds (массив, 1+). Длительность слота - сумма
+  // длительностей всех услуг.
+  async function createBooking({ masterId, serviceId, serviceIds, date, startTime, clientName, clientPhone }) {
+    const ids = serviceIds ?? (serviceId ? [serviceId] : []);
     if (isRichBackend) {
       // CAS/пересечение слотов теперь проверяет и гарантирует сервер (pg_advisory_xact_lock
       // на паре мастер+дата в server.mjs) - тот же принцип, что был в CAS поверх kv_store,
       // просто перенесён на сторону базы вместе со схемой. Локальная serialized()-очередь
       // здесь не нужна: нет общего JSON-блока, который можно было бы гонкой затереть.
-      return backend.createBooking({ masterId, serviceId, date, startTime, clientName, clientPhone });
+      return backend.createBooking({ masterId, serviceIds: ids, date, startTime, clientName, clientPhone });
     }
     return serialized(async () => {
-      const service = findService(serviceId);
-      const endTime = minutesToTime(toMinutes(startTime) + service.durationMin);
+      const servicesChosen = ids.map(findService);
+      const totalDuration = servicesChosen.reduce((sum, s) => sum + s.durationMin, 0);
+      const endTime = minutesToTime(toMinutes(startTime) + totalDuration);
 
       // Проверка занятости и запись должны быть атомарны относительно других
       // параллельных попыток - иначе два устройства могут оба прочитать "свободно"
@@ -365,7 +373,8 @@ export function createStore(backend = defaultBackend()) {
         const booking = {
           id: `${date}-${startTime}-${masterId}-${Math.random().toString(36).slice(2, 9)}`,
           masterId,
-          serviceId,
+          serviceId: ids[0], // обратная совместимость - первая услуга
+          serviceIds: ids,
           date,
           startTime,
           endTime,
@@ -391,9 +400,11 @@ export function createStore(backend = defaultBackend()) {
       if (to && b.date > to) return false;
       return true;
     });
+    // Окно 11: сумма по ВСЕМ услугам брони (serviceIds), не одной - serviceIds
+    // приоритетнее, serviceId остаётся для старых записей без массива.
     const total = filtered.reduce((sum, b) => {
-      const service = SERVICES.find((s) => s.id === b.serviceId);
-      return sum + (service ? service.price : 0);
+      const ids = b.serviceIds ?? (b.serviceId ? [b.serviceId] : []);
+      return sum + ids.reduce((s, id) => s + (SERVICES.find((sv) => sv.id === id)?.price ?? 0), 0);
     }, 0);
     return { total, low: total * 0.45, high: total * 0.5 };
   }

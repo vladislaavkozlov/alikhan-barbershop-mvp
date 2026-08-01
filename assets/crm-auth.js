@@ -78,6 +78,16 @@ function formatMoney(value) {
   return `${Math.round(value).toLocaleString('ru-RU')} ₽`;
 }
 
+// Окно 11 (найдено Владом 30.07.2026): бронь может содержать НЕСКОЛЬКО услуг -
+// b.serviceIds (см. GET /bookings, server.mjs) - сумма по всем, не одной. serviceId
+// (единичное значение) остаётся страховкой на случай очень старых броней без
+// booking_services. priceOf передаётся снаружи - у renderLiveProof и
+// renderRevenuePeriods разные замыкания с одинаковой сигнатурой (masterId, serviceId) => price.
+function bookingPrice(booking, priceOf) {
+  const serviceIds = booking.serviceIds?.length ? booking.serviceIds : [booking.serviceId];
+  return serviceIds.reduce((sum, id) => sum + priceOf(booking.masterId, id), 0);
+}
+
 // Живое доказательство, что это не рисунок - реальный запрос к Postgres на Amvera
 // при каждой загрузке страницы. /staff и /bookings уже сами фильтруют по роли на
 // сервере (Окно 8) - владелец видит всех, мастер только себя, и т.д. Заодно, если на
@@ -130,10 +140,10 @@ async function renderLiveProof(staff) {
     const payrollEl = el('rvAllDayPayroll');
     const netEl = el('rvAllDayNet');
     if (revenueEl && payrollEl && netEl) {
-      const revenue = bookings.reduce((sum, b) => sum + priceOf(b.masterId, b.serviceId), 0);
+      const revenue = bookings.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
       const payrollBookings = bookings.filter((b) => !ownerIds.has(b.masterId));
       const payroll = payrollBookings.reduce(
-        (sum, b) => sum + (priceOf(b.masterId, b.serviceId) * pctOf(b.masterId)) / 100,
+        (sum, b) => sum + (bookingPrice(b, priceOf) * pctOf(b.masterId)) / 100,
         0
       );
       revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
@@ -145,7 +155,7 @@ async function renderLiveProof(staff) {
     const myPayrollEl = el('myPayrollDay');
     if (myPayrollEl) {
       const mine = bookings.filter((b) => b.masterId === staff.id);
-      const myRevenue = mine.reduce((sum, b) => sum + priceOf(b.masterId, b.serviceId), 0);
+      const myRevenue = mine.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
       myPayrollEl.innerHTML = `${formatMoney((myRevenue * pctOf(staff.id)) / 100)} <span class="unsure">реально</span>`;
     }
 
@@ -157,7 +167,7 @@ async function renderLiveProof(staff) {
       const cardEl = el(`payrollMaster${idx + 1}Day`);
       if (!cardEl) return;
       const theirs = bookings.filter((b) => b.masterId === masterId);
-      const theirRevenue = theirs.reduce((sum, b) => sum + priceOf(b.masterId, b.serviceId), 0);
+      const theirRevenue = theirs.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
       cardEl.innerHTML = `${formatMoney((theirRevenue * pctOf(masterId)) / 100)} <span class="unsure">реально</span>`;
     });
 
@@ -175,7 +185,7 @@ async function renderLiveProof(staff) {
         const fillMine = (targetEl, start) => {
           if (!targetEl) return;
           const rows = mine.filter((b) => b.date >= start && b.date <= today);
-          const sum = rows.reduce((s, b) => s + priceOf(b.masterId, b.serviceId), 0);
+          const sum = rows.reduce((s, b) => s + bookingPrice(b, priceOf), 0);
           targetEl.innerHTML = `${formatMoney((sum * pctOf(staff.id)) / 100)} <span class="unsure">реально</span>`;
         };
         fillMine(myWeekEl, periodStartStr('week'));
@@ -322,10 +332,10 @@ async function renderRevenuePeriods(priceOf, pctOf, ownerIds) {
     const payrollEl = el(`${prefix}Payroll`);
     const netEl = el(`${prefix}Net`);
     if (!revenueEl && !payrollEl && !netEl) return;
-    const revenue = rows.reduce((sum, b) => sum + priceOf(b.masterId, b.serviceId), 0);
+    const revenue = rows.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
     const payroll = rows
       .filter((b) => !ownerIds.has(b.masterId))
-      .reduce((sum, b) => sum + (priceOf(b.masterId, b.serviceId) * pctOf(b.masterId)) / 100, 0);
+      .reduce((sum, b) => sum + (bookingPrice(b, priceOf) * pctOf(b.masterId)) / 100, 0);
     if (revenueEl) revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
     if (payrollEl) payrollEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
     if (netEl) netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;
