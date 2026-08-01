@@ -537,8 +537,13 @@ const server = createServer(async (req, res) => {
       }
       if (booking.status === 'cancelled') return sendJson(res, 409, { error: 'already_cancelled' });
 
+      // Ставрополь = московское время, UTC+3 круглый год (нет перехода на летнее/
+      // зимнее в РФ с 2014). Без явного смещения Date парсит строку в таймзоне
+      // процесса Node - на Amvera это UTC, а не MSK, что даёт разницу в 3 часа
+      // между реальным дедлайном клиента и тем, что здесь посчитано (поймано живым
+      // тестом при проверке этого окна, не только по коду).
       const bookingDate = booking.date instanceof Date ? booking.date.toISOString().slice(0, 10) : booking.date;
-      const hoursUntilBooking = (new Date(`${bookingDate}T${booking.start_time}:00`).getTime() - Date.now()) / (1000 * 60 * 60);
+      const hoursUntilBooking = (new Date(`${bookingDate}T${booking.start_time}:00+03:00`).getTime() - Date.now()) / (1000 * 60 * 60);
       const refundEligible = hoursUntilBooking >= CANCEL_FULL_REFUND_HOURS;
 
       await pool.query(`UPDATE bookings SET status = 'cancelled' WHERE id = $1`, [bookingId]);
