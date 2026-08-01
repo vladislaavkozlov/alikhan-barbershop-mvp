@@ -5,11 +5,14 @@ const STORAGE_KEY = 'alikhan-mvp:bookings:v1';
 // master-3 переименовывалась дважды: сначала в "Елизавета" (Алихан, 30.07.2026,
 // разд.17.1 ТЗ - см. api/migrations/006_master3_rename.sql), затем сегодня Влад
 // уточнил, что реально её зовут Екатерина (миграция 011_real_master_names.sql).
-// Алиовсад (короткое имя - Али) - реальный владелец, не просто мастер, isPlaceholder
-// оставлен true у всех троих: фото/телефоны/email всё ещё демо-заглушки, точны
-// только имена.
+// Алиовсад (полное имя, короткое - Али, использую короткое здесь) - реальный владелец,
+// не просто мастер (в базе staff.role = 'owner', см. миграцию); "Алиовсад (Али)" с
+// скобкой ломал renderMasters() в app.js (аватар берёт первую букву КАЖДОГО слова
+// через split(' ') - скобка стала отдельным "словом"), поэтому здесь только короткое
+// имя. isPlaceholder оставлен true у всех троих: фото/телефоны/email всё ещё
+// демо-заглушки, точны только имена.
 export const MASTERS = [
-  { id: 'master-1', name: 'Алиовсад (Али)', isPlaceholder: true, workWindow: { start: '10:00', end: '20:00' } },
+  { id: 'master-1', name: 'Али', isPlaceholder: true, workWindow: { start: '10:00', end: '20:00' } },
   { id: 'master-2', name: 'Мамедхан', isPlaceholder: true, workWindow: { start: '10:00', end: '20:00' } },
   { id: 'master-3', name: 'Екатерина', isPlaceholder: true, workWindow: { start: '10:00', end: '20:00' } },
 ];
