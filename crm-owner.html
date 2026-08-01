@@ -130,7 +130,25 @@
         <h2>Расписание</h2>
         <p class="section-hint">Разд. 16.1 — ряд карточек мастеров сверху, под каждым дневное расписание сверху вниз, в стиле мини-Outlook</p>
 
-        <button class="btn btn-primary btn-sm" type="button" style="margin-bottom:18px" onclick="newWalkIn()">+ Новая запись (клиент без предварительной записи)</button>
+        <p class="section-hint" style="margin-bottom:14px">Клиент без предварительной записи - кнопка «+» в шапке колонки нужного мастера ниже</p>
+
+        <div class="walkin-form" id="walkinForm" hidden>
+          <h3>Новая запись без предзаписи · <span id="wfMasterName" class="wf-master-name"></span></h3>
+          <div class="field-grid">
+            <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
+            <div class="field"><label>Телефон</label><input id="wfClientPhone" type="tel" placeholder="+7 900 000-00-00"></div>
+          </div>
+          <details class="service-edit" open>
+            <summary>Услуги (можно выбрать несколько - список только этого мастера)</summary>
+            <div class="service-picker" id="wfServicePicker"></div>
+          </details>
+          <p class="wf-summary" id="wfSummary">Выберите хотя бы одну услугу</p>
+          <div class="wf-actions">
+            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить запись</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Отмена</button>
+          </div>
+          <p class="wf-result" id="wfResult" hidden></p>
+        </div>
 
         <div class="seg-tabs">
           <input type="radio" name="sched-period" id="sp-day" checked>
@@ -160,7 +178,7 @@
                 </div>
                 <div class="schedule-grid">
                   <div class="schedule-col">
-                    <div class="schedule-col-head"><div class="avatar">АЛ</div><span class="name">Алиовсад</span></div>
+                    <div class="schedule-col-head"><div class="avatar">АЛ</div><span class="name">Алиовсад</span><button class="walkin-add-btn" type="button" title="Новая запись без предзаписи к Алиовсаду" data-master-id="master-1" data-master-name="Алиовсад">+</button></div>
                     <div class="schedule-track">
                       <div class="appt appt--done" style="top:0px;height:43px" tabindex="0"
                            onclick="openBooking(this)"
@@ -194,7 +212,7 @@
                     </div>
                   </div>
                   <div class="schedule-col">
-                    <div class="schedule-col-head"><div class="avatar">МА</div><span class="name">Мамедхан</span></div>
+                    <div class="schedule-col-head"><div class="avatar">МА</div><span class="name">Мамедхан</span><button class="walkin-add-btn" type="button" title="Новая запись без предзаписи к Мамедхану" data-master-id="master-2" data-master-name="Мамедхан">+</button></div>
                     <div class="schedule-track">
                       <div class="appt appt--done" style="top:0px;height:32px" tabindex="0"
                            onclick="openBooking(this)"
@@ -214,7 +232,7 @@
                     </div>
                   </div>
                   <div class="schedule-col">
-                    <div class="schedule-col-head"><div class="avatar">ЕЛ</div><span class="name">Екатерина</span></div>
+                    <div class="schedule-col-head"><div class="avatar">ЕЛ</div><span class="name">Екатерина</span><button class="walkin-add-btn" type="button" title="Новая запись без предзаписи к Екатерине" data-master-id="master-3" data-master-name="Екатерина">+</button></div>
                     <div class="schedule-track day-off"><span class="day-off-label">Выходной (пример)</span></div>
                   </div>
                 </div>

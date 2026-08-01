@@ -88,7 +88,25 @@
         <h2>Мой день</h2>
         <p class="section-hint">Разд. 16.1 — без ряда других мастеров сверху, только собственное расписание</p>
 
-        <button class="btn btn-primary btn-sm" type="button" style="margin-bottom:18px" onclick="newWalkIn()">+ Новая запись (клиент без предварительной записи)</button>
+        <button class="btn btn-primary btn-sm" type="button" style="margin-bottom:18px" id="walkinSoloTrigger">+ Новая запись (клиент без предварительной записи)</button>
+
+        <div class="walkin-form" id="walkinForm" hidden>
+          <h3>Новая запись без предзаписи · <span id="wfMasterName" class="wf-master-name"></span></h3>
+          <div class="field-grid">
+            <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
+            <div class="field"><label>Телефон</label><input id="wfClientPhone" type="tel" placeholder="+7 900 000-00-00"></div>
+          </div>
+          <details class="service-edit" open>
+            <summary>Услуги (можно выбрать несколько)</summary>
+            <div class="service-picker" id="wfServicePicker"></div>
+          </details>
+          <p class="wf-summary" id="wfSummary">Выберите хотя бы одну услугу</p>
+          <div class="wf-actions">
+            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить запись</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Отмена</button>
+          </div>
+          <p class="wf-result" id="wfResult" hidden></p>
+        </div>
 
         <div class="seg-tabs">
           <input type="radio" name="sched-period" id="sp-day" checked>

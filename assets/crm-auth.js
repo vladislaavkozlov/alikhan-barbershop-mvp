@@ -227,6 +227,7 @@ async function renderLiveProof(staff) {
     }
 
     wirePortfolioEditors(staffList);
+    wireWalkIn(staff, services, masterServices);
 
     await renderRevenuePeriods(priceOf, pctOf, ownerIds);
   } catch (err) {
@@ -282,6 +283,175 @@ function wirePortfolioEditors(staffList) {
       }
     });
   });
+}
+
+// Задача Влада (01.08.2026): "Клиент без предварительной записи" была рисунком -
+// кнопка ничего не сохраняла, список услуг был одинаковый для любого мастера, поле
+// "мастер" - обычный текст, который нужно было вписывать руками. Реальная версия:
+// мастер известен заранее (своя страница мастера - он сам; у владельца/админа -
+// кнопка "+" в шапке колонки нужного мастера в расписании), список услуг - только
+// те, что реально есть у ЭТОГО мастера в master-services (у мастеров разный прайс,
+// см. миграцию 004), можно отметить несколько (Окно 11 - тот же контракт serviceIds,
+// что и на публичном сайте). Сохранение - тот же POST /bookings, что использует
+// сайт, статус сразу "пришёл" (PATCH /bookings/:id/status) - клиент физически уже
+// в кресле, ждать подтверждения не у кого.
+function wireWalkIn(staff, services, masterServices) {
+  const form = el('walkinForm');
+  const picker = el('wfServicePicker');
+  const summary = el('wfSummary');
+  const submitBtn = el('wfSubmit');
+  const cancelBtn = el('wfCancel');
+  const resultEl = el('wfResult');
+  const nameLabel = el('wfMasterName');
+  const clientNameEl = el('wfClientName');
+  const clientPhoneEl = el('wfClientPhone');
+  if (!form || !picker || !summary || !submitBtn || !cancelBtn || !resultEl || !nameLabel || !clientNameEl || !clientPhoneEl) {
+    return; // страница без этого блока (или он ещё не дошёл до нужной страницы)
+  }
+
+  let currentMasterId = null;
+  const selected = new Set();
+
+  const servicesFor = (masterId) =>
+    masterServices
+      .filter((r) => r.masterId === masterId)
+      .map((r) => ({ ...r, name: services.find((s) => s.id === r.serviceId)?.name ?? r.serviceId }));
+
+  function renderSummary() {
+    const rows = servicesFor(currentMasterId).filter((r) => selected.has(r.serviceId));
+    if (rows.length === 0) {
+      summary.textContent = 'Выберите хотя бы одну услугу';
+      submitBtn.disabled = true;
+      return;
+    }
+    const totalMin = rows.reduce((s, r) => s + r.durationMin, 0);
+    const totalPrice = rows.reduce((s, r) => s + r.price, 0);
+    summary.textContent = `Выбрано услуг: ${rows.length} · итого ${totalMin} мин · ${formatMoney(totalPrice)}`;
+    submitBtn.disabled = false;
+  }
+
+  function renderPicker(masterId) {
+    picker.innerHTML = '';
+    selected.clear();
+    const rows = servicesFor(masterId);
+    if (rows.length === 0) {
+      const hint = document.createElement('p');
+      hint.className = 'section-hint';
+      hint.textContent = 'У этого мастера пока не назначено ни одной услуги в прайсе';
+      picker.appendChild(hint);
+    }
+    for (const row of rows) {
+      const label = document.createElement('label');
+      label.className = 'service-check';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = row.serviceId;
+      const span = document.createElement('span');
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'sc-name';
+      nameSpan.textContent = row.name;
+      const meta = document.createElement('span');
+      meta.className = 'sc-meta';
+      const priceSpan = document.createElement('span');
+      priceSpan.className = 'sc-price';
+      priceSpan.textContent = formatMoney(row.price);
+      const dot = document.createElement('span');
+      dot.className = 'sc-dot';
+      dot.textContent = '·';
+      const durationSpan = document.createElement('span');
+      durationSpan.className = 'sc-duration';
+      durationSpan.textContent = `${row.durationMin} мин`;
+      meta.append(priceSpan, dot, durationSpan);
+      span.append(nameSpan, meta);
+      label.append(input, span);
+      input.addEventListener('change', () => {
+        if (input.checked) selected.add(row.serviceId);
+        else selected.delete(row.serviceId);
+        renderSummary();
+      });
+      picker.appendChild(label);
+    }
+    renderSummary();
+  }
+
+  function openForWalkin(masterId, masterName) {
+    currentMasterId = masterId;
+    nameLabel.textContent = masterName;
+    clientNameEl.value = '';
+    clientPhoneEl.value = '';
+    resultEl.hidden = true;
+    renderPicker(masterId);
+    form.hidden = false;
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  document.querySelectorAll('.walkin-add-btn').forEach((btn) => {
+    if (btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', () => openForWalkin(btn.dataset.masterId, btn.dataset.masterName));
+  });
+
+  // crm-master.html: единственный мастер - он и есть залогиненный сотрудник, выбирать не из чего
+  const soloBtn = el('walkinSoloTrigger');
+  if (soloBtn && !soloBtn.dataset.wired) {
+    soloBtn.dataset.wired = '1';
+    soloBtn.addEventListener('click', () => openForWalkin(staff.id, staff.name));
+  }
+
+  if (!cancelBtn.dataset.wired) {
+    cancelBtn.dataset.wired = '1';
+    cancelBtn.addEventListener('click', () => {
+      form.hidden = true;
+    });
+  }
+
+  if (!submitBtn.dataset.wired) {
+    submitBtn.dataset.wired = '1';
+    submitBtn.addEventListener('click', async () => {
+      if (selected.size === 0 || !currentMasterId) return;
+      const originalLabel = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Сохраняю…';
+      try {
+        const now = new Date();
+        const rounded = new Date(Math.ceil(now.getTime() / (5 * 60000)) * 5 * 60000);
+        const startTime = `${pad2(rounded.getHours())}:${pad2(rounded.getMinutes())}`;
+        const res = await fetch(`${API}/bookings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({
+            masterId: currentMasterId,
+            serviceIds: [...selected],
+            date: todayStr(),
+            startTime,
+            clientName: clientNameEl.value.trim() || null,
+            clientPhone: clientPhoneEl.value.trim() || null,
+            channel: 'admin',
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.ok === false) {
+          throw new Error(data.reason === 'overlap' ? 'у мастера уже занято это время' : data.error || `HTTP ${res.status}`);
+        }
+        await fetch(`${API}/bookings/${encodeURIComponent(data.booking.id)}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ status: 'done' }),
+        });
+        resultEl.hidden = false;
+        resultEl.className = 'wf-result wf-result--ok';
+        resultEl.textContent = `Готово: ${nameLabel.textContent}, ${startTime}, ${data.booking.totalDurationMin} мин, ${formatMoney(data.booking.totalPrice)}`;
+        renderLiveProof(staff);
+      } catch (err) {
+        resultEl.hidden = false;
+        resultEl.className = 'wf-result wf-result--err';
+        resultEl.textContent = `Не удалось сохранить: ${err.message}`;
+      } finally {
+        submitBtn.disabled = selected.size === 0;
+        submitBtn.textContent = originalLabel;
+      }
+    });
+  }
 }
 
 function pad2(n) {

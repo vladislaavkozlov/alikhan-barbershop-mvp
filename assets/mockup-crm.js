@@ -166,44 +166,6 @@ function addBreakRow(btn) {
   list.appendChild(row);
 }
 
-// "+ Новая запись (клиент без предварительной записи)" - открывает ту же самую
-// карточку записи, но очищает поля клиента/телефона/услуги/мастера и делает их
-// редактируемыми (обычно они readonly, потому что подставляются кликом по существующей
-// записи). Время прихода и статус "Пришёл" проставляются сразу, потому что раз клиент
-// без записи стоит перед мастером - он уже пришёл, ждать нечего.
-function newWalkIn() {
-  const setEditable = (id, placeholder) => {
-    const node = document.getElementById(id);
-    if (!node) return;
-    node.readOnly = false;
-    node.value = '';
-    node.placeholder = placeholder;
-  };
-  setEditable('bk-client', 'Имя клиента');
-  setEditable('bk-phone', '+7 900 000-00-00');
-  setEditable('bk-service', 'Выберите услугу в блоке ниже');
-  setEditable('bk-master', 'Кто из мастеров свободен');
-
-  const planned = document.getElementById('bk-planned');
-  if (planned) planned.value = 'Без записи';
-
-  const comment = document.getElementById('bk-comment');
-  if (comment) comment.value = '';
-
-  const wb = document.getElementById('bk-walkin-banner');
-  if (wb) wb.hidden = false;
-
-  updateCommission('', '');
-  updateDuration('', '');
-
-  markArrived();
-
-  const panel = document.getElementById('bd-1');
-  if (panel) {
-    panel.open = true;
-    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-}
 
 // Добавляет комментарий в ленту (история по клиенту, не только текущая запись).
 // Автор - заглушка "вы", т.к. в макете нет настоящей авторизации.

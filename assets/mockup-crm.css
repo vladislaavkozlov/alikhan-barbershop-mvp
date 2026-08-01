@@ -299,6 +299,12 @@ button:active, .btn:active { transform: scale(0.96); }
   padding-bottom: 10px; border-bottom: 1px solid var(--border);
 }
 .schedule-col-head .name { font-weight: 600; font-size: 0.92rem; }
+.walkin-add-btn {
+  margin-left: auto; width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  border: 1px solid var(--accent); background: transparent; color: var(--accent);
+  font-size: 1rem; line-height: 1; cursor: pointer; transition: all 140ms var(--ease-out);
+}
+.walkin-add-btn:hover { background: var(--accent); color: var(--leather); }
 .schedule-track {
   position: relative; border: 1px solid var(--border); border-radius: 10px;
   background-image: linear-gradient(var(--border) 1px, transparent 1px);
@@ -585,6 +591,21 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 }
 .walkin-banner[hidden] { display: none; }
 .walkin-banner .ico { flex-shrink: 0; color: var(--accent); }
+
+/* ---------- реальная форма "клиент без предзаписи" (Влад 01.08.2026) ---------- */
+.walkin-form {
+  background: var(--surface-2); border: 1px solid var(--accent); border-radius: 10px;
+  padding: 16px 18px; margin-bottom: 20px;
+}
+.walkin-form[hidden] { display: none; }
+.walkin-form h3 { margin: 0 0 12px; font-size: 1rem; display: flex; align-items: baseline; gap: 8px; }
+.wf-master-name { color: var(--accent); font-weight: 700; }
+.wf-summary { font-size: 0.82rem; color: var(--text-muted); margin: 0 0 14px; }
+.wf-actions { display: flex; gap: 10px; }
+.wf-result { margin: 12px 0 0; font-size: 0.84rem; padding: 8px 12px; border-radius: 8px; }
+.wf-result[hidden] { display: none; }
+.wf-result--ok { background: rgba(111,174,124,0.14); border: 1px solid var(--success); color: var(--text); }
+.wf-result--err { background: rgba(193,85,74,0.14); border: 1px solid var(--danger); color: var(--text); }
 
 .birthday-banner {
   display: flex; align-items: flex-start; gap: 10px; background: rgba(111,174,124,0.12);
