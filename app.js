@@ -300,7 +300,7 @@ function renderServiceOptions() {
     name.textContent = service.name;
 
     // Цена ИМЕННО выбранного мастера (Окно 10, разд.17.2 ТЗ) - Екатерина дешевле
-    // Али/Мамедхана на большинстве услуг, priceLabelForMaster сама возвращает
+    // Алиовсад/Мамедхана на большинстве услуг, priceLabelForMaster сама возвращает
     // общую цену, если override для этого мастера не задан.
     const priceLabel = selectedMaster ? priceLabelForMaster(selectedMaster.id, service.id) : service.priceLabel;
 
