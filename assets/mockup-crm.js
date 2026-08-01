@@ -17,7 +17,7 @@ window.MASTER_SERVICE_DURATION = {};
     'Стрижка': 40, 'Борода': 30, 'Комплекс стрижка+борода': 60, 'Бритьё': 40,
     'Фирменная окантовка': 30, 'Тонировка седых волос': 60, 'Воск': 15, 'СПА уход': 60,
   };
-  ['Али', 'Мамед', 'Елизавета'].forEach((master) => {
+  ['Али', 'Мамедхан', 'Екатерина'].forEach((master) => {
     window.MASTER_SERVICE_DURATION[master] = { ...base };
   });
 })();
@@ -121,11 +121,11 @@ function openBooking(el) {
 // Комиссия мастера за запись (Окно 10, разд.17.3 ТЗ - реальная формула, не
 // единый % на всех). Владелец (Али) себе комиссию не платит - вся сумма услуги
 // и так его - поэтому для него поле показывает пояснение, а не сумму. Мамедхан -
-// тоже 100% (не владелец, но подтверждено Алиханом отдельно). Елизавета - 40%
+// тоже 100% (не владелец, но подтверждено Алиханом отдельно). Екатерина - 40%
 // (её базовая ставка по умолчанию, реальную владелец редактирует в карточке
 // сотрудника - это поле здесь только иллюстрация одного числа в интерфейсе,
 // настоящий расчёт по живым данным делает crm-auth.js).
-const MASTER_COMMISSION_PCT = { 'Мамед': 100, 'Елизавета': 40 };
+const MASTER_COMMISSION_PCT = { 'Мамедхан': 100, 'Екатерина': 40 };
 function updateCommission(master, service) {
   const input = document.getElementById('bk-commission');
   const note = document.getElementById('bk-commission-note');
@@ -141,7 +141,7 @@ function updateCommission(master, service) {
   if (price && pct != null) {
     const commission = Math.round((price * pct) / 100);
     input.value = `${commission} ₽`;
-    const editNote = master === 'Елизавета' ? ' - её ставку меняет владелец в карточке сотрудника' : '';
+    const editNote = master === 'Екатерина' ? ' - её ставку меняет владелец в карточке сотрудника' : '';
     if (note) note.textContent = `${pct}% от ${price}₽ (разд.17.3, подтверждено Алиханом)${editNote}`;
   } else {
     input.value = '—';
