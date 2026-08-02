@@ -4,6 +4,7 @@
 // admin.html, сессия подхватится и здесь без повторного входа.
 import { getMasters, getServices } from '../storage.js';
 import { wireNotifications } from './crm-notifications.js';
+import { renderDayCalendar } from './crm-calendar.js';
 
 const API = window.ALIKHAN_API_URL;
 const TOKEN_KEY = 'alikhan-crm:token';
@@ -226,6 +227,12 @@ async function renderLiveProof(staff) {
         });
       }
     }
+
+    // Окно 15 (02.08.2026) - календарь "День" был статичной вёрсткой-примером, не
+    // видел реальные брони (баг Влада - "запись на Екатерину не видна ни у неё, ни у
+    // Али"). До wireWalkIn - новые .walkin-add-btn (owner/admin) должны уже быть в
+    // DOM, когда wireWalkIn их находит через querySelectorAll.
+    await renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson });
 
     wirePortfolioEditors(staffList);
     wireWalkIn(staff, services, masterServices);

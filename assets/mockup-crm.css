@@ -365,6 +365,13 @@ button:active, .btn:active { transform: scale(0.96); }
   background: repeating-linear-gradient(135deg, rgba(185,139,84,0.18) 0 8px, transparent 8px 16px);
   border-color: var(--border); color: var(--text-muted); display: flex; align-items: center; justify-content: center; text-align: center;
 }
+/* Окно 15 (02.08.2026) - отменённые брони реально приходят от GET /bookings
+   (сервер их не фильтрует), показываем приглушённым и некликабельным, как перерыв -
+   в bd-1 нет статус-радиокнопки "Отменено", открывать там нечего. */
+.appt--cancelled {
+  background: var(--surface-3); border-color: var(--border); color: var(--text-muted);
+  cursor: default; text-decoration: line-through; opacity: 0.75;
+}
 
 /* ---------- booking detail (expands under schedule) ---------- */
 details.booking-detail { margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
