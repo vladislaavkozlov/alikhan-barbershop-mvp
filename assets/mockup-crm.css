@@ -141,6 +141,29 @@ h1 { margin: 0 0 4px; color: var(--accent); font-size: clamp(1.5rem, 1.4vw + 1.0
   font-variant-numeric: tabular-nums; border: 2px solid var(--bg);
 }
 
+/* Задача 5 (Окно 14, 02.08.2026) - отдельный колокольчик "Сообщения" (записи/график),
+   переиспользует .notif-bell/.notif-badge как базовый вид, но своя выпадающая панель -
+   не путать с .retention-alert (тот колокольчик про "клиенты давно не приходили",
+   другая кнопка рядом). */
+.msg-panel {
+  display: none; position: absolute; top: 46px; right: 0; z-index: 30; width: min(360px, 92vw);
+  max-height: 420px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 20px 40px -20px rgba(0,0,0,0.6);
+}
+.msg-panel.open { display: block; }
+.msg-item {
+  display: flex; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.msg-item:last-child { border-bottom: none; }
+.msg-item:hover { background: var(--surface-2); }
+.msg-item--unread { background: rgba(198,161,91,0.08); }
+.msg-ico { flex-shrink: 0; font-size: 1rem; }
+.msg-body { flex: 1; min-width: 0; }
+.msg-title { font-weight: 600; font-size: 0.86rem; }
+.msg-sub { color: var(--text-muted); font-size: 0.8rem; margin-top: 2px; }
+.msg-time { color: var(--text-muted); font-size: 0.7rem; margin-top: 4px; }
+.msg-actions { display: flex; gap: 8px; margin-top: 8px; }
+
 .retention-alert {
   display: none;
   position: fixed; top: 66px; right: max(20px, calc((100vw - 1160px) / 2));

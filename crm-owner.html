@@ -30,11 +30,28 @@
   #zp1p-month:checked ~ .seg-bar label[for="zp1p-month"],
   #zp1p-period:checked ~ .seg-bar label[for="zp1p-period"] { background: var(--accent); color: var(--leather); }
 
+  /* те же вкладки период-ЗП, теперь и у Мамедхана (zp2p) и Екатерины (zp3p) - Блок В ТЗ-готовность-к-продакшену */
+  #zp2p-day:checked ~ .panel-zp2p-day, #zp2p-week:checked ~ .panel-zp2p-week,
+  #zp2p-month:checked ~ .panel-zp2p-month, #zp2p-period:checked ~ .panel-zp2p-period { display: block; }
+  #zp2p-day:checked ~ .seg-bar label[for="zp2p-day"],
+  #zp2p-week:checked ~ .seg-bar label[for="zp2p-week"],
+  #zp2p-month:checked ~ .seg-bar label[for="zp2p-month"],
+  #zp2p-period:checked ~ .seg-bar label[for="zp2p-period"] { background: var(--accent); color: var(--leather); }
+  #zp3p-day:checked ~ .panel-zp3p-day, #zp3p-week:checked ~ .panel-zp3p-week,
+  #zp3p-month:checked ~ .panel-zp3p-month, #zp3p-period:checked ~ .panel-zp3p-period { display: block; }
+  #zp3p-day:checked ~ .seg-bar label[for="zp3p-day"],
+  #zp3p-week:checked ~ .seg-bar label[for="zp3p-week"],
+  #zp3p-month:checked ~ .seg-bar label[for="zp3p-month"],
+  #zp3p-period:checked ~ .seg-bar label[for="zp3p-period"] { background: var(--accent); color: var(--leather); }
+
   /* третья верхняя вкладка "Выручка" (только у владельца) */
   #pt-c:checked ~ .tab-bar label[for="pt-c"] { color: var(--accent); border-color: var(--accent); }
   #pt-c:checked ~ .panel-c { display: block; }
   #pt-d:checked ~ .tab-bar label[for="pt-d"] { color: var(--accent); border-color: var(--accent); }
   #pt-d:checked ~ .panel-d { display: block; }
+  /* Задача 6 (Окно 14, 02.08.2026) - "Что доделываем", только у владельца */
+  #pt-e:checked ~ .tab-bar label[for="pt-e"] { color: var(--accent); border-color: var(--accent); }
+  #pt-e:checked ~ .panel-e { display: block; }
 
   /* переключатель мастера в недельном виде */
   #wk-ivan1:checked ~ .seg-bar label[for="wk-ivan1"],
@@ -78,6 +95,10 @@
     <div class="nav-right">
       <span class="location-badge">Ставрополь, ул. Андрея Голуба 16</span>
       <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили">🔔<span class="notif-badge">3</span></button>
+      <div class="msg-bell-wrap" style="position:relative">
+        <button class="notif-bell" type="button" id="msgBell" aria-label="Уведомления о записях и графике">✉<span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
+        <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
+      </div>
       <span id="sessionInfo" class="session-info" hidden></span>
       <button id="logoutBtn" class="logout-btn" type="button" hidden>Выйти</button>
       <div class="role-switch" id="roleSwitch">
@@ -96,8 +117,18 @@
   <div class="live-proof" id="liveProof"><span class="lp-dot"></span><span>Проверяю связь с боевой базой…</span></div>
 
   <div class="banner">
-    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход, роли и счётчики выше настоящие (Amvera, тестовый контур). Сам календарь записей, суммы ЗП и мастера «Алиовсад / Мамедхан / Екатерина» ниже пока пример (как в <code>storage.js</code>) — реальных клиентских записей и утверждённой формулы ЗП ещё нет, это осознанно отложено, не забыто. Собрано по разд. 16 ТЗ и 9 скринам личного кабинета YClients, которые прислал Алихан. Оба адреса точек в базе пока совпадают текстово (различаются только описанием фасада) — вопрос к данным, не к этому макету.
+    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход, роли и счётчики выше настоящие (тестовый контур). Сам календарь записей, суммы ЗП и мастера «Алиовсад / Мамедхан / Екатерина» ниже пока пример (как в <code>storage.js</code>) — реальных клиентских записей и утверждённой формулы ЗП ещё нет, это осознанно отложено, не забыто. Собрано по разд. 16 ТЗ и 9 скринам личного кабинета YClients, которые прислал Алихан. Оба адреса точек в базе пока совпадают текстово (различаются только описанием фасада) — вопрос к данным, не к этому макету.
   </div>
+
+  <details class="staff-card" style="margin-bottom:20px">
+    <summary><div class="summary-meta"><div class="name" style="font-size:0.92rem">Обновления</div></div><span class="chevron">▸</span></summary>
+    <div class="staff-card-body" style="padding-top:10px">
+      <div class="breaks-list">
+        <div class="break-row"><span class="note" style="flex:1"><b>02.08.2026</b> - утечка ПДн в анонимном /bookings проверена и подтверждена уже закрытой; права доступа (реальные учётки 1:1, роль Мамедхана - администратор), согласование графика мастера с владельцем (запрос перерыва/выходного), уведомления в личном кабинете (колокольчик ✉)</span></div>
+        <div class="break-row"><span class="note" style="flex:1"><b>01.08.2026</b> - 1 точка вместо 2, реальные имена мастеров везде, мультиуслуга за визит, клиент без предварительной записи, продажа товаров, ЗП по неделе/месяцу в карточках</span></div>
+      </div>
+    </div>
+  </details>
 
   <div class="retention-alert" id="retention-panel">
     <div class="ra-head"><span class="ico">⚠</span><strong>3 клиента не приходили 3+ месяца</strong> <span class="badge badge-todo">новое, разд.12 ТЗ</span><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
@@ -117,11 +148,13 @@
     <input type="radio" name="pt" id="pt-b">
     <input type="radio" name="pt" id="pt-c">
     <input type="radio" name="pt" id="pt-d">
+    <input type="radio" name="pt" id="pt-e">
     <div class="tab-bar">
       <label for="pt-a">Расписание</label>
       <label for="pt-b">Сотрудники</label>
       <label for="pt-c">Выручка</label>
       <label for="pt-d">Акции</label>
+      <label for="pt-e">Что доделываем</label>
     </div>
 
     <!-- ======================= РАСПИСАНИЕ ======================= -->
@@ -148,6 +181,16 @@
             <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Отмена</button>
           </div>
           <p class="wf-result" id="wfResult" hidden></p>
+
+          <div class="wf-sale" id="wfSaleForm" hidden>
+            <h4 style="margin-top:18px">Добавить продажу к этой записи <span class="badge badge-todo">новое, разд.14.3</span></h4>
+            <div class="field-grid">
+              <div class="field"><label>Товар</label><input id="wfSaleItem" type="text" placeholder="например Воск для укладки"></div>
+              <div class="field"><label>Сумма, ₽</label><input id="wfSaleAmount" type="number" min="1" step="1" placeholder="500"></div>
+            </div>
+            <button class="btn btn-ghost btn-sm" type="button" id="wfSaleSubmit">Добавить продажу</button>
+            <p class="wf-result" id="wfSaleResult" hidden></p>
+          </div>
         </div>
 
         <div class="seg-tabs">
@@ -677,16 +720,16 @@
                       <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
                       <p class="payroll-note">100% от выручки по своим услугам (разд.17.3, подтверждено Алиханом) - сумма считается по реальным броням этого мастера за сегодня. В расчёт пока идут все статусы - фильтра «Выполнена» ещё нет (см. открытые вопросы релиза)</p>
                     </div>
-                    <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div><p class="payroll-note">За неделю, тот же плейсхолдер-принцип</p></div>
-                    <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount">000 ₽ <span class="unsure">пример</span></span></div><p class="payroll-note">За месяц, тот же плейсхолдер-принцип</p></div>
+                    <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster1Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю (с понедельника по сегодня) - сумма реальная, по броням этого мастера в базе</p></div>
+                    <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная, по броням этого мастера в базе</p></div>
                     <div class="seg-panel panel-zp1p-period">
                       <div class="payroll-period-picker">
                         <div class="field"><label>С</label><input type="date"></div>
                         <div class="field"><label>По</label><input type="date"></div>
-                        <button class="btn btn-ghost btn-sm" type="button" onclick="calcCustomPayroll(this)">Показать</button>
+                        <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-1">Показать</button>
                       </div>
                       <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                      <p class="payroll-note">Баг исправлен: раньше даты нельзя было задать физически, теперь оба поля рабочие. Сумма всё ещё плейсхолдер - реальных записей в макете нет</p>
+                      <p class="payroll-note">Сумма реальная, по броням этого мастера за выбранный диапазон дат</p>
                     </div>
                   </div>
                   <a class="btn btn-primary btn-sm" href="#nastroika-zp">Перейти к настройке ЗП</a>
@@ -802,8 +845,33 @@
                   <label for="zp2-calc">Расчёт ЗП</label>
                 </div>
                 <div class="seg-panel panel-zp2-calc">
-                  <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                  <p class="payroll-note">100% от выручки по своим услугам (разд.17.3, подтверждено Алиханом отдельно от Алиовсада) - сумма реальная, по броням этого мастера в базе. Только «За день», остальные периоды - следующий шаг (как и у Алиовсада выше)</p>
+                  <div class="seg-tabs">
+                    <input type="radio" name="zp2-period" id="zp2p-day" checked>
+                    <input type="radio" name="zp2-period" id="zp2p-week">
+                    <input type="radio" name="zp2-period" id="zp2p-month">
+                    <input type="radio" name="zp2-period" id="zp2p-period">
+                    <div class="seg-bar">
+                      <label for="zp2p-day">За день</label>
+                      <label for="zp2p-week">За неделю</label>
+                      <label for="zp2p-month">За месяц</label>
+                      <label for="zp2p-period">Задать период</label>
+                    </div>
+                    <div class="seg-panel panel-zp2p-day">
+                      <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
+                      <p class="payroll-note">100% от выручки по своим услугам (разд.17.3, подтверждено Алиханом отдельно от Алиовсада) - сумма реальная, по броням этого мастера в базе</p>
+                    </div>
+                    <div class="seg-panel panel-zp2p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster2Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю (с понедельника по сегодня) - сумма реальная</p></div>
+                    <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная</p></div>
+                    <div class="seg-panel panel-zp2p-period">
+                      <div class="payroll-period-picker">
+                        <div class="field"><label>С</label><input type="date"></div>
+                        <div class="field"><label>По</label><input type="date"></div>
+                        <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-2">Показать</button>
+                      </div>
+                      <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
+                      <p class="payroll-note">Сумма реальная, по броням этого мастера за выбранный диапазон дат</p>
+                    </div>
+                  </div>
                 </div>
               </div>
               <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
@@ -866,8 +934,33 @@
                   <label for="zp3-calc">Расчёт ЗП</label>
                 </div>
                 <div class="seg-panel panel-zp3-calc">
-                  <div class="payroll-sum"><span class="amount" id="payrollMaster3Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                  <p class="payroll-note">За сегодня, по ставке из поля выше (разд.17.3) - сумма реальная, по броням этого мастера в базе. Только «За день», остальные периоды - следующий шаг (как и у Алиовсада выше)</p>
+                  <div class="seg-tabs">
+                    <input type="radio" name="zp3-period" id="zp3p-day" checked>
+                    <input type="radio" name="zp3-period" id="zp3p-week">
+                    <input type="radio" name="zp3-period" id="zp3p-month">
+                    <input type="radio" name="zp3-period" id="zp3p-period">
+                    <div class="seg-bar">
+                      <label for="zp3p-day">За день</label>
+                      <label for="zp3p-week">За неделю</label>
+                      <label for="zp3p-month">За месяц</label>
+                      <label for="zp3p-period">Задать период</label>
+                    </div>
+                    <div class="seg-panel panel-zp3p-day">
+                      <div class="payroll-sum"><span class="amount" id="payrollMaster3Day">000 ₽ <span class="unsure">считаю…</span></span></div>
+                      <p class="payroll-note">За сегодня, по ставке из поля выше (разд.17.3) - сумма реальная, по броням этого мастера в базе</p>
+                    </div>
+                    <div class="seg-panel panel-zp3p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster3Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю (с понедельника по сегодня) - сумма реальная</p></div>
+                    <div class="seg-panel panel-zp3p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster3Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная</p></div>
+                    <div class="seg-panel panel-zp3p-period">
+                      <div class="payroll-period-picker">
+                        <div class="field"><label>С</label><input type="date"></div>
+                        <div class="field"><label>По</label><input type="date"></div>
+                        <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-3">Показать</button>
+                      </div>
+                      <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
+                      <p class="payroll-note">Сумма реальная, по броням этого мастера за выбранный диапазон дат</p>
+                    </div>
+                  </div>
                 </div>
               </div>
               <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
@@ -897,7 +990,7 @@
     <div class="tab-panel panel-c">
       <section>
         <h2>Выручка</h2>
-        <p class="section-hint">Выручка, зарплаты мастеров и чистый доход за период - считается реально из базы (Amvera), ставка своя у каждого мастера (100% Алиовсад/Мамедхан, 40% по умолчанию у Екатерины - разд.17.3), фильтра по статусу «Выполнена» пока нет, считаются все брони за период. Неделя/Месяц/Квартал/Год = "с начала периода по сегодня" (например Месяц = с 1 числа), не скользящее окно - если нужен другой принцип, скажи. Переключатель по точкам убран (Окно 13, 01.08.2026) - у Алихана одна точка, не две (уточнено самим Алиханом)</p>
+        <p class="section-hint">Выручка, зарплаты мастеров и чистый доход за период - считается реально из базы (тестовый контур), ставка своя у каждого мастера (100% Алиовсад/Мамедхан, 40% по умолчанию у Екатерины - разд.17.3), фильтра по статусу «Выполнена» пока нет, считаются все брони за период. Неделя/Месяц/Квартал/Год = "с начала периода по сегодня" (например Месяц = с 1 числа), не скользящее окно - если нужен другой принцип, скажи. Переключатель по точкам убран (Окно 13, 01.08.2026) - у Алихана одна точка, не две (уточнено самим Алиханом)</p>
 
         <div class="seg-tabs">
           <input type="radio" name="rv-period-all" id="rvpa-day" checked>
@@ -985,6 +1078,37 @@
           </div>
         </div>
         <button class="btn-ghost btn-sm" type="button">+ Добавить повод (пример, в макете не работает)</button>
+      </section>
+    </div>
+
+    <!-- ======================= ЧТО ДОДЕЛЫВАЕМ (Задача 6, Окно 14, 02.08.2026) =======================
+         Только у владельца - перенос актуальных открытых пунктов из
+         ТЗ-готовность-к-продакшену-2026-08-01.md (Блок А/В), актуализировано после
+         Окна 14. Не показывается Мамедхану/Екатерине - см. crm-admin.html/crm-master.html,
+         там честные пометки "пример" остаются только там, где реально пример. -->
+    <div class="tab-panel panel-e">
+      <section>
+        <h2>Что доделываем</h2>
+        <p class="section-hint">Открытый список для Влада/Алихана, не для показа клиентам барбершопа. Обновлено 02.08.2026 после Окна 14 (права/уведомления/график)</p>
+
+        <h4>Решения нужны от Алихана/Влада (Блок А)</h4>
+        <div class="breaks-list">
+          <div class="break-row"><span class="note" style="flex:1">Юрлицо и реквизиты для <code>privacy.html</code> - два поля "ЗАМЕНИТЬ:" всё ещё пустые, на страницу ссылается обязательный чекбокс согласия при записи клиента</span></div>
+          <div class="break-row"><span class="note" style="flex:1">Канал напоминаний - SMS+MAX или WhatsApp, Алихан ответил по-разному в двух раундах вопросов (30.07 и 01.08), не выбираем сами</span></div>
+          <div class="break-row"><span class="note" style="flex:1">Домен и хостинг - переезд на боевой аккаунт Алихана (Amvera+GitHub Pages сейчас на аккаунте Влада), обсуждалось при личном визите 01.08.2026, актуальный статус после визита не зафиксирован в коде</span></div>
+          <div class="break-row"><span class="note" style="flex:1"><code>index.html</code> vs <code>index-showcase.html</code> - какой файл реально живой на боевом домене, не решено повторно</span></div>
+          <div class="break-row"><span class="note" style="flex:1">ID счётчика Яндекс.Метрики - пустой TODO в <code>index.html</code></span></div>
+        </div>
+
+        <h4 style="margin-top:20px">Крупное технически (Блок В)</h4>
+        <div class="breaks-list">
+          <div class="break-row"><span class="note" style="flex:1"><b>Календарь записей на реальных данных</b> (День/Неделя/Месяц/Год) - самая крупная незакрытая фича проекта, сознательно вынесена в отдельное окно (см. <code>ПРОМПТ-ОКНО-15-КАЛЕНДАРЬ.md</code>), не сделана в Окне 14 - календарь всё ещё статичная разметка-пример</span></div>
+          <div class="break-row"><span class="note" style="flex:1">Роль сотрудника (чекбоксы в карточке "Сотрудники") - <code>PUT /staff/:id/role</code> уже готов и рабочий (Окно 14), но сами чекбоксы в интерфейсе пока не вызывают его - смена роли Мамедхана в этой сессии сделана миграцией, не кликом в UI</span></div>
+          <div class="break-row"><span class="note" style="flex:1">Изменение услуг уже существующей брони - нет эндпоинта <code>PATCH /bookings/:id/services</code></span></div>
+          <div class="break-row"><span class="note" style="flex:1">Лента комментариев к клиенту - только в DOM, не сохраняется (в БД есть <code>clients.notes</code>, не подключено)</span></div>
+          <div class="break-row"><span class="note" style="flex:1">"Давно не приходили" - список примеров, нет агрегирующего запроса по реальным клиентам</span></div>
+          <div class="break-row"><span class="note" style="flex:1">"+ Добавить перерыв/отпуск" в самой карточке сотрудника (старая кнопка) - только дописывает DOM. Отдельная, уже РАБОЧАЯ система запросов графика (мастер → владелец, Задача 3 Окна 14) - на вкладке "Личные данные" у мастера и в колокольчике уведомлений здесь</span></div>
+        </div>
       </section>
     </div>
   </div>

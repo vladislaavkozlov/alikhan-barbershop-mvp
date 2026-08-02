@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://vladislaavkozlov.github.io/alikhan-barbershop-mvp/sitemap.xml

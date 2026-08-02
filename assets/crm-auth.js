@@ -3,6 +3,7 @@
 // работает в проде в admin.js (Окно 8) - если человек уже был залогинен через старую
 // admin.html, сессия подхватится и здесь без повторного входа.
 import { getMasters, getServices } from '../storage.js';
+import { wireNotifications } from './crm-notifications.js';
 
 const API = window.ALIKHAN_API_URL;
 const TOKEN_KEY = 'alikhan-crm:token';
@@ -47,7 +48,7 @@ function buildLoginGate() {
         <p id="loginError" class="login-error" hidden></p>
         <button class="btn btn-primary" type="submit">Войти</button>
       </form>
-      <p class="login-hint">Настоящий вход в тестовый контур на Amvera - данные реальные, точка/мастера пока тестовые (будем переносить на боевой домен Алихана отдельно). Доступы - у Влада.</p>
+      <p class="login-hint">Настоящий вход в тестовый контур - данные реальные, точка/мастера пока тестовые (будем переносить на боевой домен Алихана отдельно). Доступы - у Влада.</p>
     </div>`;
   document.body.prepend(div);
   return div;
@@ -117,7 +118,7 @@ async function renderLiveProof(staff) {
         ? ' (тестовый контур, реальных клиентских записей ещё не вносили - это не баг)'
         : '';
     panel.innerHTML =
-      `<span class="lp-dot"></span><strong>Живая боевая база (Amvera)</strong>` +
+      `<span class="lp-dot"></span><strong>Живая боевая база (тестовый контур)</strong>` +
       `<span>сотрудников видно вам: ${staffList.length} · услуг в прайсе: ${services.length} · записей на сегодня в базе: ${bookings.length}${bookingsNote}</span>`;
 
     // Цена конкретного мастера на конкретную услугу - master-services покрывает все
@@ -228,8 +229,11 @@ async function renderLiveProof(staff) {
 
     wirePortfolioEditors(staffList);
     wireWalkIn(staff, services, masterServices);
+    wireMasterSelfView(staff, pctOf);
+    wireMasterSelfDataTab(staff, services, masterServices, pctOf);
 
     await renderRevenuePeriods(priceOf, pctOf, ownerIds);
+    await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds);
   } catch (err) {
     panel.classList.add('lp-error');
     panel.innerHTML = `<span class="lp-dot"></span><strong>Не удалось получить живые данные</strong><span>${err.message}</span>`;
@@ -309,6 +313,21 @@ function wireWalkIn(staff, services, masterServices) {
     return; // страница без этого блока (или он ещё не дошёл до нужной страницы)
   }
 
+  // Блок В (ТЗ-готовность-к-продакшену, 01.08.2026) - "Добавить продажу", POST /sales
+  // уже готов и рабочий на бэкенде (owner/admin-only), просто не вызывался ни разу с
+  // фронта. Единственное место с РЕАЛЬНЫМ booking id прямо сейчас - только что
+  // созданная walk-in запись (см. ниже): статичный календарь ещё не подключён к
+  // реальным данным (Блок В, "Календарь записей" - отдельная крупная задача), поэтому
+  // продажу через клик по примерной карточке в календаре пока не привязать честно.
+  // Элементов нет на crm-master.html (мастер не имеет доступа к /sales на сервере,
+  // requireRole ['owner','admin']) - тогда всё ниже no-op.
+  const saleForm = el('wfSaleForm');
+  const saleItemEl = el('wfSaleItem');
+  const saleAmountEl = el('wfSaleAmount');
+  const saleSubmitBtn = el('wfSaleSubmit');
+  const saleResultEl = el('wfSaleResult');
+  const hasSaleForm = saleForm && saleItemEl && saleAmountEl && saleSubmitBtn && saleResultEl;
+
   let currentMasterId = null;
   const selected = new Set();
 
@@ -380,6 +399,13 @@ function wireWalkIn(staff, services, masterServices) {
     clientNameEl.value = '';
     clientPhoneEl.value = '';
     resultEl.hidden = true;
+    if (hasSaleForm) {
+      saleForm.hidden = true;
+      delete saleForm.dataset.bookingId;
+      saleItemEl.value = '';
+      saleAmountEl.value = '';
+      saleResultEl.hidden = true;
+    }
     renderPicker(masterId);
     form.hidden = false;
     form.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -441,6 +467,10 @@ function wireWalkIn(staff, services, masterServices) {
         resultEl.hidden = false;
         resultEl.className = 'wf-result wf-result--ok';
         resultEl.textContent = `Готово: ${nameLabel.textContent}, ${startTime}, ${data.booking.totalDurationMin} мин, ${formatMoney(data.booking.totalPrice)}`;
+        if (hasSaleForm) {
+          saleForm.dataset.bookingId = data.booking.id;
+          saleForm.hidden = false;
+        }
         renderLiveProof(staff);
       } catch (err) {
         resultEl.hidden = false;
@@ -452,6 +482,242 @@ function wireWalkIn(staff, services, masterServices) {
       }
     });
   }
+
+  if (hasSaleForm && !saleSubmitBtn.dataset.wired) {
+    saleSubmitBtn.dataset.wired = '1';
+    saleSubmitBtn.addEventListener('click', async () => {
+      const bookingId = saleForm.dataset.bookingId;
+      const itemName = saleItemEl.value.trim();
+      const amount = Number(saleAmountEl.value);
+      if (!bookingId || !itemName || !Number.isFinite(amount) || amount <= 0) {
+        saleResultEl.hidden = false;
+        saleResultEl.className = 'wf-result wf-result--err';
+        saleResultEl.textContent = 'Укажите название товара и сумму больше нуля';
+        return;
+      }
+      const originalLabel = saleSubmitBtn.textContent;
+      saleSubmitBtn.disabled = true;
+      saleSubmitBtn.textContent = 'Сохраняю…';
+      try {
+        const res = await fetch(`${API}/sales`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ bookingId, itemName, amount }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        saleResultEl.hidden = false;
+        saleResultEl.className = 'wf-result wf-result--ok';
+        saleResultEl.textContent = `Продажа добавлена: ${itemName}, ${formatMoney(amount)}`;
+        saleItemEl.value = '';
+        saleAmountEl.value = '';
+      } catch (err) {
+        saleResultEl.hidden = false;
+        saleResultEl.className = 'wf-result wf-result--err';
+        saleResultEl.textContent = `Не удалось сохранить: ${err.message}`;
+      } finally {
+        saleSubmitBtn.disabled = false;
+        saleSubmitBtn.textContent = originalLabel;
+      }
+    });
+  }
+}
+
+// Задача Б.1 (ТЗ-готовность-к-продакшену, 01.08.2026): crm-master.html хардкодил
+// "Алиовсад" в location-badge / шапке колонки календаря / скрытом bk-master / тексте
+// комиссии - ломалось для Мамедхана и Екатерины, если они реально зайдут в свой
+// кабинет. Элементов может не быть на странице (crm-owner.html/crm-admin.html) -
+// функция тогда no-op, тот же паттерн, что у wirePortfolioEditors выше. Клик по
+// конкретной appt-карточке в календаре ниже всё ещё статичный макет (openBooking
+// в mockup-crm.js читает data-master из HTML) - календарь целиком не подключён к
+// реальным данным (отдельная крупная задача, см. ТЗ-готовность-к-продакшену, Блок В),
+// эта функция чинит только то, что видно ДО открытия любой записи.
+function wireMasterSelfView(staff, pctOf) {
+  const badge = el('selfNameBadge');
+  if (badge) badge.textContent = staff.name;
+
+  const avatarEl = el('selfAvatar');
+  if (avatarEl) avatarEl.textContent = staff.name.split(' ').map((p) => p[0]).join('').toUpperCase();
+
+  const nameHeadEl = el('selfNameHead');
+  if (nameHeadEl) nameHeadEl.textContent = `${staff.name} (вы)`;
+
+  const bkMaster = el('bk-master');
+  if (bkMaster) bkMaster.value = staff.name;
+
+  // На crm-master.html весь календарь - это ТОЛЬКО записи залогиненного (у мастера
+  // нет вкладок с другими сотрудниками) - все appt-карточки в статичном примере были
+  // написаны под "Алиовсад" буквально. Подменяем data-master на реальное имя, иначе
+  // клик по любой карточке (openBooking → updateCommission в mockup-crm.js) снова
+  // покажет "Алиовсад - владелец" Мамедхану или Екатерине. Не затрагивает
+  // crm-owner.html/crm-admin.html - там несколько мастеров в одном календаре по
+  // назначению, .appt[data-master] там обязаны остаться разными.
+  if (el('walkinSoloTrigger')) {
+    document.querySelectorAll('.appt[data-master]').forEach((node) => {
+      node.dataset.master = staff.name;
+    });
+  }
+
+  const noteEl = el('bk-commission-note');
+  if (noteEl) {
+    if (staff.role === 'owner') {
+      noteEl.textContent = `${staff.name} - владелец, комиссию самому себе не платит, вся сумма услуги и так остаётся в бизнесе`;
+    } else {
+      const pct = pctOf(staff.id);
+      noteEl.textContent = `${pct}% от суммы услуги (ваша ставка, разд.17.3) - показано для примера-записи выше, у реальной записи сумма своя`;
+    }
+  }
+}
+
+// Задача 2 (Окно 14, 02.08.2026) - вкладка "Личные данные" на crm-master.html:
+// своя карточка сотрудника (портфолио редактируемо, услуги/ставка/график - только
+// чтение, роль вообще не показываем). Элементов нет на crm-owner.html/crm-admin.html
+// - тогда no-op.
+function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
+  const picker = el('selfServicePicker');
+  if (!picker) return;
+
+  const avatarEl = el('selfCardAvatar');
+  if (avatarEl) avatarEl.textContent = staff.name.split(' ').map((p) => p[0]).join('').toUpperCase();
+  const nameEl = el('selfCardName');
+  if (nameEl) nameEl.textContent = staff.name;
+
+  // Портфолио - переиспользуем wirePortfolioEditors как есть: переносим id-суффикс
+  // "-self" на реальный staff.id, чтобы el(`portfolioExperience-${masterId}`) внутри
+  // неё нашла именно эти поля.
+  const saveBtn = el('selfPortfolioSaveBtn');
+  if (saveBtn && saveBtn.dataset.masterId === 'self') {
+    saveBtn.dataset.masterId = staff.id;
+    ['portfolioExperience', 'portfolioStrengths', 'portfolioCertificates', 'portfolioBeforeAfter', 'portfolioNote'].forEach((prefix) => {
+      const node = document.getElementById(`${prefix}-self`);
+      if (node) node.id = `${prefix}-${staff.id}`;
+    });
+  }
+
+  // Услуги - read-only список всех 8, отмечены те, что реально есть у ЭТОГО мастера
+  // в master_services (назначает владелец в своей карточке "Сотрудники").
+  const mine = new Map(masterServices.filter((r) => r.masterId === staff.id).map((r) => [r.serviceId, r]));
+  picker.innerHTML = services
+    .map((s) => {
+      const row = mine.get(s.id);
+      const checked = row ? 'checked' : '';
+      const price = row ? `${row.price}₽` : s.priceLabel;
+      const duration = row ? row.durationMin : s.durationMin;
+      return `<label class="service-check"><input type="checkbox" ${checked} disabled><span><span class="sc-name">${s.name}</span><span class="sc-meta"><span class="sc-price">${price}</span><span class="sc-dot">·</span><span>${duration} мин</span></span></span></label>`;
+    })
+    .join('');
+
+  // Ставка ЗП - владелец её не платит себе, у остальных - реальный % из
+  // master_payroll_settings (тот же источник, что renderLiveProof уже читает).
+  const rateEl = el('selfRateInput');
+  if (rateEl) {
+    rateEl.value = staff.role === 'owner' ? 'Не начисляется - вы владелец' : `${pctOf(staff.id)}%`;
+  }
+
+  wireScheduleSelfView(staff);
+  wireScheduleRequestForm(staff);
+}
+
+// График - только просмотр, читает уже рабочий GET /schedule?masterId= (сервер сам
+// сужает до своего мастера для роли master, server.mjs:714-732).
+async function wireScheduleSelfView(staff) {
+  const list = el('selfScheduleBreaks');
+  const note = el('selfScheduleNote');
+  if (!list || !note) return;
+  try {
+    const today = todayStr();
+    const shifts = await fetchJson(`/schedule?masterId=${staff.id}&date=${today}`);
+    const todayShift = shifts.find((s) => s.date === today);
+    if (!todayShift || !todayShift.breaks?.length) {
+      list.innerHTML = '';
+      note.textContent = 'Сегодня перерывов не назначено (стандартные часы 10:00-20:00)';
+      return;
+    }
+    list.innerHTML = todayShift.breaks
+      .map((b) => `<div class="break-row"><span class="note">Перерыв ${b.startTime}–${b.endTime}</span></div>`)
+      .join('');
+    note.textContent = '';
+  } catch (err) {
+    note.textContent = `Не удалось получить график: ${err.message}`;
+  }
+}
+
+// Форма "Запросить перерыв/выходной" (Задача 3, Окно 14) - POST /schedule-requests,
+// владелец подтверждает/отклоняет отдельно (PATCH .../decision), время реально
+// блокируется от онлайн-записи только после подтверждения.
+function wireScheduleRequestForm(staff) {
+  const submitBtn = el('reqSubmitBtn');
+  const typeEl = el('reqType');
+  const fromEl = el('reqDateFrom');
+  const toEl = el('reqDateTo');
+  const startEl = el('reqStartTime');
+  const endEl = el('reqEndTime');
+  const commentEl = el('reqComment');
+  const resultEl = el('reqResult');
+  const timeFields = el('reqTimeFields');
+  const historyEl = el('reqHistory');
+  if (!submitBtn || !typeEl || !fromEl || !toEl || !startEl || !endEl || !commentEl || !resultEl || !historyEl) return;
+
+  const syncTimeFields = () => {
+    if (timeFields) timeFields.style.display = typeEl.value === 'day_off' ? 'none' : '';
+  };
+  syncTimeFields();
+  typeEl.addEventListener('change', syncTimeFields);
+
+  async function loadHistory() {
+    try {
+      const rows = await fetchJson(`/schedule-requests?masterId=${staff.id}`);
+      if (!rows.length) {
+        historyEl.innerHTML = '<span class="note">Запросов пока нет</span>';
+        return;
+      }
+      const statusLabel = { pending: 'На рассмотрении', approved: 'Одобрено', rejected: 'Отклонено' };
+      historyEl.innerHTML = rows
+        .map((r) => {
+          const period = r.requestType === 'day_off' ? `${r.dateFrom}–${r.dateTo} (выходной)` : `${r.dateFrom} ${r.startTime}–${r.endTime}`;
+          return `<div class="break-row"><span class="note">${period} · ${statusLabel[r.status] ?? r.status}${r.ownerComment ? ' · ' + r.ownerComment : ''}</span></div>`;
+        })
+        .join('');
+    } catch (err) {
+      historyEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+    }
+  }
+  loadHistory();
+
+  if (submitBtn.dataset.wired) return;
+  submitBtn.dataset.wired = '1';
+  submitBtn.addEventListener('click', async () => {
+    const requestType = typeEl.value;
+    const dateFrom = fromEl.value;
+    const dateTo = toEl.value || dateFrom;
+    if (!dateFrom) {
+      resultEl.textContent = 'Укажите дату';
+      return;
+    }
+    if (requestType === 'break' && (!startEl.value || !endEl.value)) {
+      resultEl.textContent = 'Укажите время перерыва (с и до)';
+      return;
+    }
+    try {
+      const res = await fetch(`${API}/schedule-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({
+          requestType,
+          dateFrom,
+          dateTo,
+          startTime: requestType === 'break' ? startEl.value : null,
+          endTime: requestType === 'break' ? endEl.value : null,
+          masterComment: commentEl.value.trim() || null,
+        }),
+      });
+      if (!res.ok) throw new Error(`schedule-requests → ${res.status}`);
+      resultEl.textContent = 'Запрос отправлен, владелец увидит уведомление';
+      commentEl.value = '';
+      loadHistory();
+    } catch (err) {
+      resultEl.textContent = `Не удалось отправить: ${err.message}`;
+    }
+  });
 }
 
 function pad2(n) {
@@ -518,6 +784,86 @@ async function renderRevenuePeriods(priceOf, pctOf, ownerIds) {
   }
 }
 
+// Блок В (ТЗ-готовность-к-продакшену, 01.08.2026) - "ЗП по неделе/месяцу/периоду в
+// карточках сотрудников" (не своя, у владельца/админа) была "000 ₽ пример" нерабочим
+// текстом, даже с реально выбранными датами сумма не считалась. Та же логика уже
+// работает во "Выручке" (renderRevenuePeriods выше) и в "Моей зарплате" мастера
+// (myWeekEl/myMonthEl в renderLiveProof) - здесь тот же принцип bookingPrice+pctOf,
+// но по каждой карточке сотрудника отдельно. Свой отдельный fetch годовых броней (не
+// переиспользует renderRevenuePeriods) - та функция рано выходит на crm-admin.html
+// (там нет вкладки "Выручка" вообще), а карточки сотрудников с ЗП есть и у owner, и у admin.
+async function renderStaffPayrollPeriods(priceOf, pctOf, ownerIds) {
+  const masterIds = ['master-1', 'master-2', 'master-3'];
+  const hasAnyTarget = masterIds.some((id, idx) => el(`payrollMaster${idx + 1}Week`) || el(`payrollMaster${idx + 1}Month`));
+  if (!hasAnyTarget) return;
+
+  const today = todayStr();
+  let bookings;
+  try {
+    const res = await fetchJson(`/bookings?from=${periodStartStr('year')}&to=${today}`);
+    bookings = res.bookings || [];
+  } catch {
+    return; // "считаю…" останется как было - основная ошибка уже показана в панели выше
+  }
+
+  const amountFor = (masterId, rows) => {
+    if (ownerIds.has(masterId)) return null; // владелец комиссию себе не начисляет
+    const revenue = rows.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
+    return (revenue * pctOf(masterId)) / 100;
+  };
+  const renderInto = (targetEl, masterId, rows) => {
+    if (!targetEl) return;
+    const amount = amountFor(masterId, rows);
+    targetEl.innerHTML =
+      amount === null
+        ? `Не начисляется <span class="unsure">реально</span>`
+        : `${formatMoney(amount)} <span class="unsure">реально</span>`;
+  };
+
+  masterIds.forEach((masterId, idx) => {
+    const n = idx + 1;
+    const weekEl = el(`payrollMaster${n}Week`);
+    const monthEl = el(`payrollMaster${n}Month`);
+    if (!weekEl && !monthEl) return;
+    const rowsFor = (period) => {
+      const start = periodStartStr(period);
+      return bookings.filter((b) => b.masterId === masterId && b.date >= start && b.date <= today);
+    };
+    renderInto(weekEl, masterId, rowsFor('week'));
+    renderInto(monthEl, masterId, rowsFor('month'));
+  });
+
+  // "Задать период" - раньше calcCustomPayroll (mockup-crm.js) только проверяла, что
+  // обе даты выбраны, и оставляла "000 ₽ пример". Здесь - тот же реальный расчёт, но
+  // по произвольному диапазону (data-master-id на кнопке, см. HTML). Не переопределяет
+  // глобальную calcCustomPayroll - та отдельно осталась для личной "Моей зарплаты"
+  // мастера (crm-master.html), где этот пункт не входил в скоуп Блока В.
+  document.querySelectorAll('.payroll-period-picker button[data-master-id]').forEach((btn) => {
+    if (btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    const masterId = btn.dataset.masterId;
+    btn.addEventListener('click', () => {
+      const panel = btn.closest('.seg-panel');
+      const dates = panel.querySelectorAll('input[type="date"]');
+      const from = dates[0]?.value;
+      const to = dates[1]?.value;
+      const amountEl = panel.querySelector('.payroll-sum .amount');
+      const noteEl = panel.querySelector('.payroll-note');
+      if (!from || !to) {
+        if (noteEl) noteEl.textContent = 'Укажите обе даты (с и по), чтобы задать период';
+        return;
+      }
+      const rows = bookings.filter((b) => b.masterId === masterId && b.date >= from && b.date <= to);
+      if (amountEl) {
+        const amount = amountFor(masterId, rows);
+        amountEl.innerHTML =
+          amount === null ? `Не начисляется <span class="unsure">реально</span>` : `${formatMoney(amount)} <span class="unsure">реально</span>`;
+      }
+      if (noteEl) noteEl.textContent = `Период ${from}–${to}: посчитано по реальным броням за этот диапазон`;
+    });
+  });
+}
+
 export function initCrmAuth(requiredRole) {
   const gate = buildLoginGate();
   const main = el('crmMain');
@@ -536,6 +882,7 @@ export function initCrmAuth(requiredRole) {
       a.hidden = a.dataset.role !== staff.role;
     });
     renderLiveProof(staff);
+    wireNotifications(staff);
   }
 
   function handleStaff(staff) {

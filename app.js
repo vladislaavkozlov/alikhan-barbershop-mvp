@@ -4,6 +4,21 @@ import { createStore, createHttpBackend, getMasters, getServices, priceLabelForM
 // реальный бэкенд на Amvera, синхронизация между устройствами реальна. Если нет -
 // откатываемся на localStorage (старое поведение демо, только для одного браузера).
 const store = createStore(window.ALIKHAN_API_URL ? createHttpBackend(window.ALIKHAN_API_URL) : undefined);
+
+// Баг Б.4 (ТЗ-готовность-к-продакшену, 01.08.2026): страница без window.ALIKHAN_API_URL
+// тихо уходила в офлайн-режим на localStorage - живое доказательство: index-showcase.html
+// не имела этой переменной вообще (Блок Б.2 того же ТЗ). Предупреждение для
+// разработчика/Влада (в консоли и мелким баннером в углу), не для клиента - форма
+// записи при этом продолжает работать (просто без синхронизации между устройствами).
+if (!window.ALIKHAN_API_URL) {
+  console.warn('ALIKHAN_API_URL не задан - страница работает в офлайн-демо режиме (localStorage, без синхронизации между устройствами)');
+  const banner = document.createElement('div');
+  banner.textContent = '⚠ офлайн-режим: нет ALIKHAN_API_URL, записи не синхронизируются с базой';
+  banner.style.cssText =
+    'position:fixed;bottom:8px;right:8px;z-index:9999;background:#3a1d1d;color:#f3efe4;' +
+    'font:12px/1.4 monospace;padding:6px 10px;border-radius:6px;opacity:0.85;pointer-events:none;max-width:280px';
+  document.body.append(banner);
+}
 const masters = getMasters();
 const services = getServices();
 
@@ -521,7 +536,7 @@ renderPrice();
 renderMasters();
 renderMasterOptions();
 
-for (const el of document.querySelectorAll('.section-head, .booking-shell, .contacts-grid > *, .philosophy-quote, .philosophy-fact, .philosophy-placeholder, .team-growth-grid > *')) {
+for (const el of document.querySelectorAll('.section-head, .booking-shell, .contacts-grid > *, .philosophy-quote, .philosophy-story, .team-growth-grid > *')) {
   armReveal(el);
 }
 

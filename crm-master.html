@@ -39,8 +39,12 @@
     <a href="index.html" class="brand">АЛИХАН</a>
     <span class="crm-tag">CRM · визуальный макет</span>
     <div class="nav-right">
-      <span class="location-badge">Вы: <strong>Алиовсад</strong> (пример)</span>
+      <span class="location-badge">Вы: <strong id="selfNameBadge">Алиовсад</strong> (пример)</span>
       <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили">🔔<span class="notif-badge">2</span></button>
+      <div class="msg-bell-wrap" style="position:relative">
+        <button class="notif-bell" type="button" id="msgBell" aria-label="Уведомления о записях и графике">✉<span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
+        <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
+      </div>
       <span id="sessionInfo" class="session-info" hidden></span>
       <button id="logoutBtn" class="logout-btn" type="button" hidden>Выйти</button>
       <div class="role-switch" id="roleSwitch">
@@ -59,8 +63,18 @@
   <div class="live-proof" id="liveProof"><span class="lp-dot"></span><span>Проверяю связь с боевой базой…</span></div>
 
   <div class="banner">
-    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход и счётчики выше настоящие (Amvera, тестовый контур). «Алиовсад» ниже пока пример, не реальный сотрудник. У мастера физически нет вкладок «Сотрудники» и «Настройка ЗП» — это ограничение доступа, а не забытые экраны. Телефон клиента в карточке записи скрыт прочерком — так же будет вести себя и бэкенд (мастер не получает поле телефона).
+    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход и счётчики выше настоящие (тестовый контур). «Алиовсад» ниже пока пример, не реальный сотрудник. У мастера физически нет вкладок «Сотрудники» и «Настройка ЗП» — это ограничение доступа, а не забытые экраны. Телефон клиента в карточке записи скрыт прочерком — так же будет вести себя и бэкенд (мастер не получает поле телефона).
   </div>
+
+  <details class="staff-card" style="margin-bottom:20px">
+    <summary><div class="summary-meta"><div class="name" style="font-size:0.92rem">Обновления</div></div><span class="chevron">▸</span></summary>
+    <div class="staff-card-body" style="padding-top:10px">
+      <div class="breaks-list">
+        <div class="break-row"><span class="note" style="flex:1"><b>02.08.2026</b> - утечка ПДн в анонимном /bookings проверена и подтверждена уже закрытой; права доступа (реальные учётки 1:1, роль Мамедхана - администратор), согласование графика мастера с владельцем (запрос перерыва/выходного), уведомления в личном кабинете (колокольчик ✉)</span></div>
+        <div class="break-row"><span class="note" style="flex:1"><b>01.08.2026</b> - 1 точка вместо 2, реальные имена мастеров везде, мультиуслуга за визит, клиент без предварительной записи, продажа товаров, ЗП по неделе/месяцу в карточках</span></div>
+      </div>
+    </div>
+  </details>
 
   <div class="retention-alert" id="retention-panel">
     <div class="ra-head"><span class="ico">⚠</span><strong>2 моих клиента не приходили 2+ месяца</strong> <span class="badge badge-todo">новое, разд.12 ТЗ</span><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
@@ -74,12 +88,20 @@
     </div>
   </div>
 
+  <style>
+    /* Задача 2 (Окно 14, 02.08.2026) - третья вкладка мастера, тот же паттерн pt-c,
+       что уже используют crm-owner.html/crm-admin.html для своих доп. вкладок. */
+    #pt-c:checked ~ .tab-bar label[for="pt-c"] { color: var(--accent); border-color: var(--accent); }
+    #pt-c:checked ~ .panel-c { display: block; }
+  </style>
   <div class="page-tabs">
     <input type="radio" name="pt" id="pt-a" checked>
     <input type="radio" name="pt" id="pt-b">
+    <input type="radio" name="pt" id="pt-c">
     <div class="tab-bar">
       <label for="pt-a">Мой день</label>
       <label for="pt-b">Моя зарплата</label>
+      <label for="pt-c">Личные данные</label>
     </div>
 
     <!-- ======================= МОЙ ДЕНЬ ======================= -->
@@ -135,7 +157,7 @@
                 </div>
                 <div class="schedule-grid" style="grid-auto-columns: minmax(280px, 420px);">
                   <div class="schedule-col">
-                    <div class="schedule-col-head"><div class="avatar">АЛ</div><span class="name">Алиовсад (вы)</span></div>
+                    <div class="schedule-col-head"><div class="avatar" id="selfAvatar">АЛ</div><span class="name" id="selfNameHead">Алиовсад (вы)</span></div>
                     <div class="schedule-track">
                       <div class="appt appt--done" style="top:0px;height:43px" tabindex="0" onclick="openBooking(this)"
                            data-client="Клиент А (пример)" data-master="Алиовсад" data-service="Стрижка · 2000₽" data-planned="10:00–10:40" data-actual="10:03"
@@ -437,6 +459,82 @@
             <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
             <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
           </div></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ======================= ЛИЧНЫЕ ДАННЫЕ (Задача 2, Окно 14, 02.08.2026) =======================
+         Своя карточка мастера - копия структуры staff-card из crm-owner.html (карточка
+         Екатерины), но всегда развёрнута, без роль-чекбоксов (мастер не должен знать,
+         что роли admin/owner существуют), услуги и ставка ЗП - только на чтение. -->
+    <div class="tab-panel panel-c">
+      <style>
+        .service-picker.readonly .service-check { cursor: default; opacity: 0.7; }
+        .service-picker.readonly .service-check input { pointer-events: none; }
+      </style>
+      <section>
+        <h2>Личные данные</h2>
+        <p class="section-hint">Ваша карточка сотрудника - портфолио редактируете сами, остальное (роль/услуги/ставка/график) назначает владелец, здесь только для просмотра</p>
+        <div class="staff-list">
+          <details class="staff-card" open>
+            <summary>
+              <div class="avatar lg" id="selfCardAvatar">--</div>
+              <div class="summary-meta">
+                <div class="name" id="selfCardName">-</div>
+                <div class="role">Мастер</div>
+              </div>
+              <span class="chevron">▸</span>
+            </summary>
+            <div class="staff-card-body">
+              <h4>Портфолио</h4>
+              <p class="section-hint" style="margin:6px 0 10px">Стаж, сильные стороны, курсы/сертификаты, фото «до-после» - заполните сами, видно клиентам и владельцу</p>
+              <div class="field-grid">
+                <div class="field"><label>Стаж</label><input type="text" id="portfolioExperience-self" placeholder="например «5 лет барбером»"></div>
+                <div class="field"><label>Сильные стороны</label><input type="text" id="portfolioStrengths-self" placeholder="например «фейды, оформление бороды»"></div>
+              </div>
+              <div class="field"><label>Курсы / сертификаты (по одному на строку)</label><textarea id="portfolioCertificates-self" rows="2"></textarea></div>
+              <div class="field"><label>Фото «до-после» (ссылки, по одной на строку)</label><textarea id="portfolioBeforeAfter-self" rows="2" placeholder="https://..."></textarea></div>
+              <button class="btn btn-ghost btn-sm portfolio-save" type="button" id="selfPortfolioSaveBtn" data-master-id="self">Сохранить портфолио</button>
+              <p class="payroll-note" id="portfolioNote-self"></p>
+
+              <h4>Услуги</h4>
+              <p class="section-hint" style="margin:6px 0 10px">Какие услуги вы оказываете и с какой длительностью - назначает владелец в своей карточке «Сотрудники»</p>
+              <div class="service-picker readonly" id="selfServicePicker"></div>
+
+              <h4>Ставка ЗП</h4>
+              <div class="field-grid" style="max-width:320px">
+                <div class="field"><label>Ставка от выручки, %</label><input id="selfRateInput" value="—" readonly></div>
+              </div>
+
+              <h4>График</h4>
+              <div class="field-grid" style="max-width:420px">
+                <div class="field"><label>Рабочее время с</label><input value="10:00" readonly></div>
+                <div class="field"><label>до</label><input value="20:00" readonly></div>
+              </div>
+              <div id="selfScheduleBreaks" class="breaks-list"></div>
+              <p class="section-hint" id="selfScheduleNote" style="margin:10px 0"></p>
+
+              <h4 style="margin-top:18px">Запросить перерыв или выходной</h4>
+              <p class="section-hint" style="margin:6px 0 10px">Владелец получит уведомление и подтвердит или отклонит - время блокируется от онлайн-записи только после подтверждения</p>
+              <div class="field-grid">
+                <div class="field"><label>Тип</label>
+                  <select id="reqType"><option value="break">Перерыв (часы)</option><option value="day_off">Выходной (весь день)</option></select>
+                </div>
+                <div class="field"><label>Дата с</label><input type="date" id="reqDateFrom"></div>
+                <div class="field"><label>Дата по</label><input type="date" id="reqDateTo"></div>
+              </div>
+              <div class="field-grid" id="reqTimeFields">
+                <div class="field"><label>Время с</label><input type="text" id="reqStartTime" placeholder="13:00"></div>
+                <div class="field"><label>Время до</label><input type="text" id="reqEndTime" placeholder="14:00"></div>
+              </div>
+              <div class="field"><label>Комментарий</label><input type="text" id="reqComment" placeholder="например «врач»"></div>
+              <button class="btn btn-ghost btn-sm" type="button" id="reqSubmitBtn">Отправить запрос</button>
+              <p class="payroll-note" id="reqResult"></p>
+
+              <h4 style="margin-top:18px">Мои запросы</h4>
+              <div id="reqHistory" class="breaks-list"><span class="note">Загрузка…</span></div>
+            </div>
+          </details>
         </div>
       </section>
     </div>
