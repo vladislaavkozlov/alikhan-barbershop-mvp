@@ -885,9 +885,25 @@ export function initCrmAuth(requiredRole) {
     wireNotifications(staff);
   }
 
-  function handleStaff(staff) {
-    if (staff.role !== requiredRole && staff.role !== 'owner') {
-      location.href = ROLE_PAGE[staff.role] || 'crm-owner.html';
+  // Баг (найден Владом 02.08.2026): заход на crm-master.html с уже сохранённой в
+  // браузере сессией владельца молча показывал владельца вместо формы входа -
+  // "перекидывает в окно владельца" при попытке зайти в аккаунт мастера. Причина -
+  // staff.role !== 'owner' ниже пропускал владельца мимо проверки роли страницы.
+  // Различаем два случая: свежий логин (fromLogin=true, сразу после сабмита формы)
+  // уводит на СВОЮ страницу по роли - это рабочий путь входа мастера/админа через
+  // единственную публичную ссылку "Вход для сотрудников" (ведёт на crm-owner.html),
+  // не трогаем. Восстановление СТАРОЙ сессии другой роли на чужой странице
+  // (fromLogin не передан) больше не подставляет чужие данные и не молчит - чистит
+  // сессию и показывает форму входа прямо на этой странице, чтобы можно было
+  // сразу ввести данные нужной роли.
+  function handleStaff(staff, fromLogin) {
+    if (staff.role !== requiredRole) {
+      if (fromLogin) {
+        location.href = ROLE_PAGE[staff.role] || 'crm-owner.html';
+      } else {
+        clearSession();
+        gate.hidden = false;
+      }
       return;
     }
     reveal(staff);
@@ -902,7 +918,7 @@ export function initCrmAuth(requiredRole) {
     try {
       const data = await apiLogin(email, pin);
       setSession(data.token, data.staff);
-      handleStaff(data.staff);
+      handleStaff(data.staff, true);
     } catch (err) {
       errEl.textContent = err.message;
       errEl.hidden = false;
