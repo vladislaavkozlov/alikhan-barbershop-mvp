@@ -22,8 +22,8 @@ export const SERVICES = [
   {
     id: 'strizhka',
     name: 'Стрижка',
-    durationLabel: '30-40 мин',
-    durationMin: 40,
+    durationLabel: '1 час',
+    durationMin: 60,
     priceLabel: '2000₽',
     price: 2000,
     composition:
@@ -255,6 +255,41 @@ export function getMasters() {
 
 export function getServices() {
   return SERVICES;
+}
+
+// Правки Влада 03.08.2026: комплекс "стрижка+борода" уже включает эти 4 услуги по
+// смыслу (окантовка и бритьё - часть той же техники), поэтому отдельно их рядом с
+// комплексом выбрать нельзя, а отдельный выбор "стрижка"+"борода" сам должен
+// превращаться в комплекс. Один список правил, не два места с одной и той же
+// логикой - используется и публичной записью (app.js), и формой мастера (wireWalkIn
+// в crm-auth.js), оба уже импортируют storage.js.
+export const SERVICE_COMBOS = [
+  {
+    comboId: 'kompleks-strizhka-boroda',
+    mergeFrom: ['strizhka', 'boroda'],
+    blocks: ['strizhka', 'boroda', 'britie', 'firmennaya-okantovka'],
+  },
+];
+
+// Если сейчас отдельно отмечены обе услуги-компонента комбо (например
+// "стрижка"+"борода") - заменяет их одной услугой комбо. Возвращает НОВЫЙ Set,
+// исходный не мутирует (вызывающий код сам решает, обновлять ли своё состояние).
+export function mergeServiceCombos(selectedIds) {
+  let result = new Set(selectedIds);
+  for (const combo of SERVICE_COMBOS) {
+    if (combo.mergeFrom.every((id) => result.has(id))) {
+      result = new Set(result);
+      combo.mergeFrom.forEach((id) => result.delete(id));
+      result.add(combo.comboId);
+    }
+  }
+  return result;
+}
+
+// true, если serviceId нельзя отметить прямо сейчас, потому что уже выбран комбо,
+// который его перекрывает (используется, чтобы отрисовать чекбокс/кнопку disabled).
+export function isServiceBlockedByCombo(serviceId, selectedIds) {
+  return SERVICE_COMBOS.some((combo) => selectedIds.has(combo.comboId) && combo.blocks.includes(serviceId));
 }
 
 function findMaster(masterId) {

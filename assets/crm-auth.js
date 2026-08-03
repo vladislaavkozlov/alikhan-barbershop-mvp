@@ -2,7 +2,7 @@
 // Окна 9. Переиспользует ровно тот же контракт токена/localStorage-ключей, что уже
 // работает в проде в admin.js (Окно 8) - если человек уже был залогинен через старую
 // admin.html, сессия подхватится и здесь без повторного входа.
-import { getMasters, getServices } from '../storage.js';
+import { getMasters, getServices, mergeServiceCombos, isServiceBlockedByCombo } from '../storage.js';
 import { wireNotifications } from './crm-notifications.js';
 import { renderDayCalendar } from './crm-calendar.js';
 
@@ -33,6 +33,42 @@ function clearSession() {
 
 function el(id) {
   return document.getElementById(id);
+}
+
+// Правка 03.08.2026: время перерыва/графика раньше вписывалось вручную текстом
+// (<input type="text" placeholder="13:00">) - не по теме сайта и без валидации.
+// Переиспользует уже существующий кастомный дропдаун (toggleCustomSelect/
+// pickCustomSelectOption, assets/mockup-crm.js), который раньше был только у
+// "Закреплён за мастером" - те же классы, тот же визуальный язык, не новый виджет.
+const SHOP_TIME_OPTIONS = (() => {
+  const opts = [];
+  for (let m = 10 * 60; m <= 20 * 60; m += 15) {
+    opts.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+  }
+  return opts;
+})();
+
+function buildTimeSelectHtml(id, value) {
+  const v = value || '13:00';
+  const options = SHOP_TIME_OPTIONS.map(
+    (t) => `<div class="custom-select-option${t === v ? ' selected' : ''}" onclick="pickCustomSelectOption(this)" data-value="${t}">${t}</div>`
+  ).join('');
+  return `<div class="custom-select" id="${id}" data-value="${v}">
+    <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">${v}</button>
+    <div class="custom-select-list" hidden>${options}</div>
+  </div>`;
+}
+// Рисует time-picker внутрь ПУСТОГО контейнера slotId (тот же id, что в разметке
+// HTML вместо старого <input type="text">) - сам виджет .custom-select получает
+// ОТДЕЛЬНЫЙ id (valueId), иначе id задвоился бы (контейнер + вложенный div с тем
+// же id). Вызывающий код читает значение через timeSelectValue(valueId).
+function renderTimeSelect(slotId, valueId, value) {
+  const container = el(slotId);
+  if (!container) return;
+  container.innerHTML = buildTimeSelectHtml(valueId, value);
+}
+function timeSelectValue(id) {
+  return el(id)?.dataset.value || null;
 }
 
 function buildLoginGate() {
@@ -235,10 +271,14 @@ async function renderLiveProof(staff) {
     await renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson });
 
     wirePortfolioEditors(staffList);
-    ['master-1', 'master-2', 'master-3'].forEach((masterId) => wireScheduleEditor(masterId, fetchJson));
+    ['master-1', 'master-2', 'master-3'].forEach((masterId) => {
+      wireScheduleEditor(masterId, fetchJson);
+      wireRecurringScheduleEditor(masterId, staff.role === 'owner');
+    });
     wireWalkIn(staff, services, masterServices);
     wireMasterSelfView(staff, pctOf);
     wireMasterSelfDataTab(staff, services, masterServices, pctOf);
+    wireMasterServiceEditors(staff.role, services, masterServices);
 
     await renderRevenuePeriods(priceOf, pctOf, ownerIds);
     await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds);
@@ -343,13 +383,16 @@ function wireScheduleEditor(masterId, fetchJson) {
   const dateToEl = el(`schedDateTo-${masterId}`);
   const dayOffEl = el(`schedDayOff-${masterId}`);
   const timeFieldsEl = el(`schedTimeFields-${masterId}`);
-  const startEl = el(`schedStart-${masterId}`);
-  const endEl = el(`schedEnd-${masterId}`);
   const noteEl = el(`schedNote-${masterId}`);
   if (saveBtn.dataset.wired) return;
   saveBtn.dataset.wired = '1';
 
   dateFromEl.value = todayStr();
+  // Правка 03.08.2026: было <input type="text" placeholder="13:00"> - вручную
+  // вписывать время не по теме сайта и без валидации. Тот же кастомный дропдаун,
+  // что уже используется у "Закреплён за мастером".
+  renderTimeSelect(`schedStart-${masterId}-slot`, `schedStart-${masterId}`, '13:00');
+  renderTimeSelect(`schedEnd-${masterId}-slot`, `schedEnd-${masterId}`, '14:00');
 
   async function loadCurrent() {
     const date = dateFromEl.value || todayStr();
@@ -403,8 +446,8 @@ function wireScheduleEditor(masterId, fetchJson) {
       return;
     }
     const isDayOff = dayOffEl?.checked;
-    const breakStart = isDayOff ? '10:00' : startEl?.value.trim();
-    const breakEnd = isDayOff ? '20:00' : endEl?.value.trim();
+    const breakStart = isDayOff ? '10:00' : timeSelectValue(`schedStart-${masterId}`);
+    const breakEnd = isDayOff ? '20:00' : timeSelectValue(`schedEnd-${masterId}`);
     if (!isDayOff && (!breakStart || !breakEnd)) {
       if (noteEl) noteEl.textContent = 'Укажите время перерыва (с и до)';
       return;
@@ -443,6 +486,132 @@ function wireScheduleEditor(masterId, fetchJson) {
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = originalLabel;
+    }
+  });
+}
+
+// Правка Влада 03.08.2026: "стандартный" перерыв/выходной - действует сам на каждый
+// подходящий день недели, бессрочно, пока не изменят (schedule_recurring_rules,
+// getEffectiveBreaks в server.mjs). Владелец правит НАПРЯМУЮ (POST/DELETE
+// /schedule-recurring), без очереди согласования - тот же уровень доступа, что уже
+// есть у wireScheduleEditor для разовых дат. canEdit=false (crm-admin.html) - только
+// просмотр текущих правил, без формы и без кнопки отключения.
+function wireRecurringScheduleEditor(masterId, canEdit) {
+  const container = el(`recurringEditor-${masterId}`);
+  if (!container || container.dataset.wired) return;
+  container.dataset.wired = '1';
+
+  async function loadCurrent(currentEl) {
+    try {
+      const rules = await fetchJson(`/schedule-recurring?masterId=${masterId}`);
+      if (!rules.length) {
+        currentEl.innerHTML = '<span class="note">Стандартных правил не задано</span>';
+        return;
+      }
+      currentEl.innerHTML = rules
+        .map((r) => {
+          const days = (r.weekdays || []).map((d) => WEEKDAY_SHORT[d - 1]).join(',');
+          const label = r.ruleType === 'day_off' ? `Выходной по ${days}` : `Перерыв ${r.startTime}–${r.endTime} по ${days}`;
+          const removeBtn = canEdit ? `<button class="remove-x" type="button" aria-label="Отключить" data-rule-id="${r.id}">✕</button>` : '';
+          return `<div class="break-row"><span class="note" style="flex:1">${label} (с ${r.startsOn})</span>${removeBtn}</div>`;
+        })
+        .join('');
+      if (!canEdit) return;
+      currentEl.querySelectorAll('[data-rule-id]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            const res = await fetch(`${API}/schedule-recurring/${btn.dataset.ruleId}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${getToken()}` },
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            loadCurrent(currentEl);
+          } catch (err) {
+            const note = el(`recurringNote-${masterId}`);
+            if (note) note.textContent = `Не удалось отключить: ${err.message}`;
+            btn.disabled = false;
+          }
+        });
+      });
+    } catch (err) {
+      currentEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+    }
+  }
+
+  if (!canEdit) {
+    container.innerHTML = `<div class="breaks-list"><span class="note">загружаю…</span></div>`;
+    loadCurrent(container.querySelector('.breaks-list'));
+    return;
+  }
+
+  container.innerHTML = `
+    <div id="recurringCurrent-${masterId}" class="breaks-list"><span class="note">загружаю…</span></div>
+    <div class="field-grid" style="max-width:560px;margin-top:10px">
+      <div class="field"><label>Тип</label>
+        <select id="recurringType-${masterId}">
+          <option value="break">Перерыв</option>
+          <option value="day_off">Выходной</option>
+        </select>
+      </div>
+      <div class="field"><label>Действует с</label><input type="date" id="recurringStartsOn-${masterId}"></div>
+    </div>
+    <div class="field" style="margin:8px 0">
+      <label>Дни недели</label>
+      <div class="weekday-picker" id="recurringWeekdays-${masterId}">
+        ${WEEKDAY_SHORT.map((d, i) => `<label class="weekday-option"><input type="checkbox" value="${i + 1}">${d}</label>`).join('')}
+      </div>
+    </div>
+    <div class="field-grid" id="recurringTimeFields-${masterId}" style="max-width:420px">
+      <div class="field"><label>Время с</label><div id="recurringStart-${masterId}-slot"></div></div>
+      <div class="field"><label>Время до</label><div id="recurringEnd-${masterId}-slot"></div></div>
+    </div>
+    <button class="btn btn-ghost btn-sm" type="button" id="recurringSave-${masterId}">Сохранить стандартное правило</button>
+    <p class="payroll-note" id="recurringNote-${masterId}"></p>
+  `;
+  renderTimeSelect(`recurringStart-${masterId}-slot`, `recurringStart-${masterId}`, '13:00');
+  renderTimeSelect(`recurringEnd-${masterId}-slot`, `recurringEnd-${masterId}`, '14:00');
+  el(`recurringStartsOn-${masterId}`).value = todayStr();
+
+  const typeEl = el(`recurringType-${masterId}`);
+  const timeFields = el(`recurringTimeFields-${masterId}`);
+  const syncTimeFields = () => {
+    timeFields.style.display = typeEl.value === 'day_off' ? 'none' : '';
+  };
+  syncTimeFields();
+  typeEl.addEventListener('change', syncTimeFields);
+
+  loadCurrent(el(`recurringCurrent-${masterId}`));
+
+  el(`recurringSave-${masterId}`).addEventListener('click', async () => {
+    const ruleType = typeEl.value;
+    const weekdays = [...el(`recurringWeekdays-${masterId}`).querySelectorAll('input:checked')].map((c) => Number(c.value));
+    const note = el(`recurringNote-${masterId}`);
+    if (weekdays.length === 0) {
+      note.textContent = 'Отметьте хотя бы один день недели';
+      return;
+    }
+    const startTime = ruleType === 'break' ? timeSelectValue(`recurringStart-${masterId}`) : null;
+    const endTime = ruleType === 'break' ? timeSelectValue(`recurringEnd-${masterId}`) : null;
+    const startsOn = el(`recurringStartsOn-${masterId}`).value || todayStr();
+    const btn = el(`recurringSave-${masterId}`);
+    btn.disabled = true;
+    const originalLabel = btn.textContent;
+    btn.textContent = 'Сохраняю…';
+    try {
+      const res = await fetch(`${API}/schedule-recurring`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ masterId, ruleType, weekdays, startTime, endTime, startsOn }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      note.textContent = 'Сохранено - заменяет прежнее правило этого типа, если было';
+      loadCurrent(el(`recurringCurrent-${masterId}`));
+    } catch (err) {
+      note.textContent = `Не удалось сохранить: ${err.message}`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
     }
   });
 }
@@ -487,12 +656,25 @@ function wireWalkIn(staff, services, masterServices) {
   const hasSaleForm = saleForm && saleItemEl && saleAmountEl && saleSubmitBtn && saleResultEl;
 
   let currentMasterId = null;
-  const selected = new Set();
+  let selected = new Set();
+  const checkboxByService = new Map();
 
   const servicesFor = (masterId) =>
     masterServices
       .filter((r) => r.masterId === masterId)
       .map((r) => ({ ...r, name: services.find((s) => s.id === r.serviceId)?.name ?? r.serviceId }));
+
+  // Правка 03.08.2026: та же логика комплекса "стрижка+борода", что теперь у
+  // публичной записи (storage.js SERVICE_COMBOS) - выбор комплекса блокирует его
+  // компоненты, отдельный выбор обоих компонентов сам сворачивается в комплекс.
+  function syncCheckboxes() {
+    for (const [serviceId, input] of checkboxByService) {
+      const isSelected = selected.has(serviceId);
+      input.checked = isSelected;
+      input.disabled = !isSelected && isServiceBlockedByCombo(serviceId, selected);
+      input.closest('.service-check')?.classList.toggle('service-check--blocked', input.disabled);
+    }
+  }
 
   function renderSummary() {
     const rows = servicesFor(currentMasterId).filter((r) => selected.has(r.serviceId));
@@ -509,7 +691,8 @@ function wireWalkIn(staff, services, masterServices) {
 
   function renderPicker(masterId) {
     picker.innerHTML = '';
-    selected.clear();
+    selected = new Set();
+    checkboxByService.clear();
     const rows = servicesFor(masterId);
     if (rows.length === 0) {
       const hint = document.createElement('p');
@@ -541,9 +724,16 @@ function wireWalkIn(staff, services, masterServices) {
       meta.append(priceSpan, dot, durationSpan);
       span.append(nameSpan, meta);
       label.append(input, span);
+      checkboxByService.set(row.serviceId, input);
       input.addEventListener('change', () => {
+        if (isServiceBlockedByCombo(row.serviceId, selected)) {
+          input.checked = false; // защита от гонки клика раньше, чем disabled применился
+          return;
+        }
         if (input.checked) selected.add(row.serviceId);
         else selected.delete(row.serviceId);
+        selected = mergeServiceCombos(selected);
+        syncCheckboxes();
         renderSummary();
       });
       picker.appendChild(label);
@@ -680,6 +870,101 @@ function wireWalkIn(staff, services, masterServices) {
   }
 }
 
+// Правка 03.08.2026: карточка сотрудника "Сотрудники" (владелец/админ) держала
+// чекбоксы услуг мастера и поле длительности как чистую декорацию - ни одного
+// fetch, "включено"/"выключено" не переживало перезагрузку страницы, хотя
+// master_services в базе уже поддерживала это с самого Окна 8 (см. отчёт сессии
+// 03.08.2026). Контейнер должен быть <div class="service-picker" data-master-id="…">
+// (пустой, без статичных чекбоксов - их рисует эта функция). Только владелец
+// реально включает/выключает услугу и меняет длительность (`canEdit`) -
+// администратор/просмотр видят то же самое read-only, тот же уровень доступа, что
+// уже есть у wireMasterSelfDataTab для самого мастера.
+function wireMasterServiceEditors(staffRole, services, masterServices) {
+  const canEdit = staffRole === 'owner';
+  document.querySelectorAll('.service-picker[data-master-id]').forEach((container) => {
+    renderMasterServiceEditor(container, container.dataset.masterId, canEdit, services, masterServices);
+  });
+}
+
+function renderMasterServiceEditor(container, masterId, canEdit, services, masterServices) {
+  container.innerHTML = '';
+  container.classList.toggle('readonly', !canEdit);
+  const assigned = new Map(masterServices.filter((r) => r.masterId === masterId).map((r) => [r.serviceId, r]));
+  const note = document.createElement('p');
+  note.className = 'section-hint';
+  note.hidden = true;
+
+  for (const service of services) {
+    const row = assigned.get(service.id);
+    const label = document.createElement('label');
+    label.className = 'service-check';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = Boolean(row);
+    input.disabled = !canEdit;
+
+    const span = document.createElement('span');
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'sc-name';
+    nameSpan.textContent = service.name;
+    const meta = document.createElement('span');
+    meta.className = 'sc-meta';
+    const priceSpan = document.createElement('span');
+    priceSpan.className = 'sc-price';
+    priceSpan.textContent = formatMoney(row ? row.price : service.price);
+    const dot = document.createElement('span');
+    dot.className = 'sc-dot';
+    dot.textContent = '·';
+    const durationSpan = document.createElement('span');
+    durationSpan.className = 'sc-duration';
+    const durationInput = document.createElement('input');
+    durationInput.type = 'number';
+    durationInput.min = '5';
+    durationInput.step = '5';
+    durationInput.className = 'sc-duration-input';
+    durationInput.value = row ? row.durationMin : service.durationMin;
+    durationInput.disabled = !canEdit || !row;
+    durationInput.addEventListener('click', (e) => e.stopPropagation());
+    const durationUnit = document.createElement('span');
+    durationUnit.className = 'sc-duration-unit';
+    durationUnit.textContent = 'мин';
+    durationSpan.append(durationInput, durationUnit);
+    meta.append(priceSpan, dot, durationSpan);
+    span.append(nameSpan, meta);
+    label.append(input, span);
+    container.appendChild(label);
+
+    if (!canEdit) continue;
+
+    async function save(enabled) {
+      const body = enabled ? { enabled: true, durationMin: Number(durationInput.value) || service.durationMin } : { enabled: false };
+      try {
+        const res = await fetch(`${API}/master-services/${encodeURIComponent(masterId)}/${encodeURIComponent(service.id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`master-services → ${res.status}`);
+        note.hidden = true;
+      } catch (err) {
+        input.checked = !enabled; // откат чекбокса, если сервер/сеть отказали
+        durationInput.disabled = !canEdit || !input.checked;
+        note.hidden = false;
+        note.textContent = `Не удалось сохранить «${service.name}»: ${err.message}`;
+      }
+    }
+
+    input.addEventListener('change', () => {
+      durationInput.disabled = !input.checked;
+      save(input.checked);
+    });
+    durationInput.addEventListener('change', () => {
+      if (input.checked) save(true);
+    });
+  }
+  container.appendChild(note);
+}
+
 // Задача Б.1 (ТЗ-готовность-к-продакшену, 01.08.2026): crm-master.html хардкодил
 // "Алиовсад" в location-badge / шапке колонки календаря / скрытом bk-master / тексте
 // комиссии - ломалось для Мамедхана и Екатерины, если они реально зайдут в свой
@@ -802,24 +1087,53 @@ async function wireScheduleSelfView(staff) {
 // Форма "Запросить перерыв/выходной" (Задача 3, Окно 14) - POST /schedule-requests,
 // владелец подтверждает/отклоняет отдельно (PATCH .../decision), время реально
 // блокируется от онлайн-записи только после подтверждения.
+const SCHEDULE_CATEGORY_LABEL = {
+  otgul: 'Отгул разовый',
+  otpusk: 'Отпуск',
+  pereryv_standard: 'Перерыв (стандартный)',
+  vyhodnoy_standard: 'Выходной (стандартный)',
+};
+const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+// Правка 03.08.2026 - 4 категории вместо 2 (Перерыв/Выходной): Влад попросил
+// "стандартный" перерыв/выходной по дням недели, который сам действует на каждый
+// будущий рабочий день, не только разовую дату. otgul/otpusk - та же механика,
+// что была всегда (одна дата или диапазон), pereryv_standard/vyhodnoy_standard -
+// новое: дни недели вместо дат, действует бессрочно (см. schedule_recurring_rules,
+// getEffectiveBreaks в server.mjs).
 function wireScheduleRequestForm(staff) {
   const submitBtn = el('reqSubmitBtn');
-  const typeEl = el('reqType');
+  const categoryEl = el('reqCategory');
   const fromEl = el('reqDateFrom');
   const toEl = el('reqDateTo');
-  const startEl = el('reqStartTime');
-  const endEl = el('reqEndTime');
+  const fromLabelEl = el('reqDateFromLabel');
+  const dateToWrap = el('reqDateToWrap');
+  const fullDayWrap = el('reqFullDayWrap');
+  const fullDayEl = el('reqFullDay');
+  const timeFields = el('reqTimeFields');
+  const weekdaysWrap = el('reqWeekdaysWrap');
   const commentEl = el('reqComment');
   const resultEl = el('reqResult');
-  const timeFields = el('reqTimeFields');
   const historyEl = el('reqHistory');
-  if (!submitBtn || !typeEl || !fromEl || !toEl || !startEl || !endEl || !commentEl || !resultEl || !historyEl) return;
+  if (!submitBtn || !categoryEl || !fromEl || !toEl || !commentEl || !resultEl || !historyEl) return;
 
-  const syncTimeFields = () => {
-    if (timeFields) timeFields.style.display = typeEl.value === 'day_off' ? 'none' : '';
+  renderTimeSelect('reqStartTime-slot', 'reqStartTime', '13:00');
+  renderTimeSelect('reqEndTime-slot', 'reqEndTime', '14:00');
+
+  const syncFields = () => {
+    const category = categoryEl.value;
+    const isRecurring = category === 'pereryv_standard' || category === 'vyhodnoy_standard';
+    const isOtgul = category === 'otgul';
+    if (fromLabelEl) fromLabelEl.textContent = isRecurring ? 'Действует с' : 'Дата';
+    if (dateToWrap) dateToWrap.style.display = isRecurring ? 'none' : '';
+    if (fullDayWrap) fullDayWrap.style.display = isOtgul ? '' : 'none';
+    const showTime = category === 'pereryv_standard' || (isOtgul && !fullDayEl?.checked);
+    if (timeFields) timeFields.style.display = showTime ? '' : 'none';
+    if (weekdaysWrap) weekdaysWrap.style.display = isRecurring ? '' : 'none';
   };
-  syncTimeFields();
-  typeEl.addEventListener('change', syncTimeFields);
+  syncFields();
+  categoryEl.addEventListener('change', syncFields);
+  fullDayEl?.addEventListener('change', syncFields);
 
   async function loadHistory() {
     try {
@@ -831,8 +1145,14 @@ function wireScheduleRequestForm(staff) {
       const statusLabel = { pending: 'На рассмотрении', approved: 'Одобрено', rejected: 'Отклонено' };
       historyEl.innerHTML = rows
         .map((r) => {
-          const period = r.requestType === 'day_off' ? `${r.dateFrom}–${r.dateTo} (выходной)` : `${r.dateFrom} ${r.startTime}–${r.endTime}`;
-          return `<div class="break-row"><span class="note">${period} · ${statusLabel[r.status] ?? r.status}${r.ownerComment ? ' · ' + r.ownerComment : ''}</span></div>`;
+          const isRecurring = r.category === 'pereryv_standard' || r.category === 'vyhodnoy_standard';
+          const period = isRecurring
+            ? `по ${(r.weekdays || []).map((d) => WEEKDAY_SHORT[d - 1]).join(',')}${r.requestType === 'break' ? ` ${r.startTime}–${r.endTime}` : ''} с ${r.dateFrom}`
+            : r.requestType === 'day_off'
+              ? `${r.dateFrom}–${r.dateTo}`
+              : `${r.dateFrom} ${r.startTime}–${r.endTime}`;
+          const label = SCHEDULE_CATEGORY_LABEL[r.category] ?? (r.requestType === 'day_off' ? 'Выходной' : 'Перерыв');
+          return `<div class="break-row"><span class="note">${label} · ${period} · ${statusLabel[r.status] ?? r.status}${r.ownerComment ? ' · ' + r.ownerComment : ''}</span></div>`;
         })
         .join('');
     } catch (err) {
@@ -844,27 +1164,40 @@ function wireScheduleRequestForm(staff) {
   if (submitBtn.dataset.wired) return;
   submitBtn.dataset.wired = '1';
   submitBtn.addEventListener('click', async () => {
-    const requestType = typeEl.value;
+    const category = categoryEl.value;
+    const isRecurring = category === 'pereryv_standard' || category === 'vyhodnoy_standard';
     const dateFrom = fromEl.value;
-    const dateTo = toEl.value || dateFrom;
     if (!dateFrom) {
       resultEl.textContent = 'Укажите дату';
       return;
     }
-    if (requestType === 'break' && (!startEl.value || !endEl.value)) {
+    const requestType = category === 'pereryv_standard' ? 'break' : category === 'vyhodnoy_standard' ? 'day_off' : fullDayEl?.checked ? 'day_off' : 'break';
+    const startTime = requestType === 'break' ? timeSelectValue('reqStartTime') : null;
+    const endTime = requestType === 'break' ? timeSelectValue('reqEndTime') : null;
+    if (requestType === 'break' && (!startTime || !endTime)) {
       resultEl.textContent = 'Укажите время перерыва (с и до)';
       return;
+    }
+    let weekdays = null;
+    if (isRecurring) {
+      weekdays = [...weekdaysWrap.querySelectorAll('input[type=checkbox]:checked')].map((c) => Number(c.value));
+      if (weekdays.length === 0) {
+        resultEl.textContent = 'Отметьте хотя бы один день недели';
+        return;
+      }
     }
     try {
       const res = await fetch(`${API}/schedule-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({
+          category,
           requestType,
           dateFrom,
-          dateTo,
-          startTime: requestType === 'break' ? startEl.value : null,
-          endTime: requestType === 'break' ? endEl.value : null,
+          dateTo: isRecurring ? null : toEl.value || dateFrom,
+          startTime,
+          endTime,
+          weekdays,
           masterComment: commentEl.value.trim() || null,
         }),
       });
@@ -1099,3 +1432,44 @@ export function initCrmAuth(requiredRole) {
 
 // Реэкспорт для отладки в консоли из макета, если понадобится (не используется UI).
 window.__crmAuthDebug = { getMasters, getServices };
+
+// Правка 03.08.2026: кнопка "Клиент не пришёл" в bd-1 (assets/mockup-crm.js,
+// onclick="toggleNoShow(this)") - раньше это была декоративная "Фактическое время
+// прихода", ничего не сохранявшая. Реально переключает статус брони через уже
+// существующий PATCH /bookings/:id/status ('no_show' инкрементирует
+// clients.no_show_streak на сервере, обратный клик - откатывает, см. server.mjs).
+// mockup-crm.js - классический (не module) скрипт, но браузер делит один и тот же
+// глобальный объект между ним и этим модулем, поэтому updateNoShowUi() (объявлена
+// там) видна здесь как обычная глобальная функция без явного window.-префикса.
+window.toggleNoShow = async function toggleNoShow(btn) {
+  const panel = document.getElementById('bd-1');
+  const bookingId = panel?.dataset.bookingId;
+  const note = document.getElementById('bk-noshow-note');
+  if (note) note.hidden = true;
+  if (!panel || !bookingId) return;
+
+  const wasNoShow = panel.dataset.realStatus === 'no_show';
+  const nextStatus = wasNoShow ? 'planned' : 'no_show';
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify({ status: nextStatus }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    panel.dataset.realStatus = nextStatus;
+    // Сервер уже применил инкремент/декремент no_show_streak - отражаем ту же
+    // арифметику локально, чтобы баннер обновился без перезагрузки страницы.
+    const prevStreak = parseInt(panel.dataset.noshowStreak, 10) || 0;
+    panel.dataset.noshowStreak = String(wasNoShow ? Math.max(prevStreak - 1, 0) : prevStreak + 1);
+    if (typeof updateNoShowUi === 'function') updateNoShowUi();
+  } catch (err) {
+    if (note) {
+      note.hidden = false;
+      note.textContent = `Не удалось сохранить: ${err.message}`;
+    }
+  } finally {
+    btn.disabled = false;
+  }
+};

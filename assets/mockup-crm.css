@@ -489,6 +489,16 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .role-option .rd { color: var(--text-muted); font-size: 0.74rem; line-height: 1.4; }
 .role-option:has(input:checked) { border-color: var(--accent); background: rgba(198,161,91,0.1); }
 
+/* Правка 03.08.2026: выбор дней недели для "стандартного" перерыва/выходного -
+   компактные пилюли (7 коротких меток), не полноразмерные role-option карточки. */
+.weekday-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+.weekday-option {
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+  cursor: pointer; position: relative; font-size: 0.82rem; min-width: 40px; text-align: center;
+}
+.weekday-option input { position: absolute; opacity: 0; }
+.weekday-option:has(input:checked) { border-color: var(--accent); background: rgba(198,161,91,0.1); color: var(--accent); font-weight: 600; }
+
 .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .toggle-row:last-child { border-bottom: none; }
 .toggle-row .tr-label { font-size: 0.86rem; }
@@ -551,6 +561,9 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 }
 .service-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; }
 .service-check:has(input:checked) { border-color: var(--accent); background: rgba(198,161,91,0.08); color: var(--text); }
+/* Правка 03.08.2026: услуга заблокирована выбранным комплексом ("стрижка+борода" и
+   т.п., см. storage.js SERVICE_COMBOS) - не пример, а реальное disabled-состояние. */
+.service-check--blocked { opacity: 0.4; cursor: not-allowed; }
 .service-check .sc-name { font-weight: 600; display: block; }
 /* цена и длительность - одной строкой через точку, как единое "мета"-описание услуги,
    а не два отдельных ряда мелкого текста (визуальная правка Влада 28.07.2026 - было
@@ -654,11 +667,6 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .appt-warn { color: #FFD2CC; font-weight: 700; margin-right: 2px; }
 
 .appt--break { cursor: default; }
-
-/* ---------- фактическое время прихода: кнопка + исправимое поле ---------- */
-.arrival-row { display: flex; gap: 8px; align-items: center; }
-.arrival-row input { flex: 1; min-width: 0; }
-.arrival-row .btn-sm { white-space: nowrap; flex-shrink: 0; }
 
 /* ---------- изменить/добавить услугу в карточке записи ---------- */
 .service-edit { margin: 2px 0 16px; border: 1px dashed var(--border); border-radius: 8px; padding: 2px 14px; }

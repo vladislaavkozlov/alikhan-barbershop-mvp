@@ -1,4 +1,13 @@
-import { createStore, createHttpBackend, getMasters, getServices, priceLabelForMaster, priceForMaster } from './storage.js';
+import {
+  createStore,
+  createHttpBackend,
+  getMasters,
+  getServices,
+  priceLabelForMaster,
+  priceForMaster,
+  mergeServiceCombos,
+  isServiceBlockedByCombo,
+} from './storage.js';
 
 // Если на странице задан window.ALIKHAN_API_URL (см. index.html) - работаем через
 // реальный бэкенд на Amvera, синхронизация между устройствами реальна. Если нет -
@@ -50,6 +59,52 @@ let selectedMaster = null;
 let selectedServiceIds = new Set();
 let selectedSlot = null;
 let selectedDate = null;
+
+// Правка 03.08.2026: раньше форма всегда показывала весь каталог из storage.js
+// каждому мастеру одинаково - клиент мог выбрать услугу, которую конкретный
+// мастер вообще не оказывает (сервер такую бронь отклонял с unknown_master_service,
+// но до этого момента виджет вёл себя как будто всё в порядке). Реальный список
+// "кто что оказывает" + личная длительность/цена - master_services, читаем один
+// раз при загрузке страницы (24 строки максимум, не тяжелее одного лишнего fetch).
+let masterServices = [];
+let masterServicesReady = false;
+// Текущий список услуг ВЫБРАННОГО мастера (id/name/price/durationMin) - источник
+// для renderServiceSummary/refreshSlots, чтобы не пересчитывать fallback-логику
+// servicesForMaster в нескольких местах.
+let currentServiceList = [];
+let currentServiceButtons = new Map();
+
+async function loadMasterServices() {
+  if (!window.ALIKHAN_API_URL) return; // офлайн-демо режим - остаёмся на легаси-фоллбэке ниже
+  try {
+    const res = await fetch(`${window.ALIKHAN_API_URL}/master-services`);
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (Array.isArray(rows) && rows.length > 0) {
+      masterServices = rows;
+      masterServicesReady = true;
+    }
+  } catch {
+    // сеть недоступна - masterServicesReady остаётся false, servicesForMaster
+    // откатывается на старое поведение (весь каталог), виджет не ломается
+  }
+}
+
+// masterServicesReady=false (ещё не загрузилось или сеть недоступна) - старое
+// поведение: весь каталог с общей ценой/длительностью, как было до этой правки.
+function servicesForMaster(masterId) {
+  if (!masterServicesReady) {
+    return services.map((s) => ({ id: s.id, name: s.name, price: priceForMaster(masterId, s.id), durationMin: s.durationMin }));
+  }
+  return masterServices
+    .filter((r) => r.masterId === masterId)
+    .map((r) => ({
+      id: r.serviceId,
+      name: services.find((s) => s.id === r.serviceId)?.name ?? r.serviceId,
+      price: r.price,
+      durationMin: r.durationMin,
+    }));
+}
 
 const today = new Date();
 let calViewYear = today.getFullYear();
@@ -309,7 +364,19 @@ function renderMasterOptions() {
 function renderServiceOptions() {
   selectedServiceIds = new Set();
   serviceGrid.replaceChildren();
-  for (const service of services) {
+  currentServiceButtons = new Map();
+  currentServiceList = selectedMaster ? servicesForMaster(selectedMaster.id) : [];
+
+  if (selectedMaster && currentServiceList.length === 0) {
+    const hint = document.createElement('p');
+    hint.className = 'section-hint';
+    hint.textContent = 'У этого мастера пока не назначено ни одной услуги - выберите другого мастера';
+    serviceGrid.append(hint);
+    renderServiceSummary();
+    return;
+  }
+
+  for (const service of currentServiceList) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'option-card';
@@ -319,37 +386,55 @@ function renderServiceOptions() {
     name.className = 'opt-name';
     name.textContent = service.name;
 
-    // Цена ИМЕННО выбранного мастера (Окно 10, разд.17.2 ТЗ) - Елизавета дешевле
-    // Алиовсад/Мамедхана на большинстве услуг, priceLabelForMaster сама возвращает
-    // общую цену, если override для этого мастера не задан.
-    const priceLabel = selectedMaster ? priceLabelForMaster(selectedMaster.id, service.id) : service.priceLabel;
-
     const meta = document.createElement('span');
     meta.className = 'opt-meta';
-    meta.textContent = `${priceLabel} · ${service.durationLabel}`;
+    meta.textContent = `${service.price.toLocaleString('ru-RU')}₽ · ${service.durationMin} мин`;
 
     btn.append(name, meta);
     // Окно 11: клик ДОБАВЛЯЕТ/УБИРАЕТ услугу из набора, не заменяет выбор целиком -
     // это реальный множественный выбор (чекбоксы), не радиокнопки под видом чекбоксов.
+    // Правка 03.08.2026: комплекс "стрижка+борода" и его 4 компонента (см.
+    // storage.js SERVICE_COMBOS) теперь взаимоисключающие в обе стороны - выбор
+    // комплекса блокирует компоненты, а отдельный выбор обоих компонентов сам
+    // сворачивается в комплекс.
     btn.addEventListener('click', () => {
+      if (isServiceBlockedByCombo(service.id, selectedServiceIds)) return;
       if (selectedServiceIds.has(service.id)) {
         selectedServiceIds.delete(service.id);
       } else {
         selectedServiceIds.add(service.id);
       }
-      btn.classList.toggle('selected', selectedServiceIds.has(service.id));
-      btn.setAttribute('aria-pressed', String(selectedServiceIds.has(service.id)));
+      selectedServiceIds = mergeServiceCombos(selectedServiceIds);
+      syncServiceButtons();
       renderServiceSummary();
       refreshSlots();
       clearMsg();
     });
+    currentServiceButtons.set(service.id, btn);
     serviceGrid.append(btn);
   }
   renderServiceSummary();
 }
 
+// Перерисовывает selected/disabled состояние ВСЕХ карточек услуг сразу, не только
+// той, по которой кликнули - выбор комплекса должен визуально заблокировать его
+// компоненты, автослияние должно снять выделение с обоих компонентов и подсветить
+// комплекс, который сам не был кликнут напрямую.
+function syncServiceButtons() {
+  for (const [id, btn] of currentServiceButtons) {
+    const selected = selectedServiceIds.has(id);
+    const blocked = !selected && isServiceBlockedByCombo(id, selectedServiceIds);
+    btn.classList.toggle('selected', selected);
+    btn.setAttribute('aria-pressed', String(selected));
+    btn.disabled = blocked;
+    btn.classList.toggle('option-card--blocked', blocked);
+  }
+}
+
 // Живая сумма длительности/цены по всем отмеченным услугам ДО подтверждения записи
 // (Окно 11, п.3 промпта корректировки) - обновляется при каждом клике по услуге.
+// Правка 03.08.2026: цена/длительность берутся из currentServiceList (реальные
+// данные ВЫБРАННОГО мастера), не из общего каталога storage.js.
 function renderServiceSummary() {
   if (!serviceSummary) return;
   if (selectedServiceIds.size === 0) {
@@ -357,12 +442,9 @@ function renderServiceSummary() {
     serviceSummary.textContent = '';
     return;
   }
-  const chosen = services.filter((s) => selectedServiceIds.has(s.id));
+  const chosen = currentServiceList.filter((s) => selectedServiceIds.has(s.id));
   const totalDuration = chosen.reduce((sum, s) => sum + s.durationMin, 0);
-  const totalPrice = chosen.reduce((sum, s) => {
-    const price = selectedMaster ? priceForMaster(selectedMaster.id, s.id) : s.price;
-    return sum + price;
-  }, 0);
+  const totalPrice = chosen.reduce((sum, s) => sum + s.price, 0);
   serviceSummary.hidden = false;
   serviceSummary.textContent = `Выбрано услуг: ${chosen.length} · итого ${totalDuration} мин · ${totalPrice.toLocaleString('ru-RU')}₽`;
 }
@@ -408,8 +490,12 @@ async function refreshSlots() {
 
   const requestMaster = selectedMaster;
   // Окно 11: слот считается от СУММЫ длительностей всех выбранных услуг, не одной.
+  // Правка 03.08.2026: раньше здесь брался общий каталог storage.js (одна и та же
+  // длительность для всех мастеров) - реальный поиск свободного времени должен
+  // использовать личную длительность ИМЕННО этого мастера (currentServiceList),
+  // иначе виджет мог предложить слот, который сервер потом отклонит как overlap.
   const requestServiceIds = new Set(selectedServiceIds);
-  const totalDuration = services
+  const totalDuration = currentServiceList
     .filter((s) => requestServiceIds.has(s.id))
     .reduce((sum, s) => sum + s.durationMin, 0);
   const requestDate = date;
@@ -542,6 +628,14 @@ form.addEventListener('submit', async (event) => {
 renderPrice();
 renderMasters();
 renderMasterOptions();
+
+// Правка 03.08.2026: подгружаем реальные master_services после первой отрисовки
+// (мастера/цены общего прайса не зависят от этого запроса) - если пользователь
+// уже успел выбрать мастера, пока шёл fetch, перерисовываем список услуг заново
+// с реальными данными вместо legacy-фоллбэка.
+loadMasterServices().then(() => {
+  if (selectedMaster) renderServiceOptions();
+});
 
 for (const el of document.querySelectorAll('.section-head, .booking-shell, .contacts-grid > *, .philosophy-quote, .philosophy-story, .team-growth-grid > *')) {
   armReveal(el);

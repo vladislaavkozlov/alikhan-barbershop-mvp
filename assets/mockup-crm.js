@@ -22,21 +22,6 @@ window.MASTER_SERVICE_DURATION = {};
   });
 })();
 
-// Вызывается при вводе в поле минут внутри карточки сотрудника (вкладка "Сотрудники").
-// Обновляет общий объект длительностей и, если сейчас открыта карточка записи именно
-// этого мастера на эту услугу, сразу пересчитывает поле "Длительность услуги" там же -
-// видно вживую, без перезагрузки и без отдельного "Сохранить".
-function setMasterServiceDuration(input) {
-  const master = input.dataset.master;
-  const service = input.dataset.svc;
-  if (!master || !service) return;
-  if (!window.MASTER_SERVICE_DURATION[master]) window.MASTER_SERVICE_DURATION[master] = {};
-  const minutes = parseInt(input.value, 10);
-  window.MASTER_SERVICE_DURATION[master][service] = minutes > 0 ? minutes : null;
-  const bkMaster = document.getElementById('bk-master');
-  const bkService = document.getElementById('bk-service');
-  if (bkMaster) updateDuration(bkMaster.value, bkService ? bkService.value : '');
-}
 
 // Показывает длительность услуги для мастера открытой сейчас записи. service может
 // прийти как "Стрижка · 2000₽" (из data-service календаря) или просто "Стрижка"
@@ -68,6 +53,7 @@ function openBooking(el) {
   el.classList.add('appt--selected');
 
   const d = el.dataset;
+  const panel = document.getElementById('bd-1');
   const setVal = (id, val) => {
     const node = document.getElementById(id);
     if (node) node.value = val ?? '';
@@ -86,7 +72,6 @@ function openBooking(el) {
   setVal('bk-master', d.master);
   setVal('bk-service', d.service);
   setVal('bk-planned', d.planned);
-  setVal('bk-actual', d.actual || '-');
 
   const radio = document.getElementById('st-' + (d.status || 'wait'));
   if (radio) radio.checked = true;
@@ -94,10 +79,17 @@ function openBooking(el) {
   const confirmBox = document.getElementById('bconfirm');
   if (confirmBox) confirmBox.checked = d.confirmed === 'true';
 
-  const noshowBox = document.getElementById('bnoshow');
-  if (noshowBox) noshowBox.checked = d.noshow === 'true';
-  const banner = document.getElementById('bk-noshow-banner');
-  if (banner) banner.hidden = d.noshow !== 'true';
+  // Правка 03.08.2026: "Клиент не пришёл" теперь реальная кнопка (window.toggleNoShow,
+  // assets/crm-auth.js) вместо декоративного тумблера bnoshow - id брони и текущий
+  // РЕАЛЬНЫЙ статус (planned/done/no_show, не отображаемый wait/came/no) кладём на
+  // сам bd-1, чтобы кнопка знала, что сохранять и в какую сторону переключать.
+  if (panel) {
+    panel.dataset.bookingId = d.id || '';
+    panel.dataset.realStatus = d.realStatus || 'planned';
+    panel.dataset.noshowStreak = d.noshowStreak || '0';
+    panel.dataset.requiresPrepayment = d.requiresPrepayment || 'false';
+  }
+  updateNoShowUi();
 
   updateCommission(d.master, d.service);
   updateDuration(d.master, d.service);
@@ -111,10 +103,47 @@ function openBooking(el) {
   const comment = document.getElementById('bk-comment');
   if (comment) comment.value = d.comment || '';
 
-  const panel = document.getElementById('bd-1');
   if (panel) {
     panel.open = true;
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// Русское склонение числительного - "1 неявка" / "2 неявки" / "5 неявок".
+function ruPlural(n, one, few, many) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
+// Правка 03.08.2026: кнопка "Клиент не пришёл" (window.toggleNoShow, assets/crm-auth.js)
+// заменила декоративное "Фактическое время прихода" - это единственное место, которое
+// рисует её текущее состояние (label кнопки + баннер реальной истории неявок клиента).
+// Вызывается из openBooking() и из самого toggleNoShow() после успешного PATCH, чтобы
+// не перезагружать страницу для отражения нового состояния.
+function updateNoShowUi() {
+  const panel = document.getElementById('bd-1');
+  if (!panel) return;
+  const btn = document.getElementById('bk-noshow-btn');
+  if (btn) {
+    const isNoShow = panel.dataset.realStatus === 'no_show';
+    btn.textContent = isNoShow ? 'Отменить отметку неявки' : 'Клиент не пришёл';
+  }
+  const banner = document.getElementById('bk-noshow-banner');
+  if (banner) {
+    const streak = parseInt(panel.dataset.noshowStreak, 10) || 0;
+    if (streak > 0) {
+      banner.hidden = false;
+      const prepayNote = panel.dataset.requiresPrepayment === 'true' ? ' Действует правило предоплаты для следующей записи.' : '';
+      const textEl = banner.querySelector('span:last-child');
+      if (textEl) {
+        textEl.textContent = `У этого клиента ${streak} ${ruPlural(streak, 'неявка', 'неявки', 'неявок')} без предупреждения.${prepayNote}`;
+      }
+    } else {
+      banner.hidden = true;
+    }
   }
 }
 
@@ -204,22 +233,6 @@ function addVacationRow(btn) {
     <button class="remove-x" type="button" aria-label="Убрать отпуск" onclick="this.closest('.break-row').remove()">✕</button>
   `;
   list.appendChild(row);
-}
-
-// Кнопка "Клиент пришёл" - подставляет текущее время браузера в фактическое время
-// прихода (просто чтение локальных часов, не серверный расчёт) и переключает статус
-// на "Пришёл". Поле остаётся редактируемым - мастер может поправить время вручную,
-// если забыл нажать кнопку вовремя.
-function markArrived(btn) {
-  const input = document.getElementById('bk-actual');
-  if (input) {
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    input.value = `${hh}:${mm}`;
-  }
-  const came = document.getElementById('st-came');
-  if (came) came.checked = true;
 }
 
 // "✕" на строке "клиент не приходил N мес" (правка Влада 28.07.2026) - НЕ удаляет
@@ -325,6 +338,10 @@ function pickCustomSelectOption(option) {
   trigger.textContent = option.textContent;
   wrap.dataset.value = option.dataset.value || option.textContent;
   closeCustomSelect(wrap);
+  // Правка 03.08.2026: нужно реальным слушателям (time-picker перерывов/графика в
+  // assets/crm-auth.js) знать, что значение поменялось - раньше событие никто не
+  // слушал ("Закреплён за мастером" читает wrap.dataset.value по кнопке "Сохранить").
+  wrap.dispatchEvent(new CustomEvent('customselect:change', { bubbles: true, detail: { value: wrap.dataset.value } }));
 }
 document.addEventListener('click', (e) => {
   document.querySelectorAll('.custom-select.open').forEach((wrap) => {

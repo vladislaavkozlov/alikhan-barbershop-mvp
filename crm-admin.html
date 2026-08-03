@@ -423,13 +423,13 @@
               <input type="checkbox" id="bconfirm" checked>
               <label for="bconfirm">Клиент подтвердил запись (bookings.client_confirmed)</label>
             </div>
-            <div class="toggle-row">
-              <div><div class="tr-label">Клиент не пришёл без предупреждения</div><div class="tr-sub">Правило-пример: следующая запись этого клиента - только по предоплате</div></div>
-              <label class="switch"><input type="checkbox" id="bnoshow"><span class="track"></span><span class="knob"></span></label>
-            </div>
+            <!-- Правка 03.08.2026: тумблер "Клиент не пришёл без предупреждения" убран -
+                 дублировал ту же самую (тоже нерабочую) кнопку "Клиент пришёл" ниже, два
+                 разных элемента на одну и ту же отметку сбивали с толку. Осталась одна
+                 реальная кнопка в field-grid (bk-noshow-btn) - см. отчёт сессии 03.08.2026. -->
             <div class="noshow-banner" id="bk-noshow-banner" hidden>
               <span class="ico">⚠</span>
-              <span>У клиента уже есть неявка без предупреждения. Пример-правило: следующую запись система предложит оформить только с предоплатой</span>
+              <span></span>
             </div>
             <div class="birthday-banner">
               <span class="ico">🎂</span>
@@ -456,11 +456,9 @@
               <div class="field"><label>Плановое время</label><input id="bk-planned" value="11:00–12:00" readonly></div>
               <div class="field"><label>Длительность услуги у этого мастера <span class="badge badge-todo">разд.12 п.7,8</span></label><input id="bk-duration" value="60 мин" readonly></div>
               <div class="field">
-                <label>Фактическое время прихода</label>
-                <div class="arrival-row">
-                  <input id="bk-actual" value="11:05">
-                  <button class="btn btn-ghost btn-sm" type="button" onclick="markArrived(this)">Клиент пришёл</button>
-                </div>
+                <label>Статус визита</label>
+                <button id="bk-noshow-btn" class="btn btn-ghost btn-sm" type="button" onclick="toggleNoShow(this)">Клиент не пришёл</button>
+                <p class="commission-note" id="bk-noshow-note" hidden></p>
               </div>
               <div class="field">
                 <label>Комиссия мастера за запись</label>
@@ -549,16 +547,7 @@
                 <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label>
               </div>
               <p class="section-hint" style="margin:10px 0">Только просмотр - разворот решения от 27.07.2026 (правка Влада 28.07.2026): какие услуги умеет оказывать мастер, теперь решает только владелец, не админ. Показаны все 8 услуг заведения, галочка = мастер это умеет</p>
-              <div class="service-picker readonly">
-                <label class="service-check"><input type="checkbox" checked disabled><span><span class="sc-name">Стрижка</span><span class="sc-meta"><span class="sc-price">2000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Стрижка" value="40" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked disabled><span><span class="sc-name">Борода</span><span class="sc-meta"><span class="sc-price">1600₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Борода" value="30" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked disabled><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-meta"><span class="sc-price">3500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Комплекс стрижка+борода" value="60" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked disabled><span><span class="sc-name">Бритьё</span><span class="sc-meta"><span class="sc-price">1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Бритьё" value="40" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked disabled><span><span class="sc-name">Фирменная окантовка</span><span class="sc-meta"><span class="sc-price">1400₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Фирменная окантовка" value="30" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" disabled><span><span class="sc-name">Тонировка седых волос</span><span class="sc-meta"><span class="sc-price">от 1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Тонировка седых волос" value="60" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked disabled><span><span class="sc-name">Воск</span><span class="sc-meta"><span class="sc-price">от 500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Воск" value="15" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" disabled><span><span class="sc-name">СПА уход</span><span class="sc-meta"><span class="sc-price">3000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="СПА уход" value="60" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-              </div>
+              <div class="service-picker" data-master-id="master-1"></div>
 
               <h4>График (разд. 16.4)</h4>
               <div class="field-grid" style="max-width:420px">
@@ -582,6 +571,10 @@
                    формы редактирования. -->
               <p class="section-hint" style="margin:6px 0">Перерыв/выходной на сегодня - реальные, из базы (ставит владелец)</p>
               <div class="breaks-list" id="schedCurrent-master-1"><span class="note">загружаю…</span></div>
+
+              <h4 style="margin-top:18px">Перерыв/выходной "стандартный" <span class="badge badge-todo">новое, 03.08.2026</span></h4>
+              <p class="section-hint" style="margin:6px 0 10px">Действует на каждый подходящий день недели, пока не изменят - только просмотр (меняет владелец)</p>
+              <div id="recurringEditor-master-1"></div>
 
               <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
@@ -699,16 +692,7 @@
 
               <h4>Услуги</h4>
               <p class="section-hint" style="margin:0 0 10px">Только просмотр - какие услуги умеет оказывать мастер, решает владелец</p>
-              <div class="service-picker readonly">
-                <label class="service-check"><input type="checkbox" checked disabled><span><span class="sc-name">Стрижка</span><span class="sc-meta"><span class="sc-price">2000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Стрижка" value="40" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked disabled><span><span class="sc-name">Борода</span><span class="sc-meta"><span class="sc-price">1600₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Борода" value="30" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" disabled><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-meta"><span class="sc-price">3500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Комплекс стрижка+борода" value="60" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" disabled><span><span class="sc-name">Бритьё</span><span class="sc-meta"><span class="sc-price">1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Бритьё" value="40" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked disabled><span><span class="sc-name">Фирменная окантовка</span><span class="sc-meta"><span class="sc-price">1400₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Фирменная окантовка" value="30" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" disabled><span><span class="sc-name">Тонировка седых волос</span><span class="sc-meta"><span class="sc-price">от 1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Тонировка седых волос" value="60" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked disabled><span><span class="sc-name">Воск</span><span class="sc-meta"><span class="sc-price">от 500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Воск" value="15" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" disabled><span><span class="sc-name">СПА уход</span><span class="sc-meta"><span class="sc-price">3000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="СПА уход" value="60" disabled onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-              </div>
+              <div class="service-picker" data-master-id="master-2"></div>
               <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
                 <input type="radio" name="zp2-period" id="zp2p-day" checked>

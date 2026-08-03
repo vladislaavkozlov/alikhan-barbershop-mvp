@@ -514,13 +514,13 @@
               <input type="checkbox" id="bconfirm" checked>
               <label for="bconfirm">Клиент подтвердил запись (bookings.client_confirmed)</label>
             </div>
-            <div class="toggle-row">
-              <div><div class="tr-label">Клиент не пришёл без предупреждения</div><div class="tr-sub">Правило-пример: следующая запись этого клиента - только по предоплате</div></div>
-              <label class="switch"><input type="checkbox" id="bnoshow"><span class="track"></span><span class="knob"></span></label>
-            </div>
+            <!-- Правка 03.08.2026: тумблер "Клиент не пришёл без предупреждения" убран -
+                 дублировал ту же самую (тоже нерабочую) кнопку "Клиент пришёл" ниже, два
+                 разных элемента на одну и ту же отметку сбивали с толку. Осталась одна
+                 реальная кнопка в field-grid (bk-noshow-btn) - см. отчёт сессии 03.08.2026. -->
             <div class="noshow-banner" id="bk-noshow-banner" hidden>
               <span class="ico">⚠</span>
-              <span>У клиента уже есть неявка без предупреждения. Пример-правило: следующую запись система предложит оформить только с предоплатой - сама механика оплаты не в этом макете, отдельный вопрос</span>
+              <span></span>
             </div>
             <div class="birthday-banner">
               <span class="ico">🎂</span>
@@ -548,11 +548,9 @@
               <div class="field"><label>Плановое время</label><input id="bk-planned" value="10:00–10:40" readonly></div>
               <div class="field"><label>Длительность услуги у этого мастера <span class="badge badge-todo">разд.12 п.7,8</span></label><input id="bk-duration" value="40 мин" readonly></div>
               <div class="field">
-                <label>Фактическое время прихода</label>
-                <div class="arrival-row">
-                  <input id="bk-actual" value="10:03">
-                  <button class="btn btn-ghost btn-sm" type="button" onclick="markArrived(this)">Клиент пришёл</button>
-                </div>
+                <label>Статус визита</label>
+                <button id="bk-noshow-btn" class="btn btn-ghost btn-sm" type="button" onclick="toggleNoShow(this)">Клиент не пришёл</button>
+                <p class="commission-note" id="bk-noshow-note" hidden></p>
               </div>
               <div class="field">
                 <label>Комиссия мастера за запись</label>
@@ -652,16 +650,11 @@
                 <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label>
               </div>
               <p class="section-hint" style="margin:10px 0">Какие именно услуги - раньше был статичный список, теперь выбор чекбоксами (правка Влада 27.07.2026). У каждого мастера показаны все 8 услуг заведения (правка 28.07.2026 - раньше у части мастеров список по ошибке был неполным) - отметьте галочками, что умеет оказывать конкретный мастер; менять список может только владелец</p>
-              <div class="service-picker">
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Стрижка</span><span class="sc-meta"><span class="sc-price">2000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Стрижка" value="40" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Борода</span><span class="sc-meta"><span class="sc-price">1600₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Борода" value="30" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-meta"><span class="sc-price">3500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Комплекс стрижка+борода" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Бритьё</span><span class="sc-meta"><span class="sc-price">1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Бритьё" value="40" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Фирменная окантовка</span><span class="sc-meta"><span class="sc-price">1400₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Фирменная окантовка" value="30" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Тонировка седых волос</span><span class="sc-meta"><span class="sc-price">от 1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Тонировка седых волос" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Воск</span><span class="sc-meta"><span class="sc-price">от 500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="Воск" value="15" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">СПА уход</span><span class="sc-meta"><span class="sc-price">3000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Алиовсад" data-svc="СПА уход" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-              </div>
+              <!-- Правка 03.08.2026: раньше статичные чекбоксы (ни один не сохранял ничего) -
+                   теперь реальный редактор, рисует assets/crm-auth.js (wireMasterServiceEditors)
+                   из живой master_services, владелец реально включает/выключает услугу и
+                   меняет длительность (PUT /master-services/:masterId/:serviceId). -->
+              <div class="service-picker" data-master-id="master-1"></div>
               <p class="section-hint" style="margin:6px 0 0">Длительность - из подтверждённого прайса (уже в реальной базе, таблицы <code>services</code>/<code>master_services</code>, разд.12 п.7,8), сейчас одинаковая у всех трёх мастеров. Поле редактируемое - можно задать своё число именно этому мастеру, если он работает быстрее/медленнее среднего. Меняется здесь → видно в карточке записи ниже, когда открыта запись этого мастера на эту услугу</p>
 
               <h4>График (разд. 16.4)</h4>
@@ -695,11 +688,15 @@
               </div>
               <label class="dayoff-day" style="margin:8px 0"><input type="checkbox" id="schedDayOff-master-1"><span>Выходной весь день</span></label>
               <div class="field-grid" style="max-width:420px" id="schedTimeFields-master-1">
-                <div class="field"><label>Перерыв с</label><input type="text" id="schedStart-master-1" placeholder="13:00"></div>
-                <div class="field"><label>до</label><input type="text" id="schedEnd-master-1" placeholder="14:00"></div>
+                <div class="field"><label>Перерыв с</label><div id="schedStart-master-1-slot"></div></div>
+                <div class="field"><label>до</label><div id="schedEnd-master-1-slot"></div></div>
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-1">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-1"></p>
+
+              <h4 style="margin-top:18px">Перерыв/выходной "стандартный" <span class="badge badge-todo">новое, 03.08.2026</span></h4>
+              <p class="section-hint" style="margin:6px 0 10px">Действует сам на каждый подходящий день недели, пока не изменят - конкретный день по-прежнему можно поправить отдельно выше</p>
+              <div id="recurringEditor-master-1"></div>
 
               <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
@@ -827,16 +824,7 @@
               </div>
 
               <h4>Услуги</h4>
-              <div class="service-picker">
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Стрижка</span><span class="sc-meta"><span class="sc-price">2000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Стрижка" value="40" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Борода</span><span class="sc-meta"><span class="sc-price">1600₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Борода" value="30" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-meta"><span class="sc-price">3500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Комплекс стрижка+борода" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Бритьё</span><span class="sc-meta"><span class="sc-price">1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Бритьё" value="40" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Фирменная окантовка</span><span class="sc-meta"><span class="sc-price">1400₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Фирменная окантовка" value="30" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Тонировка седых волос</span><span class="sc-meta"><span class="sc-price">от 1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Тонировка седых волос" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Воск</span><span class="sc-meta"><span class="sc-price">от 500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="Воск" value="15" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">СПА уход</span><span class="sc-meta"><span class="sc-price">3000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Мамедхан" data-svc="СПА уход" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-              </div>
+              <div class="service-picker" data-master-id="master-2"></div>
               <h4>График</h4>
               <div class="field-grid" style="max-width:420px">
                 <div class="field"><label>Рабочее время с</label><input value="10:00" readonly></div>
@@ -852,11 +840,15 @@
               </div>
               <label class="dayoff-day" style="margin:8px 0"><input type="checkbox" id="schedDayOff-master-2"><span>Выходной весь день</span></label>
               <div class="field-grid" style="max-width:420px" id="schedTimeFields-master-2">
-                <div class="field"><label>Перерыв с</label><input type="text" id="schedStart-master-2" placeholder="13:00"></div>
-                <div class="field"><label>до</label><input type="text" id="schedEnd-master-2" placeholder="14:00"></div>
+                <div class="field"><label>Перерыв с</label><div id="schedStart-master-2-slot"></div></div>
+                <div class="field"><label>до</label><div id="schedEnd-master-2-slot"></div></div>
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-2">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-2"></p>
+
+              <h4 style="margin-top:18px">Перерыв/выходной "стандартный" <span class="badge badge-todo">новое, 03.08.2026</span></h4>
+              <p class="section-hint" style="margin:6px 0 10px">Действует сам на каждый подходящий день недели, пока не изменят - конкретный день по-прежнему можно поправить отдельно выше</p>
+              <div id="recurringEditor-master-2"></div>
               <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
                 <input type="radio" name="zp2-sub" id="zp2-calc" checked>
@@ -928,16 +920,7 @@
                 <label class="role-option"><input type="checkbox" name="role-ivan3" checked><span class="rn">Мастер</span><span class="rd">Свой день и заработок</span></label>
               </div>
               <h4>Услуги</h4>
-              <div class="service-picker">
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Стрижка</span><span class="sc-meta"><span class="sc-price">1500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Стрижка" value="40" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Борода</span><span class="sc-meta"><span class="sc-price">1200₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Борода" value="30" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox" checked><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-meta"><span class="sc-price">2500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Комплекс стрижка+борода" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Бритьё</span><span class="sc-meta"><span class="sc-price">1000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Бритьё" value="40" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Фирменная окантовка</span><span class="sc-meta"><span class="sc-price">1000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Фирменная окантовка" value="30" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Тонировка седых волос</span><span class="sc-meta"><span class="sc-price">от 1200₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Тонировка седых волос" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">Воск</span><span class="sc-meta"><span class="sc-price">от 500₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="Воск" value="15" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-                <label class="service-check"><input type="checkbox"><span><span class="sc-name">СПА уход</span><span class="sc-meta"><span class="sc-price">3000₽</span><span class="sc-dot">·</span><span class="sc-duration"><input type="number" min="5" step="5" class="sc-duration-input" data-master="Елизавета" data-svc="СПА уход" value="60" oninput="setMasterServiceDuration(this)" onclick="event.stopPropagation()"><span class="sc-duration-unit">мин</span></span></span></span></label>
-              </div>
+              <div class="service-picker" data-master-id="master-3"></div>
               <h4>График</h4>
               <div class="field-grid" style="max-width:420px">
                 <div class="field"><label>Рабочее время с</label><input value="10:00" readonly></div>
@@ -953,11 +936,15 @@
               </div>
               <label class="dayoff-day" style="margin:8px 0"><input type="checkbox" id="schedDayOff-master-3"><span>Выходной весь день</span></label>
               <div class="field-grid" style="max-width:420px" id="schedTimeFields-master-3">
-                <div class="field"><label>Перерыв с</label><input type="text" id="schedStart-master-3" placeholder="13:00"></div>
-                <div class="field"><label>до</label><input type="text" id="schedEnd-master-3" placeholder="14:00"></div>
+                <div class="field"><label>Перерыв с</label><div id="schedStart-master-3-slot"></div></div>
+                <div class="field"><label>до</label><div id="schedEnd-master-3-slot"></div></div>
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-3">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-3"></p>
+
+              <h4 style="margin-top:18px">Перерыв/выходной "стандартный" <span class="badge badge-todo">новое, 03.08.2026</span></h4>
+              <p class="section-hint" style="margin:6px 0 10px">Действует сам на каждый подходящий день недели, пока не изменят - конкретный день по-прежнему можно поправить отдельно выше</p>
+              <div id="recurringEditor-master-3"></div>
               <h4>Зарплата (разд. 17.3) <span class="badge badge-example">40% по умолчанию, редактируется</span></h4>
               <div class="field-grid">
                 <div class="field">

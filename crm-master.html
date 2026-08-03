@@ -310,9 +310,12 @@
               <input type="checkbox" id="bconfirm" checked>
               <label for="bconfirm">Клиент подтвердил запись</label>
             </div>
+            <!-- Правка 03.08.2026: текст больше не пример - реальная история неявок
+                 клиента (data-noshow-streak/data-requires-prepayment), заполняет
+                 updateNoShowUi() в assets/mockup-crm.js. -->
             <div class="noshow-banner" id="bk-noshow-banner" hidden>
               <span class="ico">⚠</span>
-              <span>У этого клиента уже есть неявка без предупреждения - следующая запись только по предоплате (правило ставит владелец/администратор, здесь только видно)</span>
+              <span></span>
             </div>
             <div class="birthday-banner">
               <span class="ico">🎂</span>
@@ -328,11 +331,9 @@
               <div class="field"><label>Плановое время</label><input id="bk-planned" value="10:00–10:40" readonly></div>
               <div class="field"><label>Длительность услуги у этого мастера <span class="badge badge-todo">разд.12 п.7,8</span></label><input id="bk-duration" value="40 мин" readonly></div>
               <div class="field">
-                <label>Фактическое время прихода</label>
-                <div class="arrival-row">
-                  <input id="bk-actual" value="10:03">
-                  <button class="btn btn-ghost btn-sm" type="button" onclick="markArrived(this)">Клиент пришёл</button>
-                </div>
+                <label>Статус визита</label>
+                <button id="bk-noshow-btn" class="btn btn-ghost btn-sm" type="button" onclick="toggleNoShow(this)">Клиент не пришёл</button>
+                <p class="commission-note" id="bk-noshow-note" hidden></p>
               </div>
               <div class="field">
                 <label>Моя комиссия за запись</label>
@@ -514,18 +515,36 @@
               <div id="selfScheduleBreaks" class="breaks-list"></div>
               <p class="section-hint" id="selfScheduleNote" style="margin:10px 0"></p>
 
-              <h4 style="margin-top:18px">Запросить перерыв или выходной</h4>
-              <p class="section-hint" style="margin:6px 0 10px">Владелец получит уведомление и подтвердит или отклонит - время блокируется от онлайн-записи только после подтверждения</p>
+              <h4 style="margin-top:18px">Запросить изменение графика</h4>
+              <p class="section-hint" style="margin:6px 0 10px">Владелец получит уведомление и подтвердит или отклонит - время блокируется от онлайн-записи только после подтверждения. "Стандартные" варианты действуют на каждый подходящий день недели, пока их не изменят - конкретный день всё равно можно поправить отдельно выше в "Текущий график"</p>
               <div class="field-grid">
                 <div class="field"><label>Тип</label>
-                  <select id="reqType"><option value="break">Перерыв (часы)</option><option value="day_off">Выходной (весь день)</option></select>
+                  <select id="reqCategory">
+                    <option value="otgul">Отгул разовый</option>
+                    <option value="otpusk">Отпуск</option>
+                    <option value="pereryv_standard">Перерыв (стандартный)</option>
+                    <option value="vyhodnoy_standard">Выходной (стандартный)</option>
+                  </select>
                 </div>
-                <div class="field"><label>Дата с</label><input type="date" id="reqDateFrom"></div>
-                <div class="field"><label>Дата по</label><input type="date" id="reqDateTo"></div>
+                <div class="field" id="reqDateFromWrap"><label id="reqDateFromLabel">Дата</label><input type="date" id="reqDateFrom"></div>
+                <div class="field" id="reqDateToWrap"><label>Дата по (если на несколько дней)</label><input type="date" id="reqDateTo"></div>
               </div>
+              <label class="dayoff-day" id="reqFullDayWrap" style="margin:8px 0"><input type="checkbox" id="reqFullDay"><span>На весь день</span></label>
               <div class="field-grid" id="reqTimeFields">
-                <div class="field"><label>Время с</label><input type="text" id="reqStartTime" placeholder="13:00"></div>
-                <div class="field"><label>Время до</label><input type="text" id="reqEndTime" placeholder="14:00"></div>
+                <div class="field"><label>Время с</label><div id="reqStartTime-slot"></div></div>
+                <div class="field"><label>Время до</label><div id="reqEndTime-slot"></div></div>
+              </div>
+              <div class="field" id="reqWeekdaysWrap">
+                <label>Дни недели</label>
+                <div class="weekday-picker" id="reqWeekdays">
+                  <label class="weekday-option"><input type="checkbox" value="1">Пн</label>
+                  <label class="weekday-option"><input type="checkbox" value="2">Вт</label>
+                  <label class="weekday-option"><input type="checkbox" value="3">Ср</label>
+                  <label class="weekday-option"><input type="checkbox" value="4">Чт</label>
+                  <label class="weekday-option"><input type="checkbox" value="5">Пт</label>
+                  <label class="weekday-option"><input type="checkbox" value="6">Сб</label>
+                  <label class="weekday-option"><input type="checkbox" value="7">Вс</label>
+                </div>
               </div>
               <div class="field"><label>Комментарий</label><input type="text" id="reqComment" placeholder="например «врач»"></div>
               <button class="btn btn-ghost btn-sm" type="button" id="reqSubmitBtn">Отправить запрос</button>

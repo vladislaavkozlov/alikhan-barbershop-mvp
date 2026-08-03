@@ -83,10 +83,16 @@ function buildApptCard(booking, { masterName, services, priceOf }) {
   const isNoShow = booking.status === 'no_show';
   const warn = isNoShow ? '<span class="appt-warn">⚠</span>' : '';
 
+  // Правка 03.08.2026: data-id раньше не передавался вообще - openBooking() не
+  // имела способа узнать РЕАЛЬНЫЙ id брони, чтобы что-то сохранить обратно (кнопка
+  // "Клиент пришёл" была декорацией именно из-за этого пробела, не только из-за
+  // отсутствия fetch). data-noshow-streak/data-requires-prepayment - тот же уровень
+  // видимости, что уже есть у остальных client-полей (owner/admin, не master).
   return `<div class="appt ${cssClass}" style="${positionStyle(booking.startTime, booking.endTime)}" tabindex="0" onclick="openBooking(this)"
-       data-client="${escapeHtml(clientName)}" data-phone="${escapeHtml(booking.clientPhone || '')}" data-master="${escapeHtml(masterName)}"
-       data-service="${escapeHtml(priceLabel)}" data-planned="${escapeHtml(planned)}" data-actual=""
-       data-status="${dataStatus}" data-confirmed="${booking.clientConfirmed ? 'true' : 'false'}" data-noshow="${isNoShow ? 'true' : 'false'}">
+       data-id="${escapeHtml(booking.id)}" data-client="${escapeHtml(clientName)}" data-phone="${escapeHtml(booking.clientPhone || '')}" data-master="${escapeHtml(masterName)}"
+       data-service="${escapeHtml(priceLabel)}" data-planned="${escapeHtml(planned)}"
+       data-status="${dataStatus}" data-real-status="${escapeHtml(booking.status)}" data-confirmed="${booking.clientConfirmed ? 'true' : 'false'}" data-noshow="${isNoShow ? 'true' : 'false'}"
+       data-noshow-streak="${booking.clientNoShowStreak ?? 0}" data-requires-prepayment="${booking.requiresPrepayment ? 'true' : 'false'}">
     <span class="t">${escapeHtml(planned)}</span><span class="c">${warn}${escapeHtml(clientName)} · ${escapeHtml(nameLabel)}</span>
   </div>`;
 }
