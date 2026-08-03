@@ -466,6 +466,7 @@
   .cal-day.disabled{ opacity: 0.28; cursor: not-allowed; color: var(--text-muted); }
   .cal-day.today:not(.selected){ border-color: var(--accent); }
   .cal-day-empty{ aspect-ratio: 1; }
+  .cal-limit-hint{ margin: 8px 0 0; font-size: 0.78rem; color: var(--text-muted); text-align: center; }
   .option-card{
     display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
     text-align: left; min-width: 150px; flex: 1 1 150px;
@@ -712,6 +713,7 @@
               <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
             </div>
             <div id="cal-grid" class="cal-grid"></div>
+            <p id="cal-limit-hint" class="cal-limit-hint" hidden>Запись открыта на 60 дней вперёд</p>
           </div>
         </div>
 

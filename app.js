@@ -51,6 +51,7 @@ const calPrev = document.getElementById('cal-prev');
 const calNext = document.getElementById('cal-next');
 const calMonthLabel = document.getElementById('cal-month-label');
 const calGrid = document.getElementById('cal-grid');
+const calLimitHint = document.getElementById('cal-limit-hint');
 
 let selectedMaster = null;
 // Окно 11 (баг найден Владом 30.07.2026): клиент должен иметь возможность выбрать
@@ -110,6 +111,14 @@ const today = new Date();
 let calViewYear = today.getFullYear();
 let calViewMonth = today.getMonth();
 
+const MAX_BOOKING_DAYS_AHEAD = 60;
+
+function maxBookingDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + MAX_BOOKING_DAYS_AHEAD);
+  return d;
+}
+
 // scroll-reveal is progressive enhancement only - reduced-motion users get the plain static page
 const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const revealObserver = REDUCE_MOTION ? null : new IntersectionObserver((entries) => {
@@ -153,6 +162,11 @@ function renderCalendar() {
   calMonthLabel.textContent = label;
   calPrev.disabled = calViewYear === today.getFullYear() && calViewMonth === today.getMonth();
 
+  const maxDate = maxBookingDate();
+  const atMaxMonth = calViewYear === maxDate.getFullYear() && calViewMonth === maxDate.getMonth();
+  calNext.disabled = atMaxMonth;
+  calLimitHint.hidden = !atMaxMonth;
+
   calGrid.replaceChildren();
   const firstWeekday = (new Date(calViewYear, calViewMonth, 1).getDay() + 6) % 7;
   for (let i = 0; i < firstWeekday; i++) {
@@ -162,6 +176,7 @@ function renderCalendar() {
   }
 
   const todayIso = todayStr();
+  const maxIso = isoDate(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate());
   const total = daysInMonth(calViewYear, calViewMonth);
   for (let day = 1; day <= total; day++) {
     const iso = isoDate(calViewYear, calViewMonth, day);
@@ -169,8 +184,9 @@ function renderCalendar() {
     btn.type = 'button';
     btn.className = 'cal-day';
     btn.textContent = String(day);
+    btn.dataset.iso = iso;
 
-    if (iso < todayIso) {
+    if (iso < todayIso || iso > maxIso) {
       btn.classList.add('disabled');
       btn.disabled = true;
     }
