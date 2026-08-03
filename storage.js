@@ -373,7 +373,11 @@ export function createStore(backend = defaultBackend()) {
     for (let start = windowStart; start + serviceDurationMin <= windowEnd; start += stepMin) {
       if (start <= nowMinutes) continue;
       const end = start + serviceDurationMin;
-      const overlapsExisting = existing.some((b) => intervalsOverlap(start, end, b.startTime, b.endTime));
+      // Отменённая бронь (status:'cancelled') раньше тоже считалась занятостью -
+      // найдено при проверке этого же фикса: тестовая отменённая бронь навсегда
+      // блокировала своё время. Сервер (server.mjs createBookingTx) уже исключает
+      // cancelled из своей проверки пересечений - здесь та же логика, для симметрии.
+      const overlapsExisting = existing.some((b) => b.status !== 'cancelled' && intervalsOverlap(start, end, b.startTime, b.endTime));
       const overlapsBreak = breaks.some((b) => intervalsOverlap(start, end, b.startTime, b.endTime));
       if (!overlapsExisting && !overlapsBreak) {
         slots.push(minutesToTime(start));
