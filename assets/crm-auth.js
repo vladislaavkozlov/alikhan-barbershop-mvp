@@ -567,9 +567,10 @@ function buildWeeklyDayRow(prefix, wd, day, canEdit) {
         <div class="field"><label>Работает с</label><div id="${prefix}-${wd}-start-slot"></div></div>
         <div class="field"><label>до</label><div id="${prefix}-${wd}-end-slot"></div></div>
       </div>
-      <label class="dayoff-day" id="${prefix}-${wd}-breakToggleWrap" style="margin:6px 0;${isWorking ? '' : 'display:none'}">
-        <input type="checkbox" id="${prefix}-${wd}-breakOn" ${hasBreak ? 'checked' : ''}><span>Перерыв</span>
-      </label>
+      <div class="toggle-row" id="${prefix}-${wd}-breakToggleWrap" style="${isWorking ? '' : 'display:none'}">
+        <div class="tr-label">Перерыв</div>
+        <label class="switch"><input type="checkbox" id="${prefix}-${wd}-breakOn" ${hasBreak ? 'checked' : ''}><span class="track"></span><span class="knob"></span></label>
+      </div>
       <div class="field-grid" id="${prefix}-${wd}-breakFields" style="max-width:420px;${isWorking && hasBreak ? '' : 'display:none'}">
         <div class="field"><label>Перерыв с</label><div id="${prefix}-${wd}-breakStart-slot"></div></div>
         <div class="field"><label>до</label><div id="${prefix}-${wd}-breakEnd-slot"></div></div>
