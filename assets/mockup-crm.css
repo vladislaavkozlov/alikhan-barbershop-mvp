@@ -494,6 +494,12 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
 .weekly-day-row:last-of-type { border-bottom: none; }
 .weekly-day-row .toggle-row { border-bottom: none; padding: 0 0 8px; }
 .weekly-day-row .tr-label { font-weight: 600; }
+/* Правка 03.08.2026 (уточнение после Окна 16): ползунок "рабочий/выходной" сам по
+   себе не давал понять, что день стал выходным - строка выглядела так же, только
+   без полей ниже. Добавлен явный бейдж "Выходной" + приглушение строки. */
+.day-off-badge { color: var(--wood); font-size: 0.74rem; font-style: italic; font-weight: 600; }
+.weekly-day-row.is-off { background: var(--surface-2); border-radius: 8px; padding-left: 10px; padding-right: 10px; }
+.weekly-day-row.is-off .tr-label { color: var(--text-muted); }
 .field .masked { color: var(--text-muted); font-style: italic; }
 .confirm-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .confirm-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }

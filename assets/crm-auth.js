@@ -555,9 +555,12 @@ function buildWeeklyDayRow(prefix, wd, day, canEdit) {
     return `<div class="break-row"><span class="note" style="flex:1">${WEEKDAY_SHORT[wd - 1]}: ${desc}</span></div>`;
   }
   return `
-    <div class="weekly-day-row" data-weekday="${wd}">
+    <div class="weekly-day-row${isWorking ? '' : ' is-off'}" id="${prefix}-${wd}-row" data-weekday="${wd}">
       <div class="toggle-row">
-        <div class="tr-label">${WEEKDAY_SHORT[wd - 1]}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="tr-label">${WEEKDAY_SHORT[wd - 1]}</div>
+          <span class="day-off-badge" id="${prefix}-${wd}-offBadge" style="${isWorking ? 'display:none' : ''}">Выходной</span>
+        </div>
         <label class="switch"><input type="checkbox" id="${prefix}-${wd}-working" ${isWorking ? 'checked' : ''}><span class="track"></span><span class="knob"></span></label>
       </div>
       <div class="field-grid" id="${prefix}-${wd}-fields" style="max-width:420px;${isWorking ? '' : 'display:none'}">
@@ -579,12 +582,16 @@ function wireWeeklyDayRow(prefix, wd, day) {
   renderTimeSelect(`${prefix}-${wd}-breakStart-slot`, `${prefix}-${wd}-breakStart`, day?.breakStart || '13:00');
   renderTimeSelect(`${prefix}-${wd}-breakEnd-slot`, `${prefix}-${wd}-breakEnd`, day?.breakEnd || '14:00');
   const workingEl = el(`${prefix}-${wd}-working`);
+  const rowEl = el(`${prefix}-${wd}-row`);
+  const offBadgeEl = el(`${prefix}-${wd}-offBadge`);
   const fieldsEl = el(`${prefix}-${wd}-fields`);
   const breakToggleWrap = el(`${prefix}-${wd}-breakToggleWrap`);
   const breakOnEl = el(`${prefix}-${wd}-breakOn`);
   const breakFieldsEl = el(`${prefix}-${wd}-breakFields`);
   const syncWorking = () => {
     const working = workingEl.checked;
+    rowEl.classList.toggle('is-off', !working);
+    offBadgeEl.style.display = working ? 'none' : '';
     fieldsEl.style.display = working ? '' : 'none';
     breakToggleWrap.style.display = working ? '' : 'none';
     breakFieldsEl.style.display = working && breakOnEl.checked ? '' : 'none';
