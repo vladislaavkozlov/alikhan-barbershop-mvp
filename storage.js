@@ -226,8 +226,23 @@ export function createHttpBackend(apiBaseUrl, getToken) {
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ masterId, serviceIds, date, startTime, clientName, clientPhone }),
       });
-      if (res.status === 409) return { ok: false, reason: 'overlap' };
+      if (res.status === 409) {
+        // Раньше любой 409 подписывался как 'overlap' независимо от настоящей
+        // причины (schedule_blocked/past_time от сервера тоже приходили сюда) -
+        // теперь берём реальный reason из тела ответа, app.js показывает разный текст.
+        const data = await res.json().catch(() => ({}));
+        return { ok: false, reason: data.reason || 'overlap' };
+      }
       if (!res.ok) throw new Error(`storage.js: POST /bookings → ${res.status}`);
+      return res.json();
+    },
+    // Баг Влада (02.08.2026): публичный виджет не знал про реальные перерывы
+    // мастера - GET /schedule теперь разрешён анонимно с обязательными masterId+date
+    // (api/server.mjs). Без токена (публичный сайт) authHeaders() просто вернёт {}.
+    async getSchedule({ masterId, date }) {
+      const params = new URLSearchParams({ masterId, date });
+      const res = await fetch(`${apiBaseUrl}/schedule?${params.toString()}`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(`storage.js: GET /schedule → ${res.status}`);
       return res.json();
     },
   };
@@ -318,17 +333,49 @@ export function createStore(backend = defaultBackend()) {
     return all.filter((b) => (date ? b.date === date : true) && (masterId ? b.masterId === masterId : true));
   }
 
+  // Баг Влада (02.08.2026): getFreeSlots считала свободное время только по
+  // фиксированному окну 10:00-20:00 и существующим броням - реальные перерывы
+  // мастера (schedule_breaks) вообще не проверялись, сервер их знает и отклоняет
+  // бронь (schedule_blocked, server.mjs createBookingTx), но виджет всё равно
+  // показывал такие слоты кликабельными. Локальный (не rich) бэкенд не умеет
+  // getSchedule - тестовый/офлайн режим просто не фильтрует по перерывам, overlap-
+  // проверка на сервере (когда он есть) всё равно последний рубеж защиты.
+  async function getBreaksFor(masterId, dateStr) {
+    if (typeof backend.getSchedule !== 'function') return [];
+    try {
+      const shifts = await backend.getSchedule({ masterId, date: dateStr });
+      const shift = shifts.find((s) => s.date === dateStr);
+      return shift?.breaks ?? [];
+    } catch {
+      return []; // не блокируем виджет, если перерывы не удалось получить
+    }
+  }
+
   async function getFreeSlots(masterId, dateStr, serviceDurationMin, stepMin = 15) {
     const master = findMaster(masterId);
     const windowStart = toMinutes(master.workWindow.start);
     const windowEnd = toMinutes(master.workWindow.end);
-    const existing = await listBookings({ date: dateStr, masterId });
+    const [existing, breaks] = await Promise.all([
+      listBookings({ date: dateStr, masterId }),
+      getBreaksFor(masterId, dateStr),
+    ]);
+
+    // Тот же баг: 10:00 предлагался как свободный слот, даже когда на часах уже
+    // 13:38 сегодня же. dateStr - "YYYY-MM-DD" в местном времени барбершопа,
+    // сравниваем с локальным временем БРАУЗЕРА клиента - для реальных посетителей
+    // из Ставрополя это то же самое время, никакого отдельного пересчёта пояса не
+    // нужно (в отличие от сервера, чей часовой пояс не гарантирован).
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const nowMinutes = dateStr === todayStr ? now.getHours() * 60 + now.getMinutes() : -1;
 
     const slots = [];
     for (let start = windowStart; start + serviceDurationMin <= windowEnd; start += stepMin) {
+      if (start <= nowMinutes) continue;
       const end = start + serviceDurationMin;
       const overlapsExisting = existing.some((b) => intervalsOverlap(start, end, b.startTime, b.endTime));
-      if (!overlapsExisting) {
+      const overlapsBreak = breaks.some((b) => intervalsOverlap(start, end, b.startTime, b.endTime));
+      if (!overlapsExisting && !overlapsBreak) {
         slots.push(minutesToTime(start));
       }
     }
