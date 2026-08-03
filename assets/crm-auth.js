@@ -99,8 +99,8 @@ function bookingPrice(booking, priceOf) {
 // Окно 10 (30.07.2026, разд.17.2/17.3 ТЗ): раньше цена бралась из общего /services
 // (один прайс на всех) и ставка была захардкожена 0.45 для всех не-владельцев -
 // оба предположения не подтвердились. Цена теперь по мастеру (/master-services,
-// Екатерина дешевле Алиовсада/Мамедхана), ставка тоже по мастеру (/payroll-settings,
-// master_payroll_settings: 100% у Алиовсада и Мамедхана, 40% по умолчанию у Екатерины,
+// Елизавета дешевле Алиовсада/Мамедхана), ставка тоже по мастеру (/payroll-settings,
+// master_payroll_settings: 100% у Алиовсада и Мамедхана, 40% по умолчанию у Елизаветы,
 // редактируется владельцем) - обе таблицы уже фильтруют выдачу по роли на сервере.
 async function renderLiveProof(staff) {
   const panel = el('liveProof');
@@ -163,7 +163,7 @@ async function renderLiveProof(staff) {
 
     // Владелец/админ: карточка КАЖДОГО мастера в "Сотрудники" → "Расчёт ЗП → За
     // день" - реальная сумма по его же броням сегодня, своя цена и своя ставка.
-    // master-1/2/3 = порядок мастеров в /staff (Алиовсад/Мамедхан/Екатерина в макете -
+    // master-1/2/3 = порядок мастеров в /staff (Алиовсад/Мамедхан/Елизавета в макете -
     // косметические имена поверх этих id).
     ['master-1', 'master-2', 'master-3'].forEach((masterId, idx) => {
       const cardEl = el(`payrollMaster${idx + 1}Day`);
@@ -197,7 +197,7 @@ async function renderLiveProof(staff) {
       }
     }
 
-    // Владелец: поле "Ставка от выручки, %" в карточке Екатерины (Окно 10,
+    // Владелец: поле "Ставка от выручки, %" в карточке Елизаветы (Окно 10,
     // разд.17.3 ТЗ) - реальное, читает и пишет master_payroll_settings. Не
     // автоматический порог 40→50%, владелец меняет число сам, когда сочтёт нужным.
     const pctInput = el('elizavetaPctInput');
@@ -235,6 +235,7 @@ async function renderLiveProof(staff) {
     await renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson });
 
     wirePortfolioEditors(staffList);
+    ['master-1', 'master-2', 'master-3'].forEach((masterId) => wireScheduleEditor(masterId, fetchJson));
     wireWalkIn(staff, services, masterServices);
     wireMasterSelfView(staff, pctOf);
     wireMasterSelfDataTab(staff, services, masterServices, pctOf);
@@ -293,6 +294,156 @@ function wirePortfolioEditors(staffList) {
         if (noteEl) noteEl.textContent = `Не удалось сохранить: ${err.message}`;
       }
     });
+  });
+}
+
+// Влад (03.08.2026): "+ Добавить перерыв"/"+ Добавить отпуск" в карточке
+// сотрудника (Окно 9) были рисунком - только дописывали DOM, ничего не сохраняли,
+// поэтому перерыв "числился" в интерфейсе, но не блокировал онлайн-запись клиента
+// (реальный баг - "у Екатерины перерыв 13-14, но можно записаться на это время").
+// Реальная схема хранит перерыв ПО ДАТЕ (schedule_shifts на пару master_id+date,
+// не как повторяющееся правило "каждый день 13-14") - значит и редактор владельца
+// должен просить дату, не изображать вечное еженедельное расписание. Пишет
+// напрямую в POST /schedule (owner/admin, сервер уже сам уведомит через
+// notifications, если пересечётся с реальной записью клиента - schedule_conflict).
+// Элементов может не быть на странице (crm-master.html/страницы без карточки этого
+// мастера) - тогда для конкретного masterId просто no-op, тот же паттерн, что у
+// wirePortfolioEditors выше.
+function wireScheduleEditor(masterId, fetchJson) {
+  const currentEl = el(`schedCurrent-${masterId}`);
+  if (!currentEl) return;
+  const dateFromEl = el(`schedDateFrom-${masterId}`);
+  const saveBtn = el(`schedSave-${masterId}`);
+
+  // crm-admin.html: только просмотр (график ставит владелец) - нет формы
+  // редактирования на странице, просто показываем сегодняшние реальные данные.
+  if (!dateFromEl || !saveBtn) {
+    if (currentEl.dataset.wired) return;
+    currentEl.dataset.wired = '1';
+    fetchJson(`/schedule?masterId=${masterId}&date=${todayStr()}`)
+      .then((shifts) => {
+        const shift = shifts.find((s) => s.date === todayStr());
+        const isFullDayOff = shift?.breaks?.some((b) => b.startTime <= '10:00' && b.endTime >= '20:00');
+        if (!shift || !shift.breaks?.length) {
+          currentEl.innerHTML = '<span class="note">Сегодня перерывов/выходного не задано (стандартные часы 10:00-20:00)</span>';
+        } else if (isFullDayOff) {
+          currentEl.innerHTML = '<div class="break-row"><span class="note" style="flex:1">Выходной весь день</span></div>';
+        } else {
+          currentEl.innerHTML = shift.breaks
+            .map((b) => `<div class="break-row"><span class="note" style="flex:1">Перерыв ${b.startTime}–${b.endTime}</span></div>`)
+            .join('');
+        }
+      })
+      .catch((err) => {
+        currentEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+      });
+    return;
+  }
+
+  const dateToEl = el(`schedDateTo-${masterId}`);
+  const dayOffEl = el(`schedDayOff-${masterId}`);
+  const timeFieldsEl = el(`schedTimeFields-${masterId}`);
+  const startEl = el(`schedStart-${masterId}`);
+  const endEl = el(`schedEnd-${masterId}`);
+  const noteEl = el(`schedNote-${masterId}`);
+  if (saveBtn.dataset.wired) return;
+  saveBtn.dataset.wired = '1';
+
+  dateFromEl.value = todayStr();
+
+  async function loadCurrent() {
+    const date = dateFromEl.value || todayStr();
+    currentEl.innerHTML = '<span class="note">загружаю…</span>';
+    try {
+      const shifts = await fetchJson(`/schedule?masterId=${masterId}&date=${date}`);
+      const shift = shifts.find((s) => s.date === date);
+      const isFullDayOff = shift?.breaks?.some((b) => b.startTime <= '10:00' && b.endTime >= '20:00');
+      if (!shift || !shift.breaks?.length) {
+        currentEl.innerHTML = '<span class="note">На эту дату перерывов/выходного не задано (стандартные часы 10:00-20:00)</span>';
+      } else if (isFullDayOff) {
+        currentEl.innerHTML = '<div class="break-row"><span class="note" style="flex:1">Выходной весь день</span><button class="remove-x" type="button" aria-label="Убрать" data-clear-date="' + date + '">✕</button></div>';
+      } else {
+        currentEl.innerHTML = shift.breaks
+          .map((b) => `<div class="break-row"><span class="note" style="flex:1">Перерыв ${b.startTime}–${b.endTime}</span><button class="remove-x" type="button" aria-label="Убрать" data-clear-date="${date}">✕</button></div>`)
+          .join('');
+      }
+      currentEl.querySelectorAll('[data-clear-date]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            await fetch(`${API}/schedule`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+              body: JSON.stringify({ masterId, date: btn.dataset.clearDate, startTime: '10:00', endTime: '20:00', breaks: [] }),
+            });
+            loadCurrent();
+          } catch (err) {
+            if (noteEl) noteEl.textContent = `Не удалось убрать: ${err.message}`;
+          }
+        });
+      });
+    } catch (err) {
+      currentEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+    }
+  }
+  loadCurrent();
+  dateFromEl.addEventListener('change', loadCurrent);
+
+  const syncTimeFields = () => {
+    if (timeFieldsEl) timeFieldsEl.style.display = dayOffEl?.checked ? 'none' : '';
+  };
+  syncTimeFields();
+  dayOffEl?.addEventListener('change', syncTimeFields);
+
+  saveBtn.addEventListener('click', async () => {
+    const dateFrom = dateFromEl.value || todayStr();
+    const dateTo = dateToEl?.value || dateFrom;
+    if (dateTo < dateFrom) {
+      if (noteEl) noteEl.textContent = 'Дата "по" раньше даты "с"';
+      return;
+    }
+    const isDayOff = dayOffEl?.checked;
+    const breakStart = isDayOff ? '10:00' : startEl?.value.trim();
+    const breakEnd = isDayOff ? '20:00' : endEl?.value.trim();
+    if (!isDayOff && (!breakStart || !breakEnd)) {
+      if (noteEl) noteEl.textContent = 'Укажите время перерыва (с и до)';
+      return;
+    }
+    saveBtn.disabled = true;
+    const originalLabel = saveBtn.textContent;
+    saveBtn.textContent = 'Сохраняю…';
+    if (noteEl) noteEl.textContent = '';
+    try {
+      let totalConflicts = 0;
+      for (let d = new Date(`${dateFrom}T00:00:00Z`); d.toISOString().slice(0, 10) <= dateTo; d.setUTCDate(d.getUTCDate() + 1)) {
+        const dateStr = d.toISOString().slice(0, 10);
+        const res = await fetch(`${API}/schedule`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({
+            masterId,
+            date: dateStr,
+            startTime: '10:00',
+            endTime: '20:00',
+            breaks: [{ startTime: breakStart, endTime: breakEnd }],
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        totalConflicts += data.conflicts || 0;
+      }
+      if (noteEl) {
+        noteEl.textContent = totalConflicts
+          ? `Сохранено. На это время уже есть ${totalConflicts} реальных записей - в колокольчике уведомлений появилось, с кем связаться`
+          : 'Сохранено';
+      }
+      loadCurrent();
+    } catch (err) {
+      if (noteEl) noteEl.textContent = `Не удалось сохранить: ${err.message}`;
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = originalLabel;
+    }
   });
 }
 

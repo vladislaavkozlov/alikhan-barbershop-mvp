@@ -66,7 +66,7 @@
     <a href="index.html" class="brand">АЛИХАН</a>
     <span class="crm-tag">CRM · визуальный макет</span>
     <div class="nav-right">
-      <span class="location-badge">Ставрополь, ул. Андрея Голуба 16</span>
+      <span class="location-badge">Ставрополь, ул. Андрея Голуба 16 ст1</span>
       <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили">🔔<span class="notif-badge">3</span></button>
       <div class="msg-bell-wrap" style="position:relative">
         <button class="notif-bell" type="button" id="msgBell" aria-label="Уведомления о записях и графике">✉<span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
@@ -90,7 +90,7 @@
   <div class="live-proof" id="liveProof"><span class="lp-dot"></span><span>Проверяю связь с боевой базой…</span></div>
 
   <div class="banner">
-    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход и счётчики выше настоящие (тестовый контур). Календарь записей ниже реальный (Окно 15, 02.08.2026) - колонки мастеров строятся по факту из /staff, включая Екатерину (у Алихана одна точка, уточнено 01.08.2026, миграция 007_master3_location_fix.sql - админ реально видит всех троих). Разница с видом владельца: нет вкладки «Настройка ЗП», роль сотрудника — только просмотр (ставки не редактирует, их меняет только владелец).
+    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход и счётчики выше настоящие (тестовый контур). Календарь записей ниже реальный (Окно 15, 02.08.2026) - колонки мастеров строятся по факту из /staff, включая Елизавету (у Алихана одна точка, уточнено 01.08.2026, миграция 007_master3_location_fix.sql - админ реально видит всех троих). Разница с видом владельца: нет вкладки «Настройка ЗП», роль сотрудника — только просмотр (ставки не редактирует, их меняет только владелец).
   </div>
 
   <details class="staff-card" style="margin-bottom:20px">
@@ -575,23 +575,13 @@
                 <label class="dayoff-day"><input type="checkbox" checked><span>Сб</span></label>
                 <label class="dayoff-day"><input type="checkbox" checked><span>Вс</span></label>
               </div>
-              <div class="breaks-list">
-                <div class="break-row">
-                  <div class="field"><label>Перерыв с</label><input value="13:00" readonly></div>
-                  <div class="field"><label>до</label><input value="14:00" readonly></div>
-                  <span class="note">пример - время перерыва уточняется у Алихана (ТЗ разд.13)</span>
-                  <button class="remove-x" type="button" aria-label="Убрать перерыв" onclick="this.closest('.break-row').remove()">✕</button>
-                </div>
-              </div>
-              <button class="btn-ghost btn-sm" type="button" onclick="addBreakRow(this)">+ Добавить перерыв</button>
-
-              <h4 style="margin-top:22px">Отпуск</h4>
-              <div class="breaks-list">
-                <div class="break-row">
-                  <span class="note" style="flex:1">Отпусков пока не запланировано (пример)</span>
-                </div>
-              </div>
-              <button class="btn-ghost btn-sm" type="button" onclick="addVacationRow(this)">+ Добавить отпуск</button>
+              <!-- Влад (03.08.2026): раньше здесь была декоративная "+ Добавить перерыв" -
+                   рисовала DOM, ничего не сохраняла, перерыв "числился", но не блокировал
+                   запись. Админ - только просмотр (ставит/меняет график владелец, см.
+                   баннер вверху страницы) - показываем реальные данные на сегодня без
+                   формы редактирования. -->
+              <p class="section-hint" style="margin:6px 0">Перерыв/выходной на сегодня - реальные, из базы (ставит владелец)</p>
+              <div class="breaks-list" id="schedCurrent-master-1"><span class="note">загружаю…</span></div>
 
               <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
