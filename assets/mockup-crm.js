@@ -295,9 +295,11 @@ updateNotifBadge();
 function calcCustomPayroll(btn) {
   const panel = btn.closest('.seg-panel');
   if (!panel) return;
-  const dates = panel.querySelectorAll('input[type="date"]');
-  const from = dates[0] ? dates[0].value : '';
-  const to = dates[1] ? dates[1].value : '';
+  // Правка 03.08.2026 (Окно 16): было input[type="date"].value - теперь свой
+  // date-picker (.custom-date), значение читается из data-value, не .value.
+  const dates = panel.querySelectorAll('.custom-date');
+  const from = dates[0] ? dates[0].dataset.value : '';
+  const to = dates[1] ? dates[1].dataset.value : '';
   const amountEl = panel.querySelector('.payroll-sum .amount');
   const noteEl = panel.querySelector('.payroll-note');
   if (!from || !to) {
@@ -343,11 +345,96 @@ function pickCustomSelectOption(option) {
   // слушал ("Закреплён за мастером" читает wrap.dataset.value по кнопке "Сохранить").
   wrap.dispatchEvent(new CustomEvent('customselect:change', { bubbles: true, detail: { value: wrap.dataset.value } }));
 }
+// Свой date-picker (Окно 16, 03.08.2026) - по образцу .custom-select выше, но с
+// месячной сеткой вместо плоского списка. Заменяет нативный <input type="date">
+// (браузер/ОС рисует свой календарь мимо темы сайта - та же болезнь, что раньше
+// была у <select>). Панель рендерится лениво при первом открытии, не сразу при
+// построении - календарная сетка дороже плоского списка времени, а виджетов на
+// странице десятки (см. КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md).
+const DATE_WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+const DATE_MONTH_LABEL = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+function toggleCustomDate(trigger) {
+  const wrap = trigger.closest('.custom-date');
+  if (!wrap) return;
+  const alreadyOpen = wrap.classList.contains('open');
+  document.querySelectorAll('.custom-date.open').forEach(closeCustomDate);
+  document.querySelectorAll('.custom-select.open').forEach(closeCustomSelect);
+  if (!alreadyOpen) openCustomDate(wrap);
+}
+function openCustomDate(wrap) {
+  wrap.classList.add('open');
+  const panel = wrap.querySelector('.custom-date-panel');
+  if (!panel) return;
+  panel.hidden = false;
+  if (!panel.dataset.rendered) renderCustomDateCalendar(wrap);
+}
+function closeCustomDate(wrap) {
+  wrap.classList.remove('open');
+  const panel = wrap.querySelector('.custom-date-panel');
+  if (panel) panel.hidden = true;
+}
+function renderCustomDateCalendar(wrap) {
+  const panel = wrap.querySelector('.custom-date-panel');
+  if (!panel) return;
+  const year = Number(wrap.dataset.viewYear);
+  const month = Number(wrap.dataset.viewMonth); // 1-12
+  const selected = wrap.dataset.value;
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const firstWeekday = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7; // 0=Пн
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  let cells = '';
+  for (let i = 0; i < firstWeekday; i++) cells += '<span class="custom-date-cell custom-date-cell--empty"></span>';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${pad2(month)}-${pad2(day)}`;
+    const selectedCls = dateStr === selected ? ' selected' : '';
+    cells += `<button type="button" class="custom-date-cell${selectedCls}" onclick="pickCustomDateDay(this)" data-date="${dateStr}">${day}</button>`;
+  }
+  panel.innerHTML = `
+    <div class="custom-date-nav">
+      <button type="button" class="custom-date-nav-btn" onclick="shiftCustomDateMonth(this, -1)" aria-label="Предыдущий месяц">‹</button>
+      <span class="custom-date-month-label">${DATE_MONTH_LABEL[month - 1]} ${year}</span>
+      <button type="button" class="custom-date-nav-btn" onclick="shiftCustomDateMonth(this, 1)" aria-label="Следующий месяц">›</button>
+    </div>
+    <div class="custom-date-weekdays">${DATE_WEEKDAY_SHORT.map((d) => `<span>${d}</span>`).join('')}</div>
+    <div class="custom-date-grid">${cells}</div>`;
+  panel.dataset.rendered = '1';
+}
+function shiftCustomDateMonth(navBtn, delta) {
+  const wrap = navBtn.closest('.custom-date');
+  if (!wrap) return;
+  let year = Number(wrap.dataset.viewYear);
+  let month = Number(wrap.dataset.viewMonth) + delta;
+  if (month < 1) { month = 12; year -= 1; }
+  if (month > 12) { month = 1; year += 1; }
+  wrap.dataset.viewYear = String(year);
+  wrap.dataset.viewMonth = String(month);
+  renderCustomDateCalendar(wrap);
+}
+function pickCustomDateDay(dayBtn) {
+  const wrap = dayBtn.closest('.custom-date');
+  const trigger = wrap ? wrap.querySelector('.custom-date-trigger') : null;
+  if (!wrap || !trigger) return;
+  const dateStr = dayBtn.dataset.date;
+  const [y, m, d] = dateStr.split('-');
+  wrap.dataset.value = dateStr;
+  trigger.textContent = `${d}.${m}.${y}`;
+  wrap.querySelectorAll('.custom-date-cell.selected').forEach((c) => c.classList.remove('selected'));
+  dayBtn.classList.add('selected');
+  closeCustomDate(wrap);
+  wrap.dispatchEvent(new CustomEvent('customdate:change', { bubbles: true, detail: { value: dateStr } }));
+}
+
 document.addEventListener('click', (e) => {
   document.querySelectorAll('.custom-select.open').forEach((wrap) => {
     if (!wrap.contains(e.target)) closeCustomSelect(wrap);
   });
+  document.querySelectorAll('.custom-date.open').forEach((wrap) => {
+    if (!wrap.contains(e.target)) closeCustomDate(wrap);
+  });
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') document.querySelectorAll('.custom-select.open').forEach(closeCustomSelect);
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.custom-select.open').forEach(closeCustomSelect);
+    document.querySelectorAll('.custom-date.open').forEach(closeCustomDate);
+  }
 });

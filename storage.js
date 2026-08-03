@@ -376,25 +376,33 @@ export function createStore(backend = defaultBackend()) {
   // показывал такие слоты кликабельными. Локальный (не rich) бэкенд не умеет
   // getSchedule - тестовый/офлайн режим просто не фильтрует по перерывам, overlap-
   // проверка на сервере (когда он есть) всё равно последний рубеж защиты.
-  async function getBreaksFor(masterId, dateStr) {
-    if (typeof backend.getSchedule !== 'function') return [];
+  // Правка 03.08.2026 (Окно 16): раньше отсюда читались только breaks - рабочее окно
+  // всегда бралось из статичного master.workWindow (10:00-20:00 захардкожено в
+  // MASTERS выше). Теперь мастер может иметь свои часы на каждый день недели
+  // (master_weekly_schedule, GET /schedule уже отдаёт актуальные startTime/endTime) -
+  // окно тоже нужно брать оттуда, иначе виджет предложит слоты, которые сервер
+  // отклонит как schedule_blocked (createBookingTx теперь проверяет и границы окна).
+  async function getEffectiveWindowFor(masterId, dateStr) {
+    const master = findMaster(masterId);
+    const fallback = { startTime: master.workWindow.start, endTime: master.workWindow.end, breaks: [] };
+    if (typeof backend.getSchedule !== 'function') return fallback;
     try {
       const shifts = await backend.getSchedule({ masterId, date: dateStr });
       const shift = shifts.find((s) => s.date === dateStr);
-      return shift?.breaks ?? [];
+      if (!shift) return fallback;
+      return { startTime: shift.startTime || fallback.startTime, endTime: shift.endTime || fallback.endTime, breaks: shift.breaks ?? [] };
     } catch {
-      return []; // не блокируем виджет, если перерывы не удалось получить
+      return fallback; // не блокируем виджет, если график не удалось получить
     }
   }
 
   async function getFreeSlots(masterId, dateStr, serviceDurationMin, stepMin = 15) {
-    const master = findMaster(masterId);
-    const windowStart = toMinutes(master.workWindow.start);
-    const windowEnd = toMinutes(master.workWindow.end);
-    const [existing, breaks] = await Promise.all([
+    const [existing, { startTime: winStart, endTime: winEnd, breaks }] = await Promise.all([
       listBookings({ date: dateStr, masterId }),
-      getBreaksFor(masterId, dateStr),
+      getEffectiveWindowFor(masterId, dateStr),
     ]);
+    const windowStart = toMinutes(winStart);
+    const windowEnd = toMinutes(winEnd);
 
     // Тот же баг: 10:00 предлагался как свободный слот, даже когда на часах уже
     // 13:38 сегодня же. dateStr - "YYYY-MM-DD" в местном времени барбершопа,

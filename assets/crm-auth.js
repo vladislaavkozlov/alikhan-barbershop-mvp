@@ -71,6 +71,43 @@ function timeSelectValue(id) {
   return el(id)?.dataset.value || null;
 }
 
+// Правка 03.08.2026 (Окно 16) - свой date-picker вместо нативного <input type="date">
+// (см. КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md). Взаимодействие (открытие/закрытие,
+// месячная сетка, клик по дню) - assets/mockup-crm.js (toggleCustomDate и рядом),
+// тот же паттерн разделения, что уже есть у time-select выше. Формат value -
+// "YYYY-MM-DD", как у нативного input, чтобы не менять остальной код, который его
+// использует (сравнения дат строками уже работают в этом формате).
+function buildDateWidgetHtml(id, value) {
+  const v = value || todayStr();
+  const [y, m, d] = v.split('-');
+  return `<div class="custom-date" id="${id}" data-value="${v}" data-view-year="${y}" data-view-month="${m}">
+    <button type="button" class="custom-date-trigger" onclick="toggleCustomDate(this)">${d}.${m}.${y}</button>
+    <div class="custom-date-panel" hidden></div>
+  </div>`;
+}
+function renderDateSelect(slotOrId, valueId, value) {
+  const container = typeof slotOrId === 'string' ? el(slotOrId) : slotOrId;
+  if (!container) return;
+  container.innerHTML = buildDateWidgetHtml(valueId, value);
+}
+function dateSelectValue(id) {
+  return el(id)?.dataset.value || null;
+}
+
+// Правка 03.08.2026 (Окно 16): "Задать период" в карточках ЗП (владелец/админ - по
+// мастеру, свой "Моя зарплата" у мастера) раньше был <input type="date"> без id,
+// найденный позиционно (первый/второй в панели) - calcCustomPayroll (mockup-crm.js)
+// и renderStaffPayrollPeriods ниже так и продолжают искать позиционно, просто внутри
+// .custom-date вместо input. Здесь только рендер виджетов в пустые слоты
+// .payroll-date-slot - один проход на всю страницу, сколько бы панелей ни было.
+function wirePayrollDateSlots() {
+  document.querySelectorAll('.payroll-date-slot').forEach((slot, i) => {
+    if (slot.dataset.wired) return;
+    slot.dataset.wired = '1';
+    renderDateSelect(slot, `payrollDate-${i}`, todayStr());
+  });
+}
+
 function buildLoginGate() {
   const div = document.createElement('div');
   div.id = 'loginGate';
@@ -273,12 +310,13 @@ async function renderLiveProof(staff) {
     wirePortfolioEditors(staffList);
     ['master-1', 'master-2', 'master-3'].forEach((masterId) => {
       wireScheduleEditor(masterId, fetchJson);
-      wireRecurringScheduleEditor(masterId, staff.role === 'owner');
+      wireWeeklyScheduleEditor(masterId, staff.role === 'owner', fetchJson);
     });
     wireWalkIn(staff, services, masterServices);
     wireMasterSelfView(staff, pctOf);
     wireMasterSelfDataTab(staff, services, masterServices, pctOf);
     wireMasterServiceEditors(staff.role, services, masterServices);
+    wirePayrollDateSlots();
 
     await renderRevenuePeriods(priceOf, pctOf, ownerIds);
     await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds);
@@ -352,12 +390,12 @@ function wirePortfolioEditors(staffList) {
 function wireScheduleEditor(masterId, fetchJson) {
   const currentEl = el(`schedCurrent-${masterId}`);
   if (!currentEl) return;
-  const dateFromEl = el(`schedDateFrom-${masterId}`);
+  const dateFromSlot = el(`schedDateFrom-${masterId}-slot`);
   const saveBtn = el(`schedSave-${masterId}`);
 
   // crm-admin.html: только просмотр (график ставит владелец) - нет формы
   // редактирования на странице, просто показываем сегодняшние реальные данные.
-  if (!dateFromEl || !saveBtn) {
+  if (!dateFromSlot || !saveBtn) {
     if (currentEl.dataset.wired) return;
     currentEl.dataset.wired = '1';
     fetchJson(`/schedule?masterId=${masterId}&date=${todayStr()}`)
@@ -380,14 +418,17 @@ function wireScheduleEditor(masterId, fetchJson) {
     return;
   }
 
-  const dateToEl = el(`schedDateTo-${masterId}`);
   const dayOffEl = el(`schedDayOff-${masterId}`);
   const timeFieldsEl = el(`schedTimeFields-${masterId}`);
   const noteEl = el(`schedNote-${masterId}`);
   if (saveBtn.dataset.wired) return;
   saveBtn.dataset.wired = '1';
 
-  dateFromEl.value = todayStr();
+  // Правка 03.08.2026 (Окно 16): было <input type="date"> - свой date-picker, тот же
+  // паттерн slot/value id, что уже есть у time-select ниже.
+  renderDateSelect(`schedDateFrom-${masterId}-slot`, `schedDateFrom-${masterId}`, todayStr());
+  renderDateSelect(`schedDateTo-${masterId}-slot`, `schedDateTo-${masterId}`, todayStr());
+  const dateFromEl = el(`schedDateFrom-${masterId}`);
   // Правка 03.08.2026: было <input type="text" placeholder="13:00"> - вручную
   // вписывать время не по теме сайта и без валидации. Тот же кастомный дропдаун,
   // что уже используется у "Закреплён за мастером".
@@ -395,7 +436,7 @@ function wireScheduleEditor(masterId, fetchJson) {
   renderTimeSelect(`schedEnd-${masterId}-slot`, `schedEnd-${masterId}`, '14:00');
 
   async function loadCurrent() {
-    const date = dateFromEl.value || todayStr();
+    const date = dateSelectValue(`schedDateFrom-${masterId}`) || todayStr();
     currentEl.innerHTML = '<span class="note">загружаю…</span>';
     try {
       const shifts = await fetchJson(`/schedule?masterId=${masterId}&date=${date}`);
@@ -430,7 +471,7 @@ function wireScheduleEditor(masterId, fetchJson) {
     }
   }
   loadCurrent();
-  dateFromEl.addEventListener('change', loadCurrent);
+  dateFromEl.addEventListener('customdate:change', loadCurrent);
 
   const syncTimeFields = () => {
     if (timeFieldsEl) timeFieldsEl.style.display = dayOffEl?.checked ? 'none' : '';
@@ -439,8 +480,8 @@ function wireScheduleEditor(masterId, fetchJson) {
   dayOffEl?.addEventListener('change', syncTimeFields);
 
   saveBtn.addEventListener('click', async () => {
-    const dateFrom = dateFromEl.value || todayStr();
-    const dateTo = dateToEl?.value || dateFrom;
+    const dateFrom = dateSelectValue(`schedDateFrom-${masterId}`) || todayStr();
+    const dateTo = dateSelectValue(`schedDateTo-${masterId}`) || dateFrom;
     if (dateTo < dateFrom) {
       if (noteEl) noteEl.textContent = 'Дата "по" раньше даты "с"';
       return;
@@ -490,130 +531,130 @@ function wireScheduleEditor(masterId, fetchJson) {
   });
 }
 
-// Правка Влада 03.08.2026: "стандартный" перерыв/выходной - действует сам на каждый
-// подходящий день недели, бессрочно, пока не изменят (schedule_recurring_rules,
-// getEffectiveBreaks в server.mjs). Владелец правит НАПРЯМУЮ (POST/DELETE
-// /schedule-recurring), без очереди согласования - тот же уровень доступа, что уже
-// есть у wireScheduleEditor для разовых дат. canEdit=false (crm-admin.html) - только
-// просмотр текущих правил, без формы и без кнопки отключения.
-function wireRecurringScheduleEditor(masterId, canEdit) {
-  const container = el(`recurringEditor-${masterId}`);
+// Окно 16 (03.08.2026) - единый блок "График работы": одна строка на каждый день
+// недели (переключатель рабочий/выходной, рабочее окно, опциональный перерыв), по
+// образцу Google Calendar "Working hours" (референс одобрен Владом). Заменяет
+// прежние разрозненные "Рабочее время" (readonly-заглушка) + декоративный
+// dayoff-picker + отдельный блок "Перерыв/выходной стандартный". Владелец правит
+// НАПРЯМУЮ (PUT /master-weekly-schedule, тот же уровень доступа, что у
+// wireScheduleEditor для разовых дат). canEdit=false (crm-admin.html) - только
+// просмотр, без формы. Мастер редактирует тот же UI в режиме ЗАПРОСА - см.
+// wireWeeklyRequestForm ниже (crm-master.html, отдельная функция - другой набор
+// прав и другой конечный эндпоинт, POST /schedule-requests).
+function buildWeeklyDayRow(prefix, wd, day, canEdit) {
+  const isWorking = day?.isWorking ?? true;
+  const hasBreak = !!day?.breakStart;
+  const workStart = day?.workStart || '10:00';
+  const workEnd = day?.workEnd || '20:00';
+  const breakStart = day?.breakStart || '13:00';
+  const breakEnd = day?.breakEnd || '14:00';
+  if (!canEdit) {
+    const desc = isWorking
+      ? `${workStart}–${workEnd}${hasBreak ? ` (перерыв ${breakStart}–${breakEnd})` : ''}`
+      : 'выходной';
+    return `<div class="break-row"><span class="note" style="flex:1">${WEEKDAY_SHORT[wd - 1]}: ${desc}</span></div>`;
+  }
+  return `
+    <div class="weekly-day-row" data-weekday="${wd}">
+      <div class="toggle-row">
+        <div class="tr-label">${WEEKDAY_SHORT[wd - 1]}</div>
+        <label class="switch"><input type="checkbox" id="${prefix}-${wd}-working" ${isWorking ? 'checked' : ''}><span class="track"></span><span class="knob"></span></label>
+      </div>
+      <div class="field-grid" id="${prefix}-${wd}-fields" style="max-width:420px;${isWorking ? '' : 'display:none'}">
+        <div class="field"><label>Работает с</label><div id="${prefix}-${wd}-start-slot"></div></div>
+        <div class="field"><label>до</label><div id="${prefix}-${wd}-end-slot"></div></div>
+      </div>
+      <label class="dayoff-day" id="${prefix}-${wd}-breakToggleWrap" style="margin:6px 0;${isWorking ? '' : 'display:none'}">
+        <input type="checkbox" id="${prefix}-${wd}-breakOn" ${hasBreak ? 'checked' : ''}><span>Перерыв</span>
+      </label>
+      <div class="field-grid" id="${prefix}-${wd}-breakFields" style="max-width:420px;${isWorking && hasBreak ? '' : 'display:none'}">
+        <div class="field"><label>Перерыв с</label><div id="${prefix}-${wd}-breakStart-slot"></div></div>
+        <div class="field"><label>до</label><div id="${prefix}-${wd}-breakEnd-slot"></div></div>
+      </div>
+    </div>`;
+}
+function wireWeeklyDayRow(prefix, wd, day) {
+  renderTimeSelect(`${prefix}-${wd}-start-slot`, `${prefix}-${wd}-start`, day?.workStart || '10:00');
+  renderTimeSelect(`${prefix}-${wd}-end-slot`, `${prefix}-${wd}-end`, day?.workEnd || '20:00');
+  renderTimeSelect(`${prefix}-${wd}-breakStart-slot`, `${prefix}-${wd}-breakStart`, day?.breakStart || '13:00');
+  renderTimeSelect(`${prefix}-${wd}-breakEnd-slot`, `${prefix}-${wd}-breakEnd`, day?.breakEnd || '14:00');
+  const workingEl = el(`${prefix}-${wd}-working`);
+  const fieldsEl = el(`${prefix}-${wd}-fields`);
+  const breakToggleWrap = el(`${prefix}-${wd}-breakToggleWrap`);
+  const breakOnEl = el(`${prefix}-${wd}-breakOn`);
+  const breakFieldsEl = el(`${prefix}-${wd}-breakFields`);
+  const syncWorking = () => {
+    const working = workingEl.checked;
+    fieldsEl.style.display = working ? '' : 'none';
+    breakToggleWrap.style.display = working ? '' : 'none';
+    breakFieldsEl.style.display = working && breakOnEl.checked ? '' : 'none';
+  };
+  workingEl.addEventListener('change', syncWorking);
+  breakOnEl.addEventListener('change', syncWorking);
+}
+function readWeeklyDayRow(prefix, wd) {
+  const isWorking = el(`${prefix}-${wd}-working`).checked;
+  const breakOn = isWorking && el(`${prefix}-${wd}-breakOn`).checked;
+  return {
+    weekday: wd,
+    isWorking,
+    workStart: isWorking ? timeSelectValue(`${prefix}-${wd}-start`) : null,
+    workEnd: isWorking ? timeSelectValue(`${prefix}-${wd}-end`) : null,
+    breakStart: breakOn ? timeSelectValue(`${prefix}-${wd}-breakStart`) : null,
+    breakEnd: breakOn ? timeSelectValue(`${prefix}-${wd}-breakEnd`) : null,
+  };
+}
+function wireWeeklyScheduleEditor(masterId, canEdit, fetchJson) {
+  const container = el(`weeklyEditor-${masterId}`);
   if (!container || container.dataset.wired) return;
   container.dataset.wired = '1';
+  const prefix = `weekly-${masterId}`;
 
-  async function loadCurrent(currentEl) {
-    try {
-      const rules = await fetchJson(`/schedule-recurring?masterId=${masterId}`);
-      if (!rules.length) {
-        currentEl.innerHTML = '<span class="note">Стандартных правил не задано</span>';
+  fetchJson(`/master-weekly-schedule?masterId=${masterId}`)
+    .then((rows) => {
+      const byWeekday = new Map(rows.map((r) => [r.weekday, r]));
+      const days = [1, 2, 3, 4, 5, 6, 7].map((wd) => byWeekday.get(wd) || null);
+
+      if (!canEdit) {
+        container.innerHTML = `<div class="breaks-list">${days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, false)).join('')}</div>`;
         return;
       }
-      currentEl.innerHTML = rules
-        .map((r) => {
-          const days = (r.weekdays || []).map((d) => WEEKDAY_SHORT[d - 1]).join(',');
-          const label = r.ruleType === 'day_off' ? `Выходной по ${days}` : `Перерыв ${r.startTime}–${r.endTime} по ${days}`;
-          const removeBtn = canEdit ? `<button class="remove-x" type="button" aria-label="Отключить" data-rule-id="${r.id}">✕</button>` : '';
-          return `<div class="break-row"><span class="note" style="flex:1">${label} (с ${r.startsOn})</span>${removeBtn}</div>`;
-        })
-        .join('');
-      if (!canEdit) return;
-      currentEl.querySelectorAll('[data-rule-id]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          try {
-            const res = await fetch(`${API}/schedule-recurring/${btn.dataset.ruleId}`, {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${getToken()}` },
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            loadCurrent(currentEl);
-          } catch (err) {
-            const note = el(`recurringNote-${masterId}`);
-            if (note) note.textContent = `Не удалось отключить: ${err.message}`;
-            btn.disabled = false;
-          }
-        });
+
+      container.innerHTML =
+        days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, true)).join('') +
+        `<button class="btn btn-ghost btn-sm" type="button" id="${prefix}-save" style="margin-top:10px">Сохранить график</button>
+         <p class="payroll-note" id="${prefix}-note"></p>`;
+      days.forEach((d, i) => wireWeeklyDayRow(prefix, i + 1, d));
+
+      el(`${prefix}-save`).addEventListener('click', async () => {
+        const weeklyChanges = [1, 2, 3, 4, 5, 6, 7].map((wd) => readWeeklyDayRow(prefix, wd));
+        const btn = el(`${prefix}-save`);
+        const note = el(`${prefix}-note`);
+        btn.disabled = true;
+        const originalLabel = btn.textContent;
+        btn.textContent = 'Сохраняю…';
+        try {
+          const res = await fetch(`${API}/master-weekly-schedule`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+            body: JSON.stringify({ masterId, weeklyChanges }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          note.textContent = data.conflicts
+            ? `Сохранено. На новое расписание уже есть ${data.conflicts} реальных записей вне графика - в колокольчике уведомлений появилось, с кем связаться`
+            : 'Сохранено';
+        } catch (err) {
+          note.textContent = `Не удалось сохранить: ${err.message}`;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        }
       });
-    } catch (err) {
-      currentEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
-    }
-  }
-
-  if (!canEdit) {
-    container.innerHTML = `<div class="breaks-list"><span class="note">загружаю…</span></div>`;
-    loadCurrent(container.querySelector('.breaks-list'));
-    return;
-  }
-
-  container.innerHTML = `
-    <div id="recurringCurrent-${masterId}" class="breaks-list"><span class="note">загружаю…</span></div>
-    <div class="field-grid" style="max-width:560px;margin-top:10px">
-      <div class="field"><label>Тип</label>
-        <select id="recurringType-${masterId}">
-          <option value="break">Перерыв</option>
-          <option value="day_off">Выходной</option>
-        </select>
-      </div>
-      <div class="field"><label>Действует с</label><input type="date" id="recurringStartsOn-${masterId}"></div>
-    </div>
-    <div class="field" style="margin:8px 0">
-      <label>Дни недели</label>
-      <div class="weekday-picker" id="recurringWeekdays-${masterId}">
-        ${WEEKDAY_SHORT.map((d, i) => `<label class="weekday-option"><input type="checkbox" value="${i + 1}">${d}</label>`).join('')}
-      </div>
-    </div>
-    <div class="field-grid" id="recurringTimeFields-${masterId}" style="max-width:420px">
-      <div class="field"><label>Время с</label><div id="recurringStart-${masterId}-slot"></div></div>
-      <div class="field"><label>Время до</label><div id="recurringEnd-${masterId}-slot"></div></div>
-    </div>
-    <button class="btn btn-ghost btn-sm" type="button" id="recurringSave-${masterId}">Сохранить стандартное правило</button>
-    <p class="payroll-note" id="recurringNote-${masterId}"></p>
-  `;
-  renderTimeSelect(`recurringStart-${masterId}-slot`, `recurringStart-${masterId}`, '13:00');
-  renderTimeSelect(`recurringEnd-${masterId}-slot`, `recurringEnd-${masterId}`, '14:00');
-  el(`recurringStartsOn-${masterId}`).value = todayStr();
-
-  const typeEl = el(`recurringType-${masterId}`);
-  const timeFields = el(`recurringTimeFields-${masterId}`);
-  const syncTimeFields = () => {
-    timeFields.style.display = typeEl.value === 'day_off' ? 'none' : '';
-  };
-  syncTimeFields();
-  typeEl.addEventListener('change', syncTimeFields);
-
-  loadCurrent(el(`recurringCurrent-${masterId}`));
-
-  el(`recurringSave-${masterId}`).addEventListener('click', async () => {
-    const ruleType = typeEl.value;
-    const weekdays = [...el(`recurringWeekdays-${masterId}`).querySelectorAll('input:checked')].map((c) => Number(c.value));
-    const note = el(`recurringNote-${masterId}`);
-    if (weekdays.length === 0) {
-      note.textContent = 'Отметьте хотя бы один день недели';
-      return;
-    }
-    const startTime = ruleType === 'break' ? timeSelectValue(`recurringStart-${masterId}`) : null;
-    const endTime = ruleType === 'break' ? timeSelectValue(`recurringEnd-${masterId}`) : null;
-    const startsOn = el(`recurringStartsOn-${masterId}`).value || todayStr();
-    const btn = el(`recurringSave-${masterId}`);
-    btn.disabled = true;
-    const originalLabel = btn.textContent;
-    btn.textContent = 'Сохраняю…';
-    try {
-      const res = await fetch(`${API}/schedule-recurring`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ masterId, ruleType, weekdays, startTime, endTime, startsOn }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      note.textContent = 'Сохранено - заменяет прежнее правило этого типа, если было';
-      loadCurrent(el(`recurringCurrent-${masterId}`));
-    } catch (err) {
-      note.textContent = `Не удалось сохранить: ${err.message}`;
-    } finally {
-      btn.disabled = false;
-      btn.textContent = originalLabel;
-    }
-  });
+    })
+    .catch((err) => {
+      container.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+    });
 }
 
 // Задача Влада (01.08.2026): "Клиент без предварительной записи" была рисунком -
@@ -1056,135 +1097,103 @@ function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
     rateEl.value = staff.role === 'owner' ? 'Не начисляется - вы владелец' : `${pctOf(staff.id)}%`;
   }
 
-  wireScheduleSelfView(staff);
+  wireWeeklyRequestForm(staff);
   wireScheduleRequestForm(staff);
 }
 
-// График - только просмотр, читает уже рабочий GET /schedule?masterId= (сервер сам
-// сужает до своего мастера для роли master, server.mjs:714-732).
-async function wireScheduleSelfView(staff) {
-  const list = el('selfScheduleBreaks');
-  const note = el('selfScheduleNote');
-  if (!list || !note) return;
-  try {
-    const today = todayStr();
-    const shifts = await fetchJson(`/schedule?masterId=${staff.id}&date=${today}`);
-    const todayShift = shifts.find((s) => s.date === today);
-    if (!todayShift || !todayShift.breaks?.length) {
-      list.innerHTML = '';
-      note.textContent = 'Сегодня перерывов не назначено (стандартные часы 10:00-20:00)';
-      return;
-    }
-    list.innerHTML = todayShift.breaks
-      .map((b) => `<div class="break-row"><span class="note">Перерыв ${b.startTime}–${b.endTime}</span></div>`)
-      .join('');
-    note.textContent = '';
-  } catch (err) {
-    note.textContent = `Не удалось получить график: ${err.message}`;
-  }
-}
-
-// Форма "Запросить перерыв/выходной" (Задача 3, Окно 14) - POST /schedule-requests,
+// Форма "Разовое изменение на дату" (Задача 3, Окно 14, заголовок переименован
+// Окно 16 03.08.2026 - было "Запросить перерыв/выходной") - POST /schedule-requests,
 // владелец подтверждает/отклоняет отдельно (PATCH .../decision), время реально
-// блокируется от онлайн-записи только после подтверждения.
+// блокируется от онлайн-записи только после подтверждения. Только otgul/otpusk -
+// механика не менялась (Окно 16, разд.31 промпта); постоянный график по дням
+// недели теперь отдельная форма, см. wireWeeklyRequestForm ниже.
 const SCHEDULE_CATEGORY_LABEL = {
   otgul: 'Отгул разовый',
   otpusk: 'Отпуск',
-  pereryv_standard: 'Перерыв (стандартный)',
-  vyhodnoy_standard: 'Выходной (стандартный)',
 };
 const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-// Правка 03.08.2026 - 4 категории вместо 2 (Перерыв/Выходной): Влад попросил
-// "стандартный" перерыв/выходной по дням недели, который сам действует на каждый
-// будущий рабочий день, не только разовую дату. otgul/otpusk - та же механика,
-// что была всегда (одна дата или диапазон), pereryv_standard/vyhodnoy_standard -
-// новое: дни недели вместо дат, действует бессрочно (см. schedule_recurring_rules,
-// getEffectiveBreaks в server.mjs).
+// "Мои запросы" - общая история для обеих форм (разовое изменение otgul/otpusk И
+// постоянный график grafik_standard) - один и тот же список #reqHistory на
+// странице, обе формы после отправки перезагружают его этой функцией.
+async function loadScheduleRequestHistory(staffId) {
+  const historyEl = el('reqHistory');
+  if (!historyEl) return;
+  try {
+    const rows = await fetchJson(`/schedule-requests?masterId=${staffId}`);
+    if (!rows.length) {
+      historyEl.innerHTML = '<span class="note">Запросов пока нет</span>';
+      return;
+    }
+    const statusLabel = { pending: 'На рассмотрении', approved: 'Одобрено', rejected: 'Отклонено' };
+    historyEl.innerHTML = rows
+      .map((r) => {
+        if (r.category === 'grafik_standard') {
+          return `<div class="break-row"><span class="note">Новый график · ${formatWeeklyChangesSummary(r.weeklyChanges || [])} · ${statusLabel[r.status] ?? r.status}${r.ownerComment ? ' · ' + r.ownerComment : ''}</span></div>`;
+        }
+        const period = r.requestType === 'day_off' ? `${r.dateFrom}–${r.dateTo}` : `${r.dateFrom} ${r.startTime}–${r.endTime}`;
+        const label = SCHEDULE_CATEGORY_LABEL[r.category] ?? (r.requestType === 'day_off' ? 'Выходной' : 'Перерыв');
+        return `<div class="break-row"><span class="note">${label} · ${period} · ${statusLabel[r.status] ?? r.status}${r.ownerComment ? ' · ' + r.ownerComment : ''}</span></div>`;
+      })
+      .join('');
+  } catch (err) {
+    historyEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+  }
+}
+function formatWeeklyChangesSummary(rows) {
+  return [...rows]
+    .sort((a, b) => a.weekday - b.weekday)
+    .map((r) => {
+      if (!r.isWorking) return `${WEEKDAY_SHORT[r.weekday - 1]} выходной`;
+      const brk = r.breakStart ? ` (перерыв ${r.breakStart}–${r.breakEnd})` : '';
+      return `${WEEKDAY_SHORT[r.weekday - 1]} ${r.workStart}–${r.workEnd}${brk}`;
+    })
+    .join(', ');
+}
+
 function wireScheduleRequestForm(staff) {
   const submitBtn = el('reqSubmitBtn');
   const categoryEl = el('reqCategory');
-  const fromEl = el('reqDateFrom');
-  const toEl = el('reqDateTo');
-  const fromLabelEl = el('reqDateFromLabel');
   const dateToWrap = el('reqDateToWrap');
   const fullDayWrap = el('reqFullDayWrap');
   const fullDayEl = el('reqFullDay');
   const timeFields = el('reqTimeFields');
-  const weekdaysWrap = el('reqWeekdaysWrap');
   const commentEl = el('reqComment');
   const resultEl = el('reqResult');
-  const historyEl = el('reqHistory');
-  if (!submitBtn || !categoryEl || !fromEl || !toEl || !commentEl || !resultEl || !historyEl) return;
+  if (!submitBtn || !categoryEl || !commentEl || !resultEl) return;
 
+  renderDateSelect('reqDateFrom-slot', 'reqDateFrom', todayStr());
+  renderDateSelect('reqDateTo-slot', 'reqDateTo', todayStr());
   renderTimeSelect('reqStartTime-slot', 'reqStartTime', '13:00');
   renderTimeSelect('reqEndTime-slot', 'reqEndTime', '14:00');
 
   const syncFields = () => {
-    const category = categoryEl.value;
-    const isRecurring = category === 'pereryv_standard' || category === 'vyhodnoy_standard';
-    const isOtgul = category === 'otgul';
-    if (fromLabelEl) fromLabelEl.textContent = isRecurring ? 'Действует с' : 'Дата';
-    if (dateToWrap) dateToWrap.style.display = isRecurring ? 'none' : '';
+    const isOtgul = categoryEl.value === 'otgul';
     if (fullDayWrap) fullDayWrap.style.display = isOtgul ? '' : 'none';
-    const showTime = category === 'pereryv_standard' || (isOtgul && !fullDayEl?.checked);
-    if (timeFields) timeFields.style.display = showTime ? '' : 'none';
-    if (weekdaysWrap) weekdaysWrap.style.display = isRecurring ? '' : 'none';
+    if (dateToWrap) dateToWrap.style.display = isOtgul && fullDayEl?.checked ? 'none' : '';
+    if (timeFields) timeFields.style.display = isOtgul && fullDayEl?.checked ? 'none' : '';
   };
   syncFields();
   categoryEl.addEventListener('change', syncFields);
   fullDayEl?.addEventListener('change', syncFields);
 
-  async function loadHistory() {
-    try {
-      const rows = await fetchJson(`/schedule-requests?masterId=${staff.id}`);
-      if (!rows.length) {
-        historyEl.innerHTML = '<span class="note">Запросов пока нет</span>';
-        return;
-      }
-      const statusLabel = { pending: 'На рассмотрении', approved: 'Одобрено', rejected: 'Отклонено' };
-      historyEl.innerHTML = rows
-        .map((r) => {
-          const isRecurring = r.category === 'pereryv_standard' || r.category === 'vyhodnoy_standard';
-          const period = isRecurring
-            ? `по ${(r.weekdays || []).map((d) => WEEKDAY_SHORT[d - 1]).join(',')}${r.requestType === 'break' ? ` ${r.startTime}–${r.endTime}` : ''} с ${r.dateFrom}`
-            : r.requestType === 'day_off'
-              ? `${r.dateFrom}–${r.dateTo}`
-              : `${r.dateFrom} ${r.startTime}–${r.endTime}`;
-          const label = SCHEDULE_CATEGORY_LABEL[r.category] ?? (r.requestType === 'day_off' ? 'Выходной' : 'Перерыв');
-          return `<div class="break-row"><span class="note">${label} · ${period} · ${statusLabel[r.status] ?? r.status}${r.ownerComment ? ' · ' + r.ownerComment : ''}</span></div>`;
-        })
-        .join('');
-    } catch (err) {
-      historyEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
-    }
-  }
-  loadHistory();
+  loadScheduleRequestHistory(staff.id);
 
   if (submitBtn.dataset.wired) return;
   submitBtn.dataset.wired = '1';
   submitBtn.addEventListener('click', async () => {
     const category = categoryEl.value;
-    const isRecurring = category === 'pereryv_standard' || category === 'vyhodnoy_standard';
-    const dateFrom = fromEl.value;
+    const dateFrom = dateSelectValue('reqDateFrom');
     if (!dateFrom) {
       resultEl.textContent = 'Укажите дату';
       return;
     }
-    const requestType = category === 'pereryv_standard' ? 'break' : category === 'vyhodnoy_standard' ? 'day_off' : fullDayEl?.checked ? 'day_off' : 'break';
+    const requestType = category === 'otgul' && fullDayEl?.checked ? 'day_off' : 'break';
     const startTime = requestType === 'break' ? timeSelectValue('reqStartTime') : null;
     const endTime = requestType === 'break' ? timeSelectValue('reqEndTime') : null;
     if (requestType === 'break' && (!startTime || !endTime)) {
-      resultEl.textContent = 'Укажите время перерыва (с и до)';
+      resultEl.textContent = 'Укажите время (с и до)';
       return;
-    }
-    let weekdays = null;
-    if (isRecurring) {
-      weekdays = [...weekdaysWrap.querySelectorAll('input[type=checkbox]:checked')].map((c) => Number(c.value));
-      if (weekdays.length === 0) {
-        resultEl.textContent = 'Отметьте хотя бы один день недели';
-        return;
-      }
     }
     try {
       const res = await fetch(`${API}/schedule-requests`, {
@@ -1194,21 +1203,70 @@ function wireScheduleRequestForm(staff) {
           category,
           requestType,
           dateFrom,
-          dateTo: isRecurring ? null : toEl.value || dateFrom,
+          dateTo: dateSelectValue('reqDateTo') || dateFrom,
           startTime,
           endTime,
-          weekdays,
           masterComment: commentEl.value.trim() || null,
         }),
       });
       if (!res.ok) throw new Error(`schedule-requests → ${res.status}`);
       resultEl.textContent = 'Запрос отправлен, владелец увидит уведомление';
       commentEl.value = '';
-      loadHistory();
+      loadScheduleRequestHistory(staff.id);
     } catch (err) {
       resultEl.textContent = `Не удалось отправить: ${err.message}`;
     }
   });
+}
+
+// Окно 16 (03.08.2026) - постоянный график мастера (весь недельный блок сразу, тот
+// же UI-паттерн, что у владельца - wireWeeklyScheduleEditor выше), только вместо
+// прямого PUT это POST /schedule-requests с category=grafik_standard - владелец
+// одобряет/отклоняет весь график целиком через колокольчик уведомлений (тот же
+// generic UI, что уже обрабатывает schedule_request_new, assets/crm-notifications.js).
+function wireWeeklyRequestForm(staff) {
+  const container = el('weeklyEditor-self');
+  if (!container || container.dataset.wired) return;
+  container.dataset.wired = '1';
+  const prefix = 'weekly-self';
+
+  fetchJson(`/master-weekly-schedule?masterId=${staff.id}`)
+    .then((rows) => {
+      const byWeekday = new Map(rows.map((r) => [r.weekday, r]));
+      const days = [1, 2, 3, 4, 5, 6, 7].map((wd) => byWeekday.get(wd) || null);
+      container.innerHTML =
+        days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, true)).join('') +
+        `<button class="btn btn-ghost btn-sm" type="button" id="${prefix}-save" style="margin-top:10px">Отправить запрос на график</button>
+         <p class="payroll-note" id="${prefix}-note"></p>`;
+      days.forEach((d, i) => wireWeeklyDayRow(prefix, i + 1, d));
+
+      el(`${prefix}-save`).addEventListener('click', async () => {
+        const weeklyChanges = [1, 2, 3, 4, 5, 6, 7].map((wd) => readWeeklyDayRow(prefix, wd));
+        const btn = el(`${prefix}-save`);
+        const note = el(`${prefix}-note`);
+        btn.disabled = true;
+        const originalLabel = btn.textContent;
+        btn.textContent = 'Отправляю…';
+        try {
+          const res = await fetch(`${API}/schedule-requests`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+            body: JSON.stringify({ category: 'grafik_standard', weeklyChanges }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          note.textContent = 'Запрос отправлен, владелец увидит уведомление';
+          loadScheduleRequestHistory(staff.id);
+        } catch (err) {
+          note.textContent = `Не удалось отправить: ${err.message}`;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        }
+      });
+    })
+    .catch((err) => {
+      container.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+    });
 }
 
 function pad2(n) {
@@ -1335,9 +1393,11 @@ async function renderStaffPayrollPeriods(priceOf, pctOf, ownerIds) {
     const masterId = btn.dataset.masterId;
     btn.addEventListener('click', () => {
       const panel = btn.closest('.seg-panel');
-      const dates = panel.querySelectorAll('input[type="date"]');
-      const from = dates[0]?.value;
-      const to = dates[1]?.value;
+      // Правка 03.08.2026 (Окно 16): было input[type="date"].value - теперь свой
+      // date-picker (.custom-date), значение читается из data-value.
+      const dates = panel.querySelectorAll('.custom-date');
+      const from = dates[0]?.dataset.value;
+      const to = dates[1]?.dataset.value;
       const amountEl = panel.querySelector('.payroll-sum .amount');
       const noteEl = panel.querySelector('.payroll-note');
       if (!from || !to) {

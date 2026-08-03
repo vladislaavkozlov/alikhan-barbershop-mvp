@@ -37,11 +37,12 @@ function initialsOf(name) {
     .toUpperCase();
 }
 
-// day_off по факту живой схемы (api/server.mjs: applyScheduleDay) - НЕ "нет строки
-// смены вообще" (это как раз стандартные часы 10:00-20:00, см. crm-auth.js:
-// wireScheduleSelfView, уже рабочий код Окна 14), а перерыв, покрывающий весь
-// рабочий день целиком (owner одобряет запрос на выходной → создаётся ровно такой
-// перерыв 10:00-20:00). Проверено перед реализацией, не предположение из промпта.
+// day_off по факту живой схемы (api/server.mjs: applyScheduleDay/getEffectiveSchedule) -
+// НЕ "нет строки смены вообще" (это стандартные часы 10:00-20:00 без выходного), а
+// перерыв, покрывающий весь рабочий день целиком (owner одобряет запрос на выходной,
+// либо в master_weekly_schedule этот день недели отмечен нерабочим → сервер отдаёт
+// ровно такой перерыв 10:00-20:00, см. getEffectiveSchedule). Проверено перед
+// реализацией, не предположение из промпта.
 function isDayOff(shift) {
   if (!shift?.breaks?.length) return false;
   return shift.breaks.some((b) => toMinutes(b.startTime) <= DAY_START_MIN && toMinutes(b.endTime) >= DAY_END_MIN);
@@ -124,18 +125,42 @@ function todayStr() {
 
 // staff/staffList/services/masterServices/bookings/priceOf уже загружены и посчитаны
 // в renderLiveProof (assets/crm-auth.js) на момент вызова - переиспользуем, чтобы не
-// дублировать fetch. /schedule renderLiveProof не запрашивает - тянем сами здесь,
-// один раз без masterId (сервер сам сужает по роли, server.mjs:806 - owner видит все
-// смены, admin только своей точки, master только свою).
+// дублировать fetch. /schedule renderLiveProof не запрашивает - тянем сами здесь.
+// Правка 03.08.2026 (Окно 16): раньше один broad-запрос /schedule (без даты) видел
+// ТОЛЬКО явные разовые правки (schedule_shifts) - мастер с нестандартным недельным
+// графиком (master_weekly_schedule) без явной правки на сегодня показывался как
+// полностью свободный весь день 10:00-20:00, хотя реально работает в другом окне
+// или сегодня у него выходной. Узкий запрос /schedule?masterId=&date= уже отдаёт
+// эффективный график (getEffectiveSchedule на сервере) даже без явной правки - тот
+// же контракт, что уже использует публичный виджет записи - берём его по каждому
+// мастеру отдельно (запросов мало, мастеров 2-3).
 export async function renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson }) {
   const today = todayStr();
-  let shifts = [];
-  try {
-    shifts = await fetchJson('/schedule');
-  } catch {
-    shifts = []; // нет смен - весь день трактуется как стандартные часы 10:00-20:00, без перерывов
-  }
-  const shiftByMaster = new Map(shifts.filter((s) => s.date === today).map((s) => [s.masterId, s]));
+  const soloTrack = document.querySelector('.panel-sp-day .schedule-grid .schedule-col .schedule-track');
+  const grid = document.querySelector('.panel-sp-day .schedule-grid');
+  if (!grid) return; // страница без дневного календаря (не должно случиться, но не падаем)
+
+  const isSolo = !!document.getElementById('walkinSoloTrigger');
+  // crm-owner.html/crm-admin.html - несколько колонок, одна на каждого реального
+  // мастера, видимого этой роли (staffList уже отфильтрован сервером по роли).
+  // Ранее статичная разметка на crm-admin.html держала только 2 из 3 колонок
+  // (Екатерины не было вовсе) - проверено живым запросом /staff под ролью admin
+  // перед реализацией: Мамедхан реально видит всех троих, поэтому колонки строим
+  // по факту ответа /staff, а не по количеству узлов, которые были в макете.
+  const masters = isSolo ? [staff] : staffList.filter((s) => s.providesServices).sort((a, b) => a.id.localeCompare(b.id));
+
+  const shiftByMaster = new Map();
+  await Promise.all(
+    masters.map(async (m) => {
+      try {
+        const shifts = await fetchJson(`/schedule?masterId=${m.id}&date=${today}`);
+        const shift = shifts.find((s) => s.date === today);
+        if (shift) shiftByMaster.set(m.id, shift);
+      } catch {
+        // нет графика - трек считается свободным весь стандартный день, как раньше
+      }
+    })
+  );
 
   const bookingsByMaster = new Map();
   for (const b of bookings ?? []) {
@@ -143,11 +168,7 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
     bookingsByMaster.get(b.masterId).push(b);
   }
 
-  const soloTrack = document.querySelector('.panel-sp-day .schedule-grid .schedule-col .schedule-track');
-  const grid = document.querySelector('.panel-sp-day .schedule-grid');
-  if (!grid) return; // страница без дневного календаря (не должно случиться, но не падаем)
-
-  if (document.getElementById('walkinSoloTrigger')) {
+  if (isSolo) {
     // crm-master.html - единственная колонка, всегда сам залогиненный
     if (soloTrack) {
       fillTrack(soloTrack, staff.name, {
@@ -160,13 +181,6 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
     return;
   }
 
-  // crm-owner.html/crm-admin.html - несколько колонок, одна на каждого реального
-  // мастера, видимого этой роли (staffList уже отфильтрован сервером по роли).
-  // Ранее статичная разметка на crm-admin.html держала только 2 из 3 колонок
-  // (Екатерины не было вовсе) - проверено живым запросом /staff под ролью admin
-  // перед реализацией: Мамедхан реально видит всех троих, поэтому колонки строим
-  // по факту ответа /staff, а не по количеству узлов, которые были в макете.
-  const masters = staffList.filter((s) => s.providesServices).sort((a, b) => a.id.localeCompare(b.id));
   grid.innerHTML = masters.map(buildColumnHtml).join('');
   const cols = grid.querySelectorAll(':scope > .schedule-col');
   masters.forEach((m, i) => {

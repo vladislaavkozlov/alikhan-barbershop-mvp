@@ -657,34 +657,23 @@
               <div class="service-picker" data-master-id="master-1"></div>
               <p class="section-hint" style="margin:6px 0 0">Длительность - из подтверждённого прайса (уже в реальной базе, таблицы <code>services</code>/<code>master_services</code>, разд.12 п.7,8), сейчас одинаковая у всех трёх мастеров. Поле редактируемое - можно задать своё число именно этому мастеру, если он работает быстрее/медленнее среднего. Меняется здесь → видно в карточке записи ниже, когда открыта запись этого мастера на эту услугу</p>
 
-              <h4>График (разд. 16.4)</h4>
-              <div class="field-grid" style="max-width:420px">
-                <div class="field"><label>Рабочее время с</label><input value="10:00" readonly></div>
-                <div class="field"><label>до</label><input value="20:00" readonly></div>
-              </div>
-              <p class="section-hint" style="margin:14px 0 8px">Выходные дни (пример - отметьте, какие дни недели у сотрудника нерабочие)</p>
-              <div class="dayoff-picker">
-                <label class="dayoff-day"><input type="checkbox"><span>Пн</span></label>
-                <label class="dayoff-day"><input type="checkbox"><span>Вт</span></label>
-                <label class="dayoff-day"><input type="checkbox"><span>Ср</span></label>
-                <label class="dayoff-day"><input type="checkbox"><span>Чт</span></label>
-                <label class="dayoff-day"><input type="checkbox"><span>Пт</span></label>
-                <label class="dayoff-day"><input type="checkbox" checked><span>Сб</span></label>
-                <label class="dayoff-day"><input type="checkbox" checked><span>Вс</span></label>
-              </div>
-              <!-- Реальный редактор перерыва/выходного (Влад 03.08.2026 - старая кнопка
-                   "+ Добавить перерыв" только дорисовывала DOM, ничего не сохраняла,
-                   поэтому перерыв "числился" в интерфейсе, но не блокировал запись
-                   клиента). Пишет напрямую в POST /schedule (owner/admin, без
-                   очереди согласования - это и есть согласование). Сервер сам
-                   уведомит, если на выбранное время уже есть реальная запись. -->
+              <h4>График работы (разд. 16.4) <span class="badge badge-todo">Окно 16, 03.08.2026</span></h4>
+              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - работает/выходной, рабочие часы, опциональный перерыв. Мастер видит тот же график у себя, менять может только владелец</p>
+              <div id="weeklyEditor-master-1"></div>
+
+              <!-- Разовая правка одного дня (Влад 03.08.2026 - старая кнопка "+ Добавить
+                   перерыв" только дорисовывала DOM, ничего не сохраняла, поэтому перерыв
+                   "числился" в интерфейсе, но не блокировал запись клиента). Пишет
+                   напрямую в POST /schedule (owner/admin, без очереди согласования - это
+                   и есть согласование). Побеждает график выше именно на эту дату. -->
+              <h4 style="margin-top:18px">Разовое изменение на дату</h4>
               <div class="sched-editor" id="schedCurrentWrap-master-1">
                 <p class="section-hint" style="margin:6px 0">Текущие перерывы/выходной на выбранную дату - реальные, из базы</p>
                 <div class="breaks-list" id="schedCurrent-master-1"><span class="note">выберите дату ниже</span></div>
               </div>
               <div class="field-grid" style="max-width:560px;margin-top:10px">
-                <div class="field"><label>Дата</label><input type="date" id="schedDateFrom-master-1"></div>
-                <div class="field"><label>По (если на несколько дней)</label><input type="date" id="schedDateTo-master-1"></div>
+                <div class="field"><label>Дата</label><div id="schedDateFrom-master-1-slot"></div></div>
+                <div class="field"><label>По (если на несколько дней)</label><div id="schedDateTo-master-1-slot"></div></div>
               </div>
               <label class="dayoff-day" style="margin:8px 0"><input type="checkbox" id="schedDayOff-master-1"><span>Выходной весь день</span></label>
               <div class="field-grid" style="max-width:420px" id="schedTimeFields-master-1">
@@ -693,10 +682,6 @@
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-1">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-1"></p>
-
-              <h4 style="margin-top:18px">Перерыв/выходной "стандартный" <span class="badge badge-todo">новое, 03.08.2026</span></h4>
-              <p class="section-hint" style="margin:6px 0 10px">Действует сам на каждый подходящий день недели, пока не изменят - конкретный день по-прежнему можно поправить отдельно выше</p>
-              <div id="recurringEditor-master-1"></div>
 
               <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
@@ -725,8 +710,8 @@
                     <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная, по броням этого мастера в базе</p></div>
                     <div class="seg-panel panel-zp1p-period">
                       <div class="payroll-period-picker">
-                        <div class="field"><label>С</label><input type="date"></div>
-                        <div class="field"><label>По</label><input type="date"></div>
+                        <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
+                        <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
                         <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-1">Показать</button>
                       </div>
                       <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
@@ -825,18 +810,18 @@
 
               <h4>Услуги</h4>
               <div class="service-picker" data-master-id="master-2"></div>
-              <h4>График</h4>
-              <div class="field-grid" style="max-width:420px">
-                <div class="field"><label>Рабочее время с</label><input value="10:00" readonly></div>
-                <div class="field"><label>до</label><input value="20:00" readonly></div>
-              </div>
+              <h4>График работы</h4>
+              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - работает/выходной, рабочие часы, опциональный перерыв. Мастер видит тот же график у себя, менять может только владелец</p>
+              <div id="weeklyEditor-master-2"></div>
+
+              <h4 style="margin-top:18px">Разовое изменение на дату</h4>
               <div class="sched-editor" id="schedCurrentWrap-master-2">
                 <p class="section-hint" style="margin:6px 0">Текущие перерывы/выходной на выбранную дату - реальные, из базы</p>
                 <div class="breaks-list" id="schedCurrent-master-2"><span class="note">выберите дату ниже</span></div>
               </div>
               <div class="field-grid" style="max-width:560px;margin-top:10px">
-                <div class="field"><label>Дата</label><input type="date" id="schedDateFrom-master-2"></div>
-                <div class="field"><label>По (если на несколько дней)</label><input type="date" id="schedDateTo-master-2"></div>
+                <div class="field"><label>Дата</label><div id="schedDateFrom-master-2-slot"></div></div>
+                <div class="field"><label>По (если на несколько дней)</label><div id="schedDateTo-master-2-slot"></div></div>
               </div>
               <label class="dayoff-day" style="margin:8px 0"><input type="checkbox" id="schedDayOff-master-2"><span>Выходной весь день</span></label>
               <div class="field-grid" style="max-width:420px" id="schedTimeFields-master-2">
@@ -845,10 +830,6 @@
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-2">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-2"></p>
-
-              <h4 style="margin-top:18px">Перерыв/выходной "стандартный" <span class="badge badge-todo">новое, 03.08.2026</span></h4>
-              <p class="section-hint" style="margin:6px 0 10px">Действует сам на каждый подходящий день недели, пока не изменят - конкретный день по-прежнему можно поправить отдельно выше</p>
-              <div id="recurringEditor-master-2"></div>
               <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
                 <input type="radio" name="zp2-sub" id="zp2-calc" checked>
@@ -875,8 +856,8 @@
                     <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная</p></div>
                     <div class="seg-panel panel-zp2p-period">
                       <div class="payroll-period-picker">
-                        <div class="field"><label>С</label><input type="date"></div>
-                        <div class="field"><label>По</label><input type="date"></div>
+                        <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
+                        <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
                         <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-2">Показать</button>
                       </div>
                       <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
@@ -921,18 +902,18 @@
               </div>
               <h4>Услуги</h4>
               <div class="service-picker" data-master-id="master-3"></div>
-              <h4>График</h4>
-              <div class="field-grid" style="max-width:420px">
-                <div class="field"><label>Рабочее время с</label><input value="10:00" readonly></div>
-                <div class="field"><label>до</label><input value="20:00" readonly></div>
-              </div>
+              <h4>График работы</h4>
+              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - работает/выходной, рабочие часы, опциональный перерыв. Мастер видит тот же график у себя, менять может только владелец</p>
+              <div id="weeklyEditor-master-3"></div>
+
+              <h4 style="margin-top:18px">Разовое изменение на дату</h4>
               <div class="sched-editor" id="schedCurrentWrap-master-3">
                 <p class="section-hint" style="margin:6px 0">Текущие перерывы/выходной на выбранную дату - реальные, из базы</p>
                 <div class="breaks-list" id="schedCurrent-master-3"><span class="note">выберите дату ниже</span></div>
               </div>
               <div class="field-grid" style="max-width:560px;margin-top:10px">
-                <div class="field"><label>Дата</label><input type="date" id="schedDateFrom-master-3"></div>
-                <div class="field"><label>По (если на несколько дней)</label><input type="date" id="schedDateTo-master-3"></div>
+                <div class="field"><label>Дата</label><div id="schedDateFrom-master-3-slot"></div></div>
+                <div class="field"><label>По (если на несколько дней)</label><div id="schedDateTo-master-3-slot"></div></div>
               </div>
               <label class="dayoff-day" style="margin:8px 0"><input type="checkbox" id="schedDayOff-master-3"><span>Выходной весь день</span></label>
               <div class="field-grid" style="max-width:420px" id="schedTimeFields-master-3">
@@ -941,10 +922,6 @@
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-3">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-3"></p>
-
-              <h4 style="margin-top:18px">Перерыв/выходной "стандартный" <span class="badge badge-todo">новое, 03.08.2026</span></h4>
-              <p class="section-hint" style="margin:6px 0 10px">Действует сам на каждый подходящий день недели, пока не изменят - конкретный день по-прежнему можно поправить отдельно выше</p>
-              <div id="recurringEditor-master-3"></div>
               <h4>Зарплата (разд. 17.3) <span class="badge badge-example">40% по умолчанию, редактируется</span></h4>
               <div class="field-grid">
                 <div class="field">
@@ -979,8 +956,8 @@
                     <div class="seg-panel panel-zp3p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster3Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная</p></div>
                     <div class="seg-panel panel-zp3p-period">
                       <div class="payroll-period-picker">
-                        <div class="field"><label>С</label><input type="date"></div>
-                        <div class="field"><label>По</label><input type="date"></div>
+                        <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
+                        <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
                         <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-3">Показать</button>
                       </div>
                       <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>

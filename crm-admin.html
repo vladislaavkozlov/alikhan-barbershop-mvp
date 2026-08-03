@@ -549,32 +549,17 @@
               <p class="section-hint" style="margin:10px 0">Только просмотр - разворот решения от 27.07.2026 (правка Влада 28.07.2026): какие услуги умеет оказывать мастер, теперь решает только владелец, не админ. Показаны все 8 услуг заведения, галочка = мастер это умеет</p>
               <div class="service-picker" data-master-id="master-1"></div>
 
-              <h4>График (разд. 16.4)</h4>
-              <div class="field-grid" style="max-width:420px">
-                <div class="field"><label>Рабочее время с</label><input value="10:00" readonly></div>
-                <div class="field"><label>до</label><input value="20:00" readonly></div>
-              </div>
-              <p class="section-hint" style="margin:14px 0 8px">Выходные дни (пример - отметьте, какие дни недели у сотрудника нерабочие)</p>
-              <div class="dayoff-picker">
-                <label class="dayoff-day"><input type="checkbox"><span>Пн</span></label>
-                <label class="dayoff-day"><input type="checkbox"><span>Вт</span></label>
-                <label class="dayoff-day"><input type="checkbox"><span>Ср</span></label>
-                <label class="dayoff-day"><input type="checkbox"><span>Чт</span></label>
-                <label class="dayoff-day"><input type="checkbox"><span>Пт</span></label>
-                <label class="dayoff-day"><input type="checkbox" checked><span>Сб</span></label>
-                <label class="dayoff-day"><input type="checkbox" checked><span>Вс</span></label>
-              </div>
+              <h4>График работы <span class="badge badge-todo">Окно 16, 03.08.2026</span></h4>
+              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - только просмотр, меняет владелец (см. баннер вверху страницы)</p>
+              <div id="weeklyEditor-master-1"></div>
+
               <!-- Влад (03.08.2026): раньше здесь была декоративная "+ Добавить перерыв" -
                    рисовала DOM, ничего не сохраняла, перерыв "числился", но не блокировал
-                   запись. Админ - только просмотр (ставит/меняет график владелец, см.
-                   баннер вверху страницы) - показываем реальные данные на сегодня без
-                   формы редактирования. -->
+                   запись. Админ - только просмотр (ставит/меняет график владелец) -
+                   показываем реальные данные на сегодня без формы редактирования. -->
+              <h4 style="margin-top:18px">Разовое изменение на дату</h4>
               <p class="section-hint" style="margin:6px 0">Перерыв/выходной на сегодня - реальные, из базы (ставит владелец)</p>
               <div class="breaks-list" id="schedCurrent-master-1"><span class="note">загружаю…</span></div>
-
-              <h4 style="margin-top:18px">Перерыв/выходной "стандартный" <span class="badge badge-todo">новое, 03.08.2026</span></h4>
-              <p class="section-hint" style="margin:6px 0 10px">Действует на каждый подходящий день недели, пока не изменят - только просмотр (меняет владелец)</p>
-              <div id="recurringEditor-master-1"></div>
 
               <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
@@ -603,8 +588,8 @@
                     <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div></div>
                     <div class="seg-panel panel-zp1p-period">
                       <div class="payroll-period-picker">
-                        <div class="field"><label>С</label><input type="date"></div>
-                        <div class="field"><label>По</label><input type="date"></div>
+                        <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
+                        <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
                         <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-1">Показать</button>
                       </div>
                       <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
@@ -713,8 +698,8 @@
                 <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div></div>
                 <div class="seg-panel panel-zp2p-period">
                   <div class="payroll-period-picker">
-                    <div class="field"><label>С</label><input type="date"></div>
-                    <div class="field"><label>По</label><input type="date"></div>
+                    <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
+                    <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
                     <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-2">Показать</button>
                   </div>
                   <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>

@@ -406,8 +406,8 @@
               <div class="seg-panel panel-zpmp-month"><div class="payroll-sum"><span class="amount" id="myPayrollMonth">000 ₽ <span class="unsure">считаю…</span></span></div></div>
               <div class="seg-panel panel-zpmp-period">
                 <div class="payroll-period-picker">
-                  <div class="field"><label>С</label><input type="date"></div>
-                  <div class="field"><label>По</label><input type="date"></div>
+                  <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
+                  <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
                   <button class="btn btn-ghost btn-sm" type="button" onclick="calcCustomPayroll(this)">Показать</button>
                 </div>
                 <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
@@ -507,44 +507,26 @@
                 <div class="field"><label>Ставка от выручки, %</label><input id="selfRateInput" value="—" readonly></div>
               </div>
 
-              <h4>График</h4>
-              <div class="field-grid" style="max-width:420px">
-                <div class="field"><label>Рабочее время с</label><input value="10:00" readonly></div>
-                <div class="field"><label>до</label><input value="20:00" readonly></div>
-              </div>
-              <div id="selfScheduleBreaks" class="breaks-list"></div>
-              <p class="section-hint" id="selfScheduleNote" style="margin:10px 0"></p>
+              <h4>График работы <span class="badge badge-todo">Окно 16, 03.08.2026</span></h4>
+              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - работает/выходной, рабочие часы, опциональный перерыв. Здесь запрос владельцу - действует только после подтверждения (колокольчик уведомлений)</p>
+              <div id="weeklyEditor-self"></div>
 
-              <h4 style="margin-top:18px">Запросить изменение графика</h4>
-              <p class="section-hint" style="margin:6px 0 10px">Владелец получит уведомление и подтвердит или отклонит - время блокируется от онлайн-записи только после подтверждения. "Стандартные" варианты действуют на каждый подходящий день недели, пока их не изменят - конкретный день всё равно можно поправить отдельно выше в "Текущий график"</p>
+              <h4 style="margin-top:18px">Разовое изменение на дату</h4>
+              <p class="section-hint" style="margin:6px 0 10px">Отгул или отпуск на конкретную дату/диапазон - владелец получит уведомление и подтвердит или отклонит, время блокируется от онлайн-записи только после подтверждения</p>
               <div class="field-grid">
                 <div class="field"><label>Тип</label>
                   <select id="reqCategory">
                     <option value="otgul">Отгул разовый</option>
                     <option value="otpusk">Отпуск</option>
-                    <option value="pereryv_standard">Перерыв (стандартный)</option>
-                    <option value="vyhodnoy_standard">Выходной (стандартный)</option>
                   </select>
                 </div>
-                <div class="field" id="reqDateFromWrap"><label id="reqDateFromLabel">Дата</label><input type="date" id="reqDateFrom"></div>
-                <div class="field" id="reqDateToWrap"><label>Дата по (если на несколько дней)</label><input type="date" id="reqDateTo"></div>
+                <div class="field" id="reqDateFromWrap"><label>Дата</label><div id="reqDateFrom-slot"></div></div>
+                <div class="field" id="reqDateToWrap"><label>Дата по (если на несколько дней)</label><div id="reqDateTo-slot"></div></div>
               </div>
               <label class="dayoff-day" id="reqFullDayWrap" style="margin:8px 0"><input type="checkbox" id="reqFullDay"><span>На весь день</span></label>
               <div class="field-grid" id="reqTimeFields">
                 <div class="field"><label>Время с</label><div id="reqStartTime-slot"></div></div>
                 <div class="field"><label>Время до</label><div id="reqEndTime-slot"></div></div>
-              </div>
-              <div class="field" id="reqWeekdaysWrap">
-                <label>Дни недели</label>
-                <div class="weekday-picker" id="reqWeekdays">
-                  <label class="weekday-option"><input type="checkbox" value="1">Пн</label>
-                  <label class="weekday-option"><input type="checkbox" value="2">Вт</label>
-                  <label class="weekday-option"><input type="checkbox" value="3">Ср</label>
-                  <label class="weekday-option"><input type="checkbox" value="4">Чт</label>
-                  <label class="weekday-option"><input type="checkbox" value="5">Пт</label>
-                  <label class="weekday-option"><input type="checkbox" value="6">Сб</label>
-                  <label class="weekday-option"><input type="checkbox" value="7">Вс</label>
-                </div>
               </div>
               <div class="field"><label>Комментарий</label><input type="text" id="reqComment" placeholder="например «врач»"></div>
               <button class="btn btn-ghost btn-sm" type="button" id="reqSubmitBtn">Отправить запрос</button>

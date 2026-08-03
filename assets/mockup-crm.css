@@ -1,4 +1,5 @@
 /* Окно 9, часть 1 - визуальный макет CRM. Общая тема, переиспользует токены admin.html 1в1. */
+/* Любой новый выбор времени/даты/списка - через готовый виджет, не нативный input/select: см. КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md в корне проекта. */
 :root {
   --bg: #12201A;
   --surface: #1C2E24;
@@ -451,6 +452,48 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
 }
 .custom-select-option:hover { background: var(--surface-3); }
 .custom-select-option.selected { color: var(--accent); font-weight: 600; }
+
+/* ---------- свой date-picker вместо нативного input[type=date] (Окно 16, 03.08.2026) -
+   см. КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md. Тот же язык, что у .custom-select выше,
+   панель - месячная сетка вместо плоского списка. ---------- */
+.custom-date { position: relative; }
+.custom-date-trigger {
+  width: 100%; text-align: left; cursor: pointer; font-family: inherit;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); padding: 9px 12px; font-size: 0.88rem;
+  transition: border-color 140ms var(--ease-out);
+}
+.custom-date-trigger:focus { outline: none; border-color: var(--accent); }
+.custom-date.open .custom-date-trigger { border-color: var(--accent); }
+.custom-date-panel {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; width: 260px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 24px 48px -12px rgba(0,0,0,0.55); padding: 10px;
+}
+.custom-date-panel[hidden] { display: none; }
+.custom-date-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.custom-date-nav-btn {
+  width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--accent); cursor: pointer; font-size: 0.9rem; line-height: 1;
+}
+.custom-date-nav-btn:hover { background: var(--surface-3); }
+.custom-date-month-label { font-size: 0.84rem; font-weight: 600; color: var(--text); }
+.custom-date-weekdays, .custom-date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.custom-date-weekdays span { text-align: center; font-size: 0.7rem; color: var(--text-muted); padding: 4px 0; }
+.custom-date-cell {
+  aspect-ratio: 1; border: none; border-radius: 6px; background: transparent; color: var(--text);
+  cursor: pointer; font-size: 0.8rem; font-family: inherit;
+}
+.custom-date-cell:hover { background: var(--surface-3); }
+.custom-date-cell.selected { background: var(--accent); color: var(--leather); font-weight: 600; }
+.custom-date-cell--empty { cursor: default; }
+
+/* ---------- единый блок "График работы" (Окно 16, 03.08.2026) - одна строка на
+   день недели вместо разрозненных "Рабочее время"/"Перерыв стандартный". ---------- */
+.weekly-day-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.weekly-day-row:last-of-type { border-bottom: none; }
+.weekly-day-row .toggle-row { border-bottom: none; padding: 0 0 8px; }
+.weekly-day-row .tr-label { font-weight: 600; }
 .field .masked { color: var(--text-muted); font-style: italic; }
 .confirm-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .confirm-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
