@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "_comment": "pg используется только тестами tests/api.roles.test.js (фикстуры RBAC) - node_modules корня это симлинк на api/node_modules, отдельная установка не нужна.",
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}

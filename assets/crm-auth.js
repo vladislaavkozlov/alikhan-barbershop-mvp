@@ -1290,7 +1290,10 @@ async function loadScheduleRequestHistory(staffId) {
       historyEl.innerHTML = '<span class="note">Запросов пока нет</span>';
       return;
     }
-    const statusLabel = { pending: 'На рассмотрении', approved: 'Одобрено', rejected: 'Отклонено' };
+    // cancelled добавлен Окном 23 (04.08.2026) - владелец может отменить уже одобренный
+    // отгул/отпуск целиком (PATCH /schedule-requests/:id/cancel). Без этой строки фолбэк
+    // `?? r.status` показывал бы мастеру сырое "cancelled" латиницей в русском интерфейсе.
+    const statusLabel = { pending: 'На рассмотрении', approved: 'Одобрено', rejected: 'Отклонено', cancelled: 'Одобрение отменено' };
     historyEl.innerHTML = rows
       .map((r) => {
         if (r.category === 'grafik_standard') {
