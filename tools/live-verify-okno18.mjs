@@ -2,28 +2,16 @@
 // требует именно это, не мок-прогон. Использует QA-логины Окна 18
 // (migrations/028_qa_window18.sql, уже задеплоены и подтверждены curl'ом) и
 // реальную тестовую бронь master-3/12.08.2026 11:00 (создана отдельно через API).
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+//
+// ВАЖНО: сервер ограничен ALLOWED_ORIGIN (см. memory reference_amvera-deploy-
+// gotchas.md - CORS-ловушка) - localhost НЕ в списке разрешённых, fetch с
+// локального static-сервера падает "Failed to fetch". Реальный разрешённый домен -
+// GitHub Pages (найден через robots.txt/sitemap.xml: vladislaavkozlov.github.io/
+// alikhan-barbershop-mvp/), поэтому здесь навигация идёт на живой прод-URL, не
+// на localhost.
 import { withBrowser } from './cdp.mjs';
 
-const ROOT = process.cwd();
-const PORT = 8799;
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css' };
-
-const server = createServer(async (req, res) => {
-  const p = decodeURIComponent(req.url.split('?')[0]);
-  try {
-    const data = await readFile(join(ROOT, p));
-    res.writeHead(200, { 'Content-Type': MIME[extname(p)] || 'application/octet-stream' });
-    res.end(data);
-  } catch {
-    res.writeHead(404);
-    res.end('not found');
-  }
-});
-await new Promise((resolve) => server.listen(PORT, resolve));
-const BASE = `http://localhost:${PORT}`;
+const BASE = 'https://vladislaavkozlov.github.io/alikhan-barbershop-mvp';
 
 let failures = 0;
 function checkTrue(label, actual) {
@@ -34,31 +22,41 @@ function checkTrue(label, actual) {
 
 async function login(s, page, email, pin) {
   await s.navigate(`${BASE}/${page}`);
-  await s.sleep(300);
+  await s.sleep(1200);
   await s.eval(`(function(){
     document.getElementById('loginEmail').value = '${email}';
     document.getElementById('loginPin').value = '${pin}';
     document.getElementById('loginForm').dispatchEvent(new Event('submit', {cancelable:true, bubbles:true}));
   })()`);
-  await s.sleep(1500); // реальная сеть, не мок - ждём дольше
+  await s.sleep(3500); // реальная сеть, не мок - несколько последовательных запросов (staff/services/bookings/master-services/payroll/schedule-range), ждём с запасом
 }
 
 console.log('=== crm-owner.html (реальный Amvera) ===');
 await withBrowser(async (s) => {
   await s.setViewport(1280, 1700, false);
-  await s.navigate(`${BASE}/crm-owner.html`);
   await login(s, 'crm-owner.html', 'qa-window18-owner@alikhan.test', '583920');
 
   const revealed = await s.eval(`document.getElementById('loginGate').hidden`);
   checkTrue('Реальный логин прошёл (loginGate скрыт)', revealed);
 
   // --- Задача 1: навигация реально меняет отображаемые брони (DoD пункт 1) ---
-  // 8 кликов "вперёд" от сегодня (04.08) до 12.08, где сидит тестовая бронь Елизаветы
+  // 8 кликов "вперёд" от сегодня (04.08) до 12.08, где сидит тестовая бронь Елизаветы.
+  // Дата читается ПОСЛЕ КАЖДОГО клика (не одной пачкой в конце) - так надёжнее видно,
+  // что каждый клик реально продвигает день на один вперёд, а не просто финальный итог.
+  // Реальная сеть иногда роняет отдельный клик (не баг фичи - shift() синхронно
+  // продвигает дату ДО сетевого запроса, см. assets/crm-schedule-views.js) - если
+  // после клика дата не продвинулась ровно на 1 день, повторяем клик до 3 раз.
+  let lastDate = await s.eval(`document.getElementById('dayNavDate').dataset.value`);
   for (let i = 0; i < 8; i++) {
-    await s.click('#dayNavNext');
-    await s.sleep(350);
+    const before = lastDate;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await s.click('#dayNavNext');
+      await s.sleep(700);
+      lastDate = await s.eval(`document.getElementById('dayNavDate').dataset.value`);
+      if (lastDate !== before) break;
+    }
   }
-  await s.sleep(500);
+  checkTrue(`Мой день: 8 кликов "вперёд" от 04.08 привели ровно на 2026-08-12 (получено ${lastDate})`, lastDate === '2026-08-12');
   const dayHasTestBooking = await s.eval(`Array.from(document.querySelectorAll('.appt')).some(el => el.dataset.client === 'QA Окно18 Конфликт-тест')`);
   checkTrue('Мой день (после 8 кликов "вперёд" на 12.08): видна реальная тестовая бронь Елизаветы', dayHasTestBooking);
 
@@ -137,6 +135,18 @@ await withBrowser(async (s) => {
   const cell13StatusAfterReload = await s.eval(`document.querySelector('#monthGrid .month-day--real[data-date="2026-08-13"] .num').textContent`);
   checkTrue('После ПЕРЕЗАГРУЗКИ страницы 13.08 показывает 🔴 (правка реально сохранена на сервере, не в памяти вкладки)', cell13StatusAfterReload.includes('🔴'));
 
+  // --- Задача 3: "Сбросить к стандартному" (DELETE /schedule) - CORS-фикс Окна 18 ---
+  // Найдено этим же прогоном (до фикса): Access-Control-Allow-Methods не включал
+  // DELETE, кнопка падала "Failed to fetch" - см. правку setCors() в server.mjs.
+  await s.eval(`document.querySelector('#monthGrid .month-day--real[data-date="2026-08-13"] .month-day-edit').click()`);
+  await s.sleep(800);
+  await s.click('#dayEditReset');
+  await s.sleep(1200);
+  const modalClosedAfterReset = await s.eval(`document.getElementById('dayEditModal').hidden`);
+  checkTrue('"Сбросить к стандартному": DELETE прошёл без CORS-ошибки, модалка закрылась', modalClosedAfterReset);
+  const cell13AfterReset = await s.eval(`document.querySelector('#monthGrid .month-day--real[data-date="2026-08-13"] .num').textContent`);
+  checkTrue('После сброса 13.08 больше не 🔴 (вернулся к стандартному графику)', !cell13AfterReset.includes('🔴'));
+
   // --- Задача 4: "Стандартный график" применяется без согласования ---
   await s.click('label[for="pt-b"]');
   await s.sleep(500);
@@ -144,7 +154,7 @@ await withBrowser(async (s) => {
   checkTrue('Стандартный график (реальные данные, master-3): 7 строк отрисовано', weeklyRowsCount === 7);
 });
 
-await new Promise((r) => setTimeout(r, 1500));
+await new Promise((r) => setTimeout(r, 3000));
 
 console.log('\n=== crm-admin.html (реальный Amvera) ===');
 await withBrowser(async (s) => {
@@ -159,6 +169,5 @@ await withBrowser(async (s) => {
   checkTrue(`Админ/Неделя: реально видит всех 3 мастеров точки (получено ${adminWeekPills})`, adminWeekPills === 3);
 });
 
-server.close();
 console.log(failures === 0 ? '\n✔ ВСЕ ЖИВЫЕ ПРОВЕРКИ ЗЕЛЁНЫЕ' : `\n✘ ${failures} ПРОВАЛИВШИХСЯ ЖИВЫХ ПРОВЕРОК`);
 process.exit(failures === 0 ? 0 : 1);
