@@ -115,9 +115,18 @@ function buildMasterSwitch(container, masters, selectedId, onChange) {
   });
 }
 
+// Окно 19 (04.08.2026) - crm-master.html подключает этот же модуль для Недели/
+// Месяца, но в режиме "только просмотр своих данных" (тот же isSolo-приём, что уже
+// определяет "Мой день" в assets/crm-calendar.js): без переключателя между
+// сотрудниками (мастер видит только себя) и без иконки/модалки редактирования дня
+// (структуру графика теперь меняет только владелец/админ, см. crm-auth.js
+// renderWeeklySelfReadOnly). Сервер и так возвращает 403 мастеру на чужой masterId
+// (api/server.mjs, GET /schedule-range) - masters=[staff] здесь дополнительная
+// защита на уровне UI, чтобы переключатель физически не могло появиться.
 export function wireScheduleViews(ctx) {
   const { staff, staffList, services, priceOf, fetchJson, apiSend, renderDateSelect, renderTimeSelect, timeSelectValue, todayStr, renderDayCalendar } = ctx;
-  const masters = mastersOf(staffList);
+  const isSolo = !!document.getElementById('walkinSoloTrigger');
+  const masters = isSolo ? [staff] : mastersOf(staffList);
   if (masters.length === 0) return; // роль без доступа к расписанию (не должно случиться, но не падаем)
 
   let currentDayDate = todayStr();
@@ -204,12 +213,14 @@ export function wireScheduleViews(ctx) {
 
   function wireWeekView() {
     const grid = el('weekGrid');
+    if (!grid) return; // страница без реальной Недели
     const switchRow = el('weekMasterSwitch');
-    if (!grid || !switchRow) return; // страница без реальной Недели
-    buildMasterSwitch(switchRow, masters, weekMasterId, (masterId) => {
-      weekMasterId = masterId;
-      loadWeek();
-    });
+    if (switchRow) {
+      buildMasterSwitch(switchRow, masters, weekMasterId, (masterId) => {
+        weekMasterId = masterId;
+        loadWeek();
+      });
+    }
     el('weekNavPrev')?.addEventListener('click', () => {
       weekStart = addDays(weekStart, -7);
       loadWeek();
@@ -383,7 +394,7 @@ export function wireScheduleViews(ctx) {
         cells += `<div class="month-day month-day--real" data-date="${day.date}">
           <span class="num">${status} ${dayNum}</span>
           ${count ? `<span class="appt-count">${count} ${ruPluralBooking(count)}</span>` : ''}
-          <button type="button" class="month-day-edit" data-edit-date="${day.date}" aria-label="Редактировать день">✎</button>
+          ${isSolo ? '' : `<button type="button" class="month-day-edit" data-edit-date="${day.date}" aria-label="Редактировать день">✎</button>`}
         </div>`;
       }
       grid.innerHTML = cells;
@@ -406,12 +417,14 @@ export function wireScheduleViews(ctx) {
 
   function wireMonthView() {
     const grid = el('monthGrid');
+    if (!grid) return; // страница без реального Месяца
     const switchRow = el('monthMasterSwitch');
-    if (!grid || !switchRow) return; // страница без реального Месяца
-    buildMasterSwitch(switchRow, masters, monthMasterId, (masterId) => {
-      monthMasterId = masterId;
-      loadMonth();
-    });
+    if (switchRow) {
+      buildMasterSwitch(switchRow, masters, monthMasterId, (masterId) => {
+        monthMasterId = masterId;
+        loadMonth();
+      });
+    }
     el('monthNavPrev')?.addEventListener('click', () => {
       monthViewMonth -= 1;
       if (monthViewMonth < 1) {

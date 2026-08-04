@@ -63,7 +63,7 @@
   <div class="live-proof" id="liveProof"><span class="lp-dot"></span><span>Проверяю связь с боевой базой…</span></div>
 
   <div class="banner">
-    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход и счётчики выше настоящие (тестовый контур). Календарь записей ниже реальный (Окно 15, 02.08.2026) - показывает настоящие брони залогиненного мастера, не пример «Алиовсад». У мастера физически нет вкладок «Сотрудники» и «Настройка ЗП» — это ограничение доступа, а не забытые экраны. Телефон клиента в карточке записи скрыт прочерком — так же будет вести себя и бэкенд (мастер не получает поле телефона).
+    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход и счётчики выше настоящие (тестовый контур). Мой день/Неделя/Месяц ниже реальные (Окно 15, Окно 19 04.08.2026) - показывают настоящие брони и график залогиненного мастера, не пример «Алиовсад», только просмотр без переключателя между сотрудниками. У мастера физически нет вкладок «Сотрудники» и «Настройка ЗП» — это ограничение доступа, а не забытые экраны. Телефон клиента в карточке записи скрыт прочерком — так же будет вести себя и бэкенд (мастер не получает поле телефона).
   </div>
 
   <details class="staff-card" style="margin-bottom:20px">
@@ -143,7 +143,11 @@
           </div>
 
           <div class="seg-panel panel-sp-day">
-            <p class="section-hint" style="margin-top:12px">Сегодня</p>
+            <div class="day-nav" id="dayNav">
+              <button type="button" class="day-nav-btn" id="dayNavPrev" aria-label="Предыдущий день">‹</button>
+              <div id="dayNavDate-slot"></div>
+              <button type="button" class="day-nav-btn" id="dayNavNext" aria-label="Следующий день">›</button>
+            </div>
             <div class="schedule-scroll">
               <div class="schedule-row-with-gutter">
                 <div class="hour-gutter">
@@ -188,87 +192,25 @@
           </div>
 
           <div class="seg-panel panel-sp-week">
-            <p class="section-hint" style="margin-top:12px">Как в Outlook - тот же грид, что и в дне, только дни недели вместо мастеров (у мастера мастер всегда один - он сам, переключателя нет)</p>
-            <div class="schedule-scroll">
-              <div class="schedule-row-with-gutter">
-                <div class="hour-gutter">
-                  <div class="schedule-col-head week-head"><span class="name">--</span></div>
-                  <div class="hour-marks">
-                    <span style="top:0">10:00</span><span style="top:64px">11:00</span><span style="top:128px">12:00</span>
-                    <span style="top:192px">13:00</span><span style="top:256px">14:00</span><span style="top:320px">15:00</span>
-                    <span style="top:384px">16:00</span><span style="top:448px">17:00</span><span style="top:512px">18:00</span>
-                    <span style="top:576px">19:00</span><span style="top:640px">20:00</span>
-                  </div>
-                </div>
-                <div class="schedule-grid schedule-grid--week">
-                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Пн</span></div>
-                    <div class="schedule-track">
-                      <div class="appt appt--done" style="top:0px;height:64px" tabindex="0" onclick="openBooking(this)"
-                           data-client="Клиент К (пример)" data-master="Алиовсад" data-service="Стрижка · 2000₽" data-planned="10:00–11:00" data-actual="10:00" data-status="came" data-confirmed="true" data-noshow="false">
-                        <span class="t">10:00–11:00</span><span class="c">Клиент К · Стрижка</span></div>
-                    </div>
-                  </div>
-                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Вт</span></div><div class="schedule-track"></div></div>
-                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Ср</span></div>
-                    <div class="schedule-track">
-                      <div class="appt appt--new" style="top:256px;height:96px" tabindex="0" onclick="openBooking(this)"
-                           data-client="Клиент Л (пример)" data-master="Алиовсад" data-service="Комплекс стрижка+борода · 3500₽" data-planned="14:00–15:30" data-actual="" data-status="wait" data-confirmed="true" data-noshow="false">
-                        <span class="t">14:00–15:30</span><span class="c">Клиент Л · Комплекс</span></div>
-                    </div>
-                  </div>
-                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Чт</span></div><div class="schedule-track"></div></div>
-                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Пт</span></div>
-                    <div class="schedule-track">
-                      <div class="appt appt--done" style="top:64px;height:43px" tabindex="0" onclick="openBooking(this)"
-                           data-client="Клиент М (пример)" data-master="Алиовсад" data-service="Борода · 1600₽" data-planned="11:00–11:40" data-actual="11:00" data-status="came" data-confirmed="true" data-noshow="false">
-                        <span class="t">11:00–11:40</span><span class="c">Клиент М · Борода</span></div>
-                    </div>
-                  </div>
-                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Сб</span></div><div class="schedule-track"></div></div>
-                  <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Вс</span></div><div class="schedule-track day-off"><span class="day-off-label">Выходной</span></div></div>
-                </div>
-              </div>
+            <div class="day-nav" id="weekNav">
+              <button type="button" class="day-nav-btn" id="weekNavPrev" aria-label="Предыдущая неделя">‹</button>
+              <span class="week-nav-label" id="weekNavLabel"></span>
+              <button type="button" class="day-nav-btn" id="weekNavNext" aria-label="Следующая неделя">›</button>
             </div>
+            <p class="section-hint">Только моя неделя (переключателя между мастерами нет). Клик по дню открывает его как «Мой день»</p>
+            <!-- Заполняется wireScheduleViews (assets/crm-schedule-views.js, solo-режим) -
+                 без .master-switch-row, у мастера переключателя между сотрудниками нет. -->
+            <div class="week-grid" id="weekGrid"></div>
           </div>
 
           <div class="seg-panel panel-sp-month">
-            <p class="section-hint" style="margin-top:12px">Пример: январь 2026, только мои записи. Праздники - по официальному календарю РФ. Клик по дню в реальной CRM откроет его как «День» - в этом макете дни не кликабельны</p>
-            <div class="month-grid">
-              <div class="wd">Пн</div><div class="wd">Вт</div><div class="wd">Ср</div><div class="wd">Чт</div><div class="wd">Пт</div><div class="wd">Сб</div><div class="wd">Вс</div>
-              <div class="month-day is-empty"></div><div class="month-day is-empty"></div><div class="month-day is-empty"></div>
-              <div class="month-day is-holiday"><span class="num">1</span><span class="holiday-label">Новый год</span></div>
-              <div class="month-day is-holiday"><span class="num">2</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day is-holiday"><span class="num">3</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day is-holiday"><span class="num">4</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day is-holiday"><span class="num">5</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day is-holiday"><span class="num">6</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day is-holiday"><span class="num">7</span><span class="holiday-label">Рождество</span></div>
-              <div class="month-day is-holiday"><span class="num">8</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day"><span class="num">9</span><span class="appt-count">4 записи <span class="unsure">пример</span></span></div>
-              <div class="month-day"><span class="num">10</span></div>
-              <div class="month-day"><span class="num">11</span></div>
-              <div class="month-day"><span class="num">12</span></div>
-              <div class="month-day"><span class="num">13</span></div>
-              <div class="month-day"><span class="num">14</span></div>
-              <div class="month-day"><span class="num">15</span></div>
-              <div class="month-day"><span class="num">16</span><span class="appt-count">5 записей <span class="unsure">пример</span></span></div>
-              <div class="month-day"><span class="num">17</span></div>
-              <div class="month-day"><span class="num">18</span></div>
-              <div class="month-day"><span class="num">19</span></div>
-              <div class="month-day"><span class="num">20</span></div>
-              <div class="month-day"><span class="num">21</span></div>
-              <div class="month-day"><span class="num">22</span></div>
-              <div class="month-day"><span class="num">23</span><span class="appt-count">3 записи <span class="unsure">пример</span></span></div>
-              <div class="month-day"><span class="num">24</span></div>
-              <div class="month-day"><span class="num">25</span><span class="appt-count">Татьянин день</span></div>
-              <div class="month-day"><span class="num">26</span></div>
-              <div class="month-day"><span class="num">27</span></div>
-              <div class="month-day"><span class="num">28</span></div>
-              <div class="month-day"><span class="num">29</span></div>
-              <div class="month-day"><span class="num">30</span><span class="appt-count">6 записей <span class="unsure">пример</span></span></div>
-              <div class="month-day"><span class="num">31</span></div>
-              <div class="month-day is-empty"></div>
+            <div class="day-nav" id="monthNav">
+              <button type="button" class="day-nav-btn" id="monthNavPrev" aria-label="Предыдущий месяц">‹</button>
+              <span class="week-nav-label" id="monthNavLabel"></span>
+              <button type="button" class="day-nav-btn" id="monthNavNext" aria-label="Следующий месяц">›</button>
             </div>
+            <p class="section-hint">🟢 обычный день · 🟡 разовая правка на эту дату · 🔴 выходной. Клик по числу дня открывает «Мой день» - только просмотр, редактировать график может владелец или администратор</p>
+            <div class="month-grid" id="monthGrid"></div>
           </div>
 
           <div class="seg-panel panel-sp-year">
@@ -507,8 +449,8 @@
                 <div class="field"><label>Ставка от выручки, %</label><input id="selfRateInput" value="—" readonly></div>
               </div>
 
-              <h4>График работы <span class="badge badge-todo">Окно 16, 03.08.2026</span></h4>
-              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - работает/выходной, рабочие часы, опциональный перерыв. Здесь запрос владельцу - действует только после подтверждения (колокольчик уведомлений)</p>
+              <h4>График работы</h4>
+              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - работает/выходной, рабочие часы, опциональный перерыв. Только просмотр - структуру меняет владелец или администратор</p>
               <div id="weeklyEditor-self"></div>
 
               <h4 style="margin-top:18px">Разовое изменение на дату</h4>

@@ -575,10 +575,11 @@ function wireScheduleEditor(masterId, fetchJson) {
 // прежние разрозненные "Рабочее время" (readonly-заглушка) + декоративный
 // dayoff-picker + отдельный блок "Перерыв/выходной стандартный". Владелец правит
 // НАПРЯМУЮ (PUT /master-weekly-schedule, тот же уровень доступа, что у
-// wireScheduleEditor для разовых дат). canEdit=false (crm-admin.html) - только
-// просмотр, без формы. Мастер редактирует тот же UI в режиме ЗАПРОСА - см.
-// wireWeeklyRequestForm ниже (crm-master.html, отдельная функция - другой набор
-// прав и другой конечный эндпоинт, POST /schedule-requests).
+// wireScheduleEditor для разовых дат). canEdit=false (crm-admin.html, и с Окна 19 -
+// crm-master.html тоже) - только просмотр, без формы. Мастер видит свой график
+// исключительно на чтение - см. renderWeeklySelfReadOnly ниже (crm-master.html).
+// Структуру теперь меняет только владелец/админ напрямую (решение Окна 17,
+// реализовано Окном 19) - мастер больше не может отправить запрос на график.
 function buildWeeklyDayRow(prefix, wd, day, canEdit) {
   const isWorking = day?.isWorking ?? true;
   const hasBreak = !!day?.breakStart;
@@ -1183,7 +1184,7 @@ function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
     rateEl.value = staff.role === 'owner' ? 'Не начисляется - вы владелец' : `${pctOf(staff.id)}%`;
   }
 
-  wireWeeklyRequestForm(staff);
+  renderWeeklySelfReadOnly(staff);
   wireScheduleRequestForm(staff);
 }
 
@@ -1192,7 +1193,7 @@ function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
 // владелец подтверждает/отклоняет отдельно (PATCH .../decision), время реально
 // блокируется от онлайн-записи только после подтверждения. Только otgul/otpusk -
 // механика не менялась (Окно 16, разд.31 промпта); постоянный график по дням
-// недели теперь отдельная форма, см. wireWeeklyRequestForm ниже.
+// недели теперь read-only, см. renderWeeklySelfReadOnly выше (Окно 19).
 const SCHEDULE_CATEGORY_LABEL = {
   otgul: 'Отгул разовый',
   otpusk: 'Отпуск',
@@ -1255,9 +1256,15 @@ function wireScheduleRequestForm(staff) {
 
   const syncFields = () => {
     const isOtgul = categoryEl.value === 'otgul';
+    const isOtpusk = categoryEl.value === 'otpusk';
+    const fullDayOff = isOtgul && fullDayEl?.checked;
     if (fullDayWrap) fullDayWrap.style.display = isOtgul ? '' : 'none';
-    if (dateToWrap) dateToWrap.style.display = isOtgul && fullDayEl?.checked ? 'none' : '';
-    if (timeFields) timeFields.style.display = isOtgul && fullDayEl?.checked ? 'none' : '';
+    if (dateToWrap) dateToWrap.style.display = fullDayOff ? 'none' : '';
+    // Отпуск - структурно всегда day_off (см. requestType ниже), поля времени
+    // для него не должны показываться никогда, не только когда включён "На весь
+    // день" (баг Окна 19: раньше показывались всегда, category==='otgul' в условии
+    // требования короткого замыкания давал isOtgul=false для otpusk).
+    if (timeFields) timeFields.style.display = fullDayOff || isOtpusk ? 'none' : '';
   };
   syncFields();
   categoryEl.addEventListener('change', syncFields);
@@ -1274,7 +1281,13 @@ function wireScheduleRequestForm(staff) {
       resultEl.textContent = 'Укажите дату';
       return;
     }
-    const requestType = category === 'otgul' && fullDayEl?.checked ? 'day_off' : 'break';
+    // Баг Окна 19 (найден 04.08.2026): было `category === 'otgul' && fullDayEl?.checked` -
+    // короткое замыкание на 'otgul' делало это условие ВСЕГДА ложным для 'otpusk',
+    // отпуск уходил на сервер как requestType:'break' с конкретным временем (13:00-14:00
+    // по умолчанию) вместо day_off на весь диапазон дат. Отпуск структурно не может
+    // быть "на два часа" - всегда day_off, независимо от чекбокса "На весь день"
+    // (который вообще не показывается для этой категории, см. syncFields выше).
+    const requestType = category === 'otpusk' || (category === 'otgul' && fullDayEl?.checked) ? 'day_off' : 'break';
     const startTime = requestType === 'break' ? timeSelectValue('reqStartTime') : null;
     const endTime = requestType === 'break' ? timeSelectValue('reqEndTime') : null;
     if (requestType === 'break' && (!startTime || !endTime)) {
@@ -1305,12 +1318,15 @@ function wireScheduleRequestForm(staff) {
   });
 }
 
-// Окно 16 (03.08.2026) - постоянный график мастера (весь недельный блок сразу, тот
-// же UI-паттерн, что у владельца - wireWeeklyScheduleEditor выше), только вместо
-// прямого PUT это POST /schedule-requests с category=grafik_standard - владелец
-// одобряет/отклоняет весь график целиком через колокольчик уведомлений (тот же
-// generic UI, что уже обрабатывает schedule_request_new, assets/crm-notifications.js).
-function wireWeeklyRequestForm(staff) {
+// Окно 16 (03.08.2026) отдавало мастеру форму со своей кнопкой "Отправить запрос
+// на график" (POST /schedule-requests, category=grafik_standard) - владелец решил
+// (см. промпт Окна 17), что структуру недельного графика меняет только он/админ
+// напрямую (wireWeeklyScheduleEditor выше, тот же паттерн для чужой карточки на
+// crm-owner.html). Окно 19 (04.08.2026) убирает у мастера саму возможность
+// отправить правку - остаётся только просмотр той же строки buildWeeklyDayRow,
+// что владелец уже использует для read-only карточки другого сотрудника
+// (canEdit=false, см. crm-owner.html buildWeeklyDayRow(prefix, i+1, d, false)).
+function renderWeeklySelfReadOnly(staff) {
   const container = el('weeklyEditor-self');
   if (!container || container.dataset.wired) return;
   container.dataset.wired = '1';
@@ -1320,35 +1336,7 @@ function wireWeeklyRequestForm(staff) {
     .then((rows) => {
       const byWeekday = new Map(rows.map((r) => [r.weekday, r]));
       const days = [1, 2, 3, 4, 5, 6, 7].map((wd) => byWeekday.get(wd) || null);
-      container.innerHTML =
-        days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, true)).join('') +
-        `<button class="btn btn-ghost btn-sm" type="button" id="${prefix}-save" style="margin-top:10px">Отправить запрос на график</button>
-         <p class="payroll-note" id="${prefix}-note"></p>`;
-      days.forEach((d, i) => wireWeeklyDayRow(prefix, i + 1, d));
-
-      el(`${prefix}-save`).addEventListener('click', async () => {
-        const weeklyChanges = [1, 2, 3, 4, 5, 6, 7].map((wd) => readWeeklyDayRow(prefix, wd));
-        const btn = el(`${prefix}-save`);
-        const note = el(`${prefix}-note`);
-        btn.disabled = true;
-        const originalLabel = btn.textContent;
-        btn.textContent = 'Отправляю…';
-        try {
-          const res = await fetch(`${API}/schedule-requests`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-            body: JSON.stringify({ category: 'grafik_standard', weeklyChanges }),
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          note.textContent = 'Запрос отправлен, владелец увидит уведомление';
-          loadScheduleRequestHistory(staff.id);
-        } catch (err) {
-          note.textContent = `Не удалось отправить: ${err.message}`;
-        } finally {
-          btn.disabled = false;
-          btn.textContent = originalLabel;
-        }
-      });
+      container.innerHTML = `<div class="breaks-list">${days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, false)).join('')}</div>`;
     })
     .catch((err) => {
       container.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
