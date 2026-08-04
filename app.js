@@ -61,6 +61,12 @@ let selectedServiceIds = new Set();
 let selectedSlot = null;
 let selectedDate = null;
 
+// Окно 21 (04.08.2026): даты видимого месяца календаря, у которых РЕАЛЬНО нет
+// свободного времени под текущую связку мастер+услуги (GET /schedule-availability) -
+// заполняется асинхронно, поэтому календарь сначала рисуется по старым/пустым
+// данным (только границы 60 дней), затем перерисовывается, когда ответ придёт.
+let unavailableDates = new Set();
+
 // Правка 03.08.2026: раньше форма всегда показывала весь каталог из storage.js
 // каждому мастеру одинаково - клиент мог выбрать услугу, которую конкретный
 // мастер вообще не оказывает (сервер такую бронь отклонял с unknown_master_service,
@@ -74,6 +80,30 @@ let masterServicesReady = false;
 // servicesForMaster в нескольких местах.
 let currentServiceList = [];
 let currentServiceButtons = new Map();
+
+// Окно 26 (04.08.2026, Задача 1-2) - "ближайшая доступная дата" КАЖДОГО мастера
+// (GET /masters-next-availability), один батч-запрос при загрузке страницы - бейдж
+// на карточке мастера должен быть виден ДО того, как клиент вообще выбрал мастера
+// (в отличие от unavailableDates/refreshCalendarAvailability, которые зависят от
+// уже выбранных мастера+услуг). masterAvailabilityReady=false, пока ответ не пришёл
+// (или в офлайн-демо без ALIKHAN_API_URL) - renderMasterOptions тогда просто не
+// показывает бейдж вообще, не выдумывает дату.
+let masterAvailability = new Map(); // masterId -> дата ('YYYY-MM-DD') | null (недоступен в 60 днях)
+let masterAvailabilityReady = false;
+
+async function loadMasterNextAvailability() {
+  if (!window.ALIKHAN_API_URL) return; // офлайн-демо режим - бейдж не показываем, не выдумываем данные
+  try {
+    const res = await fetch(`${window.ALIKHAN_API_URL}/masters-next-availability`);
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return;
+    masterAvailability = new Map(rows.map((r) => [r.masterId, r.nextAvailableDate]));
+    masterAvailabilityReady = true;
+  } catch {
+    // сеть недоступна - masterAvailabilityReady остаётся false, виджет не ломается
+  }
+}
 
 async function loadMasterServices() {
   if (!window.ALIKHAN_API_URL) return; // офлайн-демо режим - остаёмся на легаси-фоллбэке ниже
@@ -186,7 +216,12 @@ function renderCalendar() {
     btn.textContent = String(day);
     btn.dataset.iso = iso;
 
-    if (iso < todayIso || iso > maxIso) {
+    // Баг Влада (04.08.2026): дата раньше красилась серым только по границам
+    // 60 дней - реальная занятость мастера+услуги открывалась только ПОСЛЕ клика
+    // (refreshSlots) или вовсе на подтверждении записи (schedule_blocked). Второе
+    // условие - тот же класс .disabled, применяется ТОЛЬКО если мастер и услуга уже
+    // выбраны (unavailableDates пуст, пока выбор не сделан - см. refreshCalendarAvailability).
+    if (iso < todayIso || iso > maxIso || unavailableDates.has(iso)) {
       btn.classList.add('disabled');
       btn.disabled = true;
     }
@@ -204,6 +239,58 @@ function renderCalendar() {
     });
     calGrid.append(btn);
   }
+}
+
+// Окно 21 (04.08.2026): реальная доступность видимого месяца - вызывается при
+// выборе/смене мастера, выборе/снятии услуги и при пролистывании месяца вперёд/назад
+// (Задача 2 промпта). Если мастер или услуга ещё не выбраны - unavailableDates
+// очищается, календарь ведёт себя как раньше (только границы 60 дней).
+async function refreshCalendarAvailability() {
+  if (!selectedMaster || selectedServiceIds.size === 0 || !window.ALIKHAN_API_URL) {
+    unavailableDates = new Set();
+    renderCalendar();
+    return;
+  }
+
+  const requestMaster = selectedMaster;
+  const requestServiceIds = new Set(selectedServiceIds);
+
+  // Видимый диапазон месяца, зажатый в те же границы [сегодня; +60 дней], что уже
+  // красит календарь (todayStr()/maxBookingDate()) - запрос не должен уходить за
+  // пределы, которые и так недоступны клику.
+  const maxDate = maxBookingDate();
+  const todayIso = todayStr();
+  const maxIso = isoDate(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate());
+  const monthStartIso = isoDate(calViewYear, calViewMonth, 1);
+  const monthEndIso = isoDate(calViewYear, calViewMonth, daysInMonth(calViewYear, calViewMonth));
+  const from = monthStartIso < todayIso ? todayIso : monthStartIso;
+  const to = monthEndIso > maxIso ? maxIso : monthEndIso;
+  if (from > to) {
+    unavailableDates = new Set();
+    renderCalendar();
+    return;
+  }
+
+  const params = new URLSearchParams({ masterId: requestMaster.id, from, to });
+  for (const id of requestServiceIds) params.append('serviceId', id);
+
+  let days;
+  try {
+    const res = await fetch(`${window.ALIKHAN_API_URL}/schedule-availability?${params}`);
+    if (!res.ok) return; // сеть/сервер подвели - календарь остаётся на прежних данных, не ломаем виджет
+    days = await res.json();
+  } catch {
+    return;
+  }
+
+  // Пока ждали ответ сети, пользователь мог сменить мастера/услуги/месяц - тогда
+  // этот ответ уже устарел, тот же приём защиты от гонки, что уже есть в refreshSlots.
+  const sameServices =
+    selectedServiceIds.size === requestServiceIds.size && [...selectedServiceIds].every((id) => requestServiceIds.has(id));
+  if (selectedMaster !== requestMaster || !sameServices) return;
+
+  unavailableDates = new Set(days.filter((d) => !d.hasSlots).map((d) => d.date));
+  renderCalendar();
 }
 
 function openDatePopover() {
@@ -246,6 +333,7 @@ calPrev.addEventListener('click', () => {
     calViewYear -= 1;
   }
   renderCalendar();
+  refreshCalendarAvailability();
 });
 
 calNext.addEventListener('click', () => {
@@ -255,6 +343,7 @@ calNext.addEventListener('click', () => {
     calViewYear += 1;
   }
   renderCalendar();
+  refreshCalendarAvailability();
 });
 
 function formatPhone(raw) {
@@ -346,9 +435,20 @@ function renderMasters() {
 function renderMasterOptions() {
   masterGrid.replaceChildren();
   for (const master of masters) {
+    // Окно 26 (04.08.2026, Задача 2) - карточка обёрнута в wrap, чтобы кнопка выбора
+    // мастера (.option-card) и отдельная ссылка "Позвонить администратору" были
+    // соседями, не вложены друг в друга - вложенный <a> внутри <button> невалиден
+    // и ломает клик.
+    const wrap = document.createElement('div');
+    wrap.className = 'master-option';
+
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'option-card';
+    // renderMasterOptions() перевызывается повторно, когда приходит ответ
+    // /masters-next-availability (см. вызов ниже в конце файла) - без этой строки
+    // уже сделанный клиентом выбор мастера визуально сбрасывался бы на каждый такой перерендер.
+    if (selectedMaster === master) btn.classList.add('selected');
 
     const name = document.createElement('span');
     name.className = 'opt-name';
@@ -359,6 +459,24 @@ function renderMasterOptions() {
     meta.textContent = `${master.workWindow.start}-${master.workWindow.end}${master.isPlaceholder ? ' · пример' : ''}`;
 
     btn.append(name, meta);
+
+    // Проблема Влада (04.08.2026): клиент выбирал мастера ДО того, как видел его
+    // реальную доступность - узнавал о занятости только в глубине календаря. Бейдж
+    // показывается только когда ответ сети реально пришёл (masterAvailabilityReady) -
+    // до этого момента карточка выглядит как раньше, без бейджа.
+    if (masterAvailabilityReady) {
+      const nextDate = masterAvailability.get(master.id);
+      const badge = document.createElement('span');
+      if (nextDate) {
+        badge.className = 'opt-availability';
+        badge.textContent = `ближайшая запись - ${formatDateRu(nextDate)}`;
+      } else {
+        badge.className = 'opt-availability opt-availability--none';
+        badge.textContent = 'сейчас нет свободных мест';
+      }
+      btn.append(badge);
+    }
+
     btn.addEventListener('click', () => {
       selectedMaster = master;
       for (const el of masterGrid.querySelectorAll('.option-card')) {
@@ -371,9 +489,24 @@ function renderMasterOptions() {
       }
       renderServiceOptions();
       resetSlots('Выберите услугу и дату');
+      refreshCalendarAvailability();
       clearMsg();
     });
-    masterGrid.append(btn);
+    wrap.append(btn);
+
+    // Полноценный лист ожидания - не в масштабе этого окна (см. промпт Окна 26),
+    // только прямая связь с администратором, если у мастера совсем нет мест в
+    // ближайшие 60 дней. Реальный телефон салона, тот же номер, что уже в разделе
+    // "Контакты" ниже на странице - не выдумываем отдельный канал связи.
+    if (masterAvailabilityReady && masterAvailability.has(master.id) && !masterAvailability.get(master.id)) {
+      const callLink = document.createElement('a');
+      callLink.className = 'opt-admin-call';
+      callLink.href = 'tel:+79899977070';
+      callLink.textContent = 'Позвонить администратору';
+      wrap.append(callLink);
+    }
+
+    masterGrid.append(wrap);
   }
 }
 
@@ -424,6 +557,7 @@ function renderServiceOptions() {
       syncServiceButtons();
       renderServiceSummary();
       refreshSlots();
+      refreshCalendarAvailability();
       clearMsg();
     });
     currentServiceButtons.set(service.id, btn);
@@ -651,6 +785,14 @@ renderMasterOptions();
 // с реальными данными вместо legacy-фоллбэка.
 loadMasterServices().then(() => {
   if (selectedMaster) renderServiceOptions();
+});
+
+// Окно 26 (04.08.2026, Задача 2) - тот же приём, что и loadMasterServices выше:
+// первая отрисовка карточек мастеров не ждёт сеть, бейдж доступности появляется
+// перерисовкой, когда batch-ответ реально пришёл. renderMasterOptions() безопасно
+// перевызывать повторно - сохраняет выбор мастера (selectedMaster === master выше).
+loadMasterNextAvailability().then(() => {
+  renderMasterOptions();
 });
 
 for (const el of document.querySelectorAll('.section-head, .booking-shell, .contacts-grid > *, .philosophy-quote, .philosophy-story, .team-growth-grid > *')) {

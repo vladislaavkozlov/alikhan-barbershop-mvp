@@ -580,6 +580,13 @@ function wireScheduleEditor(masterId, fetchJson) {
 // исключительно на чтение - см. renderWeeklySelfReadOnly ниже (crm-master.html).
 // Структуру теперь меняет только владелец/админ напрямую (решение Окна 17,
 // реализовано Окном 19) - мастер больше не может отправить запрос на график.
+//
+// Окно 27 (04.08.2026) - 7 крупных вертикальных карточек занимали много места
+// (обсуждено с Владом). Разметка самой карточки (canEdit=true) не изменилась - её
+// теперь просто оборачивает изначально скрытая панель (см. weekly-day-panel ниже),
+// раскрываемая кликом по компактной иконке дня (buildWeekdayIconStrip/
+// wireWeekdayIconStrip). readonly-ветка (canEdit=false) уже была компактной (одна
+// строка на день) - её не трогаем, это вне зоны этого окна.
 function buildWeeklyDayRow(prefix, wd, day, canEdit) {
   const isWorking = day?.isWorking ?? true;
   const hasBreak = !!day?.breakStart;
@@ -614,7 +621,62 @@ function buildWeeklyDayRow(prefix, wd, day, canEdit) {
         <div class="field"><label>Перерыв с</label><div id="${prefix}-${wd}-breakStart-slot"></div></div>
         <div class="field"><label>до</label><div id="${prefix}-${wd}-breakEnd-slot"></div></div>
       </div>
+      <button type="button" class="btn btn-ghost btn-sm weekly-apply-all-btn" id="${prefix}-${wd}-applyAll" style="${isWorking && hasBreak ? '' : 'display:none'}">Применить ко всем дням</button>
     </div>`;
+}
+// Окно 27 (04.08.2026, Задача 1) - компактная строка из 7 круглых переключателей
+// Пн-Вс над панелями дней. Клик раскрывает/сворачивает панель этого дня
+// (toggleDayPanel) - остальные панели при этом закрываются (один открытый день за
+// раз, тот же паттерн, что уже есть у details.staff-card в разметке владельца).
+function buildWeekdayIconStrip(prefix, days) {
+  return `<div class="weekday-icon-strip">${days
+    .map((d, i) => {
+      const wd = i + 1;
+      const isWorking = d?.isWorking ?? true;
+      return `<button type="button" class="weekday-icon${isWorking ? ' is-working' : ' is-off'}" id="${prefix}-${wd}-icon" data-weekday="${wd}" aria-expanded="false" aria-controls="${prefix}-${wd}-panel" title="${WEEKDAY_SHORT[wd - 1]}, ${isWorking ? 'рабочий день' : 'выходной'}">${WEEKDAY_SHORT[wd - 1]}</button>`;
+    })
+    .join('')}</div>`;
+}
+function toggleDayPanel(prefix, wd) {
+  for (let i = 1; i <= 7; i++) {
+    const panel = el(`${prefix}-${i}-panel`);
+    const icon = el(`${prefix}-${i}-icon`);
+    if (!panel || !icon) continue;
+    const shouldOpen = i === wd ? !panel.classList.contains('is-open') : false;
+    panel.classList.toggle('is-open', shouldOpen);
+    icon.setAttribute('aria-expanded', String(shouldOpen));
+  }
+}
+function wireWeekdayIconStrip(prefix) {
+  for (let wd = 1; wd <= 7; wd++) {
+    const icon = el(`${prefix}-${wd}-icon`);
+    if (icon) icon.addEventListener('click', () => toggleDayPanel(prefix, wd));
+  }
+}
+// Окно 27 (04.08.2026, Задача 2) - копирует перерыв (время начала/конца) дня sourceWd
+// на все ОСТАЛЬНЫЕ рабочие дни недели этого мастера. Дни-выходные пропускает (для
+// них перерыв не имеет смысла). Не сохраняет на сервер сама - это делает общая кнопка
+// "Сохранить график" (el(`${prefix}-save`)), поэтому применённые значения можно потом
+// вручную переопределить на конкретный день перед сохранением. Возвращает число дней,
+// на которые реально скопировано (для короткой обратной связи в UI).
+function applyBreakToAllDays(prefix, sourceWd) {
+  const breakStart = timeSelectValue(`${prefix}-${sourceWd}-breakStart`);
+  const breakEnd = timeSelectValue(`${prefix}-${sourceWd}-breakEnd`);
+  let applied = 0;
+  for (let wd = 1; wd <= 7; wd++) {
+    if (wd === sourceWd) continue;
+    const workingEl = el(`${prefix}-${wd}-working`);
+    if (!workingEl?.checked) continue;
+    const breakOnEl = el(`${prefix}-${wd}-breakOn`);
+    breakOnEl.checked = true;
+    el(`${prefix}-${wd}-breakFields`).style.display = '';
+    const applyAllBtn = el(`${prefix}-${wd}-applyAll`);
+    if (applyAllBtn) applyAllBtn.style.display = '';
+    renderTimeSelect(`${prefix}-${wd}-breakStart-slot`, `${prefix}-${wd}-breakStart`, breakStart);
+    renderTimeSelect(`${prefix}-${wd}-breakEnd-slot`, `${prefix}-${wd}-breakEnd`, breakEnd);
+    applied += 1;
+  }
+  return applied;
 }
 function wireWeeklyDayRow(prefix, wd, day) {
   renderTimeSelect(`${prefix}-${wd}-start-slot`, `${prefix}-${wd}-start`, day?.workStart || '10:00');
@@ -628,6 +690,7 @@ function wireWeeklyDayRow(prefix, wd, day) {
   const breakToggleWrap = el(`${prefix}-${wd}-breakToggleWrap`);
   const breakOnEl = el(`${prefix}-${wd}-breakOn`);
   const breakFieldsEl = el(`${prefix}-${wd}-breakFields`);
+  const applyAllBtn = el(`${prefix}-${wd}-applyAll`);
   const syncWorking = () => {
     const working = workingEl.checked;
     rowEl.classList.toggle('is-off', !working);
@@ -635,9 +698,20 @@ function wireWeeklyDayRow(prefix, wd, day) {
     fieldsEl.style.display = working ? '' : 'none';
     breakToggleWrap.style.display = working ? '' : 'none';
     breakFieldsEl.style.display = working && breakOnEl.checked ? '' : 'none';
+    if (applyAllBtn) applyAllBtn.style.display = working && breakOnEl.checked ? '' : 'none';
   };
   workingEl.addEventListener('change', syncWorking);
   breakOnEl.addEventListener('change', syncWorking);
+  if (applyAllBtn) {
+    applyAllBtn.addEventListener('click', () => {
+      const n = applyBreakToAllDays(prefix, wd);
+      const originalLabel = applyAllBtn.textContent;
+      applyAllBtn.textContent = n > 0 ? `Скопировано на ${n} дн.` : 'Нет других рабочих дней';
+      setTimeout(() => {
+        if (applyAllBtn.isConnected) applyAllBtn.textContent = originalLabel;
+      }, 2000);
+    });
+  }
 }
 function readWeeklyDayRow(prefix, wd) {
   const isWorking = el(`${prefix}-${wd}-working`).checked;
@@ -699,11 +773,15 @@ function wireWeeklyScheduleEditor(masterId, canEdit, fetchJson) {
     }
 
     container.innerHTML =
-      days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, true)).join('') +
+      buildWeekdayIconStrip(prefix, days) +
+      `<div class="weekly-panels">${days
+        .map((d, i) => `<div class="weekly-day-panel" id="${prefix}-${i + 1}-panel">${buildWeeklyDayRow(prefix, i + 1, d, true)}</div>`)
+        .join('')}</div>` +
       `<button class="btn btn-ghost btn-sm" type="button" id="${prefix}-save" style="margin-top:10px">Сохранить график</button>
        <p class="payroll-note" id="${prefix}-note"></p>
        <div class="conflict-list" id="${prefix}-conflicts" hidden></div>`;
     days.forEach((d, i) => wireWeeklyDayRow(prefix, i + 1, d));
+    wireWeekdayIconStrip(prefix);
 
     el(`${prefix}-save`).addEventListener('click', async () => {
       const weeklyChanges = [1, 2, 3, 4, 5, 6, 7].map((wd) => readWeeklyDayRow(prefix, wd));

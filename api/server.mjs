@@ -148,6 +148,13 @@ function minutesToTime(totalMinutes) {
 function addMinutes(time, minutes) {
   return minutesToTime(toMinutes(time) + minutes);
 }
+// Окно 26 (04.08.2026) - тот же приём UTC-арифметики над "YYYY-MM-DD", что уже
+// используется в циклах computeScheduleRangeDays/computeAvailabilityRangeDays выше.
+function addDaysIso(dateStr, days) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 function intervalsOverlap(aStart, aEnd, bStart, bEnd) {
   const aS = toMinutes(aStart);
   const aE = toMinutes(aEnd);
@@ -206,6 +213,25 @@ export function isoWeekday(dateStr) {
   return day === 0 ? 7 : day;
 }
 
+// Окно 23 (04.08.2026) - список дат заявки "с ... по ..." включительно. Раньше этот
+// цикл жил инлайном в PATCH /schedule-requests/:id/decision; отмена заявки (PATCH
+// .../cancel) обязана пройти РОВНО по тем же датам, что применение - разойдись они,
+// часть диапазона осталась бы заблокированной после отмены. Один общий хелпер вместо
+// двух копий цикла + покрыт юнит-тестом без Postgres.
+export function enumerateDateRange(dateFrom, dateTo) {
+  const dates = [];
+  for (let d = new Date(`${dateFrom}T00:00:00Z`); d.toISOString().slice(0, 10) <= dateTo; d.setUTCDate(d.getUTCDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+// Postgres отдаёт `date`-колонки объектом Date (см. комментарий про parseDate в шапке
+// файла) - к строке "YYYY-MM-DD" их приводит эта же пара вызовов в нескольких местах.
+function dateColToStr(value) {
+  return value instanceof Date ? value.toISOString().slice(0, 10) : value;
+}
+
 // Глобальный дефолт рабочего окна, когда для мастера нет ни явной правки на дату
 // (schedule_shifts), ни строки в master_weekly_schedule на этот день недели - тот
 // же фолбэк 10:00-20:00, что и раньше (см. storage.js MASTERS[].workWindow).
@@ -248,6 +274,20 @@ export async function getEffectiveSchedule(client, masterId, date) {
   return { startTime: row.work_start, endTime: row.work_end, breaks };
 }
 
+// Окно 22 (04.08.2026, Задача 1) - чистая функция, вынесена из GET /staff, чтобы
+// покрыть unit-тестом без реального Postgres (тот же приём, что уже применяется для
+// getEffectiveSchedule/isScheduleDayOff выше). viewerRole==='owner' видит всех
+// (+ hasWorkingSchedule на каждой строке-мастере, чтобы владелец сам увидел, кому
+// нужно донастроить график) - остальные роли мастеров без рабочего графика в ответе
+// не получают вовсе. Не-мастеров (providesServices=false - сам владелец/админ без
+// стрижек) фильтр не касается ни для кого.
+export function filterStaffForViewer(staffRows, viewerRole, scheduledMasterIds) {
+  if (viewerRole === 'owner') {
+    return staffRows.map((r) => (r.providesServices ? { ...r, hasWorkingSchedule: scheduledMasterIds.has(r.id) } : r));
+  }
+  return staffRows.filter((r) => !r.providesServices || scheduledMasterIds.has(r.id));
+}
+
 // Единое представление "занятого" времени дня - до начала смены, после конца смены
 // и сами перерывы - как один список интервалов. Позволяет и createBookingTx, и
 // findScheduleConflicts проверять пересечение брони с ЛЮБОЙ причиной блокировки
@@ -259,6 +299,27 @@ function blockedIntervalsFor(schedule) {
     { startTime: schedule.endTime, endTime: '23:59' },
     ...schedule.breaks,
   ].filter((b) => b.startTime < b.endTime);
+}
+
+// Окно 21 (04.08.2026) - есть ли хотя бы один непрерывный промежуток длиной
+// durationMin, свободный от блокировок (рабочее окно + перерывы из
+// blockedIntervalsFor + непогашенные брони этого дня). Прямой анализ отсортированных
+// интервалов вместо перебора каждого 15-минутного шага (как делает клиентский
+// storage.js getFreeSlots) - GET /schedule-availability отвечает true/false сразу
+// на до 31 дату диапазона, перебор был бы избыточен на эту нагрузку.
+export function hasAvailableSlot(schedule, bookings, durationMin) {
+  const blocked = [...blockedIntervalsFor(schedule), ...bookings.filter((b) => b.status !== 'cancelled')]
+    .map((b) => ({ start: toMinutes(b.startTime), end: toMinutes(b.endTime) }))
+    .filter((b) => b.start < b.end)
+    .sort((a, b) => a.start - b.start);
+
+  const dayEnd = 24 * 60;
+  let cursor = 0;
+  for (const b of blocked) {
+    if (b.start > cursor && b.start - cursor >= durationMin) return true;
+    cursor = Math.max(cursor, b.end);
+  }
+  return dayEnd - cursor >= durationMin;
 }
 
 // Окно 17 (04.08.2026) - GET /schedule-range (Задача 1). "Выходной день" в рамках
@@ -301,6 +362,77 @@ export async function computeScheduleRangeDays(client, masterId, from, to) {
     });
   }
   return days;
+}
+
+// Окно 21 (04.08.2026) - разумный максимум диапазона для GET /schedule-availability.
+// Фронтенд вызывает по одному видимому месяцу календаря, 31 дня достаточно на любой
+// месяц с запасом.
+export const SCHEDULE_AVAILABILITY_MAX_DAYS = 31;
+
+// Эффективный график + брони каждого дня диапазона одним проходом - брони забираются
+// ОДНИМ запросом на весь диапазон (тот же принцип экономии, что уже применён у GET
+// /bookings?from=&to=, см. listBookingsForRequest выше), не по одному дню, чтобы не
+// плодить до 31 отдельного запроса к bookings. Только занятость слота (start/end/
+// status), без клиентских данных - тот же принцип приватности, что уже применён у
+// анонимного GET /schedule (см. комментарий там же).
+export async function computeAvailabilityRangeDays(client, masterId, durationMin, from, to) {
+  const bookingsRes = await client.query(
+    `SELECT date, start_time AS "startTime", end_time AS "endTime", status
+     FROM bookings WHERE master_id = $1 AND date >= $2 AND date <= $3`,
+    [masterId, from, to]
+  );
+  const bookingsByDate = new Map();
+  for (const row of bookingsRes.rows) {
+    const dateStr = row.date instanceof Date ? row.date.toISOString().slice(0, 10) : row.date;
+    if (!bookingsByDate.has(dateStr)) bookingsByDate.set(dateStr, []);
+    bookingsByDate.get(dateStr).push({ startTime: row.startTime, endTime: row.endTime, status: row.status });
+  }
+
+  const days = [];
+  for (let d = new Date(`${from}T00:00:00Z`); d.toISOString().slice(0, 10) <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const eff = await getEffectiveSchedule(client, masterId, dateStr);
+    const dayBookings = bookingsByDate.get(dateStr) ?? [];
+    days.push({ date: dateStr, hasSlots: hasAvailableSlot(eff, dayBookings, durationMin) });
+  }
+  return days;
+}
+
+// Окно 26 (04.08.2026) - окно поиска "ближайшая доступная дата", то же [сегодня;
+// +60 дней], что и MAX_BOOKING_DAYS_AHEAD на фронтенде (app.js) - дата за пределами
+// этого окна для клиента всё равно недостижима кликом по календарю.
+export const MASTER_NEXT_AVAILABILITY_WINDOW_DAYS = 60;
+
+// Окно 26 (04.08.2026, Задача 1) - "ближайшая доступная дата" мастера для карточки
+// в публичном виджете (Задача 2 того же промпта). Переиспользует hasAvailableSlot +
+// getEffectiveSchedule (Окно 21/16) - тот же цикл по дням диапазона, что и
+// computeAvailabilityRangeDays, но с ранним выходом на первый найденный день
+// (карточка мастера сравнивает "занят/свободен", не строит календарь на весь
+// диапазон) и без параллельного накопления результата по каждому дню. durationMin
+// здесь - МИНИМАЛЬНАЯ длительность среди услуг мастера (см. вызывающий эндпоинт) -
+// hasAvailableSlot монотонна по durationMin (более короткая услуга помещается везде,
+// где помещается более длинная), поэтому "доступен хотя бы для одной услуги" ⟺
+// "доступен для самой короткой услуги", проверять каждую услугу отдельно не нужно.
+export async function computeMasterNextAvailability(client, masterId, durationMin, from, to) {
+  const bookingsRes = await client.query(
+    `SELECT date, start_time AS "startTime", end_time AS "endTime", status
+     FROM bookings WHERE master_id = $1 AND date >= $2 AND date <= $3`,
+    [masterId, from, to]
+  );
+  const bookingsByDate = new Map();
+  for (const row of bookingsRes.rows) {
+    const dateStr = row.date instanceof Date ? row.date.toISOString().slice(0, 10) : row.date;
+    if (!bookingsByDate.has(dateStr)) bookingsByDate.set(dateStr, []);
+    bookingsByDate.get(dateStr).push({ startTime: row.startTime, endTime: row.endTime, status: row.status });
+  }
+
+  for (let d = new Date(`${from}T00:00:00Z`); d.toISOString().slice(0, 10) <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const eff = await getEffectiveSchedule(client, masterId, dateStr);
+    const dayBookings = bookingsByDate.get(dateStr) ?? [];
+    if (hasAvailableSlot(eff, dayBookings, durationMin)) return dateStr;
+  }
+  return null;
 }
 
 // ── Бронирование поверх нормализованной схемы (Шаг 1-2 Окна 8) ────────────
@@ -775,28 +907,41 @@ const server = createServer(async (req, res) => {
         query += ` AND id = $${params.length}`;
       }
       const result = await pool.query(query, params);
-      return sendJson(
-        res,
-        200,
-        result.rows.map((r) => ({
-          id: r.id,
-          locationId: r.location_id,
-          name: r.name,
-          photoUrl: r.photo_url,
-          phone: r.phone,
-          email: r.email,
-          role: r.role,
-          employed: r.employed,
-          providesServices: r.provides_services,
-          hasSystemAccess: r.has_system_access,
-          // Задача 4 (Окно 13, 01.08.2026, Блок 6 в.23-26) - портфолио мастера,
-          // самредактируемые владельцем поля, см. миграцию 009_staff_portfolio.sql
-          experienceText: r.experience_text,
-          strengthsText: r.strengths_text,
-          certificatesText: r.certificates_text,
-          beforeAfterUrls: r.before_after_urls,
-        }))
-      );
+      const mapped = result.rows.map((r) => ({
+        id: r.id,
+        locationId: r.location_id,
+        name: r.name,
+        photoUrl: r.photo_url,
+        phone: r.phone,
+        email: r.email,
+        role: r.role,
+        employed: r.employed,
+        providesServices: r.provides_services,
+        hasSystemAccess: r.has_system_access,
+        // Задача 4 (Окно 13, 01.08.2026, Блок 6 в.23-26) - портфолио мастера,
+        // самредактируемые владельцем поля, см. миграцию 009_staff_portfolio.sql
+        experienceText: r.experience_text,
+        strengthsText: r.strengths_text,
+        certificatesText: r.certificates_text,
+        beforeAfterUrls: r.before_after_urls,
+      }));
+      // Окно 22 (04.08.2026, Задача 1) - мастер без ни одной строки is_working=true в
+      // master_weekly_schedule фолбэчится в getEffectiveSchedule на GLOBAL_DEFAULT
+      // "10:00-20:00, без перерыва" (см. комментарий выше по файлу) - выглядит для
+      // не-владельца полностью свободным, хотя физически ещё не готов принимать
+      // (например только что нанят). Владелец (auth.role === 'owner') видит всех как
+      // раньше + hasWorkingSchedule, чтобы сам увидел, кому нужно донастроить график -
+      // остальные роли таких мастеров в ответе не получают вовсе.
+      const serviceMasterIds = mapped.filter((r) => r.providesServices).map((r) => r.id);
+      let scheduledIds = new Set();
+      if (serviceMasterIds.length > 0) {
+        const schedRes = await pool.query(
+          `SELECT DISTINCT master_id FROM master_weekly_schedule WHERE master_id = ANY($1) AND is_working = true`,
+          [serviceMasterIds]
+        );
+        scheduledIds = new Set(schedRes.rows.map((r) => r.master_id));
+      }
+      return sendJson(res, 200, filterStaffForViewer(mapped, auth.role, scheduledIds));
     }
 
     // ── /staff/:id/portfolio - Задача 4 (Окно 13, 01.08.2026). Только владелец
@@ -1268,6 +1413,70 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, days);
     }
 
+    // ── /schedule-availability - Задача 1 промпта Окна 21 (04.08.2026). Реальная
+    // доступность мастер+услуга по каждой дате диапазона - календарь клиента (Задача 2
+    // этого же окна) красит недоступные даты серым ДО клика, вместо того чтобы узнавать
+    // про занятость только после выбора даты (GET /schedule) или вовсе на POST /bookings
+    // (schedule_blocked). Анонимный доступ - тот же уровень, что у GET /schedule (публичный
+    // виджет записи, без логина), только с явными masterId+serviceId+узкий диапазон дат.
+    if (parts[0] === 'schedule-availability' && parts.length === 1 && req.method === 'GET') {
+      const masterId = url.searchParams.get('masterId');
+      // Клиент реально может выбрать НЕСКОЛЬКО услуг за визит (Окно 11, ?serviceId=
+      // повторяется), не одну - getAll поддерживает и старый одиночный вызов
+      // (?serviceId=X), и комбо, той же формой массива, что createBookingTx.
+      const serviceIds = url.searchParams.getAll('serviceId');
+      const from = url.searchParams.get('from');
+      const to = url.searchParams.get('to');
+      if (!masterId || serviceIds.length === 0 || !from || !to) return sendJson(res, 400, { error: 'missing_fields' });
+
+      const dayCount = rangeDayCount(from, to);
+      if (!Number.isFinite(dayCount) || dayCount < 1 || dayCount > SCHEDULE_AVAILABILITY_MAX_DAYS) {
+        return sendJson(res, 400, { error: 'invalid_range', maxDays: SCHEDULE_AVAILABILITY_MAX_DAYS });
+      }
+
+      // Суммарная длительность ВСЕХ выбранных услуг ИМЕННО у этого мастера
+      // (master_services, Окно 10 - у Екатерины/Елизаветы другая длительность на
+      // части услуг) - тот же запрос и та же гарантия полноты (msRes.rows.length ===
+      // serviceIds.length), что реально проверяет createBookingTx при записи.
+      const msRes = await pool.query(
+        'SELECT service_id, duration_min FROM master_services WHERE master_id = $1 AND service_id = ANY($2)',
+        [masterId, serviceIds]
+      );
+      if (msRes.rows.length !== serviceIds.length) return sendJson(res, 400, { error: 'unknown_master_service' });
+      const durationMin = msRes.rows.reduce((sum, r) => sum + r.duration_min, 0);
+
+      const days = await computeAvailabilityRangeDays(pool, masterId, durationMin, from, to);
+      return sendJson(res, 200, days);
+    }
+
+    // ── /masters-next-availability - Задача 1 промпта Окна 26 (04.08.2026). Батч-ответ
+    // для ВСЕХ бронируемых мастеров разом (не по одному запросу на мастера) - карточка
+    // мастера на публичном виджете (Задача 2 этого же окна) показывает бейдж доступности
+    // ДО того, как клиент вообще выбрал мастера или услугу, поэтому все три карточки
+    // обновляются одним анонимным запросом при загрузке страницы. Анонимный доступ - тот
+    // же уровень, что у GET /master-services (ничего чувствительнее даты здесь нет).
+    // "Бронируемый мастер" = мастер, у которого есть хотя бы одна строка в
+    // master_services (иначе бронировать у него нечего, отдаём nextAvailableDate: null,
+    // не 500 и не выдуманную дату).
+    if (parts[0] === 'masters-next-availability' && parts.length === 1 && req.method === 'GET') {
+      const msRes = await pool.query('SELECT master_id, duration_min FROM master_services');
+      const minDurationByMaster = new Map();
+      for (const r of msRes.rows) {
+        const cur = minDurationByMaster.get(r.master_id);
+        if (cur === undefined || r.duration_min < cur) minDurationByMaster.set(r.master_id, r.duration_min);
+      }
+
+      const { date: from } = shopNow();
+      const to = addDaysIso(from, MASTER_NEXT_AVAILABILITY_WINDOW_DAYS);
+
+      const result = [];
+      for (const [masterId, durationMin] of minDurationByMaster) {
+        const nextAvailableDate = await computeMasterNextAvailability(pool, masterId, durationMin, from, to);
+        result.push({ masterId, nextAvailableDate });
+      }
+      return sendJson(res, 200, result);
+    }
+
     // ── /master-weekly-schedule - единый блок "График работы" (Окно 16, 03.08.2026,
     // заменяет прежний /schedule-recurring - разд.28/41 промпта). Одна строка на
     // каждый день недели (master_weekly_schedule): работает/выходной, рабочее окно,
@@ -1536,20 +1745,16 @@ const server = createServer(async (req, res) => {
             weeklyRows = reqRow.weekly_changes;
             conflictsByDate.push(...(await findWeeklyScheduleConflicts(client, reqRow.master_id, weeklyRows)));
           } else {
-            const dateFrom = reqRow.date_from instanceof Date ? reqRow.date_from.toISOString().slice(0, 10) : reqRow.date_from;
-            const dateTo = reqRow.date_to instanceof Date ? reqRow.date_to.toISOString().slice(0, 10) : reqRow.date_to;
             dayOffStartTime = reqRow.request_type === 'day_off' ? '10:00' : reqRow.start_time;
             dayOffEndTime = reqRow.request_type === 'day_off' ? '20:00' : reqRow.end_time;
-            dayOffDates = [];
             // Влад (03.08.2026) - подтверждение выходного/перерыва реально блокирует
             // время (applyScheduleDay), но раньше молча накладывалось поверх уже
             // существующих записей клиентов. Собираем конфликты по КАЖДОМУ дню
             // диапазона (day_off может растянуться на несколько дней = по сути отпуск)
             // ДО применения - applyScheduleDay ниже вызывается вторым проходом по тем
             // же датам, только если весь диапазон чист.
-            for (let d = new Date(`${dateFrom}T00:00:00Z`); d.toISOString().slice(0, 10) <= dateTo; d.setUTCDate(d.getUTCDate() + 1)) {
-              const dateStr = d.toISOString().slice(0, 10);
-              dayOffDates.push(dateStr);
+            dayOffDates = enumerateDateRange(dateColToStr(reqRow.date_from), dateColToStr(reqRow.date_to));
+            for (const dateStr of dayOffDates) {
               const conflicts = await findScheduleConflicts(client, reqRow.master_id, dateStr, [
                 { startTime: dayOffStartTime, endTime: dayOffEndTime },
               ]);
@@ -1584,6 +1789,79 @@ const server = createServer(async (req, res) => {
         });
         await client.query('COMMIT');
         return sendJson(res, 200, { ok: true });
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
+    // ── /schedule-requests/:id/cancel - owner-only (Окно 23, 04.08.2026). Отменяет
+    // УЖЕ ОДОБРЕННУЮ заявку на отгул/отпуск целиком: снимает блокировку со ВСЕХ дат
+    // диапазона одним действием и переводит саму заявку в 'cancelled'. До этого окна
+    // владелец мог только точечно сбросить одну дату (DELETE /schedule?masterId=&date=,
+    // кнопка "Сбросить к стандартному") - на трёхдневном отпуске это три отдельных
+    // действия, а статус заявки всё равно оставался "approved" и врал в истории.
+    //
+    // Откат каждой даты - ровно та же операция, что у DELETE /schedule: удаляем строку
+    // schedule_shifts, schedule_breaks уходят каскадом (002_schema.sql:90), и
+    // getEffectiveSchedule сам возвращается на недельный график/глобальный дефолт.
+    // Следствие, осознанное (то же, что у кнопки "Сбросить к стандартному"): если на
+    // дату из диапазона у мастера была ЕЩЁ и разовая правка владельца (свои часы на
+    // этот день), она удалится вместе с отгулом - отдельного слоя "чей это shift" в
+    // схеме нет, и заводить его в рамках этого окна никто не просил.
+    if (parts[0] === 'schedule-requests' && parts[1] && parts[2] === 'cancel' && parts.length === 3 && req.method === 'PATCH') {
+      const auth = await authenticate(req);
+      if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+      const requestId = Number(parts[1]);
+      if (!Number.isInteger(requestId)) return sendJson(res, 400, { error: 'invalid_id' });
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const reqRes = await client.query('SELECT * FROM schedule_change_requests WHERE id = $1 FOR UPDATE', [requestId]);
+        if (reqRes.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return sendJson(res, 404, { error: 'request_not_found' });
+        }
+        const reqRow = reqRes.rows[0];
+        // Отменить можно только то, что реально действует. pending нечего снимать
+        // (время не блокировалось), rejected/cancelled - уже терминальные.
+        if (reqRow.status !== 'approved') {
+          await client.query('ROLLBACK');
+          return sendJson(res, 409, { error: 'not_approved', status: reqRow.status });
+        }
+        // Одобренный ПОСТОЯННЫЙ график (category=grafik_standard) отменить нечем:
+        // writeWeeklySchedule заменяет master_weekly_schedule целиком, прежний график
+        // нигде не сохраняется, а date_to у таких заявок вообще NULL. Честный 409
+        // вместо тихого "cancelled" на заявке, эффект которой на деле остался в силе.
+        if (reqRow.category === 'grafik_standard' || reqRow.request_type === 'weekly_schedule') {
+          await client.query('ROLLBACK');
+          return sendJson(res, 409, { error: 'cannot_cancel_weekly' });
+        }
+
+        const dates = enumerateDateRange(dateColToStr(reqRow.date_from), dateColToStr(reqRow.date_to));
+        for (const dateStr of dates) {
+          await client.query('DELETE FROM schedule_shifts WHERE master_id = $1 AND date = $2', [reqRow.master_id, dateStr]);
+        }
+        await client.query(`UPDATE schedule_change_requests SET status = 'cancelled' WHERE id = $1`, [requestId]);
+
+        // Мастер уже считает эти дни своими выходными - молча забрать одобренный
+        // отгул нельзя. Тип ОТДЕЛЬНЫЙ ('schedule_request_cancelled', миграция 033), не
+        // 'schedule_request_decided': дедуп-индекс notifications_schedreq_dedup
+        // (staff_id, type, schedule_request_id, миграция 015) на этой же заявке уже
+        // держит уведомление об одобрении, и повторная вставка того же типа гаснет в
+        // ON CONFLICT DO NOTHING - найдено живым прогоном 04.08.2026, мастер не узнавал
+        // об отмене вообще.
+        const categoryLabel = { otgul: 'отгул', otpusk: 'отпуск' }[reqRow.category] ?? 'изменение графика';
+        await notifyStaff(client, reqRow.master_id, 'schedule_request_cancelled', {
+          scheduleRequestId: requestId,
+          title: 'Одобрение отменено',
+          body: `${categoryLabel} ${dates[0]}–${dates[dates.length - 1]} больше не действует`,
+        });
+        await client.query('COMMIT');
+        return sendJson(res, 200, { ok: true, clearedDates: dates });
       } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
         throw err;

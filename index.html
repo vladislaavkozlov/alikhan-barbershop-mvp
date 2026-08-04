@@ -475,6 +475,16 @@
   .option-card .opt-meta{ font-size: 0.78rem; color: var(--text-muted); }
   .option-card.selected .opt-meta{ color: var(--leather); opacity: 0.75; }
   .option-card--blocked{ opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+  /* Окно 26 (04.08.2026) - бейдж ближайшей доступности на карточке мастера */
+  .master-option{ display: flex; flex-direction: column; gap: 4px; flex: 1 1 150px; min-width: 150px; }
+  .master-option .option-card{ width: 100%; flex: none; min-width: 0; }
+  .opt-availability{ font-size: 0.76rem; color: var(--accent); }
+  .option-card.selected .opt-availability{ color: var(--leather); opacity: 0.85; }
+  .opt-availability--none{ color: var(--text-muted); }
+  .opt-admin-call{
+    font-size: 0.78rem; color: var(--leather); text-decoration: underline;
+    text-underline-offset: 2px; align-self: flex-start;
+  }
   .option-grid[aria-disabled="true"]{ opacity: 0.5; pointer-events: none; }
   .option-hint{ font-size: 0.86rem; color: var(--text-muted); }
   .service-summary{

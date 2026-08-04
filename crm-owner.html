@@ -293,6 +293,21 @@
           </div>
         </div>
 
+        <!-- Заявки мастеров на изменение графика (Окно 23, 04.08.2026). До этого окна
+             владелец видел заявку ТОЛЬКО как уведомление в колокольчике: одобрил - и
+             заявка исчезала с глаз, а её эффект (заблокированные даты) оставался.
+             Здесь она видна всегда, вместе со статусом, и одобренный отгул/отпуск
+             снимается одной кнопкой сразу со всего диапазона дат. Наполняется
+             assets/crm-schedule-requests.js -->
+        <section style="margin-top:26px">
+          <h2 style="font-size:1rem">Заявки мастеров на изменение графика</h2>
+          <p class="section-hint">«Отменить» снимает блокировку сразу со всех дат заявки и возвращает дни к стандартному графику. Мастер получит уведомление</p>
+          <div class="break-row" style="margin-bottom:10px">
+            <button class="btn btn-ghost btn-sm" type="button" id="ownerReqReload">Обновить список</button>
+          </div>
+          <div id="ownerReqList" class="breaks-list"><span class="note">Загрузка…</span></div>
+        </section>
+
         <details class="booking-detail" id="bd-1" open>
           <summary><strong id="bd-now">Клиент А (пример) · Стрижка · 10:00–10:40 (Алиовсад)</strong><span class="bd-hint">- клик по любой записи в календаре выше открывает её здесь (разд. 16.2)</span></summary>
           <div class="booking-detail-body">
@@ -920,7 +935,9 @@
 <script src="assets/mockup-crm.js"></script>
 <script type="module">
   import { initCrmAuth } from './assets/crm-auth.js';
+  import { initOwnerScheduleRequests } from './assets/crm-schedule-requests.js';
   initCrmAuth('owner');
+  initOwnerScheduleRequests();
 </script>
 </body>
 </html>
