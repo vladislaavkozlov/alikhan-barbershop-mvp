@@ -60,7 +60,13 @@ const pool = new Pool({
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, PATCH, OPTIONS');
+  // Окно 18 (04.08.2026) - найден живым тестом: DELETE /schedule (задача 2 промпта
+  // Окна 17) не работал из браузера ("Failed to fetch" на кнопке "Сбросить к
+  // стандартному") - метод существовал на сервере, но отсутствовал в CORS-preflight
+  // ответе, браузер блокировал реальный запрос ДО того как он вообще уходил на
+  // сервер. Добавлен DELETE - упущение Окна 17 при добавлении маршрута, не новая
+  // функциональность.
+  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
