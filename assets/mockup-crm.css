@@ -653,6 +653,60 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .year-month .ym-holiday { color: var(--wood); font-size: 0.74rem; display: block; line-height: 1.4; }
 .year-month .ym-note { color: var(--text-muted); font-size: 0.72rem; margin-top: 8px; }
 
+/* ---------- Окно 18 (04.08.2026) - навигация по датам, Неделя/Месяц реальные, модалка дня ---------- */
+.day-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.day-nav-btn {
+  width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-size: 1rem; cursor: pointer; transition: all 160ms var(--ease-out);
+}
+.day-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+.week-nav-label { font-weight: 600; font-size: 0.85rem; }
+
+.master-switch-row { margin: 10px 0 14px; }
+.seg-bar.master-pill-row button.master-pill {
+  cursor: pointer; padding: 7px 16px; border-radius: 999px; border: none; background: transparent;
+  font-size: 0.82rem; font-weight: 600; color: var(--text-muted); font-family: inherit;
+  transition: all 160ms var(--ease-out); white-space: nowrap;
+}
+.seg-bar.master-pill-row button.master-pill.active { background: var(--accent); color: var(--leather); }
+
+.week-grid { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 6px; }
+.week-day-cell {
+  display: block; width: 100%; text-align: left; font-family: inherit; cursor: pointer;
+  min-height: 74px;
+}
+.week-day-cell:hover { border-color: var(--accent); }
+.week-day-cell .week-hours { display: block; color: var(--text-muted); font-size: 0.68rem; margin-top: 4px; line-height: 1.3; }
+.week-day-cell.is-dayoff { background: rgba(193,85,74,0.08); }
+
+.month-day--real { cursor: pointer; }
+.month-day--real:hover { border-color: var(--accent); }
+.month-day-edit {
+  position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 5px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
+  font-size: 0.7rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 140ms var(--ease-out);
+}
+.month-day--real:hover .month-day-edit, .month-day-edit:focus { opacity: 1; }
+
+.day-edit-modal { position: fixed; inset: 0; background: rgba(20,16,12,0.6); display: flex; align-items: center; justify-content: center; z-index: 900; padding: 20px; }
+.day-edit-modal[hidden] { display: none; }
+.day-edit-card {
+  width: min(420px, 100%); max-height: 90vh; overflow-y: auto; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 14px; padding: 26px; position: relative;
+}
+.day-edit-close {
+  position: absolute; top: 14px; right: 14px; width: 26px; height: 26px; border-radius: 7px;
+  border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.day-edit-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+
+.conflict-list { margin-top: 10px; }
+.conflict-day, .conflict-row {
+  border: 1px solid rgba(193,85,74,0.35); background: rgba(193,85,74,0.1); border-radius: 8px;
+  padding: 8px 10px; margin-top: 6px; font-size: 0.78rem; line-height: 1.5;
+}
+.conflict-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
 /* ---------- недельный грид (модификатор schedule-grid под 7 дней вместо мастеров) ---------- */
 .schedule-grid--week { grid-auto-columns: minmax(128px, 1fr); }
 .week-head { justify-content: center; text-align: center; }

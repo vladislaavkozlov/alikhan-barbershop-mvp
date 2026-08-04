@@ -53,14 +53,6 @@
   #pt-e:checked ~ .tab-bar label[for="pt-e"] { color: var(--accent); border-color: var(--accent); }
   #pt-e:checked ~ .panel-e { display: block; }
 
-  /* переключатель мастера в недельном виде */
-  #wk-ivan1:checked ~ .seg-bar label[for="wk-ivan1"],
-  #wk-ivan2:checked ~ .seg-bar label[for="wk-ivan2"],
-  #wk-ivan3:checked ~ .seg-bar label[for="wk-ivan3"] { background: var(--accent); color: var(--leather); }
-  #wk-ivan1:checked ~ .panel-wk-ivan1,
-  #wk-ivan2:checked ~ .panel-wk-ivan2,
-  #wk-ivan3:checked ~ .panel-wk-ivan3 { display: block; }
-
   /* период выручки (Окно 13, 01.08.2026 - переключатель по точкам убран, у Алихана
      одна точка, см. Задача 1 промпта корректировки) */
   #rvpa-day:checked ~ .seg-bar label[for="rvpa-day"],
@@ -206,7 +198,12 @@
           </div>
 
           <div class="seg-panel panel-sp-day">
-            <p class="section-hint" style="margin-top:12px">Сегодня. Колонка = мастер (заголовок уже содержит аватар и имя, отдельный ряд карточек сверху убран как дублирующий)</p>
+            <div class="day-nav" id="dayNav">
+              <button type="button" class="day-nav-btn" id="dayNavPrev" aria-label="Предыдущий день">‹</button>
+              <div id="dayNavDate-slot"></div>
+              <button type="button" class="day-nav-btn" id="dayNavNext" aria-label="Следующий день">›</button>
+            </div>
+            <p class="section-hint">Колонка = мастер (заголовок уже содержит аватар и имя, отдельный ряд карточек сверху убран как дублирующий)</p>
 
             <div class="schedule-scroll">
               <div class="schedule-row-with-gutter">
@@ -219,278 +216,80 @@
                     <span style="top:576px">19:00</span><span style="top:640px">20:00</span>
                   </div>
                 </div>
-                <div class="schedule-grid">
-                  <div class="schedule-col">
-                    <div class="schedule-col-head"><div class="avatar">АЛ</div><span class="name">Алиовсад</span><button class="walkin-add-btn" type="button" title="Новая запись без предзаписи к Алиовсаду" data-master-id="master-1" data-master-name="Алиовсад">+</button></div>
-                    <div class="schedule-track">
-                      <div class="appt appt--done" style="top:0px;height:43px" tabindex="0"
-                           onclick="openBooking(this)"
-                           data-client="Клиент А (пример)" data-phone="+7 900 000-00-01 (пример)" data-master="Алиовсад"
-                           data-service="Стрижка · 2000₽" data-planned="10:00–10:40" data-actual="10:03"
-                           data-status="came" data-confirmed="true" data-noshow="false">
-                        <span class="t">10:00–10:40</span><span class="c">Клиент А (пример) · Стрижка</span>
-                      </div>
-                      <div class="appt appt--new" style="top:64px;height:64px" tabindex="0"
-                           onclick="openBooking(this)"
-                           data-client="Клиент Б (пример)" data-phone="+7 900 000-00-02 (пример)" data-master="Алиовсад"
-                           data-service="Комплекс стрижка+борода · 3500₽" data-planned="11:00–12:00" data-actual=""
-                           data-status="wait" data-confirmed="false" data-noshow="false">
-                        <span class="t">11:00–12:00</span><span class="c">Клиент Б (пример) · Комплекс стрижка+борода</span>
-                      </div>
-                      <div class="appt appt--break" style="top:192px;height:64px">Перерыв 13:00–14:00 (пример)</div>
-                      <div class="appt appt--done" style="top:288px;height:32px" tabindex="0"
-                           onclick="openBooking(this)"
-                           data-client="Клиент В (пример)" data-phone="+7 900 000-00-03 (пример)" data-master="Алиовсад"
-                           data-service="Борода · 1600₽" data-planned="14:30–15:00" data-actual="14:31"
-                           data-status="came" data-confirmed="true" data-noshow="false">
-                        <span class="t">14:30–15:00</span><span class="c">Клиент В (пример) · Борода</span>
-                      </div>
-                      <div class="appt appt--new" style="top:384px;height:64px" tabindex="0"
-                           onclick="openBooking(this)"
-                           data-client="Клиент Г (пример)" data-phone="+7 900 000-00-04 (пример)" data-master="Алиовсад"
-                           data-service="СПА уход · 3000₽" data-planned="16:00–17:00" data-actual=""
-                           data-status="no" data-confirmed="true" data-noshow="true">
-                        <span class="t">16:00–17:00</span><span class="c"><span class="appt-warn">⚠</span>Клиент Г (пример) · СПА уход</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="schedule-col">
-                    <div class="schedule-col-head"><div class="avatar">МА</div><span class="name">Мамедхан</span><button class="walkin-add-btn" type="button" title="Новая запись без предзаписи к Мамедхану" data-master-id="master-2" data-master-name="Мамедхан">+</button></div>
-                    <div class="schedule-track">
-                      <div class="appt appt--done" style="top:0px;height:32px" tabindex="0"
-                           onclick="openBooking(this)"
-                           data-client="Клиент Д (пример)" data-phone="+7 900 000-00-05 (пример)" data-master="Мамедхан"
-                           data-service="Фирменная окантовка · 1400₽" data-planned="10:00–10:30" data-actual="10:02"
-                           data-status="came" data-confirmed="true" data-noshow="false">
-                        <span class="t">10:00–10:30</span><span class="c">Клиент Д (пример) · Фирменная окантовка</span>
-                      </div>
-                      <div class="appt appt--break" style="top:192px;height:64px">Перерыв 13:00–14:00 (пример)</div>
-                      <div class="appt appt--new appt--selected" style="top:320px;height:64px" tabindex="0"
-                           onclick="openBooking(this)"
-                           data-client="Клиент Е (пример)" data-phone="+7 900 000-00-06 (пример)" data-master="Мамедхан"
-                           data-service="Воск · от 500₽" data-planned="15:00–16:00" data-actual=""
-                           data-status="wait" data-confirmed="true" data-noshow="false">
-                        <span class="t">15:00–16:00</span><span class="c">Клиент Е (пример) · Воск</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="schedule-col">
-                    <div class="schedule-col-head"><div class="avatar">ЕЛ</div><span class="name">Елизавета</span><button class="walkin-add-btn" type="button" title="Новая запись без предзаписи к Елизавете" data-master-id="master-3" data-master-name="Елизавета">+</button></div>
-                    <div class="schedule-track day-off"><span class="day-off-label">Выходной (пример)</span></div>
-                  </div>
-                </div>
+                <!-- Заполняется renderDayCalendar (assets/crm-calendar.js) реальными колонками
+                     мастеров/бронями за выбранную дату - число колонок по факту ответа /staff,
+                     не жёстко 3 (Окно 15/18) -->
+                <div class="schedule-grid"></div>
               </div>
             </div>
           </div>
 
           <div class="seg-panel panel-sp-week">
-            <p class="section-hint" style="margin-top:12px">Как в Outlook - смотрим по одному календарю за раз, дни недели вместо мастеров. Переключи мастера:</p>
-            <div class="seg-tabs master-switch-row">
-              <input type="radio" name="wk-master" id="wk-ivan1" checked>
-              <input type="radio" name="wk-master" id="wk-ivan2">
-              <input type="radio" name="wk-master" id="wk-ivan3">
-              <div class="seg-bar">
-                <label for="wk-ivan1">Алиовсад</label>
-                <label for="wk-ivan2">Мамедхан</label>
-                <label for="wk-ivan3">Елизавета</label>
-              </div>
-
-              <div class="seg-panel panel-wk-ivan1">
-                <div class="schedule-scroll">
-                  <div class="schedule-row-with-gutter">
-                    <div class="hour-gutter">
-                      <div class="schedule-col-head week-head"><span class="name">--</span></div>
-                      <div class="hour-marks">
-                        <span style="top:0">10:00</span><span style="top:64px">11:00</span><span style="top:128px">12:00</span>
-                        <span style="top:192px">13:00</span><span style="top:256px">14:00</span><span style="top:320px">15:00</span>
-                        <span style="top:384px">16:00</span><span style="top:448px">17:00</span><span style="top:512px">18:00</span>
-                        <span style="top:576px">19:00</span><span style="top:640px">20:00</span>
-                      </div>
-                    </div>
-                    <div class="schedule-grid schedule-grid--week">
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Пн</span></div>
-                        <div class="schedule-track">
-                          <div class="appt appt--done" style="top:0px;height:64px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент К (пример)" data-phone="+7 900 000-00-11 (пример)" data-master="Алиовсад"
-                               data-service="Стрижка · 2000₽" data-planned="10:00–11:00" data-actual="10:00" data-status="came" data-confirmed="true" data-noshow="false">
-                            <span class="t">10:00–11:00</span><span class="c">Клиент К · Стрижка</span></div>
-                        </div>
-                      </div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Вт</span></div><div class="schedule-track"></div></div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Ср</span></div>
-                        <div class="schedule-track">
-                          <div class="appt appt--new" style="top:256px;height:96px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент Л (пример)" data-phone="+7 900 000-00-12 (пример)" data-master="Алиовсад"
-                               data-service="Комплекс стрижка+борода · 3500₽" data-planned="14:00–15:30" data-actual="" data-status="wait" data-confirmed="true" data-noshow="false">
-                            <span class="t">14:00–15:30</span><span class="c">Клиент Л · Комплекс</span></div>
-                        </div>
-                      </div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Чт</span></div><div class="schedule-track"></div></div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Пт</span></div>
-                        <div class="schedule-track">
-                          <div class="appt appt--done" style="top:64px;height:43px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент М (пример)" data-phone="+7 900 000-00-13 (пример)" data-master="Алиовсад"
-                               data-service="Борода · 1600₽" data-planned="11:00–11:40" data-actual="11:00" data-status="came" data-confirmed="true" data-noshow="false">
-                            <span class="t">11:00–11:40</span><span class="c">Клиент М · Борода</span></div>
-                        </div>
-                      </div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Сб</span></div><div class="schedule-track"></div></div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Вс</span></div><div class="schedule-track day-off"><span class="day-off-label">Выходной</span></div></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="seg-panel panel-wk-ivan2">
-                <div class="schedule-scroll">
-                  <div class="schedule-row-with-gutter">
-                    <div class="hour-gutter">
-                      <div class="schedule-col-head week-head"><span class="name">--</span></div>
-                      <div class="hour-marks">
-                        <span style="top:0">10:00</span><span style="top:64px">11:00</span><span style="top:128px">12:00</span>
-                        <span style="top:192px">13:00</span><span style="top:256px">14:00</span><span style="top:320px">15:00</span>
-                        <span style="top:384px">16:00</span><span style="top:448px">17:00</span><span style="top:512px">18:00</span>
-                        <span style="top:576px">19:00</span><span style="top:640px">20:00</span>
-                      </div>
-                    </div>
-                    <div class="schedule-grid schedule-grid--week">
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Пн</span></div>
-                        <div class="schedule-track">
-                          <div class="appt appt--done" style="top:128px;height:32px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент Н (пример)" data-phone="+7 900 000-00-14 (пример)" data-master="Мамедхан"
-                               data-service="Фирменная окантовка · 1400₽" data-planned="12:00–12:30" data-actual="12:00" data-status="came" data-confirmed="true" data-noshow="false">
-                            <span class="t">12:00–12:30</span><span class="c">Клиент Н · Окантовка</span></div>
-                        </div>
-                      </div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Вт</span></div><div class="schedule-track day-off"><span class="day-off-label">Выходной</span></div></div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Ср</span></div><div class="schedule-track"></div></div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Чт</span></div>
-                        <div class="schedule-track">
-                          <div class="appt appt--new appt--selected" style="top:384px;height:64px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент О (пример)" data-phone="+7 900 000-00-15 (пример)" data-master="Мамедхан"
-                               data-service="Воск · от 500₽" data-planned="16:00–17:00" data-actual="" data-status="wait" data-confirmed="true" data-noshow="false">
-                            <span class="t">16:00–17:00</span><span class="c">Клиент О · Воск</span></div>
-                        </div>
-                      </div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Пт</span></div><div class="schedule-track day-off"><span class="day-off-label">Выходной</span></div></div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Сб</span></div>
-                        <div class="schedule-track">
-                          <div class="appt appt--new" style="top:0px;height:64px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент П (пример)" data-phone="+7 900 000-00-16 (пример)" data-master="Мамедхан"
-                               data-service="СПА уход · 3000₽" data-planned="10:00–11:00" data-actual="10:00" data-status="came" data-confirmed="true" data-noshow="false">
-                            <span class="t">10:00–11:00</span><span class="c">Клиент П · СПА уход</span></div>
-                        </div>
-                      </div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Вс</span></div><div class="schedule-track"></div></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="seg-panel panel-wk-ivan3">
-                <div class="schedule-scroll">
-                  <div class="schedule-row-with-gutter">
-                    <div class="hour-gutter">
-                      <div class="schedule-col-head week-head"><span class="name">--</span></div>
-                      <div class="hour-marks">
-                        <span style="top:0">10:00</span><span style="top:64px">11:00</span><span style="top:128px">12:00</span>
-                        <span style="top:192px">13:00</span><span style="top:256px">14:00</span><span style="top:320px">15:00</span>
-                        <span style="top:384px">16:00</span><span style="top:448px">17:00</span><span style="top:512px">18:00</span>
-                        <span style="top:576px">19:00</span><span style="top:640px">20:00</span>
-                      </div>
-                    </div>
-                    <div class="schedule-grid schedule-grid--week">
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Пн</span></div><div class="schedule-track day-off"><span class="day-off-label">Выходной</span></div></div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Вт</span></div>
-                        <div class="schedule-track">
-                          <div class="appt appt--done" style="top:0px;height:43px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент Р (пример)" data-phone="+7 900 000-00-17 (пример)" data-master="Елизавета"
-                               data-service="Стрижка · 2000₽" data-planned="10:00–10:40" data-actual="10:00" data-status="came" data-confirmed="true" data-noshow="false">
-                            <span class="t">10:00–10:40</span><span class="c">Клиент Р · Стрижка</span></div>
-                        </div>
-                      </div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Ср</span></div>
-                        <div class="schedule-track">
-                          <div class="appt appt--new" style="top:320px;height:64px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент С (пример)" data-phone="+7 900 000-00-18 (пример)" data-master="Елизавета"
-                               data-service="Борода · 1600₽" data-planned="15:00–16:00" data-actual="" data-status="wait" data-confirmed="false" data-noshow="false">
-                            <span class="t">15:00–16:00</span><span class="c">Клиент С · Борода</span></div>
-                        </div>
-                      </div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Чт</span></div><div class="schedule-track day-off"><span class="day-off-label">Выходной</span></div></div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Пт</span></div><div class="schedule-track"></div></div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Сб</span></div>
-                        <div class="schedule-track">
-                          <div class="appt appt--done" style="top:64px;height:64px" tabindex="0" onclick="openBooking(this)"
-                               data-client="Клиент Т (пример)" data-phone="+7 900 000-00-19 (пример)" data-master="Елизавета"
-                               data-service="Комплекс стрижка+борода · 3500₽" data-planned="11:00–12:00" data-actual="11:02" data-status="came" data-confirmed="true" data-noshow="false">
-                            <span class="t">11:00–12:00</span><span class="c">Клиент Т · Комплекс</span></div>
-                        </div>
-                      </div>
-                      <div class="schedule-col"><div class="schedule-col-head week-head"><span class="name">Вс</span></div><div class="schedule-track day-off"><span class="day-off-label">Выходной</span></div></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div class="day-nav" id="weekNav">
+              <button type="button" class="day-nav-btn" id="weekNavPrev" aria-label="Предыдущая неделя">‹</button>
+              <span class="week-nav-label" id="weekNavLabel"></span>
+              <button type="button" class="day-nav-btn" id="weekNavNext" aria-label="Следующая неделя">›</button>
             </div>
+            <p class="section-hint">Переключи мастера. Клик по дню открывает его как «Мой день»</p>
+            <div class="master-switch-row" id="weekMasterSwitch"></div>
+            <!-- Заполняется wireScheduleViews (assets/crm-schedule-views.js) - 7 компактных
+                 ячеек (часы или Выходной + число записей), не часовая сетка с карточками -->
+            <div class="week-grid" id="weekGrid"></div>
           </div>
 
           <div class="seg-panel panel-sp-month">
-            <p class="section-hint" style="margin-top:12px">Пример: январь 2026, все точки. Праздники - по официальному календарю РФ. Клик по дню в реальной CRM откроет его как «День» - в этом макете дни не кликабельны</p>
-            <div class="month-grid">
-              <div class="wd">Пн</div><div class="wd">Вт</div><div class="wd">Ср</div><div class="wd">Чт</div><div class="wd">Пт</div><div class="wd">Сб</div><div class="wd">Вс</div>
-              <div class="month-day is-empty"></div><div class="month-day is-empty"></div><div class="month-day is-empty"></div>
-              <div class="month-day is-holiday"><span class="num">1</span><span class="holiday-label">Новый год</span></div>
-              <div class="month-day is-holiday"><span class="num">2</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day is-holiday"><span class="num">3</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day is-holiday"><span class="num">4</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day is-holiday"><span class="num">5</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day is-holiday"><span class="num">6</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day is-holiday"><span class="num">7</span><span class="holiday-label">Рождество</span></div>
-              <div class="month-day is-holiday"><span class="num">8</span><span class="holiday-label">Новогодние каникулы</span></div>
-              <div class="month-day"><span class="num">9</span><span class="appt-count">14 записей <span class="unsure">пример</span></span></div>
-              <div class="month-day"><span class="num">10</span></div>
-              <div class="month-day"><span class="num">11</span></div>
-              <div class="month-day"><span class="num">12</span></div>
-              <div class="month-day"><span class="num">13</span></div>
-              <div class="month-day"><span class="num">14</span></div>
-              <div class="month-day"><span class="num">15</span></div>
-              <div class="month-day"><span class="num">16</span><span class="appt-count">11 записей <span class="unsure">пример</span></span></div>
-              <div class="month-day"><span class="num">17</span></div>
-              <div class="month-day"><span class="num">18</span></div>
-              <div class="month-day"><span class="num">19</span></div>
-              <div class="month-day"><span class="num">20</span></div>
-              <div class="month-day"><span class="num">21</span></div>
-              <div class="month-day"><span class="num">22</span></div>
-              <div class="month-day"><span class="num">23</span><span class="appt-count">9 записей <span class="unsure">пример</span></span></div>
-              <div class="month-day"><span class="num">24</span></div>
-              <div class="month-day"><span class="num">25</span><span class="appt-count">Татьянин день</span></div>
-              <div class="month-day"><span class="num">26</span></div>
-              <div class="month-day"><span class="num">27</span></div>
-              <div class="month-day"><span class="num">28</span></div>
-              <div class="month-day"><span class="num">29</span></div>
-              <div class="month-day"><span class="num">30</span><span class="appt-count">17 записей <span class="unsure">пример</span></span></div>
-              <div class="month-day"><span class="num">31</span></div>
-              <div class="month-day is-empty"></div>
+            <div class="day-nav" id="monthNav">
+              <button type="button" class="day-nav-btn" id="monthNavPrev" aria-label="Предыдущий месяц">‹</button>
+              <span class="week-nav-label" id="monthNavLabel"></span>
+              <button type="button" class="day-nav-btn" id="monthNavNext" aria-label="Следующий месяц">›</button>
             </div>
+            <p class="section-hint">🟢 обычный день · 🟡 разовая правка на эту дату · 🔴 выходной. Клик по числу дня открывает «Мой день», ✎ - редактирует именно этот день</p>
+            <div class="master-switch-row" id="monthMasterSwitch"></div>
+            <div class="month-grid" id="monthGrid"></div>
           </div>
 
           <div class="seg-panel panel-sp-year">
-            <p class="section-hint" style="margin-top:12px">Пример: 2026 год, все точки. Праздники - официальный календарь РФ (нерабочие дни), не выдуманы</p>
+            <p class="section-hint" style="margin-top:12px">Справочный производственный календарь РФ на 2026 год - когда салон закрыт по стране (клиентская запись и так ограничена 2 месяцами вперёд, интерактивный график по мастерам на год не нужен, см. Окно 20)</p>
             <div class="year-grid">
-              <div class="year-month"><div class="ym-name">Январь</div><span class="ym-holiday">Новогодние каникулы 1-8, Рождество 7</span><div class="ym-note">142 записи <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Февраль</div><span class="ym-holiday">23 - День защитника Отечества</span><div class="ym-note">98 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Март</div><span class="ym-holiday">8 - Международный женский день</span><div class="ym-note">121 запись <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Апрель</div><span class="ym-holiday">без праздников</span><div class="ym-note">104 записи <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Май</div><span class="ym-holiday">1 - Праздник Весны и Труда, 9 - День Победы</span><div class="ym-note">118 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Июнь</div><span class="ym-holiday">12 - День России</span><div class="ym-note">109 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Июль</div><span class="ym-holiday">без праздников</span><div class="ym-note">96 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Август</div><span class="ym-holiday">без праздников</span><div class="ym-note">88 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Сентябрь</div><span class="ym-holiday">без праздников</span><div class="ym-note">112 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Октябрь</div><span class="ym-holiday">без праздников</span><div class="ym-note">120 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Ноябрь</div><span class="ym-holiday">4 - День народного единства</span><div class="ym-note">115 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Декабрь</div><span class="ym-holiday">31 - предновогодний, сокращённый</span><div class="ym-note">134 записи <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Январь</div><span class="ym-holiday">Новогодние каникулы 1-8, Рождество 7</span></div>
+              <div class="year-month"><div class="ym-name">Февраль</div><span class="ym-holiday">23 - День защитника Отечества</span></div>
+              <div class="year-month"><div class="ym-name">Март</div><span class="ym-holiday">8 - Международный женский день</span></div>
+              <div class="year-month"><div class="ym-name">Апрель</div><span class="ym-holiday">без праздников</span></div>
+              <div class="year-month"><div class="ym-name">Май</div><span class="ym-holiday">1 - Праздник Весны и Труда, 9 - День Победы</span></div>
+              <div class="year-month"><div class="ym-name">Июнь</div><span class="ym-holiday">12 - День России</span></div>
+              <div class="year-month"><div class="ym-name">Июль</div><span class="ym-holiday">без праздников</span></div>
+              <div class="year-month"><div class="ym-name">Август</div><span class="ym-holiday">без праздников</span></div>
+              <div class="year-month"><div class="ym-name">Сентябрь</div><span class="ym-holiday">без праздников</span></div>
+              <div class="year-month"><div class="ym-name">Октябрь</div><span class="ym-holiday">без праздников</span></div>
+              <div class="year-month"><div class="ym-name">Ноябрь</div><span class="ym-holiday">4 - День народного единства</span></div>
+              <div class="year-month"><div class="ym-name">Декабрь</div><span class="ym-holiday">31 - предновогодний, сокращённый</span></div>
             </div>
+          </div>
+        </div>
+
+        <!-- Модалка редактирования дня (Задача 3, Окно 18) - открывается иконкой ✎ в
+             ячейке Месяца. Общая на страницу (не по одной на мастера) - editingDate/
+             editingMasterId держит assets/crm-schedule-views.js. -->
+        <div class="day-edit-modal" id="dayEditModal" hidden>
+          <div class="day-edit-card">
+            <button type="button" class="day-edit-close" id="dayEditClose" aria-label="Закрыть">✕</button>
+            <h3 id="dayEditTitle">Редактирование дня</h3>
+            <div class="toggle-row"><div class="tr-label">Рабочий день</div><label class="switch"><input type="checkbox" id="dayEditWorking" checked><span class="track"></span><span class="knob"></span></label></div>
+            <div class="field-grid" id="dayEditFields" style="max-width:420px">
+              <div class="field"><label>Начало</label><div id="dayEditStart-slot"></div></div>
+              <div class="field"><label>Конец</label><div id="dayEditEnd-slot"></div></div>
+            </div>
+            <div class="toggle-row" id="dayEditBreakToggleWrap"><div class="tr-label">Перерыв</div><label class="switch"><input type="checkbox" id="dayEditBreakOn"><span class="track"></span><span class="knob"></span></label></div>
+            <div class="field-grid" id="dayEditBreakFields" style="max-width:420px">
+              <div class="field"><label>Перерыв с</label><div id="dayEditBreakStart-slot"></div></div>
+              <div class="field"><label>до</label><div id="dayEditBreakEnd-slot"></div></div>
+            </div>
+            <div class="day-edit-actions">
+              <button type="button" class="btn btn-primary btn-sm" id="dayEditSave">Сохранить</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="dayEditReset">Сбросить к стандартному</button>
+            </div>
+            <p class="payroll-note" id="dayEditNote"></p>
+            <div class="conflict-list" id="dayEditConflicts" hidden></div>
           </div>
         </div>
 

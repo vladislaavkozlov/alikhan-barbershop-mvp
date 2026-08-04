@@ -19,6 +19,21 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import pg from 'pg';
 
+// Окно 17 (04.08.2026) - найдено живым тестом при проверке Задач 0/1/2 (не гипотеза):
+// pg парсит SQL `date` (schedule_shifts.date, schedule_change_requests.date_from/
+// date_to, bookings.date, clients.birthday) в JS Date как ЛОКАЛЬНУЮ полночь этого
+// календарного дня. Файл в нескольких местах (GET /schedule, GET /bookings, GET/PATCH
+// /schedule-requests) читает эти значения через `.toISOString().slice(0, 10)`, что
+// конвертирует в UTC - если процесс Node работает не в UTC, дата съезжает на день.
+// Живой репро на MSK (UTC+3): разовая правка на 2026-08-11 отображалась как
+// 2026-08-10, применённый day_off на 2026-08-25 писался в БД как 2026-08-24.
+// Комментарий выше по файлу уже предупреждал "часовой пояс сервера Amvera
+// неизвестен, может быть UTC" - явный пин TZ здесь превращает это в гарантию, а не
+// предположение, без переписывания всех мест с этим паттерном (не в этом окне,
+// но подряд - см. отчёт Окна 17). Ставим ДО создания Pool - конструктор pg
+// регистрирует парсеры типов один раз при первом использовании модуля.
+process.env.TZ = 'UTC';
+
 const { Pool } = pg;
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -27,11 +42,11 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 дней - простой
 // Задача 2 промпта корректировки Окна 13 (01.08.2026, Блок 5 в.19, Алихан): "отмена не
 // позже 2 часов" - до порога полный возврат/бесплатная отмена, после - без возврата.
 const CANCEL_FULL_REFUND_HOURS = 2;
-// Правка 03.08.2026: "стандартное" правило графика действует бессрочно (нет
-// конечной даты), поэтому проверка конфликтов с уже существующими бронями при
-// одобрении делается на конечном окне вперёд, а не "навсегда" - после одобрения
-// НОВЫЕ конфликтующие брони уже не создать (createBookingTx сверяется с
-// getEffectiveBreaks), риск есть только для броней, сделанных ДО одобрения правила.
+// Правка 03.08.2026: недельный график (master_weekly_schedule) действует бессрочно
+// (нет конечной даты), поэтому проверка конфликтов с уже существующими бронями при
+// сохранении/одобрении делается на конечном окне вперёд, а не "навсегда" - после
+// сохранения НОВЫЕ конфликтующие брони уже не создать (createBookingTx сверяется с
+// getEffectiveSchedule), риск есть только для броней, сделанных ДО правки графика.
 const RECURRING_CONFLICT_LOOKAHEAD_DAYS = 90;
 
 const pool = new Pool({
@@ -115,7 +130,7 @@ async function authenticate(req) {
 }
 
 // ── Время/интервалы (те же правила, что storage.js на фронтенде) ──────────
-function toMinutes(value) {
+export function toMinutes(value) {
   const [h, m] = value.split(':').map(Number);
   return h * 60 + m;
 }
@@ -180,36 +195,106 @@ async function casWrite(key, expected, value) {
 // ISO-номер дня недели (1=Пн..7=Вс) для строки "YYYY-MM-DD" - полдень UTC, чтобы
 // не словить сдвиг даты на TZ-границе (тот же приём, что уже используется в этом
 // файле для дат из Postgres, см. shopNow()/дата-циклы выше).
-function isoWeekday(dateStr) {
+export function isoWeekday(dateStr) {
   const day = new Date(`${dateStr}T12:00:00Z`).getUTCDay();
   return day === 0 ? 7 : day;
 }
 
-// Правка Влада 03.08.2026: "стандартный" перерыв/выходной по дням недели, без
-// конечной даты (schedule_recurring_rules) - действует ТОЛЬКО если для этой
-// конкретной даты ещё нет явной записи в schedule_shifts. Явная правка одного дня
+// Глобальный дефолт рабочего окна, когда для мастера нет ни явной правки на дату
+// (schedule_shifts), ни строки в master_weekly_schedule на этот день недели - тот
+// же фолбэк 10:00-20:00, что и раньше (см. storage.js MASTERS[].workWindow).
+const GLOBAL_DEFAULT_START = '10:00';
+const GLOBAL_DEFAULT_END = '20:00';
+
+// Правка Влада 03.08.2026 (Окно 16): единый блок "График работы" - рабочее окно
+// (старт/конец смены) теперь тоже часть стандартного графика по дням недели
+// (master_weekly_schedule), не только перерыв/выходной. Явная правка одного дня
 // (owner напрямую через POST /schedule, или одобренный разовый отгул/отпуск через
-// applyScheduleDay) всегда побеждает стандартное правило - так и "редактировать на
+// applyScheduleDay) всегда побеждает стандартный график - так и "редактировать на
 // конкретный день" уже работает само, без отдельного механизма override.
-async function getEffectiveBreaks(client, masterId, date) {
+export async function getEffectiveSchedule(client, masterId, date) {
   const shiftRes = await client.query(
-    `SELECT sb.start_time, sb.end_time FROM schedule_shifts ss
+    `SELECT ss.start_time, ss.end_time, sb.start_time AS b_start, sb.end_time AS b_end
+     FROM schedule_shifts ss
      LEFT JOIN schedule_breaks sb ON sb.shift_id = ss.id
      WHERE ss.master_id = $1 AND ss.date = $2`,
     [masterId, date]
   );
   if (shiftRes.rows.length > 0) {
-    return shiftRes.rows.filter((r) => r.start_time).map((r) => ({ startTime: r.start_time, endTime: r.end_time }));
+    const { start_time: startTime, end_time: endTime } = shiftRes.rows[0];
+    const breaks = shiftRes.rows.filter((r) => r.b_start).map((r) => ({ startTime: r.b_start, endTime: r.b_end }));
+    return { startTime, endTime, breaks };
   }
   const weekday = isoWeekday(date);
-  const rulesRes = await client.query(
-    `SELECT rule_type, start_time, end_time FROM schedule_recurring_rules
-     WHERE master_id = $1 AND active = true AND starts_on <= $2 AND $3 = ANY(weekdays)`,
-    [masterId, date, weekday]
+  const weeklyRes = await client.query(
+    `SELECT is_working, work_start, work_end, break_start, break_end
+     FROM master_weekly_schedule WHERE master_id = $1 AND weekday = $2`,
+    [masterId, weekday]
   );
-  return rulesRes.rows.map((r) =>
-    r.rule_type === 'day_off' ? { startTime: '10:00', endTime: '20:00' } : { startTime: r.start_time, endTime: r.end_time }
+  if (weeklyRes.rows.length === 0) {
+    return { startTime: GLOBAL_DEFAULT_START, endTime: GLOBAL_DEFAULT_END, breaks: [] };
+  }
+  const row = weeklyRes.rows[0];
+  if (!row.is_working) {
+    return { startTime: GLOBAL_DEFAULT_START, endTime: GLOBAL_DEFAULT_END, breaks: [{ startTime: GLOBAL_DEFAULT_START, endTime: GLOBAL_DEFAULT_END }] };
+  }
+  const breaks = row.break_start ? [{ startTime: row.break_start, endTime: row.break_end }] : [];
+  return { startTime: row.work_start, endTime: row.work_end, breaks };
+}
+
+// Единое представление "занятого" времени дня - до начала смены, после конца смены
+// и сами перерывы - как один список интервалов. Позволяет и createBookingTx, и
+// findScheduleConflicts проверять пересечение брони с ЛЮБОЙ причиной блокировки
+// одной и той же функцией (intervalsOverlap), не дублируя отдельную проверку границ
+// рабочего окна.
+function blockedIntervalsFor(schedule) {
+  return [
+    { startTime: '00:00', endTime: schedule.startTime },
+    { startTime: schedule.endTime, endTime: '23:59' },
+    ...schedule.breaks,
+  ].filter((b) => b.startTime < b.endTime);
+}
+
+// Окно 17 (04.08.2026) - GET /schedule-range (Задача 1). "Выходной день" в рамках
+// эффективного графика ОДНОГО дня - когда хотя бы один перерыв целиком покрывает
+// реальное рабочее окно этого дня (schedule.startTime/endTime из getEffectiveSchedule,
+// не фиксированные 10:00-20:00 - в отличие от assets/crm-calendar.js:44-49, где окно
+// календаря всегда 10:00-20:00, здесь рабочее окно у разных мастеров/дней уже может
+// отличаться после Окна 16). Тот же принцип проверки (перерыв ⊇ весь день), просто
+// применён к фактическим границам дня, а не к константе экрана.
+export function isScheduleDayOff(schedule) {
+  return schedule.breaks.some(
+    (b) => toMinutes(b.startTime) <= toMinutes(schedule.startTime) && toMinutes(b.endTime) >= toMinutes(schedule.endTime)
   );
+}
+
+export const SCHEDULE_RANGE_MAX_DAYS = 62; // чуть больше 2 месяцев - масштаб, о котором Влад говорил про YClients
+
+// Число дней в диапазоне [from, to] включительно. NaN, если даты некорректны.
+export function rangeDayCount(from, to) {
+  const fromMs = new Date(`${from}T00:00:00Z`).getTime();
+  const toMs = new Date(`${to}T00:00:00Z`).getTime();
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return NaN;
+  return Math.round((toMs - fromMs) / (24 * 60 * 60 * 1000)) + 1;
+}
+
+// Эффективный график на каждый день диапазона одним проходом - цикл вокруг уже
+// проверенного резолвера getEffectiveSchedule (разовая правка → недельный график →
+// глобальный дефолт), логику резолва не дублирует.
+export async function computeScheduleRangeDays(client, masterId, from, to) {
+  const days = [];
+  for (let d = new Date(`${from}T00:00:00Z`); d.toISOString().slice(0, 10) <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const eff = await getEffectiveSchedule(client, masterId, dateStr);
+    days.push({
+      date: dateStr,
+      startTime: eff.startTime,
+      endTime: eff.endTime,
+      breaks: eff.breaks,
+      isDayOff: isScheduleDayOff(eff),
+    });
+  }
+  return days;
 }
 
 // ── Бронирование поверх нормализованной схемы (Шаг 1-2 Окна 8) ────────────
@@ -257,12 +342,13 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     }
 
     // Задача 3 (Окно 14, 02.08.2026) - одобренный перерыв/выходной реально блокирует
-    // онлайн-запись, не только показывается в интерфейсе. Правка 03.08.2026:
-    // getEffectiveBreaks() дополнительно учитывает "стандартные" (по дням недели,
-    // бессрочные) правила, если для этой даты нет явной записи на конкретный день.
-    const effectiveBreaks = await getEffectiveBreaks(client, masterId, date);
-    const hitsBreak = effectiveBreaks.some((b) => intervalsOverlap(startTime, endTime, b.startTime, b.endTime));
-    if (hitsBreak) {
+    // онлайн-запись, не только показывается в интерфейсе. Правка 03.08.2026 (Окно 16):
+    // getEffectiveSchedule() отдаёт ПОЛНУЮ картину дня (рабочее окно + перерывы) - до
+    // этой правки бронь никак не проверялась на попадание в рамки смены, только на
+    // перерывы, теперь запись за пределами рабочего окна тоже blocked.
+    const effectiveSchedule = await getEffectiveSchedule(client, masterId, date);
+    const hitsBlocked = blockedIntervalsFor(effectiveSchedule).some((b) => intervalsOverlap(startTime, endTime, b.startTime, b.endTime));
+    if (hitsBlocked) {
       await client.query('ROLLBACK');
       return { status: 409, body: { ok: false, reason: 'schedule_blocked' } };
     }
@@ -469,13 +555,94 @@ async function notifyStaff(client, staffId, type, { bookingId = null, scheduleRe
   );
 }
 
+// Окно 16 (03.08.2026) - валидирует payload единого блока "График работы" (владелец
+// PUT /master-weekly-schedule напрямую, или мастер POST /schedule-requests с
+// category=grafik_standard - обе ветки шлют один и тот же формат). Возвращает null,
+// если payload некорректен (вызывающий код отвечает 400), иначе нормализованный
+// массив строк (лишние поля обнулены - is_working=false никогда не хранит рабочее
+// окно/перерыв, это же гарантирует и CHECK на уровне таблицы).
+function validateWeeklyChanges(input) {
+  if (!Array.isArray(input) || input.length === 0) return null;
+  const seen = new Set();
+  const rows = [];
+  for (const c of input) {
+    if (!Number.isInteger(c?.weekday) || c.weekday < 1 || c.weekday > 7 || seen.has(c.weekday)) return null;
+    seen.add(c.weekday);
+    const isWorking = !!c.isWorking;
+    if (isWorking && (!c.workStart || !c.workEnd)) return null;
+    if (!!c.breakStart !== !!c.breakEnd) return null;
+    rows.push({
+      weekday: c.weekday,
+      isWorking,
+      workStart: isWorking ? c.workStart : null,
+      workEnd: isWorking ? c.workEnd : null,
+      breakStart: isWorking && c.breakStart ? c.breakStart : null,
+      breakEnd: isWorking && c.breakEnd ? c.breakEnd : null,
+    });
+  }
+  return rows;
+}
+
+// Полная замена недельного графика мастера - удаляем все прежние строки и пишем
+// присланные заново (не upsert по дням: массив weeklyChanges - это ВЕСЬ график,
+// который прислал клиент, дни, отсутствующие в массиве, откатываются на глобальный
+// дефолт 10:00-20:00, см. getEffectiveSchedule).
+async function writeWeeklySchedule(client, masterId, rows) {
+  await client.query('DELETE FROM master_weekly_schedule WHERE master_id = $1', [masterId]);
+  for (const r of rows) {
+    await client.query(
+      `INSERT INTO master_weekly_schedule (master_id, weekday, is_working, work_start, work_end, break_start, break_end)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [masterId, r.weekday, r.isWorking, r.workStart, r.workEnd, r.breakStart, r.breakEnd]
+    );
+  }
+}
+
+const WEEKDAY_LABEL = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+function formatWeeklyChangesSummary(rows) {
+  return [...rows]
+    .sort((a, b) => a.weekday - b.weekday)
+    .map((r) => {
+      if (!r.isWorking) return `${WEEKDAY_LABEL[r.weekday - 1]} выходной`;
+      const brk = r.breakStart ? ` (перерыв ${r.breakStart}–${r.breakEnd})` : '';
+      return `${WEEKDAY_LABEL[r.weekday - 1]} ${r.workStart}–${r.workEnd}${brk}`;
+    })
+    .join(', ');
+}
+
+// Новый график может сузить рабочее окно или добавить перерыв на день, где у
+// мастера уже есть реальные записи клиентов дальше в будущем - тот же принцип, что
+// уже был у "стандартного" правила (RECURRING_CONFLICT_LOOKAHEAD_DAYS вперёd), но
+// теперь через единый blockedIntervalsFor (окно + перерыв, не только перерыв).
+// Дни, где на конкретную дату уже есть явная разовая правка (schedule_shifts),
+// пропускаем - там всё равно побеждает не недельный график, а эта правка (см.
+// getEffectiveSchedule), реального конфликта с НОВЫМ графиком там нет.
+export async function findWeeklyScheduleConflicts(client, masterId, rows) {
+  const changedByWeekday = new Map(rows.map((r) => [r.weekday, r]));
+  const conflictsByDate = [];
+  const { date: todayStr } = shopNow();
+  for (let d = new Date(`${todayStr}T00:00:00Z`), i = 0; i < RECURRING_CONFLICT_LOOKAHEAD_DAYS; d.setUTCDate(d.getUTCDate() + 1), i++) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const change = changedByWeekday.get(isoWeekday(dateStr));
+    if (!change) continue;
+    const hasOverride = (await client.query('SELECT 1 FROM schedule_shifts WHERE master_id = $1 AND date = $2', [masterId, dateStr])).rows.length > 0;
+    if (hasOverride) continue;
+    const schedule = change.isWorking
+      ? { startTime: change.workStart, endTime: change.workEnd, breaks: change.breakStart ? [{ startTime: change.breakStart, endTime: change.breakEnd }] : [] }
+      : { startTime: GLOBAL_DEFAULT_START, endTime: GLOBAL_DEFAULT_END, breaks: [{ startTime: GLOBAL_DEFAULT_START, endTime: GLOBAL_DEFAULT_END }] };
+    const conflicts = await findScheduleConflicts(client, masterId, dateStr, blockedIntervalsFor(schedule));
+    if (conflicts.length) conflictsByDate.push({ date: dateStr, conflicts });
+  }
+  return conflictsByDate;
+}
+
 // Влад (03.08.2026) - если ставится перерыв/выходной на время, где у мастера уже
 // есть реальная запись клиента, раньше об этом никто не узнавал (бронь просто
 // оставалась "в силе" рядом с новым перерывом - клиент бы просто не застал
 // мастера). Возвращает список пересекающихся броней с именем/телефоном клиента -
 // вызывающий код решает, кого уведомить (см. notifications_type_check, миграция
 // 019 добавляет тип 'schedule_conflict').
-async function findScheduleConflicts(client, masterId, date, breaks) {
+export async function findScheduleConflicts(client, masterId, date, breaks) {
   if (!breaks.length) return [];
   const bookingsRes = await client.query(
     `SELECT b.start_time, b.end_time, c.name AS client_name, c.phone AS client_phone
@@ -486,13 +653,6 @@ async function findScheduleConflicts(client, masterId, date, breaks) {
   return bookingsRes.rows.filter((b) =>
     breaks.some((br) => intervalsOverlap(br.startTime, br.endTime, b.start_time, b.end_time))
   );
-}
-
-function conflictNotificationBody(masterName, date, conflicts) {
-  const list = conflicts
-    .map((c) => `${c.client_name || 'клиент'} (${c.start_time}–${c.end_time}${c.client_phone ? ', ' + c.client_phone : ''})`)
-    .join('; ');
-  return `${masterName}, ${date}: на это время уже назначены люди - ${list}. Свяжитесь и договоритесь с ними на другое время`;
 }
 
 // Задача 3 (Окно 14, 02.08.2026) - применяет одобренный перерыв/выходной к графику
@@ -982,16 +1142,15 @@ const server = createServer(async (req, res) => {
           endTime: s.end_time,
           breaks: breaksByShift.get(s.id) ?? [],
         }));
-        // Правка 03.08.2026: конкретный мастер+дата без явной записи на этот день -
-        // подмешиваем "стандартное" правило (schedule_recurring_rules), тот же
-        // эффективный перерыв, что уже реально проверяет createBookingTx
-        // (getEffectiveBreaks) - иначе публичный виджет/календарь предложили бы
-        // как свободное время, которое сервер потом всё равно отклонит.
+        // Правка 03.08.2026 (Окно 16): конкретный мастер+дата без явной записи на этот
+        // день - подмешиваем эффективный график (master_weekly_schedule или глобальный
+        // дефолт), тот же getEffectiveSchedule, что реально проверяет createBookingTx.
+        // Раньше подмешивали, только если были перерывы - теперь ВСЕГДА, потому что
+        // рабочее окно (start/end) само по себе может отличаться от дефолта 10:00-20:00
+        // (публичный виджет/getFreeSlots иначе предложили бы слоты вне реальной смены).
         if (effectiveMasterId && date && !results.some((s) => s.date === date)) {
-          const recurringBreaks = await getEffectiveBreaks(pool, effectiveMasterId, date);
-          if (recurringBreaks.length) {
-            results.push({ id: null, masterId: effectiveMasterId, date, startTime: '10:00', endTime: '20:00', breaks: recurringBreaks });
-          }
+          const eff = await getEffectiveSchedule(pool, effectiveMasterId, date);
+          results.push({ id: null, masterId: effectiveMasterId, date, startTime: eff.startTime, endTime: eff.endTime, breaks: eff.breaks });
         }
         return sendJson(res, 200, results);
       }
@@ -1012,6 +1171,16 @@ const server = createServer(async (req, res) => {
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
+          // Решение Влада (04.08.2026, Задача 0 промпта Окна 17): раньше правка
+          // применялась И уведомляла постфактум - теперь при конфликте с живой бронью
+          // ничего не пишется вообще, тот же формат 409, что у PUT /master-weekly-schedule
+          // и PATCH /schedule-requests/:id/decision ниже (см. их комментарии).
+          const newBreaks = body.breaks ?? [];
+          const conflicts = await findScheduleConflicts(client, body.masterId, body.date, newBreaks);
+          if (conflicts.length) {
+            await client.query('ROLLBACK');
+            return sendJson(res, 409, { error: 'schedule_conflict', conflicts: [{ date: body.date, conflicts }] });
+          }
           const shiftRes = await client.query(
             `INSERT INTO schedule_shifts (master_id, date, start_time, end_time) VALUES ($1, $2, $3, $4)
              ON CONFLICT (master_id, date) DO UPDATE SET start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time
@@ -1020,7 +1189,6 @@ const server = createServer(async (req, res) => {
           );
           const shiftId = shiftRes.rows[0].id;
           await client.query('DELETE FROM schedule_breaks WHERE shift_id = $1', [shiftId]);
-          const newBreaks = body.breaks ?? [];
           for (const b of newBreaks) {
             await client.query('INSERT INTO schedule_breaks (shift_id, start_time, end_time) VALUES ($1, $2, $3)', [
               shiftId,
@@ -1028,16 +1196,8 @@ const server = createServer(async (req, res) => {
               b.endTime,
             ]);
           }
-          const conflicts = await findScheduleConflicts(client, body.masterId, body.date, newBreaks);
-          if (conflicts.length) {
-            const masterName = (await client.query('SELECT name FROM staff WHERE id = $1', [body.masterId])).rows[0]?.name ?? 'Мастер';
-            await notifyStaff(client, auth.id, 'schedule_conflict', {
-              title: 'Перерыв пересекается с записью',
-              body: conflictNotificationBody(masterName, body.date, conflicts),
-            });
-          }
           await client.query('COMMIT');
-          return sendJson(res, 200, { ok: true, id: shiftId, conflicts: conflicts.length });
+          return sendJson(res, 200, { ok: true, id: shiftId, conflicts: 0 });
         } catch (err) {
           await client.query('ROLLBACK').catch(() => {});
           throw err;
@@ -1045,13 +1205,71 @@ const server = createServer(async (req, res) => {
           client.release();
         }
       }
+
+      // Задача 2 промпта Окна 17 (04.08.2026) - "вернуть день к стандартному графику"
+      // после разовой правки (POST выше). Удаляет строку schedule_shifts на эту
+      // дату у этого мастера - schedule_breaks уходят каскадом (shift_id REFERENCES
+      // schedule_shifts(id) ON DELETE CASCADE, см. api/migrations/002_schema.sql:90),
+      // отдельный DELETE по schedule_breaks не нужен. После удаления getEffectiveSchedule
+      // на эту дату сам откатывается на недельный график/глобальный дефолт - ничего
+      // специально восстанавливать не нужно, это уже гарантия резолвера.
+      if (req.method === 'DELETE') {
+        const auth = await authenticate(req);
+        if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+        const masterId = url.searchParams.get('masterId');
+        const date = url.searchParams.get('date');
+        if (!masterId || !date) return sendJson(res, 400, { error: 'missing_fields' });
+        if (auth.role === 'admin') {
+          const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [masterId]);
+          if (staffRes.rows.length === 0 || staffRes.rows[0].location_id !== auth.locationId) {
+            return sendJson(res, 403, { error: 'forbidden' });
+          }
+        }
+        const result = await pool.query('DELETE FROM schedule_shifts WHERE master_id = $1 AND date = $2 RETURNING id', [
+          masterId,
+          date,
+        ]);
+        if (result.rows.length === 0) return sendJson(res, 404, { error: 'shift_not_found' });
+        return sendJson(res, 200, { ok: true });
+      }
     }
 
-    // ── /schedule-recurring - "стандартный" перерыв/выходной по дням недели, без
-    // конечной даты (правка 03.08.2026). В отличие от /schedule-requests (мастер
-    // просит → владелец одобряет), здесь владелец правит НАПРЯМУЮ - тот же уровень
-    // прямого доступа, что уже есть у POST /schedule для разовых дат.
-    if (parts[0] === 'schedule-recurring' && parts.length === 1) {
+    // ── /schedule-range - Задача 1 промпта Окна 17 (04.08.2026). Эффективный график
+    // на каждый день диапазона одним запросом - без него Неделя/Месяц в CRM слали бы
+    // до 31 отдельного GET /schedule?date=... (тот же принцип экономии запросов, что
+    // уже применён у GET /bookings?from=&to=, см. listBookingsForRequest выше).
+    if (parts[0] === 'schedule-range' && parts.length === 1 && req.method === 'GET') {
+      const auth = await authenticate(req);
+      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
+      const masterId = url.searchParams.get('masterId');
+      const from = url.searchParams.get('from');
+      const to = url.searchParams.get('to');
+      if (!masterId || !from || !to) return sendJson(res, 400, { error: 'missing_fields' });
+      // Та же матрица доступа, что у GET /schedule: owner - любой мастер, admin -
+      // только своей точки, master - только себя.
+      if (auth.role === 'master' && masterId !== auth.id) return sendJson(res, 403, { error: 'forbidden' });
+      if (auth.role === 'admin') {
+        const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [masterId]);
+        if (staffRes.rows.length === 0 || staffRes.rows[0].location_id !== auth.locationId) {
+          return sendJson(res, 403, { error: 'forbidden' });
+        }
+      }
+      const dayCount = rangeDayCount(from, to);
+      if (!Number.isFinite(dayCount) || dayCount < 1 || dayCount > SCHEDULE_RANGE_MAX_DAYS) {
+        return sendJson(res, 400, { error: 'invalid_range', maxDays: SCHEDULE_RANGE_MAX_DAYS });
+      }
+      const days = await computeScheduleRangeDays(pool, masterId, from, to);
+      return sendJson(res, 200, days);
+    }
+
+    // ── /master-weekly-schedule - единый блок "График работы" (Окно 16, 03.08.2026,
+    // заменяет прежний /schedule-recurring - разд.28/41 промпта). Одна строка на
+    // каждый день недели (master_weekly_schedule): работает/выходной, рабочее окно,
+    // опциональный перерыв - весь день описывается сразу, не два разрозненных места.
+    // Владелец/админ своей точки правят НАПРЯМУЮ (тот же уровень доступа, что у POST
+    // /schedule для разовых дат) - согласование мастера см. /schedule-requests ниже
+    // (category=grafik_standard).
+    if (parts[0] === 'master-weekly-schedule' && parts.length === 1) {
       const auth = await authenticate(req);
       if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
 
@@ -1061,8 +1279,8 @@ const server = createServer(async (req, res) => {
           return sendJson(res, 403, { error: 'forbidden' });
         }
         const effectiveMasterId = auth.role === 'master' ? auth.id : masterId;
-        let query = `SELECT id, master_id, rule_type, weekdays, start_time, end_time, starts_on, active
-                     FROM schedule_recurring_rules WHERE active = true`;
+        let query = `SELECT master_id, weekday, is_working, work_start, work_end, break_start, break_end
+                     FROM master_weekly_schedule WHERE 1=1`;
         const params = [];
         if (effectiveMasterId) {
           params.push(effectiveMasterId);
@@ -1072,33 +1290,28 @@ const server = createServer(async (req, res) => {
           params.push(staffIds.rows.map((r) => r.id) || [null]);
           query += ` AND master_id = ANY($${params.length})`;
         }
+        query += ' ORDER BY weekday';
         const result = await pool.query(query, params);
         return sendJson(
           res,
           200,
           result.rows.map((r) => ({
-            id: r.id,
             masterId: r.master_id,
-            ruleType: r.rule_type,
-            weekdays: r.weekdays,
-            startTime: r.start_time,
-            endTime: r.end_time,
-            startsOn: r.starts_on instanceof Date ? r.starts_on.toISOString().slice(0, 10) : r.starts_on,
+            weekday: r.weekday,
+            isWorking: r.is_working,
+            workStart: r.work_start,
+            workEnd: r.work_end,
+            breakStart: r.break_start,
+            breakEnd: r.break_end,
           }))
         );
       }
 
-      if (req.method === 'POST') {
+      if (req.method === 'PUT') {
         if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
         const body = await readBody(req);
-        if (!body.masterId || !['break', 'day_off'].includes(body.ruleType)) {
-          return sendJson(res, 400, { error: 'missing_fields' });
-        }
-        const weekdays = Array.isArray(body.weekdays) ? body.weekdays.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7) : [];
-        if (weekdays.length === 0) return sendJson(res, 400, { error: 'missing_weekdays' });
-        if (body.ruleType === 'break' && (!body.startTime || !body.endTime)) {
-          return sendJson(res, 400, { error: 'missing_time' });
-        }
+        const rows = validateWeeklyChanges(body.weeklyChanges);
+        if (!body.masterId || !rows) return sendJson(res, 400, { error: 'missing_fields' });
         if (auth.role === 'admin') {
           const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [body.masterId]);
           if (staffRes.rows.length === 0 || staffRes.rows[0].location_id !== auth.locationId) {
@@ -1108,20 +1321,19 @@ const server = createServer(async (req, res) => {
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
-          await client.query(
-            `UPDATE schedule_recurring_rules SET active = false WHERE master_id = $1 AND rule_type = $2 AND active = true`,
-            [body.masterId, body.ruleType]
-          );
-          const startTime = body.ruleType === 'day_off' ? null : body.startTime;
-          const endTime = body.ruleType === 'day_off' ? null : body.endTime;
-          const startsOn = body.startsOn || shopNow().date;
-          const ruleRes = await client.query(
-            `INSERT INTO schedule_recurring_rules (master_id, rule_type, weekdays, start_time, end_time, starts_on)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-            [body.masterId, body.ruleType, weekdays, startTime, endTime, startsOn]
-          );
+          // Решение Влада (04.08.2026, Задача 0 промпта Окна 17): конфликт с живой
+          // бронью теперь блокирует запись целиком (не "применить и уведомить
+          // постфактум", как было в Окне 16) - владелец сначала переносит/отменяет
+          // брони, потом повторяет сохранение. notifyStaff здесь больше не нужен -
+          // конфликт возвращается синхронно тому, кто сохраняет.
+          const conflictsByDate = await findWeeklyScheduleConflicts(client, body.masterId, rows);
+          if (conflictsByDate.length) {
+            await client.query('ROLLBACK');
+            return sendJson(res, 409, { error: 'schedule_conflict', conflicts: conflictsByDate });
+          }
+          await writeWeeklySchedule(client, body.masterId, rows);
           await client.query('COMMIT');
-          return sendJson(res, 200, { ok: true, id: ruleRes.rows[0].id });
+          return sendJson(res, 200, { ok: true, conflicts: 0 });
         } catch (err) {
           await client.query('ROLLBACK').catch(() => {});
           throw err;
@@ -1129,24 +1341,6 @@ const server = createServer(async (req, res) => {
           client.release();
         }
       }
-    }
-
-    if (parts[0] === 'schedule-recurring' && parts[1] && parts.length === 2 && req.method === 'DELETE') {
-      const auth = await authenticate(req);
-      if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
-      const ruleId = Number(parts[1]);
-      if (auth.role === 'admin') {
-        const ruleRes = await pool.query(
-          `SELECT s.location_id FROM schedule_recurring_rules r JOIN staff s ON s.id = r.master_id WHERE r.id = $1`,
-          [ruleId]
-        );
-        if (ruleRes.rows.length === 0 || ruleRes.rows[0].location_id !== auth.locationId) {
-          return sendJson(res, 403, { error: 'forbidden' });
-        }
-      }
-      const result = await pool.query('UPDATE schedule_recurring_rules SET active = false WHERE id = $1 RETURNING id', [ruleId]);
-      if (result.rows.length === 0) return sendJson(res, 404, { error: 'not_found' });
-      return sendJson(res, 200, { ok: true });
     }
 
     // ── /schedule-requests - согласование графика (Задача 3, Окно 14, 02.08.2026).
@@ -1160,45 +1354,75 @@ const server = createServer(async (req, res) => {
       if (req.method === 'POST') {
         if (!requireRole(auth, ['master'])) return sendJson(res, 401, { error: 'unauthorized' });
         const body = await readBody(req);
-        // Правка 03.08.2026: 4 категории вместо 2 - category описывает, ЧТО выбрал
-        // мастер (ярлык Влада), requestType - ЧЕМ это оказывается механически
-        // (break/day_off). Для стандартных категорий requestType выводится из
-        // category на сервере, а не приходит отдельно - чтобы UI не мог их рассинхронить.
+        // Правка 03.08.2026 (Окно 16): 3 категории - otgul/otpusk остаются как были
+        // (разовая дата/диапазон, механика не менялась), grafik_standard заменяет
+        // прежние pereryv_standard/vyhodnoy_standard - теперь это ВЕСЬ недельный
+        // график целиком (weeklyChanges, тот же формат, что PUT /master-weekly-schedule
+        // у владельца), не отдельное правило на перерыв или на выходной.
         const category = body.category;
-        const validCategories = ['otgul', 'otpusk', 'pereryv_standard', 'vyhodnoy_standard'];
+        // Задача 3 промпта Окна 17 (04.08.2026) - решение: 'grafik_standard' ОСТАЁТСЯ
+        // в списке валидных категорий, хотя фронтенд мастера (Окно 19) больше никогда
+        // её не отправит (его форма графика становится read-only просмотром, владелец
+        // правит напрямую через PUT /master-weekly-schedule выше). Вариант "убрать из
+        // списка и отвечать 400" отклонён - он ничего не выигрывает (фронт и так её не
+        // шлёт) и требует решения по уже существующим записям в БД с этой категорией
+        // (см. "хвосты" тестовых заявок id 1/3/4 на master-3, задача 4 промпта), которое
+        // никто не просил принимать. Держать поле валидным - нулевой риск.
+        const validCategories = ['otgul', 'otpusk', 'grafik_standard'];
         if (!validCategories.includes(category)) return sendJson(res, 400, { error: 'invalid_category' });
-        const isRecurring = category === 'pereryv_standard' || category === 'vyhodnoy_standard';
-        const requestType = category === 'pereryv_standard' ? 'break' : category === 'vyhodnoy_standard' ? 'day_off' : body.requestType;
+
+        if (category === 'grafik_standard') {
+          const rows = validateWeeklyChanges(body.weeklyChanges);
+          if (!rows) return sendJson(res, 400, { error: 'invalid_weekly_changes' });
+          const client = await pool.connect();
+          try {
+            await client.query('BEGIN');
+            const reqRes = await client.query(
+              `INSERT INTO schedule_change_requests (master_id, request_type, category, date_from, date_to, weekly_changes, master_comment)
+               VALUES ($1, 'weekly_schedule', 'grafik_standard', $2, NULL, $3, $4) RETURNING id`,
+              [auth.id, shopNow().date, JSON.stringify(rows), body.masterComment ?? null]
+            );
+            const requestId = reqRes.rows[0].id;
+            const masterName = (await client.query('SELECT name FROM staff WHERE id = $1', [auth.id])).rows[0]?.name ?? 'Мастер';
+            const owners = await client.query(`SELECT id FROM staff WHERE role = 'owner'`);
+            for (const owner of owners.rows) {
+              await notifyStaff(client, owner.id, 'schedule_request_new', {
+                scheduleRequestId: requestId,
+                title: 'Запрос на график',
+                body: `${masterName} · новый график работы · ${formatWeeklyChangesSummary(rows)}`,
+              });
+            }
+            await client.query('COMMIT');
+            return sendJson(res, 200, { ok: true, id: requestId });
+          } catch (err) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw err;
+          } finally {
+            client.release();
+          }
+        }
+
+        const requestType = body.requestType;
         if (!['break', 'day_off'].includes(requestType)) return sendJson(res, 400, { error: 'invalid_request_type' });
         if (!body.dateFrom) return sendJson(res, 400, { error: 'missing_fields' });
         if (requestType === 'break' && (!body.startTime || !body.endTime)) {
           return sendJson(res, 400, { error: 'missing_time' });
         }
-        let weekdays = null;
-        if (isRecurring) {
-          weekdays = Array.isArray(body.weekdays) ? body.weekdays.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7) : [];
-          if (weekdays.length === 0) return sendJson(res, 400, { error: 'missing_weekdays' });
-        }
-        const dateTo = isRecurring ? null : body.dateTo || body.dateFrom;
+        const dateTo = body.dateTo || body.dateFrom;
 
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
           const reqRes = await client.query(
-            `INSERT INTO schedule_change_requests (master_id, request_type, category, date_from, date_to, start_time, end_time, weekdays, master_comment)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-            [auth.id, requestType, category, body.dateFrom, dateTo, body.startTime ?? null, body.endTime ?? null, weekdays, body.masterComment ?? null]
+            `INSERT INTO schedule_change_requests (master_id, request_type, category, date_from, date_to, start_time, end_time, master_comment)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+            [auth.id, requestType, category, body.dateFrom, dateTo, body.startTime ?? null, body.endTime ?? null, body.masterComment ?? null]
           );
           const requestId = reqRes.rows[0].id;
           const masterName = (await client.query('SELECT name FROM staff WHERE id = $1', [auth.id])).rows[0]?.name ?? 'Мастер';
           const owners = await client.query(`SELECT id FROM staff WHERE role = 'owner'`);
-          const WEEKDAY_LABEL = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-          const categoryLabel = { otgul: 'отгул', otpusk: 'отпуск', pereryv_standard: 'стандартный перерыв', vyhodnoy_standard: 'стандартный выходной' }[category];
-          const period = isRecurring
-            ? `по ${weekdays.map((d) => WEEKDAY_LABEL[d - 1]).join(',')}${requestType === 'break' ? ` ${body.startTime}–${body.endTime}` : ''} с ${body.dateFrom}`
-            : requestType === 'day_off'
-              ? `${body.dateFrom}–${dateTo}`
-              : `${body.dateFrom} ${body.startTime}–${body.endTime}`;
+          const categoryLabel = { otgul: 'отгул', otpusk: 'отпуск' }[category];
+          const period = requestType === 'day_off' ? `${body.dateFrom}–${dateTo}` : `${body.dateFrom} ${body.startTime}–${body.endTime}`;
           for (const owner of owners.rows) {
             await notifyStaff(client, owner.id, 'schedule_request_new', {
               scheduleRequestId: requestId,
@@ -1220,7 +1444,7 @@ const server = createServer(async (req, res) => {
         const masterId = url.searchParams.get('masterId');
         const status = url.searchParams.get('status');
         let query = `SELECT id, master_id, request_type, category, date_from, date_to, start_time, end_time,
-                             weekdays, master_comment, status, owner_comment, decided_by, decided_at
+                             weekly_changes, master_comment, status, owner_comment, decided_by, decided_at
                       FROM schedule_change_requests WHERE 1=1`;
         const params = [];
         if (auth.role === 'master') {
@@ -1251,7 +1475,7 @@ const server = createServer(async (req, res) => {
             dateTo: r.date_to instanceof Date ? r.date_to.toISOString().slice(0, 10) : r.date_to,
             startTime: r.start_time,
             endTime: r.end_time,
-            weekdays: r.weekdays,
+            weeklyChanges: r.weekly_changes,
             masterComment: r.master_comment,
             status: r.status,
             ownerComment: r.owner_comment,
@@ -1285,71 +1509,72 @@ const server = createServer(async (req, res) => {
           await client.query('ROLLBACK');
           return sendJson(res, 409, { error: 'already_decided' });
         }
+
+        // Решение Влада (04.08.2026, Задача 0 промпта Окна 17): при одобрении сначала
+        // СЧИТАЕМ конфликты с живыми бронями, ничего не пишем и не меняем статус
+        // заявки, пока не убедились, что конфликтов нет. Раньше (Окно 16) правка
+        // применялась И уведомляла постфактум - теперь конфликт блокирует одобрение
+        // целиком, заявка остаётся pending, владелец сначала переносит/отменяет
+        // брони и заново нажимает "одобрить" (applyScheduleDay/writeWeeklySchedule
+        // ниже вызываются только когда conflictsByDate пуст).
+        const isWeeklySchedule = reqRow.category === 'grafik_standard';
+        let weeklyRows, dayOffDates, dayOffStartTime, dayOffEndTime;
+        const conflictsByDate = [];
+
+        if (body.decision === 'approved') {
+          if (isWeeklySchedule) {
+            // Окно 16 (03.08.2026) - весь недельный график заменяется целиком, той же
+            // функцией, что и прямое сохранение владельцем (PUT /master-weekly-schedule) -
+            // одобрение запроса мастера и прямая правка владельца пишут в одно и то же
+            // место (master_weekly_schedule), это и есть единственный источник истины.
+            weeklyRows = reqRow.weekly_changes;
+            conflictsByDate.push(...(await findWeeklyScheduleConflicts(client, reqRow.master_id, weeklyRows)));
+          } else {
+            const dateFrom = reqRow.date_from instanceof Date ? reqRow.date_from.toISOString().slice(0, 10) : reqRow.date_from;
+            const dateTo = reqRow.date_to instanceof Date ? reqRow.date_to.toISOString().slice(0, 10) : reqRow.date_to;
+            dayOffStartTime = reqRow.request_type === 'day_off' ? '10:00' : reqRow.start_time;
+            dayOffEndTime = reqRow.request_type === 'day_off' ? '20:00' : reqRow.end_time;
+            dayOffDates = [];
+            // Влад (03.08.2026) - подтверждение выходного/перерыва реально блокирует
+            // время (applyScheduleDay), но раньше молча накладывалось поверх уже
+            // существующих записей клиентов. Собираем конфликты по КАЖДОМУ дню
+            // диапазона (day_off может растянуться на несколько дней = по сути отпуск)
+            // ДО применения - applyScheduleDay ниже вызывается вторым проходом по тем
+            // же датам, только если весь диапазон чист.
+            for (let d = new Date(`${dateFrom}T00:00:00Z`); d.toISOString().slice(0, 10) <= dateTo; d.setUTCDate(d.getUTCDate() + 1)) {
+              const dateStr = d.toISOString().slice(0, 10);
+              dayOffDates.push(dateStr);
+              const conflicts = await findScheduleConflicts(client, reqRow.master_id, dateStr, [
+                { startTime: dayOffStartTime, endTime: dayOffEndTime },
+              ]);
+              if (conflicts.length) conflictsByDate.push({ date: dateStr, conflicts });
+            }
+          }
+          if (conflictsByDate.length) {
+            await client.query('ROLLBACK');
+            return sendJson(res, 409, { error: 'schedule_conflict', conflicts: conflictsByDate });
+          }
+        }
+
         await client.query(
           `UPDATE schedule_change_requests SET status = $1, owner_comment = $2, decided_by = $3, decided_at = now() WHERE id = $4`,
           [body.decision, body.ownerComment ?? null, auth.id, requestId]
         );
         if (body.decision === 'approved') {
-          const isRecurring = reqRow.category === 'pereryv_standard' || reqRow.category === 'vyhodnoy_standard';
-          const conflictsByDate = [];
-
-          if (isRecurring) {
-            // Правка 03.08.2026: "стандартное" правило - не материализуется по датам
-            // (schedule_shifts/schedule_breaks), а живёт отдельно (schedule_recurring_rules)
-            // и резолвится на лету (getEffectiveBreaks) - см. её комментарий выше.
-            // Только ОДНО активное правило каждого типа на мастера - новое одобрение
-            // заменяет прежнее (деактивирует), а не накапливается рядом с ним.
-            const startsOn = reqRow.date_from instanceof Date ? reqRow.date_from.toISOString().slice(0, 10) : reqRow.date_from;
-            const startTime = reqRow.request_type === 'day_off' ? null : reqRow.start_time;
-            const endTime = reqRow.request_type === 'day_off' ? null : reqRow.end_time;
-            await client.query(
-              `UPDATE schedule_recurring_rules SET active = false WHERE master_id = $1 AND rule_type = $2 AND active = true`,
-              [reqRow.master_id, reqRow.request_type]
-            );
-            await client.query(
-              `INSERT INTO schedule_recurring_rules (master_id, rule_type, weekdays, start_time, end_time, starts_on, source_request_id)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-              [reqRow.master_id, reqRow.request_type, reqRow.weekdays, startTime, endTime, startsOn, requestId]
-            );
-            const effStart = reqRow.request_type === 'day_off' ? '10:00' : reqRow.start_time;
-            const effEnd = reqRow.request_type === 'day_off' ? '20:00' : reqRow.end_time;
-            for (let d = new Date(`${startsOn}T00:00:00Z`), i = 0; i < RECURRING_CONFLICT_LOOKAHEAD_DAYS; d.setUTCDate(d.getUTCDate() + 1), i++) {
-              const dateStr = d.toISOString().slice(0, 10);
-              if (!reqRow.weekdays.includes(isoWeekday(dateStr))) continue;
-              const conflicts = await findScheduleConflicts(client, reqRow.master_id, dateStr, [{ startTime: effStart, endTime: effEnd }]);
-              if (conflicts.length) conflictsByDate.push({ date: dateStr, conflicts });
-            }
+          if (isWeeklySchedule) {
+            await writeWeeklySchedule(client, reqRow.master_id, weeklyRows);
           } else {
-            const dateFrom = reqRow.date_from instanceof Date ? reqRow.date_from.toISOString().slice(0, 10) : reqRow.date_from;
-            const dateTo = reqRow.date_to instanceof Date ? reqRow.date_to.toISOString().slice(0, 10) : reqRow.date_to;
-            const startTime = reqRow.request_type === 'day_off' ? '10:00' : reqRow.start_time;
-            const endTime = reqRow.request_type === 'day_off' ? '20:00' : reqRow.end_time;
-            // Влад (03.08.2026) - подтверждение выходного/перерыва реально блокирует
-            // время (applyScheduleDay), но раньше молча накладывалось поверх уже
-            // существующих записей клиентов - владелец узнавал о столкновении только
-            // если сам заметил в календаре. Собираем конфликты по КАЖДОМУ дню диапазона
-            // (day_off может растянуться на несколько дней = по сути отпуск).
-            for (let d = new Date(`${dateFrom}T00:00:00Z`); d.toISOString().slice(0, 10) <= dateTo; d.setUTCDate(d.getUTCDate() + 1)) {
-              const dateStr = d.toISOString().slice(0, 10);
-              await applyScheduleDay(client, reqRow.master_id, dateStr, startTime, endTime);
-              const conflicts = await findScheduleConflicts(client, reqRow.master_id, dateStr, [{ startTime, endTime }]);
-              if (conflicts.length) conflictsByDate.push({ date: dateStr, conflicts });
+            for (const dateStr of dayOffDates) {
+              await applyScheduleDay(client, reqRow.master_id, dateStr, dayOffStartTime, dayOffEndTime);
             }
-          }
-
-          if (conflictsByDate.length) {
-            const masterName = (await client.query('SELECT name FROM staff WHERE id = $1', [reqRow.master_id])).rows[0]?.name ?? 'Мастер';
-            await notifyStaff(client, auth.id, 'schedule_conflict', {
-              scheduleRequestId: requestId,
-              title: 'Одобренный график пересекается с записью',
-              body: conflictsByDate.map(({ date, conflicts }) => conflictNotificationBody(masterName, date, conflicts)).join(' | '),
-            });
           }
         }
+        const decidedBodyFallback =
+          reqRow.request_type === 'weekly_schedule' ? 'Новый график работы' : reqRow.request_type === 'day_off' ? 'Выходной' : 'Перерыв';
         await notifyStaff(client, reqRow.master_id, 'schedule_request_decided', {
           scheduleRequestId: requestId,
           title: body.decision === 'approved' ? 'Запрос одобрен' : 'Запрос отклонён',
-          body: body.ownerComment || (reqRow.request_type === 'day_off' ? 'Выходной' : 'Перерыв'),
+          body: body.ownerComment || decidedBodyFallback,
         });
         await client.query('COMMIT');
         return sendJson(res, 200, { ok: true });
@@ -1510,8 +1735,6 @@ async function runMigrations() {
   }
 }
 
-await runMigrations();
-
 // Задача 5 (Окно 14, 02.08.2026) - фоновый сканер "за 15 минут"/"время пришло" по
 // сегодняшним броням. Раз в минуту, не системный push - только заполняет таблицу
 // notifications, которую опрашивает уже открытая страница (см. GET /notifications
@@ -1549,8 +1772,20 @@ async function scanBookingReminders() {
     console.error('scanBookingReminders упал (не критично, попробуем через минуту):', err.message);
   }
 }
-setInterval(scanBookingReminders, 60 * 1000);
+// Окно 17 (04.08.2026) - миграции/фоновый сканер/listen раньше запускались на верхнем
+// уровне модуля безусловно, поэтому импорт server.mjs (например из node --test для
+// юнитов на чистых функциях резолвера) тянул за собой реальное подключение к БД и
+// висящий процесс. Guard по стандартному ESM-паттерну "это главный модуль?" - при
+// прямом запуске (`node server.mjs`, см. api/package.json start) ничего не меняется,
+// при импорте как модуля - побочные эффекты не срабатывают.
+async function startServer() {
+  await runMigrations();
+  setInterval(scanBookingReminders, 60 * 1000);
+  server.listen(PORT, () => {
+    console.log(`API alikhan-crm слушает порт ${PORT}`);
+  });
+}
 
-server.listen(PORT, () => {
-  console.log(`API alikhan-crm слушает порт ${PORT}`);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  await startServer();
+}

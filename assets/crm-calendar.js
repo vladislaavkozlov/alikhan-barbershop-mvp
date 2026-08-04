@@ -118,7 +118,7 @@ function buildColumnHtml(master) {
   </div>`;
 }
 
-function todayStr() {
+export function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -134,8 +134,23 @@ function todayStr() {
 // эффективный график (getEffectiveSchedule на сервере) даже без явной правки - тот
 // же контракт, что уже использует публичный виджет записи - берём его по каждому
 // мастеру отдельно (запросов мало, мастеров 2-3).
-export async function renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson }) {
-  const today = todayStr();
+//
+// Окно 18 (04.08.2026, Задача 1) - date теперь параметр, не константа todayStr():
+// навигация по датам (стрелки/date-picker, assets/crm-schedule-views.js) вызывает
+// эту же функцию с bookings, уже загруженными вызывающим кодом за НУЖНУЮ дату -
+// сама функция по-прежнему ничего не знает о навигации, только рисует готовые данные.
+// Ранее статичная разметка на crm-admin.html держала только 2 из 3 колонок
+// (Екатерины не было вовсе) - проверено живым запросом /staff под ролью admin перед
+// реализацией: Мамедхан реально видит всех троих, поэтому колонки/панели везде
+// строим по факту ответа /staff, а не по количеству узлов, которые были в макете.
+// Экспортирована (Окно 18) - Неделя/Месяц (assets/crm-schedule-views.js) строят
+// переключатель мастера по тому же списку, что и "Мой день", а не своему.
+export function mastersOf(staffList) {
+  return staffList.filter((s) => s.providesServices).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export async function renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson, date }) {
+  const today = date || todayStr();
   const soloTrack = document.querySelector('.panel-sp-day .schedule-grid .schedule-col .schedule-track');
   const grid = document.querySelector('.panel-sp-day .schedule-grid');
   if (!grid) return; // страница без дневного календаря (не должно случиться, но не падаем)
@@ -143,11 +158,7 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
   const isSolo = !!document.getElementById('walkinSoloTrigger');
   // crm-owner.html/crm-admin.html - несколько колонок, одна на каждого реального
   // мастера, видимого этой роли (staffList уже отфильтрован сервером по роли).
-  // Ранее статичная разметка на crm-admin.html держала только 2 из 3 колонок
-  // (Екатерины не было вовсе) - проверено живым запросом /staff под ролью admin
-  // перед реализацией: Мамедхан реально видит всех троих, поэтому колонки строим
-  // по факту ответа /staff, а не по количеству узлов, которые были в макете.
-  const masters = isSolo ? [staff] : staffList.filter((s) => s.providesServices).sort((a, b) => a.id.localeCompare(b.id));
+  const masters = isSolo ? [staff] : mastersOf(staffList);
 
   const shiftByMaster = new Map();
   await Promise.all(

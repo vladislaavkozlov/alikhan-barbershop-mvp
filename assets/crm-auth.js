@@ -5,6 +5,7 @@
 import { getMasters, getServices, mergeServiceCombos, isServiceBlockedByCombo } from '../storage.js';
 import { wireNotifications } from './crm-notifications.js';
 import { renderDayCalendar } from './crm-calendar.js';
+import { wireScheduleViews } from './crm-schedule-views.js';
 
 const API = window.ALIKHAN_API_URL;
 const TOKEN_KEY = 'alikhan-crm:token';
@@ -62,12 +63,12 @@ function buildTimeSelectHtml(id, value) {
 // HTML вместо старого <input type="text">) - сам виджет .custom-select получает
 // ОТДЕЛЬНЫЙ id (valueId), иначе id задвоился бы (контейнер + вложенный div с тем
 // же id). Вызывающий код читает значение через timeSelectValue(valueId).
-function renderTimeSelect(slotId, valueId, value) {
+export function renderTimeSelect(slotId, valueId, value) {
   const container = el(slotId);
   if (!container) return;
   container.innerHTML = buildTimeSelectHtml(valueId, value);
 }
-function timeSelectValue(id) {
+export function timeSelectValue(id) {
   return el(id)?.dataset.value || null;
 }
 
@@ -85,12 +86,12 @@ function buildDateWidgetHtml(id, value) {
     <div class="custom-date-panel" hidden></div>
   </div>`;
 }
-function renderDateSelect(slotOrId, valueId, value) {
+export function renderDateSelect(slotOrId, valueId, value) {
   const container = typeof slotOrId === 'string' ? el(slotOrId) : slotOrId;
   if (!container) return;
   container.innerHTML = buildDateWidgetHtml(valueId, value);
 }
-function dateSelectValue(id) {
+export function dateSelectValue(id) {
   return el(id)?.dataset.value || null;
 }
 
@@ -138,13 +139,32 @@ async function apiLogin(email, pin) {
   return res.json();
 }
 
-async function fetchJson(path) {
+export async function fetchJson(path) {
   const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
   return res.json();
 }
 
-function todayStr() {
+// Окно 18 (04.08.2026) - общий helper для POST/PUT/DELETE с тем же токеном, что уже
+// использует fetchJson (GET) - Неделя/Месяц/Год (assets/crm-schedule-views.js) не
+// дублируют логику Authorization-заголовка. Возвращает {ok, status, data} - вызывающий
+// код сам решает, что делать с 409/403/etc (разные экраны показывают конфликт по-разному).
+export async function apiSend(path, method, body) {
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    // тело может быть пустым (например 204) - не считается ошибкой парсинга
+  }
+  return { ok: res.ok, status: res.status, data };
+}
+
+export function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -305,7 +325,25 @@ async function renderLiveProof(staff) {
     // видел реальные брони (баг Влада - "запись на Екатерину не видна ни у неё, ни у
     // Али"). До wireWalkIn - новые .walkin-add-btn (owner/admin) должны уже быть в
     // DOM, когда wireWalkIn их находит через querySelectorAll.
-    await renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson });
+    await renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson, date: todayStr() });
+
+    // Окно 18 (04.08.2026) - навигация "Мой день" + реальные Неделя/Месяц/Год
+    // (crm-schedule-views.js получает готовые хелперы вместо собственного импорта
+    // из этого файла - модули так и остаются без циклической зависимости друг на
+    // друга, тот же приём, что уже применён у renderDayCalendar выше).
+    wireScheduleViews({
+      staff,
+      staffList,
+      services,
+      priceOf,
+      fetchJson,
+      apiSend,
+      renderDateSelect,
+      renderTimeSelect,
+      timeSelectValue,
+      todayStr,
+      renderDayCalendar,
+    });
 
     wirePortfolioEditors(staffList);
     ['master-1', 'master-2', 'master-3'].forEach((masterId) => {
@@ -612,57 +650,97 @@ function readWeeklyDayRow(prefix, wd) {
     breakEnd: breakOn ? timeSelectValue(`${prefix}-${wd}-breakEnd`) : null,
   };
 }
+// Русский список конфликтующих броней - общий формат ответа 409 schedule_conflict
+// (server.mjs: findScheduleConflicts/findWeeklyScheduleConflicts) что здесь, что в
+// модалке дня Месяца (assets/crm-schedule-views.js) - оба места рисуют его этой же
+// функцией, чтобы формат не разошёлся. conflicts - [{date, conflicts:[{start_time,
+// end_time, client_name, client_phone}]}] - именно snake_case (сырые колонки SQL,
+// не переименованы на сервере в camelCase, см. server.mjs).
+export function formatScheduleConflicts(conflictsByDate) {
+  return conflictsByDate
+    .map(({ date, conflicts }) => {
+      const [y, m, d] = date.split('-');
+      const rows = conflicts
+        .map((c) => `${c.start_time}–${c.end_time} · ${c.client_name || 'без имени'}${c.client_phone ? ' · ' + c.client_phone : ''}`)
+        .join('<br>');
+      return `<div class="conflict-day"><b>${d}.${m}.${y}</b><br>${rows}</div>`;
+    })
+    .join('');
+}
+
+// Окно 18 (04.08.2026, Задача 4) - дыра №1 отсюда же (найдена 03.08.2026): форма
+// раньше просто оставляла в полях то, что ввёл владелец, и писала "Сохранено" не
+// перепроверяя. Теперь после успешного PUT форма ВСЕГДА перезапрашивает
+// /master-weekly-schedule заново и перерисовывает поля этим ответом - верит только
+// тому, что подтвердил сервер. При 409 (конфликт с живой бронью, см. server.mjs
+// PUT-обработчик) форма не считает сохранение успешным и показывает список
+// конфликтов - тот же принцип блокировки, что уже действует у разовой правки дня.
 function wireWeeklyScheduleEditor(masterId, canEdit, fetchJson) {
   const container = el(`weeklyEditor-${masterId}`);
   if (!container || container.dataset.wired) return;
   container.dataset.wired = '1';
   const prefix = `weekly-${masterId}`;
 
-  fetchJson(`/master-weekly-schedule?masterId=${masterId}`)
-    .then((rows) => {
-      const byWeekday = new Map(rows.map((r) => [r.weekday, r]));
-      const days = [1, 2, 3, 4, 5, 6, 7].map((wd) => byWeekday.get(wd) || null);
+  async function load() {
+    let rows;
+    try {
+      rows = await fetchJson(`/master-weekly-schedule?masterId=${masterId}`);
+    } catch (err) {
+      container.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+      return;
+    }
+    const byWeekday = new Map(rows.map((r) => [r.weekday, r]));
+    const days = [1, 2, 3, 4, 5, 6, 7].map((wd) => byWeekday.get(wd) || null);
 
-      if (!canEdit) {
-        container.innerHTML = `<div class="breaks-list">${days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, false)).join('')}</div>`;
-        return;
-      }
+    if (!canEdit) {
+      container.innerHTML = `<div class="breaks-list">${days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, false)).join('')}</div>`;
+      return;
+    }
 
-      container.innerHTML =
-        days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, true)).join('') +
-        `<button class="btn btn-ghost btn-sm" type="button" id="${prefix}-save" style="margin-top:10px">Сохранить график</button>
-         <p class="payroll-note" id="${prefix}-note"></p>`;
-      days.forEach((d, i) => wireWeeklyDayRow(prefix, i + 1, d));
+    container.innerHTML =
+      days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, true)).join('') +
+      `<button class="btn btn-ghost btn-sm" type="button" id="${prefix}-save" style="margin-top:10px">Сохранить график</button>
+       <p class="payroll-note" id="${prefix}-note"></p>
+       <div class="conflict-list" id="${prefix}-conflicts" hidden></div>`;
+    days.forEach((d, i) => wireWeeklyDayRow(prefix, i + 1, d));
 
-      el(`${prefix}-save`).addEventListener('click', async () => {
-        const weeklyChanges = [1, 2, 3, 4, 5, 6, 7].map((wd) => readWeeklyDayRow(prefix, wd));
-        const btn = el(`${prefix}-save`);
-        const note = el(`${prefix}-note`);
-        btn.disabled = true;
-        const originalLabel = btn.textContent;
-        btn.textContent = 'Сохраняю…';
-        try {
-          const res = await fetch(`${API}/master-weekly-schedule`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-            body: JSON.stringify({ masterId, weeklyChanges }),
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
-          note.textContent = data.conflicts
-            ? `Сохранено. На новое расписание уже есть ${data.conflicts} реальных записей вне графика - в колокольчике уведомлений появилось, с кем связаться`
-            : 'Сохранено';
-        } catch (err) {
-          note.textContent = `Не удалось сохранить: ${err.message}`;
-        } finally {
+    el(`${prefix}-save`).addEventListener('click', async () => {
+      const weeklyChanges = [1, 2, 3, 4, 5, 6, 7].map((wd) => readWeeklyDayRow(prefix, wd));
+      const btn = el(`${prefix}-save`);
+      const note = el(`${prefix}-note`);
+      const conflictsEl = el(`${prefix}-conflicts`);
+      btn.disabled = true;
+      const originalLabel = btn.textContent;
+      btn.textContent = 'Сохраняю…';
+      conflictsEl.hidden = true;
+      note.textContent = '';
+      try {
+        const { ok, status, data } = await apiSend('/master-weekly-schedule', 'PUT', { masterId, weeklyChanges });
+        if (status === 409 && data?.error === 'schedule_conflict') {
+          note.textContent = 'Нельзя сохранить, пока не разберётесь с этими записями:';
+          conflictsEl.innerHTML = formatScheduleConflicts(data.conflicts);
+          conflictsEl.hidden = false;
+          return;
+        }
+        if (!ok) throw new Error(`HTTP ${status}`);
+        // Дыра №1: форма НЕ доверяет тому, что ввёл владелец - перезапрашивает
+        // сервер и перерисовывает поля его ответом (load() ниже), даже если сервер
+        // вернул ровно то же самое - гарантия важнее одного лишнего запроса.
+        await load();
+        const freshNote = el(`${prefix}-note`);
+        if (freshNote) freshNote.textContent = 'Сохранено и подтверждено сервером';
+      } catch (err) {
+        note.textContent = `Не удалось сохранить: ${err.message}`;
+      } finally {
+        if (btn.isConnected) {
           btn.disabled = false;
           btn.textContent = originalLabel;
         }
-      });
-    })
-    .catch((err) => {
-      container.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+      }
     });
+  }
+
+  load();
 }
 
 // Задача Влада (01.08.2026): "Клиент без предварительной записи" была рисунком -
