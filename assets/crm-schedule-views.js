@@ -9,7 +9,15 @@
 import { mastersOf } from './crm-calendar.js';
 
 const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+const WEEKDAY_FULL = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
 const MONTH_LABEL = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+// Родительный падеж - нужен только подписи-якорю ("5 августа"), в заголовках
+// Месяца остаётся именительный MONTH_LABEL ("Август 2026"), как было до Окна 25.
+const MONTH_GENITIVE = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+// Справочный производственный календарь на вкладке "Год" - статичная разметка на
+// 2026 (crm-owner.html, панель panel-sp-year, см. Окно 20): он НЕ перерисовывается
+// под якорную дату, поэтому подпись обязана называть именно этот год, а не год якоря.
+const YEAR_PANEL_YEAR = 2026;
 // Тот же глобальный дефолт, что и на сервере (api/server.mjs: GLOBAL_DEFAULT_START/END) -
 // нужен здесь только чтобы понять, отличается ли конкретный день от "стандартного"
 // недельного графика (🟡 в Месяце), сам источник истины - всегда ответ сервера.
@@ -38,8 +46,16 @@ function isoWeekdayOf(dateStr) {
   const day = new Date(`${dateStr}T12:00:00Z`).getUTCDay();
   return day === 0 ? 7 : day;
 }
-function mondayOf(dateStr) {
+export function mondayOf(dateStr) {
   return addDays(dateStr, -(isoWeekdayOf(dateStr) - 1));
+}
+// Соседний месяц от якорной даты - всегда его ПЕРВОЕ число, не "то же число в
+// другом месяце": 31 января через setMonth(+1) даёт 3 марта (в феврале нет 31-го),
+// а листание месяцев обязано попадать ровно в соседний месяц.
+export function addMonths(dateStr, delta) {
+  const [y, m] = dateStr.split('-').map(Number);
+  const zeroBased = (y * 12 + (m - 1)) + delta;
+  return `${Math.floor(zeroBased / 12)}-${pad2((zeroBased % 12) + 1)}-01`;
 }
 function ruPluralBooking(n) {
   const mod10 = n % 10;
@@ -51,6 +67,28 @@ function ruPluralBooking(n) {
 function fmtRu(dateStr) {
   const [y, m, d] = dateStr.split('-');
   return `${d}.${m}.${y}`;
+}
+
+// Окно 25 (05.08.2026) - подпись-якорь под вкладками: одна и та же выбранная дата,
+// названная в плотности текущего вида. Год в подписи недели появляется только когда
+// неделя реально пересекает границу года (иначе шум в 51 неделе из 52).
+function weekRangeLabel(dateStr) {
+  const from = mondayOf(dateStr);
+  const to = addDays(from, 6);
+  const [fy, fm, fd] = from.split('-').map(Number);
+  const [ty, tm, td] = to.split('-').map(Number);
+  if (fy !== ty) return `${fd} ${MONTH_GENITIVE[fm - 1]} ${fy} - ${td} ${MONTH_GENITIVE[tm - 1]} ${ty}`;
+  if (fm !== tm) return `${fd} ${MONTH_GENITIVE[fm - 1]} - ${td} ${MONTH_GENITIVE[tm - 1]}`;
+  return `${fd}-${td} ${MONTH_GENITIVE[fm - 1]}`;
+}
+
+export function viewAnchorLabel(view, dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (view === 'day') return `День · ${WEEKDAY_FULL[isoWeekdayOf(dateStr) - 1]}, ${d} ${MONTH_GENITIVE[m - 1]}`;
+  if (view === 'week') return `Неделя · ${weekRangeLabel(dateStr)}`;
+  if (view === 'month') return `Месяц · ${MONTH_LABEL[m - 1]} ${y}`;
+  if (view === 'year') return `Год · ${YEAR_PANEL_YEAR} (справочный)`;
+  return '';
 }
 
 // Модалка редактирования дня (Задача 3) - конфликт всегда об ОДНОЙ дате (POST
@@ -129,10 +167,65 @@ export function wireScheduleViews(ctx) {
   const masters = isSolo ? [staff] : mastersOf(staffList);
   if (masters.length === 0) return; // роль без доступа к расписанию (не должно случиться, но не падаем)
 
-  let currentDayDate = todayStr();
+  // Окно 25 (05.08.2026) - ОДНО состояние выбранной даты на все четыре вкладки.
+  // Раньше каждый вид держал свою: "Мой день" - currentDayDate, Неделя - weekStart,
+  // Месяц - monthViewYear/monthViewMonth, и они не знали друг о друге: клик по дню
+  // из Месяца открывал День (jumpToDay), но обратный клик по вкладке "Неделя"/"Месяц"
+  // показывал текущую календарную неделю/месяц, а не ту, откуда пришли. Теперь дата -
+  // общая, вид - способ её показать (день/неделя/месяц), поэтому переключение вкладки
+  // это смена ПЛОТНОСТИ той же даты, а не переход на новую страницу.
+  const scheduleViewState = { date: todayStr(), view: 'day' };
+  const RADIO_ID_BY_VIEW = { day: 'sp-day', week: 'sp-week', month: 'sp-month', year: 'sp-year' };
+  const PANEL_SELECTOR_BY_VIEW = { day: '.panel-sp-day', week: '.panel-sp-week', month: '.panel-sp-month', year: '.panel-sp-year' };
+
+  function renderViewAnchor() {
+    const anchorEl = el('scheduleViewAnchor');
+    if (!anchorEl) return; // страница без подписи-якоря - навигация всё равно работает
+    anchorEl.textContent = viewAnchorLabel(scheduleViewState.view, scheduleViewState.date);
+  }
+
+  // Crossfade содержимого при смене вкладки (150ms, ease-out). Класс сначала
+  // снимается, затем читается offsetWidth: без принудительного reflow повторное
+  // добавление того же класса не перезапускает CSS-анимацию.
+  function crossfadeActivePanel() {
+    const panel = document.querySelector(PANEL_SELECTOR_BY_VIEW[scheduleViewState.view]);
+    if (!panel) return;
+    panel.classList.remove('view-fade-in');
+    void panel.offsetWidth;
+    panel.classList.add('view-fade-in');
+  }
+
+  // Единая точка смены вида и/или даты: и клик по вкладке, и клик по дню из
+  // Недели/Месяца, и стрелки навигации проходят здесь - поэтому подпись-якорь,
+  // отмеченная вкладка и содержимое панели физически не могут разойтись.
+  async function setView(view, date) {
+    if (date) scheduleViewState.date = date;
+    scheduleViewState.view = view;
+    const radio = el(RADIO_ID_BY_VIEW[view]);
+    if (radio && !radio.checked) radio.checked = true; // программная установка .checked события change не даёт - обновляем всё сами
+    renderViewAnchor();
+    crossfadeActivePanel();
+    if (view === 'day') await loadDay(scheduleViewState.date);
+    else if (view === 'week') await loadWeek();
+    else if (view === 'month') await loadMonth();
+    // year - статичный справочный календарь, перерисовывать нечего
+  }
+
+  function wireViewTabs() {
+    Object.entries(RADIO_ID_BY_VIEW).forEach(([view, radioId]) => {
+      el(radioId)?.addEventListener('change', (e) => {
+        if (e.target.checked) setView(view);
+      });
+    });
+    renderViewAnchor();
+  }
 
   async function loadDay(date) {
-    currentDayDate = date;
+    scheduleViewState.date = date;
+    // Виджет даты - часть того же состояния: до Окна 25 переход из Недели/Месяца
+    // менял календарь, но оставлял в пикере старое число (jumpToDay его не трогал).
+    const slot = el('dayNavDate-slot');
+    if (slot) renderDateSelect(slot, 'dayNavDate', date);
     let bookings = [];
     try {
       const res = await fetchJson(`/bookings?date=${date}`);
@@ -146,9 +239,7 @@ export function wireScheduleViews(ctx) {
   // Клик по дню в Неделе/Месяце - переключает верхнюю вкладку "Мой день" на эту
   // дату, переиспользуя loadDay/renderDayCalendar выше, не рисуя брони заново.
   async function jumpToDay(date) {
-    const dayRadio = el('sp-day');
-    if (dayRadio) dayRadio.checked = true;
-    await loadDay(date);
+    await setView('day', date);
   }
 
   // ───────────────────────── Задача 1: "Мой день" навигация ─────────────────
@@ -157,20 +248,15 @@ export function wireScheduleViews(ctx) {
     const nextBtn = el('dayNavNext');
     const slot = el('dayNavDate-slot');
     if (!prevBtn || !nextBtn || !slot) return; // страница без навигации по датам
-    renderDateSelect(slot, 'dayNavDate', currentDayDate);
-    slot.addEventListener('customdate:change', (e) => loadDay(e.detail.value));
-    const shift = (deltaDays) => {
-      const next = addDays(currentDayDate, deltaDays);
-      renderDateSelect(slot, 'dayNavDate', next);
-      loadDay(next);
-    };
+    renderDateSelect(slot, 'dayNavDate', scheduleViewState.date);
+    slot.addEventListener('customdate:change', (e) => setView('day', e.detail.value));
+    const shift = (deltaDays) => setView('day', addDays(scheduleViewState.date, deltaDays));
     prevBtn.addEventListener('click', () => shift(-1));
     nextBtn.addEventListener('click', () => shift(1));
   }
 
   // ───────────────────────── Задача 2: "Неделя" ──────────────────────────────
   let weekMasterId = masters[0]?.id ?? null;
-  let weekStart = mondayOf(currentDayDate);
 
   function weekDayCellHtml(day, count) {
     const dayNum = Number(day.date.slice(8, 10));
@@ -187,10 +273,12 @@ export function wireScheduleViews(ctx) {
   async function loadWeek() {
     const grid = el('weekGrid');
     if (!grid || !weekMasterId) return;
-    const from = weekStart;
-    const to = addDays(weekStart, 6);
-    const label = el('weekNavLabel');
-    if (label) label.textContent = `${fmtRu(from)} – ${fmtRu(to)}`;
+    // Показываем НЕ "текущую календарную неделю", а ту, что содержит общий якорь -
+    // поэтому weekStart здесь производная от scheduleViewState.date, не своя переменная.
+    const from = mondayOf(scheduleViewState.date);
+    const to = addDays(from, 6);
+    // Подпись диапазона больше не живёт между стрелками: её роль взял общий якорь
+    // под вкладками (Окно 25) - две одинаковые подписи на одном экране были шумом.
     grid.innerHTML = '<p class="section-hint">Загружаю…</p>';
     try {
       const [rangeDays, bookingsRes] = await Promise.all([
@@ -221,22 +309,15 @@ export function wireScheduleViews(ctx) {
         loadWeek();
       });
     }
-    el('weekNavPrev')?.addEventListener('click', () => {
-      weekStart = addDays(weekStart, -7);
-      loadWeek();
-    });
-    el('weekNavNext')?.addEventListener('click', () => {
-      weekStart = addDays(weekStart, 7);
-      loadWeek();
-    });
+    // Листание недели двигает общий якорь на понедельник соседней недели - иначе
+    // возврат в Месяц/День показал бы дату из той недели, которую уже пролистали.
+    el('weekNavPrev')?.addEventListener('click', () => setView('week', addDays(mondayOf(scheduleViewState.date), -7)));
+    el('weekNavNext')?.addEventListener('click', () => setView('week', addDays(mondayOf(scheduleViewState.date), 7)));
     loadWeek();
   }
 
   // ───────────────────────── Задача 3: "Месяц" + модалка дня ────────────────
   let monthMasterId = masters[0]?.id ?? null;
-  const todayParts = currentDayDate.split('-').map(Number);
-  let monthViewYear = todayParts[0];
-  let monthViewMonth = todayParts[1]; // 1-12
   let editingDate = null;
 
   function syncDayEditVisibility() {
@@ -361,10 +442,9 @@ export function wireScheduleViews(ctx) {
   async function loadMonth() {
     const grid = el('monthGrid');
     if (!grid || !monthMasterId) return;
-    const year = monthViewYear;
-    const month = monthViewMonth;
-    const label = el('monthNavLabel');
-    if (label) label.textContent = `${MONTH_LABEL[month - 1]} ${year}`;
+    // Тот же принцип, что у Недели: месяц берётся из общего якоря, своей пары
+    // monthViewYear/monthViewMonth больше нет.
+    const [year, month] = scheduleViewState.date.split('-').map(Number);
     const firstOfMonth = `${year}-${pad2(month)}-01`;
     const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
     const lastOfMonth = `${year}-${pad2(month)}-${pad2(daysInMonth)}`;
@@ -425,26 +505,15 @@ export function wireScheduleViews(ctx) {
         loadMonth();
       });
     }
-    el('monthNavPrev')?.addEventListener('click', () => {
-      monthViewMonth -= 1;
-      if (monthViewMonth < 1) {
-        monthViewMonth = 12;
-        monthViewYear -= 1;
-      }
-      loadMonth();
-    });
-    el('monthNavNext')?.addEventListener('click', () => {
-      monthViewMonth += 1;
-      if (monthViewMonth > 12) {
-        monthViewMonth = 1;
-        monthViewYear += 1;
-      }
-      loadMonth();
-    });
+    // Листание месяца ставит якорь на первое число соседнего месяца (addMonths) -
+    // возврат в День/Неделю после этого попадает именно в тот месяц, что смотрели.
+    el('monthNavPrev')?.addEventListener('click', () => setView('month', addMonths(scheduleViewState.date, -1)));
+    el('monthNavNext')?.addEventListener('click', () => setView('month', addMonths(scheduleViewState.date, 1)));
     wireDayEditModal();
     loadMonth();
   }
 
+  wireViewTabs();
   wireDayNav();
   wireWeekView();
   wireMonthView();

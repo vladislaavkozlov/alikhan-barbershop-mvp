@@ -40,10 +40,13 @@ await withBrowser(async (s) => {
   await s.sleep(1200);
   const weekGridHtml = await s.eval(`document.getElementById('weekGrid')?.innerHTML.length`);
   const weekHasSwitch = await s.eval(`!!document.getElementById('weekMasterSwitch')?.innerHTML.trim()`);
-  const weekLabel = await s.eval(`document.getElementById('weekNavLabel')?.textContent`);
+  // Окно 25 (05.08.2026): подпись диапазона переехала из строки стрелок в общий
+  // якорь под вкладками (#scheduleViewAnchor) - две одинаковые подписи на экране
+  // были дублем. Проверяем ту же суть на новом месте, формат теперь словесный.
+  const weekLabel = await s.eval(`document.getElementById('scheduleViewAnchor')?.textContent`);
   checkTrue(`Неделя: weekGrid реально заполнен (${weekGridHtml} байт HTML)`, weekGridHtml > 50);
   checkTrue('Неделя: переключателя мастеров нет (у мастера мастер всегда один)', !weekHasSwitch);
-  checkTrue(`Неделя: подпись диапазона дат реальная ("${weekLabel}")`, /\d{2}\.\d{2}\.\d{4}/.test(weekLabel || ''));
+  checkTrue(`Неделя: подпись диапазона дат реальная ("${weekLabel}")`, /^Неделя · \d{1,2}/.test(weekLabel || ''));
 
   // --- Задача 1: "Месяц" - реальный грид, без карандаша редактирования ---
   await s.click('label[for="sp-month"]');

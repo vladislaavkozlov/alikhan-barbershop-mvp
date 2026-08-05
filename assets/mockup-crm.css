@@ -304,6 +304,21 @@ button:active, .btn:active { transform: scale(0.96); }
 .seg-panel { display: none; }
 .seg-panel > .seg-tabs { margin-top: 14px; }
 
+/* Окно 25 (05.08.2026) - подпись-якорь под вкладками Расписания: какая дата сейчас
+   показана в выбранной плотности ("Неделя · 3-9 августа"). Пустая до первого рендера
+   (заполняет assets/crm-schedule-views.js) - :empty убирает отступ, чтобы на страницах
+   без этого блока/до инициализации вкладки не отъезжали. */
+.view-anchor { margin-top: 10px; font-size: 0.82rem; color: var(--text-muted); }
+.view-anchor:empty { margin-top: 0; }
+/* Crossfade содержимого при смене вкладки - только прозрачность, без сдвига:
+   панель уже показана CSS-селектором #sp-*:checked ~ .panel-sp-*, анимация лишь
+   смягчает подмену содержимого. */
+@keyframes segPanelFade { from { opacity: 0; } to { opacity: 1; } }
+.seg-panel.view-fade-in { animation: segPanelFade 150ms var(--ease-out); }
+@media (prefers-reduced-motion: reduce) {
+  .seg-panel.view-fade-in { animation: none; }
+}
+
 /* ---------- schedule grid ---------- */
 /* когда календарь - первый элемент внутри панели (переключатель мастера в Неделе,
    без поясняющего текста над ним) - нужен свой отступ сверху, иначе сетка Пн-Вс
@@ -678,7 +693,6 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
   color: var(--text); font-size: 1rem; cursor: pointer; transition: all 160ms var(--ease-out);
 }
 .day-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
-.week-nav-label { font-weight: 600; font-size: 0.85rem; }
 
 .master-switch-row { margin: 10px 0 14px; }
 .seg-bar.master-pill-row button.master-pill {

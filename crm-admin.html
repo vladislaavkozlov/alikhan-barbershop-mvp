@@ -165,6 +165,9 @@
             <label for="sp-month">Месяц</label>
             <label for="sp-year">Год</label>
           </div>
+          <!-- Окно 25 - подпись-якорь текущей даты, общая на четыре вкладки (заполняет
+               assets/crm-schedule-views.js, тот же блок, что на crm-owner.html) -->
+          <div class="view-anchor" id="scheduleViewAnchor"></div>
 
           <div class="seg-panel panel-sp-day">
             <div class="day-nav" id="dayNav">
@@ -196,7 +199,6 @@
           <div class="seg-panel panel-sp-week">
             <div class="day-nav" id="weekNav">
               <button type="button" class="day-nav-btn" id="weekNavPrev" aria-label="Предыдущая неделя">‹</button>
-              <span class="week-nav-label" id="weekNavLabel"></span>
               <button type="button" class="day-nav-btn" id="weekNavNext" aria-label="Следующая неделя">›</button>
             </div>
             <p class="section-hint">Переключи мастера. Клик по дню открывает его как «Мой день»</p>
@@ -207,7 +209,6 @@
           <div class="seg-panel panel-sp-month">
             <div class="day-nav" id="monthNav">
               <button type="button" class="day-nav-btn" id="monthNavPrev" aria-label="Предыдущий месяц">‹</button>
-              <span class="week-nav-label" id="monthNavLabel"></span>
               <button type="button" class="day-nav-btn" id="monthNavNext" aria-label="Следующий месяц">›</button>
             </div>
             <p class="section-hint">🟢 обычный день · 🟡 разовая правка на эту дату · 🔴 выходной. Клик по числу дня открывает «Мой день», ✎ - редактирует именно этот день</p>
