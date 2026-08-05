@@ -843,15 +843,21 @@ export async function holidayCloseTargets(client, masterIds) {
   return all.filter((id) => requested.has(id));
 }
 
-// Границы перерыва, которым закрывается день. Фиксированной пары 10:00-20:00 здесь
-// НЕ достаточно: applyScheduleDay создаёт смену 10:00-20:00 только если строки в
-// schedule_shifts ещё нет, а на уже существующей смене (например разовая правка
-// 09:00-18:00) оставляет её окно нетронутым. Перерыв 10:00-20:00 такую смену не
-// накрывает слева, isScheduleDayOff вернул бы false и день остался бы "рабочим с
-// длинным перерывом" - ровно то, чего владелец не ожидает, нажимая "закрыть".
-// Берём объединение эффективного окна мастера и того, что может создать сама
+// Границы перерыва, которым день закрывается ЦЕЛИКОМ (праздник, отгул, отпуск).
+// Фиксированной пары 10:00-20:00 здесь НЕ достаточно: applyScheduleDay создаёт смену
+// 10:00-20:00 только если строки в schedule_shifts ещё нет, а на уже существующей
+// смене (например разовая правка 09:00-18:00) оставляет её окно нетронутым. Перерыв
+// 10:00-20:00 такую смену не накрывает слева, isScheduleDayOff вернул бы false и день
+// остался бы "рабочим с длинным перерывом" - ровно то, чего никто не ожидает, закрывая
+// день. Берём объединение эффективного окна мастера и того, что может создать сама
 // applyScheduleDay.
-export function holidayDayOffWindow(effectiveSchedule) {
+//
+// Баг, который это чинит (найден и воспроизведён 05.08.2026 на локальной базе):
+// одобренный отгул (PATCH /schedule-requests/:id/decision) ставил перерыв литералами
+// '10:00'/'20:00' - у мастера со сменой 09:00-18:00 день после одобрения оставался
+// isDayOff:false, а /schedule-availability отдавал hasSlots:true, то есть клиент мог
+// записаться в уже одобренный отгул на 09:00-10:00. Роут при этом отвечал 200.
+export function fullDayOffWindow(effectiveSchedule) {
   const startTime = toMinutes(effectiveSchedule.startTime) < toMinutes(GLOBAL_DEFAULT_START)
     ? effectiveSchedule.startTime
     : GLOBAL_DEFAULT_START;
@@ -859,6 +865,27 @@ export function holidayDayOffWindow(effectiveSchedule) {
     ? effectiveSchedule.endTime
     : GLOBAL_DEFAULT_END;
   return { startTime, endTime };
+}
+
+// Окна блокировки по каждой дате одобряемой заявки мастера (PATCH /schedule-requests/
+// :id/decision). Разведено по типу заявки:
+//   day_off - весь день, границы считаются от РЕАЛЬНОГО графика мастера на эту дату
+//             (fullDayOffWindow), а не литералами 10:00-20:00. Даты диапазона считаются
+//             по одной: у мастера может быть разный график в разные дни отпуска.
+//   break   - конкретные часы, которые мастер сам указал в заявке, их и блокируем.
+// Одна и та же карта используется дважды - сначала для поиска конфликтов с бронями,
+// потом для применения: считать окна повторно нельзя, иначе проверка и запись могли бы
+// разойтись.
+export async function dayOffWindowsForRequest(client, masterId, dates, requestType, startTime, endTime) {
+  const windows = new Map();
+  for (const dateStr of dates) {
+    if (requestType === 'day_off') {
+      windows.set(dateStr, fullDayOffWindow(await getEffectiveSchedule(client, masterId, dateStr)));
+    } else {
+      windows.set(dateStr, { startTime, endTime });
+    }
+  }
+  return windows;
 }
 
 // Что именно произойдёт при массовом закрытии - считается ДО записи, отдельно от неё
@@ -883,7 +910,7 @@ export async function planHolidayClose(client, masterIds, dates) {
         skipped.push({ masterId, date, reason: 'already_day_off' });
         continue;
       }
-      const window = holidayDayOffWindow(eff);
+      const window = fullDayOffWindow(eff);
       const dayConflicts = await findScheduleConflicts(client, masterId, date, [window]);
       if (dayConflicts.length) {
         conflicts.push({ masterId, date, conflicts: dayConflicts });
@@ -1872,7 +1899,7 @@ const server = createServer(async (req, res) => {
         // брони и заново нажимает "одобрить" (applyScheduleDay/writeWeeklySchedule
         // ниже вызываются только когда conflictsByDate пуст).
         const isWeeklySchedule = reqRow.category === 'grafik_standard';
-        let weeklyRows, dayOffDates, dayOffStartTime, dayOffEndTime;
+        let weeklyRows, dayOffDates, dayOffWindows;
         const conflictsByDate = [];
 
         if (body.decision === 'approved') {
@@ -1884,18 +1911,30 @@ const server = createServer(async (req, res) => {
             weeklyRows = reqRow.weekly_changes;
             conflictsByDate.push(...(await findWeeklyScheduleConflicts(client, reqRow.master_id, weeklyRows)));
           } else {
-            dayOffStartTime = reqRow.request_type === 'day_off' ? '10:00' : reqRow.start_time;
-            dayOffEndTime = reqRow.request_type === 'day_off' ? '20:00' : reqRow.end_time;
             // Влад (03.08.2026) - подтверждение выходного/перерыва реально блокирует
             // время (applyScheduleDay), но раньше молча накладывалось поверх уже
             // существующих записей клиентов. Собираем конфликты по КАЖДОМУ дню
             // диапазона (day_off может растянуться на несколько дней = по сути отпуск)
             // ДО применения - applyScheduleDay ниже вызывается вторым проходом по тем
             // же датам, только если весь диапазон чист.
+            //
+            // Фикс 05.08.2026: границы выходного берутся из dayOffWindowsForRequest (по
+            // реальному графику мастера на каждую дату), а не из литералов '10:00'/'20:00' -
+            // на смене 09:00-18:00 такой перерыв не накрывал день, и одобренный отгул
+            // оставался доступен для записи (баг воспроизведён живьём, см. комментарий
+            // к fullDayOffWindow выше).
             dayOffDates = enumerateDateRange(dateColToStr(reqRow.date_from), dateColToStr(reqRow.date_to));
+            dayOffWindows = await dayOffWindowsForRequest(
+              client,
+              reqRow.master_id,
+              dayOffDates,
+              reqRow.request_type,
+              reqRow.start_time,
+              reqRow.end_time
+            );
             for (const dateStr of dayOffDates) {
               const conflicts = await findScheduleConflicts(client, reqRow.master_id, dateStr, [
-                { startTime: dayOffStartTime, endTime: dayOffEndTime },
+                dayOffWindows.get(dateStr),
               ]);
               if (conflicts.length) conflictsByDate.push({ date: dateStr, conflicts });
             }
@@ -1915,7 +1954,8 @@ const server = createServer(async (req, res) => {
             await writeWeeklySchedule(client, reqRow.master_id, weeklyRows);
           } else {
             for (const dateStr of dayOffDates) {
-              await applyScheduleDay(client, reqRow.master_id, dateStr, dayOffStartTime, dayOffEndTime);
+              const window = dayOffWindows.get(dateStr);
+              await applyScheduleDay(client, reqRow.master_id, dateStr, window.startTime, window.endTime);
             }
           }
         }

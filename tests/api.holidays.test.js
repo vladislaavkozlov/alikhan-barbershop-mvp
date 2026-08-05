@@ -13,7 +13,7 @@ import {
   listHolidays,
   planHolidayClose,
   holidayCloseTargets,
-  holidayDayOffWindow,
+  fullDayOffWindow,
   isScheduleDayOff,
 } from '../api/server.mjs';
 
@@ -191,22 +191,22 @@ test('planHolidayClose: пустой список мастеров - пусто�
 // false - день остался бы "рабочим с длинным перерывом". Окно перерыва обязано
 // накрывать И эффективный график мастера, И то окно, которое может создать сама
 // applyScheduleDay.
-test('holidayDayOffWindow: обычный день по глобальному дефолту - ровно 10:00-20:00', () => {
-  assert.deepEqual(holidayDayOffWindow({ startTime: '10:00', endTime: '20:00', breaks: [] }), {
+test('fullDayOffWindow: обычный день по глобальному дефолту - ровно 10:00-20:00', () => {
+  assert.deepEqual(fullDayOffWindow({ startTime: '10:00', endTime: '20:00', breaks: [] }), {
     startTime: '10:00',
     endTime: '20:00',
   });
 });
 
-test('holidayDayOffWindow: ранняя смена 09:00-18:00 - перерыв расширяется влево до 09:00 и вправо до 20:00', () => {
-  const win = holidayDayOffWindow({ startTime: '09:00', endTime: '18:00', breaks: [] });
+test('fullDayOffWindow: ранняя смена 09:00-18:00 - перерыв расширяется влево до 09:00 и вправо до 20:00', () => {
+  const win = fullDayOffWindow({ startTime: '09:00', endTime: '18:00', breaks: [] });
   assert.deepEqual(win, { startTime: '09:00', endTime: '20:00' });
   // Ключевой ассерт: именно этот перерыв делает день выходным по правилу проекта.
   assert.equal(isScheduleDayOff({ startTime: '09:00', endTime: '18:00', breaks: [win] }), true);
 });
 
-test('holidayDayOffWindow: длинная смена 08:00-22:00 - перерыв покрывает её целиком', () => {
-  const win = holidayDayOffWindow({ startTime: '08:00', endTime: '22:00', breaks: [] });
+test('fullDayOffWindow: длинная смена 08:00-22:00 - перерыв покрывает её целиком', () => {
+  const win = fullDayOffWindow({ startTime: '08:00', endTime: '22:00', breaks: [] });
   assert.deepEqual(win, { startTime: '08:00', endTime: '22:00' });
   assert.equal(isScheduleDayOff({ startTime: '08:00', endTime: '22:00', breaks: [win] }), true);
 });
