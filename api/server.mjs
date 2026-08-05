@@ -2197,18 +2197,16 @@ async function runMigrations() {
   );
   const applied = new Set((await pool.query('SELECT filename FROM schema_migrations')).rows.map((r) => r.filename));
 
-  // 001/002 уже накатаны вручную ДО того, как появился этот раннер (staff/services/
-  // bookings в проде уже работают на этой схеме) - если таблица трекинга только что
-  // создана (пустая), помечаем эту пару "применённой" без повторного выполнения,
-  // иначе INSERT-ы сида в 002 упадут на уже существующих строках и сервер не стартует.
-  const BASELINE = ['001_kv_store.sql', '002_schema.sql'];
-  if (applied.size === 0) {
-    for (const file of BASELINE) {
-      await pool.query('INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING', [file]);
-      applied.add(file);
-    }
-  }
-
+  // Задача D промпта Окна 29 (05.08.2026): до этой правки здесь был особый случай -
+  // на пустой schema_migrations 001/002 помечались "применёнными" БЕЗ выполнения
+  // (на боевой базе Amvera их накатили вручную ДО появления этого раннера, а их
+  // INSERT-сиды упали бы на уже существующих строках). На боевой базе это больше не
+  // нужно - schema_migrations там уже содержит явные строки '001_kv_store.sql' и
+  // '002_schema.sql' (тот особый случай вставил их при самом первом старте раннера),
+  // поэтому обычный `if (applied.has(file)) continue` ниже пропустит их сам, без
+  // особого случая. На СВЕЖЕЙ базе (schema_migrations пустая) 001/002 теперь просто
+  // выполняются как все остальные файлы по порядку - оба файла сделаны идемпотентными
+  // (CREATE TABLE IF NOT EXISTS / ON CONFLICT DO NOTHING), поэтому это безопасно.
   const files = readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith('.sql'))
     .sort();
