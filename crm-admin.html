@@ -58,7 +58,6 @@
 <header class="site">
   <div class="nav">
     <a href="index.html" class="brand">АЛИХАН</a>
-    <span class="crm-tag">CRM · визуальный макет</span>
     <div class="nav-right">
       <span class="location-badge">Ставрополь, ул. Андрея Голуба 16 ст1</span>
       <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили">🔔<span class="notif-badge">3</span></button>
@@ -81,24 +80,8 @@
   <h1>Администратор</h1>
   <p class="subtitle">Ведёт запись и финансы своей точки. Не меняет прайс, ставки ЗП и роли сотрудников</p>
 
-  <div class="live-proof" id="liveProof"><span class="lp-dot"></span><span>Проверяю связь с боевой базой…</span></div>
-
-  <div class="banner">
-    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход и счётчики выше настоящие (тестовый контур). Календарь записей ниже реальный (Окно 15, 02.08.2026) - колонки мастеров строятся по факту из /staff, включая Елизавету (у Алихана одна точка, уточнено 01.08.2026, миграция 007_master3_location_fix.sql - админ реально видит всех троих). Разница с видом владельца: нет вкладки «Настройка ЗП», роль сотрудника — только просмотр (ставки не редактирует, их меняет только владелец).
-  </div>
-
-  <details class="staff-card" style="margin-bottom:20px">
-    <summary><div class="summary-meta"><div class="name" style="font-size:0.92rem">Обновления</div></div><span class="chevron">▸</span></summary>
-    <div class="staff-card-body" style="padding-top:10px">
-      <div class="breaks-list">
-        <div class="break-row"><span class="note" style="flex:1"><b>02.08.2026</b> - утечка ПДн в анонимном /bookings проверена и подтверждена уже закрытой; права доступа (реальные учётки 1:1, роль Мамедхана - администратор), согласование графика мастера с владельцем (запрос перерыва/выходного), уведомления в личном кабинете (колокольчик ✉)</span></div>
-        <div class="break-row"><span class="note" style="flex:1"><b>01.08.2026</b> - 1 точка вместо 2, реальные имена мастеров везде, мультиуслуга за визит, клиент без предварительной записи, продажа товаров, ЗП по неделе/месяцу в карточках</span></div>
-      </div>
-    </div>
-  </details>
-
   <div class="retention-alert" id="retention-panel">
-    <div class="ra-head"><span class="ico">⚠</span><strong>3 клиента точки не приходили 2+ месяца</strong> <span class="badge badge-todo">новое, разд.12 ТЗ</span><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
+    <div class="ra-head"><span class="ico">⚠</span><strong>3 клиента точки не приходили 2+ месяца</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
     <div class="ra-body">
     <p class="section-hint" style="margin:6px 0 12px">Администратор ловит случай раньше владельца - от 2 месяцев, пока клиента ещё легче вернуть</p>
     <div class="ra-list">
@@ -122,7 +105,7 @@
     <div class="tab-panel panel-a">
       <section>
         <h2>Расписание</h2>
-        <p class="section-hint">Разд. 16.1, тот же вид, что у владельца, но фиксировано по своей точке</p>
+        <p class="section-hint">Тот же вид, что у владельца, но фиксировано по своей точке</p>
 
         <p class="section-hint" style="margin-bottom:14px">Клиент без предварительной записи - кнопка «+» в шапке колонки нужного мастера ниже</p>
 
@@ -144,7 +127,7 @@
           <p class="wf-result" id="wfResult" hidden></p>
 
           <div class="wf-sale" id="wfSaleForm" hidden>
-            <h4 style="margin-top:18px">Добавить продажу к этой записи <span class="badge badge-todo">новое, разд.14.3</span></h4>
+            <h4 style="margin-top:18px">Добавить продажу к этой записи</h4>
             <div class="field-grid">
               <div class="field"><label>Товар</label><input id="wfSaleItem" type="text" placeholder="например Воск для укладки"></div>
               <div class="field"><label>Сумма, ₽</label><input id="wfSaleAmount" type="number" min="1" step="1" placeholder="500"></div>
@@ -263,7 +246,7 @@
         </div>
 
         <details class="booking-detail" id="bd-1" open>
-          <summary><strong id="bd-now">Клиент Б (пример) · Комплекс стрижка+борода · 11:00–12:00 (Алиовсад)</strong><span class="bd-hint">- клик по любой записи в календаре выше открывает её здесь (разд. 16.2)</span></summary>
+          <summary><strong id="bd-now">Клиент Б (пример) · Комплекс стрижка+борода · 11:00–12:00 (Алиовсад)</strong></summary>
           <div class="booking-detail-body">
             <div class="walkin-banner" id="bk-walkin-banner" hidden>
               <span class="ico">★</span>
@@ -277,10 +260,9 @@
               <label for="st-came">Пришёл</label>
               <label for="st-no">Не пришёл</label>
             </div>
-            <p class="status-legend">Ожидание - запись создана, время визита ещё не наступило. Пришёл / Не пришёл - отмечает мастер или администратор по факту визита. «Подтвердил» ниже - отдельная независимая отметка: клиент заранее подтвердил намерение прийти, не привязана к тому, что дальше произошло по факту</p>
             <div class="confirm-row">
               <input type="checkbox" id="bconfirm" checked>
-              <label for="bconfirm">Клиент подтвердил запись (bookings.client_confirmed)</label>
+              <label for="bconfirm">Клиент подтвердил запись</label>
             </div>
             <!-- Правка 03.08.2026: тумблер "Клиент не пришёл без предупреждения" убран -
                  дублировал ту же самую (тоже нерабочую) кнопку "Клиент пришёл" ниже, два
@@ -299,7 +281,7 @@
               <div class="field"><label>Телефон</label><input id="bk-phone" value="+7 900 000-00-02 (пример)" readonly></div>
               <div class="field"><label>Мастер записи</label><input id="bk-master" value="Алиовсад" readonly></div>
               <div class="field field--wide">
-                <label>Закреплён за мастером <span class="badge badge-todo">новое, разд.12 ТЗ</span></label>
+                <label>Закреплён за мастером</label>
                 <div class="custom-select" data-value="Алиовсад">
                   <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">Алиовсад</button>
                   <div class="custom-select-list" hidden>
@@ -313,7 +295,7 @@
               <div class="field"><label>Дата рождения клиента</label><input value="15.08 (пример)" readonly></div>
               <div class="field"><label>Клиент с нами с</label><input value="03.02.2025 (пример)" readonly></div>
               <div class="field"><label>Плановое время</label><input id="bk-planned" value="11:00–12:00" readonly></div>
-              <div class="field"><label>Длительность услуги у этого мастера <span class="badge badge-todo">разд.12 п.7,8</span></label><input id="bk-duration" value="60 мин" readonly></div>
+              <div class="field"><label>Длительность услуги у этого мастера</label><input id="bk-duration" value="60 мин" readonly></div>
               <div class="field">
                 <label>Статус визита</label>
                 <button id="bk-noshow-btn" class="btn btn-ghost btn-sm" type="button" onclick="toggleNoShow(this)">Клиент не пришёл</button>
@@ -362,10 +344,9 @@
     <div class="tab-panel panel-b">
       <section>
         <h2>Сотрудники</h2>
-        <p class="section-hint">Роль сотрудника и список его услуг здесь только для просмотра — менять роль и то, какие услуги умеет оказывать мастер, может только владелец (ТЗ разд.16.8, решение 27.07.2026, услуги - правка 28.07.2026)</p>
+        <p class="section-hint">Роль сотрудника и список его услуг здесь только для просмотра — менять роль и то, какие услуги умеет оказывать мастер, может только владелец (решение 27.07.2026, услуги - правка 28.07.2026)</p>
 
         <div class="staff-filter-row">
-          <span class="staff-search">🔍 Поиск сотрудника (пример, в макете не работает)</span>
           <button class="btn-ghost btn-sm" type="button">+ Добавить сотрудника</button>
         </div>
 
@@ -408,7 +389,7 @@
               <p class="section-hint" style="margin:10px 0">Только просмотр - разворот решения от 27.07.2026 (правка Влада 28.07.2026): какие услуги умеет оказывать мастер, теперь решает только владелец, не админ. Показаны все 8 услуг заведения, галочка = мастер это умеет</p>
               <div class="service-picker" data-master-id="master-1"></div>
 
-              <h4>График работы <span class="badge badge-todo">Окно 16, 03.08.2026</span></h4>
+              <h4>График работы</h4>
               <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - только просмотр, меняет владелец (см. баннер вверху страницы)</p>
               <div id="weeklyEditor-master-1"></div>
 
@@ -420,7 +401,7 @@
               <p class="section-hint" style="margin:6px 0">Перерыв/выходной на сегодня - реальные, из базы (ставит владелец)</p>
               <div class="breaks-list" id="schedCurrent-master-1"><span class="note">загружаю…</span></div>
 
-              <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
+              <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
                 <input type="radio" name="zp1-sub" id="zp1-calc" checked>
                 <div class="seg-bar">
@@ -441,7 +422,7 @@
                     </div>
                     <div class="seg-panel panel-zp1p-day">
                       <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">100% от выручки по своим услугам (разд.17.3, подтверждено Алиханом) - сумма считается по реальным броням этого мастера за сегодня. Фильтра по статусу «Выполнена» пока нет</p>
+                      <p class="payroll-note">100% от выручки по своим услугам - сумма считается по реальным броням этого мастера за сегодня. Фильтра по статусу «Выполнена» пока нет</p>
                     </div>
                     <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster1Week">000 ₽ <span class="unsure">считаю…</span></span></div></div>
                     <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div></div>
@@ -458,7 +439,7 @@
                 </div>
               </div>
 
-              <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
+              <h4>Возвращаемость клиентов</h4>
               <p class="section-hint">Доля клиентов, вернувшихся повторно. Данных пока нет - весь блок плейсхолдер</p>
               <div class="seg-tabs">
                 <input type="radio" name="rt1-period" id="rt1-3" checked>
@@ -480,7 +461,7 @@
                 <div class="seg-panel panel-rt1-36"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div></div>
               </div>
 
-              <h4>Как приходят клиенты <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
+              <h4>Как приходят клиенты</h4>
               <p class="section-hint">Доля визитов по предварительной записи и без записи (walk-in). Данных пока нет - весь блок плейсхолдер</p>
               <div class="seg-tabs">
                 <input type="radio" name="wi1-period" id="wi1-month" checked>
@@ -537,7 +518,7 @@
               <h4>Услуги</h4>
               <p class="section-hint" style="margin:0 0 10px">Только просмотр - какие услуги умеет оказывать мастер, решает владелец</p>
               <div class="service-picker" data-master-id="master-2"></div>
-              <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
+              <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
                 <input type="radio" name="zp2-period" id="zp2p-day" checked>
                 <input type="radio" name="zp2-period" id="zp2p-week">
@@ -551,7 +532,7 @@
                 </div>
                 <div class="seg-panel panel-zp2p-day">
                   <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                  <p class="payroll-note">100% от выручки по своим услугам (разд.17.3, подтверждено Алиханом) - сумма реальная, по броням этого мастера в базе. Настройку ставки делает только владелец</p>
+                  <p class="payroll-note">100% от выручки по своим услугам - сумма реальная, по броням этого мастера в базе. Настройку ставки делает только владелец</p>
                 </div>
                 <div class="seg-panel panel-zp2p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster2Week">000 ₽ <span class="unsure">считаю…</span></span></div></div>
                 <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div></div>
@@ -565,7 +546,7 @@
                   <p class="payroll-note">Сумма реальная, по броням этого мастера за выбранный диапазон дат</p>
                 </div>
               </div>
-              <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
+              <h4>Возвращаемость клиентов</h4>
               <div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно (12 мес)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div>
             </div>
           </details>

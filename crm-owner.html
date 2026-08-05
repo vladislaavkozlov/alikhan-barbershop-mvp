@@ -49,9 +49,6 @@
   #pt-c:checked ~ .panel-c { display: block; }
   #pt-d:checked ~ .tab-bar label[for="pt-d"] { color: var(--accent); border-color: var(--accent); }
   #pt-d:checked ~ .panel-d { display: block; }
-  /* Задача 6 (Окно 14, 02.08.2026) - "Что доделываем", только у владельца */
-  #pt-e:checked ~ .tab-bar label[for="pt-e"] { color: var(--accent); border-color: var(--accent); }
-  #pt-e:checked ~ .panel-e { display: block; }
 
   /* период выручки (Окно 13, 01.08.2026 - переключатель по точкам убран, у Алихана
      одна точка, см. Задача 1 промпта корректировки) */
@@ -83,7 +80,6 @@
 <header class="site">
   <div class="nav">
     <a href="index.html" class="brand">АЛИХАН</a>
-    <span class="crm-tag">CRM · визуальный макет</span>
     <div class="nav-right">
       <span class="location-badge">Ставрополь, ул. Андрея Голуба 16 ст1</span>
       <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили">🔔<span class="notif-badge">3</span></button>
@@ -106,24 +102,8 @@
   <h1>Владелец</h1>
   <p class="subtitle">Видит всё: расписание всех мастеров, сотрудников любой точки, зарплаты, настройку ЗП</p>
 
-  <div class="live-proof" id="liveProof"><span class="lp-dot"></span><span>Проверяю связь с боевой базой…</span></div>
-
-  <div class="banner">
-    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход, роли и счётчики выше настоящие (тестовый контур). Календарь записей ниже теперь тоже реальный (Окно 15, 02.08.2026) - карточки под «Алиовсад / Мамедхан / Елизавета» рендерятся из настоящих броней и перерывов, не примеры. Собрано по разд. 16 ТЗ и 9 скринам личного кабинета YClients, которые прислал Алихан. Оба адреса точек в базе пока совпадают текстово (различаются только описанием фасада) — вопрос к данным, не к этому макету.
-  </div>
-
-  <details class="staff-card" style="margin-bottom:20px">
-    <summary><div class="summary-meta"><div class="name" style="font-size:0.92rem">Обновления</div></div><span class="chevron">▸</span></summary>
-    <div class="staff-card-body" style="padding-top:10px">
-      <div class="breaks-list">
-        <div class="break-row"><span class="note" style="flex:1"><b>02.08.2026</b> - утечка ПДн в анонимном /bookings проверена и подтверждена уже закрытой; права доступа (реальные учётки 1:1, роль Мамедхана - администратор), согласование графика мастера с владельцем (запрос перерыва/выходного), уведомления в личном кабинете (колокольчик ✉)</span></div>
-        <div class="break-row"><span class="note" style="flex:1"><b>01.08.2026</b> - 1 точка вместо 2, реальные имена мастеров везде, мультиуслуга за визит, клиент без предварительной записи, продажа товаров, ЗП по неделе/месяцу в карточках</span></div>
-      </div>
-    </div>
-  </details>
-
   <div class="retention-alert" id="retention-panel">
-    <div class="ra-head"><span class="ico">⚠</span><strong>3 клиента не приходили 3+ месяца</strong> <span class="badge badge-todo">новое, разд.12 ТЗ</span><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
+    <div class="ra-head"><span class="ico">⚠</span><strong>3 клиента не приходили 3+ месяца</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
     <div class="ra-body">
     <p class="section-hint" style="margin:6px 0 12px">У владельца показывается запущенный случай (3+ месяца). Мастера и администраторы видят таких клиентов раньше - от 2 месяцев, у себя в кабинете</p>
     <div class="ra-list">
@@ -140,20 +120,18 @@
     <input type="radio" name="pt" id="pt-b">
     <input type="radio" name="pt" id="pt-c">
     <input type="radio" name="pt" id="pt-d">
-    <input type="radio" name="pt" id="pt-e">
     <div class="tab-bar">
       <label for="pt-a">Расписание</label>
       <label for="pt-b">Сотрудники</label>
       <label for="pt-c">Выручка</label>
       <label for="pt-d">Акции</label>
-      <label for="pt-e">Что доделываем</label>
     </div>
 
     <!-- ======================= РАСПИСАНИЕ ======================= -->
     <div class="tab-panel panel-a">
       <section>
         <h2>Расписание</h2>
-        <p class="section-hint">Разд. 16.1 — ряд карточек мастеров сверху, под каждым дневное расписание сверху вниз, в стиле мини-Outlook</p>
+        <p class="section-hint">Ряд карточек мастеров сверху, под каждым дневное расписание сверху вниз, в стиле мини-Outlook</p>
 
         <p class="section-hint" style="margin-bottom:14px">Клиент без предварительной записи - кнопка «+» в шапке колонки нужного мастера ниже</p>
 
@@ -175,7 +153,7 @@
           <p class="wf-result" id="wfResult" hidden></p>
 
           <div class="wf-sale" id="wfSaleForm" hidden>
-            <h4 style="margin-top:18px">Добавить продажу к этой записи <span class="badge badge-todo">новое, разд.14.3</span></h4>
+            <h4 style="margin-top:18px">Добавить продажу к этой записи</h4>
             <div class="field-grid">
               <div class="field"><label>Товар</label><input id="wfSaleItem" type="text" placeholder="например Воск для укладки"></div>
               <div class="field"><label>Сумма, ₽</label><input id="wfSaleAmount" type="number" min="1" step="1" placeholder="500"></div>
@@ -314,7 +292,7 @@
         </section>
 
         <details class="booking-detail" id="bd-1" open>
-          <summary><strong id="bd-now">Клиент А (пример) · Стрижка · 10:00–10:40 (Алиовсад)</strong><span class="bd-hint">- клик по любой записи в календаре выше открывает её здесь (разд. 16.2)</span></summary>
+          <summary><strong id="bd-now">Клиент А (пример) · Стрижка · 10:00–10:40 (Алиовсад)</strong></summary>
           <div class="booking-detail-body">
             <div class="walkin-banner" id="bk-walkin-banner" hidden>
               <span class="ico">★</span>
@@ -328,10 +306,9 @@
               <label for="st-came">Пришёл</label>
               <label for="st-no">Не пришёл</label>
             </div>
-            <p class="status-legend">Ожидание - запись создана, время визита ещё не наступило. Пришёл / Не пришёл - мастер или администратор отмечает по факту визита, когда время подошло. «Подтвердил» ниже - отдельная независимая отметка: клиент заранее подтвердил намерение прийти (например по СМС), не привязана к тому, что дальше произошло по факту</p>
             <div class="confirm-row">
               <input type="checkbox" id="bconfirm" checked>
-              <label for="bconfirm">Клиент подтвердил запись (bookings.client_confirmed)</label>
+              <label for="bconfirm">Клиент подтвердил запись</label>
             </div>
             <!-- Правка 03.08.2026: тумблер "Клиент не пришёл без предупреждения" убран -
                  дублировал ту же самую (тоже нерабочую) кнопку "Клиент пришёл" ниже, два
@@ -350,7 +327,7 @@
               <div class="field"><label>Телефон</label><input id="bk-phone" value="+7 900 000-00-01 (пример)" readonly></div>
               <div class="field"><label>Мастер записи</label><input id="bk-master" value="Алиовсад" readonly></div>
               <div class="field field--wide">
-                <label>Закреплён за мастером <span class="badge badge-todo">новое, разд.12 ТЗ</span></label>
+                <label>Закреплён за мастером</label>
                 <div class="custom-select" data-value="Алиовсад">
                   <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">Алиовсад</button>
                   <div class="custom-select-list" hidden>
@@ -365,7 +342,7 @@
               <div class="field"><label>Дата рождения клиента</label><input value="15.08 (пример)" readonly></div>
               <div class="field"><label>Клиент с нами с</label><input value="03.02.2025 (пример)" readonly></div>
               <div class="field"><label>Плановое время</label><input id="bk-planned" value="10:00–10:40" readonly></div>
-              <div class="field"><label>Длительность услуги у этого мастера <span class="badge badge-todo">разд.12 п.7,8</span></label><input id="bk-duration" value="40 мин" readonly></div>
+              <div class="field"><label>Длительность услуги у этого мастера</label><input id="bk-duration" value="40 мин" readonly></div>
               <div class="field">
                 <label>Статус визита</label>
                 <button id="bk-noshow-btn" class="btn btn-ghost btn-sm" type="button" onclick="toggleNoShow(this)">Клиент не пришёл</button>
@@ -414,10 +391,7 @@
     <div class="tab-panel panel-b">
       <section>
         <h2>Сотрудники</h2>
-        <p class="section-hint">Разд. 16.3 / 16.8 — карточка сотрудника, роли (Владелец / Администратор / Мастер) можно комбинировать флажками, без поштучных чекбоксов прав внутри роли. Клик по карточке разворачивает профиль</p>
-
         <div class="staff-filter-row">
-          <span class="staff-search">🔍 Поиск сотрудника (пример, в макете не работает)</span>
           <button class="btn-ghost btn-sm" type="button">+ Добавить сотрудника</button>
         </div>
 
@@ -474,9 +448,9 @@
                    из живой master_services, владелец реально включает/выключает услугу и
                    меняет длительность (PUT /master-services/:masterId/:serviceId). -->
               <div class="service-picker" data-master-id="master-1"></div>
-              <p class="section-hint" style="margin:6px 0 0">Длительность - из подтверждённого прайса (уже в реальной базе, таблицы <code>services</code>/<code>master_services</code>, разд.12 п.7,8), сейчас одинаковая у всех трёх мастеров. Поле редактируемое - можно задать своё число именно этому мастеру, если он работает быстрее/медленнее среднего. Меняется здесь → видно в карточке записи ниже, когда открыта запись этого мастера на эту услугу</p>
+              <p class="section-hint" style="margin:6px 0 0">Длительность - из подтверждённого прайса (уже в реальной базе, таблицы <code>services</code>/<code>master_services</code>), сейчас одинаковая у всех трёх мастеров. Поле редактируемое - можно задать своё число именно этому мастеру, если он работает быстрее/медленнее среднего. Меняется здесь → видно в карточке записи ниже, когда открыта запись этого мастера на эту услугу</p>
 
-              <h4>График работы (разд. 16.4) <span class="badge badge-todo">Окно 16, 03.08.2026</span></h4>
+              <h4>График работы</h4>
               <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - работает/выходной, рабочие часы, опциональный перерыв. Мастер видит тот же график у себя, менять может только владелец</p>
               <div id="weeklyEditor-master-1"></div>
 
@@ -487,7 +461,6 @@
                    и есть согласование). Побеждает график выше именно на эту дату. -->
               <h4 style="margin-top:18px">Разовое изменение на дату</h4>
               <div class="sched-editor" id="schedCurrentWrap-master-1">
-                <p class="section-hint" style="margin:6px 0">Текущие перерывы/выходной на выбранную дату - реальные, из базы</p>
                 <div class="breaks-list" id="schedCurrent-master-1"><span class="note">выберите дату ниже</span></div>
               </div>
               <div class="field-grid" style="max-width:560px;margin-top:10px">
@@ -502,7 +475,7 @@
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-1">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-1"></p>
 
-              <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
+              <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
                 <input type="radio" name="zp1-sub" id="zp1-calc" checked>
                 <div class="seg-bar">
@@ -523,7 +496,7 @@
                     </div>
                     <div class="seg-panel panel-zp1p-day">
                       <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">100% от выручки по своим услугам (разд.17.3, подтверждено Алиханом) - сумма считается по реальным броням этого мастера за сегодня. В расчёт пока идут все статусы - фильтра «Выполнена» ещё нет (см. открытые вопросы релиза)</p>
+                      <p class="payroll-note">100% от выручки по своим услугам - сумма считается по реальным броням этого мастера за сегодня. В расчёт пока идут все статусы - фильтра «Выполнена» ещё нет (см. открытые вопросы релиза)</p>
                     </div>
                     <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster1Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю (с понедельника по сегодня) - сумма реальная, по броням этого мастера в базе</p></div>
                     <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная, по броням этого мастера в базе</p></div>
@@ -541,7 +514,7 @@
                 </div>
               </div>
 
-              <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
+              <h4>Возвращаемость клиентов</h4>
               <p class="section-hint">Доля клиентов, которые вернулись к этому мастеру повторно. Данных пока нет ни у Алихана, ни в базе - весь блок плейсхолдер</p>
               <div class="seg-tabs">
                 <input type="radio" name="rt1-period" id="rt1-3" checked>
@@ -563,7 +536,7 @@
                 <div class="seg-panel panel-rt1-36"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 3 года</div></div></div></div>
               </div>
 
-              <h4>Как приходят клиенты <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
+              <h4>Как приходят клиенты</h4>
               <p class="section-hint">Доля визитов по предварительной записи и без записи (walk-in). Данных пока нет - весь блок плейсхолдер</p>
               <div class="seg-tabs">
                 <input type="radio" name="wi1-period" id="wi1-month" checked>
@@ -635,7 +608,6 @@
 
               <h4 style="margin-top:18px">Разовое изменение на дату</h4>
               <div class="sched-editor" id="schedCurrentWrap-master-2">
-                <p class="section-hint" style="margin:6px 0">Текущие перерывы/выходной на выбранную дату - реальные, из базы</p>
                 <div class="breaks-list" id="schedCurrent-master-2"><span class="note">выберите дату ниже</span></div>
               </div>
               <div class="field-grid" style="max-width:560px;margin-top:10px">
@@ -649,7 +621,7 @@
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-2">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-2"></p>
-              <h4>Зарплата (разд. 17.3) <span class="badge badge-example">100% от выручки</span></h4>
+              <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
               <div class="seg-tabs">
                 <input type="radio" name="zp2-sub" id="zp2-calc" checked>
                 <div class="seg-bar">
@@ -669,7 +641,7 @@
                     </div>
                     <div class="seg-panel panel-zp2p-day">
                       <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">100% от выручки по своим услугам (разд.17.3, подтверждено Алиханом отдельно от Алиовсада) - сумма реальная, по броням этого мастера в базе</p>
+                      <p class="payroll-note">100% от выручки по своим услугам - сумма реальная, по броням этого мастера в базе</p>
                     </div>
                     <div class="seg-panel panel-zp2p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster2Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю (с понедельника по сегодня) - сумма реальная</p></div>
                     <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная</p></div>
@@ -685,7 +657,7 @@
                   </div>
                 </div>
               </div>
-              <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
+              <h4>Возвращаемость клиентов</h4>
               <div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно (12 мес)</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">Полный период-переключатель - см. карточку Алиовсада выше</div></div></div>
             </div>
           </details>
@@ -727,7 +699,6 @@
 
               <h4 style="margin-top:18px">Разовое изменение на дату</h4>
               <div class="sched-editor" id="schedCurrentWrap-master-3">
-                <p class="section-hint" style="margin:6px 0">Текущие перерывы/выходной на выбранную дату - реальные, из базы</p>
                 <div class="breaks-list" id="schedCurrent-master-3"><span class="note">выберите дату ниже</span></div>
               </div>
               <div class="field-grid" style="max-width:560px;margin-top:10px">
@@ -741,10 +712,10 @@
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-3">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-3"></p>
-              <h4>Зарплата (разд. 17.3) <span class="badge badge-example">40% по умолчанию, редактируется</span></h4>
+              <h4>Зарплата <span class="badge badge-example">40% по умолчанию, редактируется</span></h4>
               <div class="field-grid">
                 <div class="field">
-                  <label>Ставка от выручки, % (40 или 50 - зависит от клиентской базы, разд.17.3)</label>
+                  <label>Ставка от выручки, % (40 или 50 - зависит от клиентской базы)</label>
                   <input type="number" min="0" max="100" id="elizavetaPctInput" value="40">
                 </div>
               </div>
@@ -769,7 +740,7 @@
                     </div>
                     <div class="seg-panel panel-zp3p-day">
                       <div class="payroll-sum"><span class="amount" id="payrollMaster3Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">За сегодня, по ставке из поля выше (разд.17.3) - сумма реальная, по броням этого мастера в базе</p>
+                      <p class="payroll-note">За сегодня, по ставке из поля выше - сумма реальная, по броням этого мастера в базе</p>
                     </div>
                     <div class="seg-panel panel-zp3p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster3Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю (с понедельника по сегодня) - сумма реальная</p></div>
                     <div class="seg-panel panel-zp3p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster3Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная</p></div>
@@ -785,7 +756,7 @@
                   </div>
                 </div>
               </div>
-              <h4>Возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h4>
+              <h4>Возвращаемость клиентов</h4>
               <div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно (12 мес)</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">Полный период-переключатель - см. карточку Алиовсада выше</div></div></div>
             </div>
           </details>
@@ -796,9 +767,9 @@
         <h2>Настройка ЗП</h2>
         <p class="section-hint">Ответ Алихана 30.07.2026 (ТЗ разд.17.3): ставка зависит от МАСТЕРА, не от типа услуги - единого % на всех больше нет, редактируемая ставка теперь в карточке каждого сотрудника (вкладка «Сотрудники» → карточка мастера)</p>
         <div class="settings-form">
-          <div class="field"><label>% за продажу косметики</label><input value="200 ₽ за штуку (не проценты) - разд.17.5" readonly></div>
+          <div class="field"><label>% за продажу косметики</label><input value="200 ₽ за штуку (не проценты)" readonly></div>
         </div>
-        <p class="payroll-note" style="margin-top:6px">Бонус за нового клиента убран - Алихан подтвердил, что его не существует (разд.17.4). Косметика сейчас не продаётся вообще - поле здесь неактивно, до появления первой продажи (backlog, не блокер)</p>
+        <p class="payroll-note" style="margin-top:6px">Бонус за нового клиента убран - Алихан подтвердил, что его не существует. Косметика сейчас не продаётся вообще - поле здесь неактивно, до появления первой продажи (backlog, не блокер)</p>
 
         <h4 style="margin-top:26px">Формула расчёта зарплаты</h4>
         <div class="payroll-empty">
@@ -830,7 +801,7 @@
           <div class="seg-panel panel-rvpa-day">
             <div class="stat-cards">
               <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllDayRevenue">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">За день - реальная сумма по записям в базе на сегодня</div></div>
-              <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllDayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке своего мастера (разд.17.3) от той же реальной выручки</div></div>
+              <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllDayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке своего мастера от той же реальной выручки</div></div>
               <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllDayNet">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Выручка минус зарплаты</div></div>
             </div>
           </div>
@@ -866,7 +837,7 @@
       </section>
 
       <section>
-        <h2>Дни рождения и годовщины клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h2>
+        <h2>Дни рождения и годовщины клиентов</h2>
         <p class="section-hint">Даты хранятся в карточке клиента (видны в карточке записи выше). Здесь Алиовсад настраивает, что с ними делать - скидка заранее и/или поздравление. Цифры ниже - пример, не решены с Алиханом</p>
 
         <div class="toggle-row">
@@ -888,7 +859,7 @@
         </div>
 
         <div class="toggle-row" style="margin-top:18px">
-          <div><div class="tr-label">Отправлять клиенту поздравление</div><div class="tr-sub">Канал - СМС и MAX (разд.17.7, подтверждено Алиханом, не WhatsApp), сама интеграция ещё не подключена - здесь только включает механику дат</div></div>
+          <div><div class="tr-label">Отправлять клиенту поздравление</div><div class="tr-sub">Канал - СМС и MAX (подтверждено Алиханом, не WhatsApp), сама интеграция ещё не подключена - здесь только включает механику дат</div></div>
           <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label>
         </div>
 
@@ -903,36 +874,6 @@
       </section>
     </div>
 
-    <!-- ======================= ЧТО ДОДЕЛЫВАЕМ (Задача 6, Окно 14, 02.08.2026) =======================
-         Только у владельца - перенос актуальных открытых пунктов из
-         ТЗ-готовность-к-продакшену-2026-08-01.md (Блок А/В), актуализировано после
-         Окна 14. Не показывается Мамедхану/Елизавете - см. crm-admin.html/crm-master.html,
-         там честные пометки "пример" остаются только там, где реально пример. -->
-    <div class="tab-panel panel-e">
-      <section>
-        <h2>Что доделываем</h2>
-        <p class="section-hint">Открытый список для Влада/Алихана, не для показа клиентам барбершопа. Обновлено 02.08.2026 после Окна 14 (права/уведомления/график)</p>
-
-        <h4>Решения нужны от Алихана/Влада (Блок А)</h4>
-        <div class="breaks-list">
-          <div class="break-row"><span class="note" style="flex:1">Юрлицо и реквизиты для <code>privacy.html</code> - два поля "ЗАМЕНИТЬ:" всё ещё пустые, на страницу ссылается обязательный чекбокс согласия при записи клиента</span></div>
-          <div class="break-row"><span class="note" style="flex:1">Канал напоминаний - SMS+MAX или WhatsApp, Алихан ответил по-разному в двух раундах вопросов (30.07 и 01.08), не выбираем сами</span></div>
-          <div class="break-row"><span class="note" style="flex:1">Домен и хостинг - переезд на боевой аккаунт Алихана (Amvera+GitHub Pages сейчас на аккаунте Влада), обсуждалось при личном визите 01.08.2026, актуальный статус после визита не зафиксирован в коде</span></div>
-          <div class="break-row"><span class="note" style="flex:1"><code>index.html</code> vs <code>index-showcase.html</code> - какой файл реально живой на боевом домене, не решено повторно</span></div>
-          <div class="break-row"><span class="note" style="flex:1">ID счётчика Яндекс.Метрики - пустой TODO в <code>index.html</code></span></div>
-        </div>
-
-        <h4 style="margin-top:20px">Крупное технически (Блок В)</h4>
-        <div class="breaks-list">
-          <div class="break-row"><span class="note" style="flex:1"><b>Календарь записей на реальных данных</b> (День/Неделя/Месяц/Год) - самая крупная незакрытая фича проекта, сознательно вынесена в отдельное окно (см. <code>ПРОМПТ-ОКНО-15-КАЛЕНДАРЬ.md</code>), не сделана в Окне 14 - календарь всё ещё статичная разметка-пример</span></div>
-          <div class="break-row"><span class="note" style="flex:1">Роль сотрудника (чекбоксы в карточке "Сотрудники") - <code>PUT /staff/:id/role</code> уже готов и рабочий (Окно 14), но сами чекбоксы в интерфейсе пока не вызывают его - смена роли Мамедхана в этой сессии сделана миграцией, не кликом в UI</span></div>
-          <div class="break-row"><span class="note" style="flex:1">Изменение услуг уже существующей брони - нет эндпоинта <code>PATCH /bookings/:id/services</code></span></div>
-          <div class="break-row"><span class="note" style="flex:1">Лента комментариев к клиенту - только в DOM, не сохраняется (в БД есть <code>clients.notes</code>, не подключено)</span></div>
-          <div class="break-row"><span class="note" style="flex:1">"Давно не приходили" - список примеров, нет агрегирующего запроса по реальным клиентам</span></div>
-          <div class="break-row"><span class="note" style="flex:1">"+ Добавить перерыв/отпуск" в самой карточке сотрудника (старая кнопка) - только дописывает DOM. Отдельная, уже РАБОЧАЯ система запросов графика (мастер → владелец, Задача 3 Окна 14) - на вкладке "Личные данные" у мастера и в колокольчике уведомлений здесь</span></div>
-        </div>
-      </section>
-    </div>
   </div>
 </main>
 

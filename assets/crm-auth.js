@@ -196,8 +196,6 @@ function bookingPrice(booking, priceOf) {
 // master_payroll_settings: 100% у Алиовсада и Мамедхана, 40% по умолчанию у Елизаветы,
 // редактируется владельцем) - обе таблицы уже фильтруют выдачу по роли на сервере.
 async function renderLiveProof(staff) {
-  const panel = el('liveProof');
-  if (!panel) return;
   try {
     const [staffList, services, bookingsRes, masterServices, payrollRows] = await Promise.all([
       fetchJson('/staff'),
@@ -207,13 +205,6 @@ async function renderLiveProof(staff) {
       fetchJson('/payroll-settings'),
     ]);
     const bookings = bookingsRes.bookings || [];
-    const bookingsNote =
-      bookings.length === 0
-        ? ' (тестовый контур, реальных клиентских записей ещё не вносили - это не баг)'
-        : '';
-    panel.innerHTML =
-      `<span class="lp-dot"></span><strong>Живая боевая база (тестовый контур)</strong>` +
-      `<span>сотрудников видно вам: ${staffList.length} · услуг в прайсе: ${services.length} · записей на сегодня в базе: ${bookings.length}${bookingsNote}</span>`;
 
     // Цена конкретного мастера на конкретную услугу - master-services покрывает все
     // пары (сид миграции 002/004), общий прайс /services - только страховка на
@@ -323,8 +314,7 @@ async function renderLiveProof(staff) {
 
     // Окно 15 (02.08.2026) - календарь "День" был статичной вёрсткой-примером, не
     // видел реальные брони (баг Влада - "запись на Екатерину не видна ни у неё, ни у
-    // Али"). До wireWalkIn - новые .walkin-add-btn (owner/admin) должны уже быть в
-    // DOM, когда wireWalkIn их находит через querySelectorAll.
+    // Али").
     await renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson, date: todayStr() });
 
     // Окно 18 (04.08.2026) - навигация "Мой день" + реальные Неделя/Месяц/Год
@@ -359,8 +349,7 @@ async function renderLiveProof(staff) {
     await renderRevenuePeriods(priceOf, pctOf, ownerIds);
     await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds);
   } catch (err) {
-    panel.classList.add('lp-error');
-    panel.innerHTML = `<span class="lp-dot"></span><strong>Не удалось получить живые данные</strong><span>${err.message}</span>`;
+    console.error('Не удалось загрузить данные CRM:', err);
   }
 }
 
@@ -965,12 +954,6 @@ function wireWalkIn(staff, services, masterServices) {
     form.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  document.querySelectorAll('.walkin-add-btn').forEach((btn) => {
-    if (btn.dataset.wired) return;
-    btn.dataset.wired = '1';
-    btn.addEventListener('click', () => openForWalkin(btn.dataset.masterId, btn.dataset.masterName));
-  });
-
   // crm-master.html: единственный мастер - он и есть залогиненный сотрудник, выбирать не из чего
   const soloBtn = el('walkinSoloTrigger');
   if (soloBtn && !soloBtn.dataset.wired) {
@@ -1212,7 +1195,7 @@ function wireMasterSelfView(staff, pctOf) {
       noteEl.textContent = `${staff.name} - владелец, комиссию самому себе не платит, вся сумма услуги и так остаётся в бизнесе`;
     } else {
       const pct = pctOf(staff.id);
-      noteEl.textContent = `${pct}% от суммы услуги (ваша ставка, разд.17.3) - показано для примера-записи выше, у реальной записи сумма своя`;
+      noteEl.textContent = `${pct}% от суммы услуги (ваша ставка) - показано для примера-записи выше, у реальной записи сумма своя`;
     }
   }
 }

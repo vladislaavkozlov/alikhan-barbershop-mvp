@@ -37,7 +37,6 @@
 <header class="site">
   <div class="nav">
     <a href="index.html" class="brand">АЛИХАН</a>
-    <span class="crm-tag">CRM · визуальный макет</span>
     <div class="nav-right">
       <span class="location-badge">Вы: <strong id="selfNameBadge">Алиовсад</strong> (пример)</span>
       <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили">🔔<span class="notif-badge">2</span></button>
@@ -60,24 +59,8 @@
   <h1>Мастер</h1>
   <p class="subtitle">Видит только свой день и свой заработок. Не видит телефоны клиентов, не видит других сотрудников и настройки</p>
 
-  <div class="live-proof" id="liveProof"><span class="lp-dot"></span><span>Проверяю связь с боевой базой…</span></div>
-
-  <div class="banner">
-    <strong>Визуальный макет (Окно 9) поверх реальной базы</strong> — вход и счётчики выше настоящие (тестовый контур). Мой день/Неделя/Месяц ниже реальные (Окно 15, Окно 19 04.08.2026) - показывают настоящие брони и график залогиненного мастера, не пример «Алиовсад», только просмотр без переключателя между сотрудниками. У мастера физически нет вкладок «Сотрудники» и «Настройка ЗП» — это ограничение доступа, а не забытые экраны. Телефон клиента в карточке записи скрыт прочерком — так же будет вести себя и бэкенд (мастер не получает поле телефона).
-  </div>
-
-  <details class="staff-card" style="margin-bottom:20px">
-    <summary><div class="summary-meta"><div class="name" style="font-size:0.92rem">Обновления</div></div><span class="chevron">▸</span></summary>
-    <div class="staff-card-body" style="padding-top:10px">
-      <div class="breaks-list">
-        <div class="break-row"><span class="note" style="flex:1"><b>02.08.2026</b> - утечка ПДн в анонимном /bookings проверена и подтверждена уже закрытой; права доступа (реальные учётки 1:1, роль Мамедхана - администратор), согласование графика мастера с владельцем (запрос перерыва/выходного), уведомления в личном кабинете (колокольчик ✉)</span></div>
-        <div class="break-row"><span class="note" style="flex:1"><b>01.08.2026</b> - 1 точка вместо 2, реальные имена мастеров везде, мультиуслуга за визит, клиент без предварительной записи, продажа товаров, ЗП по неделе/месяцу в карточках</span></div>
-      </div>
-    </div>
-  </details>
-
   <div class="retention-alert" id="retention-panel">
-    <div class="ra-head"><span class="ico">⚠</span><strong>2 моих клиента не приходили 2+ месяца</strong> <span class="badge badge-todo">новое, разд.12 ТЗ</span><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
+    <div class="ra-head"><span class="ico">⚠</span><strong>2 моих клиента не приходили 2+ месяца</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
     <div class="ra-body">
     <p class="section-hint" style="margin:6px 0 12px">Только мои клиенты - чужих телефонов и истории мастер не видит, как и в карточке записи</p>
     <div class="ra-list">
@@ -108,7 +91,7 @@
     <div class="tab-panel panel-a">
       <section>
         <h2>Мой день</h2>
-        <p class="section-hint">Разд. 16.1 — без ряда других мастеров сверху, только собственное расписание</p>
+        <p class="section-hint">Без ряда других мастеров сверху, только собственное расписание</p>
 
         <button class="btn btn-primary btn-sm" type="button" style="margin-bottom:18px" id="walkinSoloTrigger">+ Новая запись (клиент без предварительной записи)</button>
 
@@ -234,7 +217,7 @@
         </div>
 
         <details class="booking-detail" id="bd-1" open>
-          <summary><strong id="bd-now">Клиент А (пример) · Стрижка · 10:00–10:40</strong><span class="bd-hint">- телефон клиента скрыт, клик по любой записи открывает её здесь (разд. 16.2)</span></summary>
+          <summary><strong id="bd-now">Клиент А (пример) · Стрижка · 10:00–10:40</strong></summary>
           <div class="booking-detail-body">
             <div class="walkin-banner" id="bk-walkin-banner" hidden>
               <span class="ico">★</span>
@@ -248,7 +231,6 @@
               <label for="st-came">Пришёл</label>
               <label for="st-no">Не пришёл</label>
             </div>
-            <p class="status-legend">Ожидание - запись создана, время визита ещё не наступило. Пришёл / Не пришёл - отмечаете вы или администратор по факту визита. «Подтвердил» ниже - отдельно, клиент заранее подтвердил намерение прийти</p>
             <div class="confirm-row">
               <input type="checkbox" id="bconfirm" checked>
               <label for="bconfirm">Клиент подтвердил запись</label>
@@ -272,7 +254,7 @@
               <div class="field"><label>Дата рождения клиента</label><input value="15.08 (пример)" readonly></div>
               <div class="field"><label>Клиент с нами с</label><input value="03.02.2025 (пример)" readonly></div>
               <div class="field"><label>Плановое время</label><input id="bk-planned" value="10:00–10:40" readonly></div>
-              <div class="field"><label>Длительность услуги у этого мастера <span class="badge badge-todo">разд.12 п.7,8</span></label><input id="bk-duration" value="40 мин" readonly></div>
+              <div class="field"><label>Длительность услуги у этого мастера</label><input id="bk-duration" value="40 мин" readonly></div>
               <div class="field">
                 <label>Статус визита</label>
                 <button id="bk-noshow-btn" class="btn btn-ghost btn-sm" type="button" onclick="toggleNoShow(this)">Клиент не пришёл</button>
@@ -321,7 +303,7 @@
     <div class="tab-panel panel-b">
       <section>
         <h2>Моя зарплата</h2>
-        <p class="section-hint">Разд. 16.5, только свои цифры — без вкладки «Настройка ЗП», её нет у мастера вообще</p>
+        <p class="section-hint">Только свои цифры — без вкладки «Настройка ЗП», её нет у мастера вообще</p>
 
         <div class="seg-tabs">
           <input type="radio" name="zpm-sub" id="zpm-calc" checked>
@@ -343,7 +325,7 @@
               </div>
               <div class="seg-panel panel-zpmp-day">
                 <div class="payroll-sum"><span class="amount" id="myPayrollDay">000 ₽ <span class="unsure">считаю…</span></span></div>
-                <p class="payroll-note">По своей ставке (разд.17.3 ТЗ: 100% у Алиовсада/Мамедхана, 40% по умолчанию у Елизаветы) от реальной суммы моих сегодняшних записей в базе. Пока считаются все мои записи на сегодня (фильтр по статусу «Выполнена» - следующий шаг)</p>
+                <p class="payroll-note">По своей ставке (100% у Алиовсада/Мамедхана, 40% по умолчанию у Елизаветы) от реальной суммы моих сегодняшних записей в базе. Пока считаются все мои записи на сегодня (фильтр по статусу «Выполнена» - следующий шаг)</p>
               </div>
               <div class="seg-panel panel-zpmp-week"><div class="payroll-sum"><span class="amount" id="myPayrollWeek">000 ₽ <span class="unsure">считаю…</span></span></div></div>
               <div class="seg-panel panel-zpmp-month"><div class="payroll-sum"><span class="amount" id="myPayrollMonth">000 ₽ <span class="unsure">считаю…</span></span></div></div>
@@ -362,7 +344,7 @@
       </section>
 
       <section>
-        <h2>Моя возвращаемость клиентов <span class="badge badge-todo">новое, разд.12 ТЗ</span></h2>
+        <h2>Моя возвращаемость клиентов</h2>
         <p class="section-hint">Доля моих клиентов, которые вернулись повторно. Данных пока нет - плейсхолдер</p>
         <div class="stat-cards">
           <div class="stat-card"><div class="sc-label">3 мес</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
@@ -374,7 +356,7 @@
       </section>
 
       <section>
-        <h2>Как приходят мои клиенты <span class="badge badge-todo">новое, разд.12 ТЗ</span></h2>
+        <h2>Как приходят мои клиенты</h2>
         <p class="section-hint">Доля визитов по предварительной записи и без записи (walk-in). Данных пока нет - плейсхолдер</p>
         <div class="seg-tabs">
           <input type="radio" name="wim-period" id="wim-month" checked>

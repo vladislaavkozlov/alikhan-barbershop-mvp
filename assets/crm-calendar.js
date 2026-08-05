@@ -113,7 +113,7 @@ function fillTrack(trackEl, masterName, { shift, bookings, services, priceOf }) 
 
 function buildColumnHtml(master) {
   return `<div class="schedule-col">
-    <div class="schedule-col-head"><div class="avatar">${escapeHtml(initialsOf(master.name))}</div><span class="name">${escapeHtml(master.name)}</span><button class="walkin-add-btn" type="button" title="Новая запись без предзаписи к ${escapeHtml(master.name)}" data-master-id="${escapeHtml(master.id)}" data-master-name="${escapeHtml(master.name)}">+</button></div>
+    <div class="schedule-col-head"><div class="avatar">${escapeHtml(initialsOf(master.name))}</div><span class="name">${escapeHtml(master.name)}</span></div>
     <div class="schedule-track"></div>
   </div>`;
 }

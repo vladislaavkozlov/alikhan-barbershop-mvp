@@ -171,7 +171,7 @@ function updateCommission(master, service) {
     const commission = Math.round((price * pct) / 100);
     input.value = `${commission} ₽`;
     const editNote = master === 'Елизавета' ? ' - её ставку меняет владелец в карточке сотрудника' : '';
-    if (note) note.textContent = `${pct}% от ${price}₽ (разд.17.3, подтверждено Алиханом)${editNote}`;
+    if (note) note.textContent = `${pct}% от ${price}₽ (подтверждено Алиханом)${editNote}`;
   } else {
     input.value = '—';
     if (note) note.textContent = 'Выберите мастера, чтобы увидеть комиссию';
