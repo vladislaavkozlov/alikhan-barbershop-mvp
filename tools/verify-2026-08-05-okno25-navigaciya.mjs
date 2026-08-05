@@ -28,7 +28,10 @@ const server = createServer(async (req, res) => {
   }
 });
 await new Promise((resolve) => server.listen(PORT, resolve));
-const BASE = `http://localhost:${PORT}`;
+// BASE_URL=https://... прогоняет ТЕ ЖЕ сценарии против реально задеплоенного фронтенда
+// (GitHub Pages) вместо локальных файлов - данные всё равно мок, проверяется, что на
+// боевом хосте лежит именно тот HTML/JS/CSS, который прошёл локальные тесты.
+const BASE = process.env.BASE_URL || `http://localhost:${PORT}`;
 
 const STAFF = [
   { id: 'master-1', locationId: null, name: 'Алиовсад', role: 'owner', employed: true, providesServices: true, hasSystemAccess: true },
@@ -96,7 +99,12 @@ function checkTrue(label, actual) {
 
 async function login(s, page, email) {
   await s.navigate(`${BASE}/${page}`);
-  await s.sleep(200);
+  // Форма логина рисуется скриптом (assets/crm-auth.js), а не лежит в HTML - по сети
+  // (прогон против прода) она появляется заметно позже, чем с локального диска.
+  for (let i = 0; i < 60; i++) {
+    if (await s.eval(`!!document.getElementById('loginEmail')`)) break;
+    await s.sleep(250);
+  }
   await s.eval(`(function(){
     document.getElementById('loginEmail').value = '${email}';
     document.getElementById('loginPin').value = '1234';
