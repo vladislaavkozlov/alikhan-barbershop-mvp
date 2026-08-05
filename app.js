@@ -52,6 +52,7 @@ const calNext = document.getElementById('cal-next');
 const calMonthLabel = document.getElementById('cal-month-label');
 const calGrid = document.getElementById('cal-grid');
 const calLimitHint = document.getElementById('cal-limit-hint');
+const holidayHint = document.getElementById('holiday-hint');
 
 let selectedMaster = null;
 // Окно 11 (баг найден Владом 30.07.2026): клиент должен иметь возможность выбрать
@@ -234,11 +235,37 @@ function renderCalendar() {
       dateToggleLabel.classList.remove('placeholder');
       closeDatePopover();
       renderCalendar();
+      renderHolidayHint();
       refreshSlots();
       clearMsg();
     });
     calGrid.append(btn);
   }
+}
+
+// Окно 24 (05.08.2026): производственный календарь (GET /holidays). Нужен ровно для
+// одной строки - напомнить клиенту, что уже выбранная им дата праздничная, чтобы он
+// не забыл про свои планы на этот день. Записываться в праздник НЕ запрещено: если
+// салон в этот день закрыт, дата и так недоступна в календаре (Окно 21 красит её
+// серым по реальному графику мастера) - это подсказка, а не второй механизм запрета.
+let holidayNames = new Map();
+
+async function loadHolidays(year) {
+  if (!window.ALIKHAN_API_URL) return;
+  try {
+    const res = await fetch(`${window.ALIKHAN_API_URL}/holidays?year=${year}`);
+    if (!res.ok) return; // подсказка не критична - виджет записи работает и без неё
+    for (const h of await res.json()) holidayNames.set(h.date, h.name);
+  } catch {
+    // молча: сеть подвела - клиент просто не увидит напоминания, форма цела
+  }
+}
+
+function renderHolidayHint() {
+  if (!holidayHint) return;
+  const name = selectedDate ? holidayNames.get(selectedDate) : null;
+  holidayHint.hidden = !name;
+  holidayHint.textContent = name ? `${formatDateRu(selectedDate)} - ${name}` : '';
 }
 
 // Окно 21 (04.08.2026): реальная доступность видимого месяца - вызывается при
@@ -794,6 +821,15 @@ loadMasterServices().then(() => {
 loadMasterNextAvailability().then(() => {
   renderMasterOptions();
 });
+
+// Окно 24: производственный календарь на годы, до которых вообще можно дотянуться
+// в форме. Окно записи (60 дней) в конце декабря заезжает в следующий год - тогда
+// это два года, в остальные 10 месяцев запрос ровно один.
+{
+  const maxDate = maxBookingDate();
+  const years = new Set([new Date().getFullYear(), maxDate.getFullYear()]);
+  Promise.all([...years].map(loadHolidays)).then(renderHolidayHint);
+}
 
 for (const el of document.querySelectorAll('.section-head, .booking-shell, .contacts-grid > *, .philosophy-quote, .philosophy-story, .team-growth-grid > *')) {
   armReveal(el);

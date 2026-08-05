@@ -686,6 +686,26 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .year-month .ym-holiday { color: var(--wood); font-size: 0.74rem; display: block; line-height: 1.4; }
 .year-month .ym-note { color: var(--text-muted); font-size: 0.72rem; margin-top: 8px; }
 
+/* Окно 24 (05.08.2026) - вкладка "Год" стала интерактивной: у каждой праздничной
+   даты галочка, внизу одна кнопка массового закрытия. Строка целиком - <label>,
+   поэтому попадать нужно по тексту даты, а не по 13-пиксельному квадратику. */
+.ym-holiday-row { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; padding: 3px 0; }
+.ym-holiday-row:hover .ym-holiday { color: var(--accent); }
+.ym-holiday-row input[type="checkbox"] { margin-top: 3px; accent-color: var(--accent); flex: none; }
+.year-actions { margin-top: 16px; }
+/* Бейдж праздника на вкладке "Мой день": отдельная строка над сеткой часов - в самой
+   сетке места нет, а признак относится ко всему дню, а не к колонке одного мастера. */
+.day-holiday-note {
+  color: var(--wood);
+  font-size: 0.8rem;
+  background: rgba(185,139,84,0.12);
+  border: 1px solid var(--wood);
+  border-radius: 8px;
+  padding: 7px 12px;
+  margin: 0 0 12px;
+}
+.day-holiday-note[hidden] { display: none; }
+
 /* ---------- Окно 18 (04.08.2026) - навигация по датам, Неделя/Месяц реальные, модалка дня ---------- */
 .day-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .day-nav-btn {

@@ -467,6 +467,10 @@
   .cal-day.today:not(.selected){ border-color: var(--accent); }
   .cal-day-empty{ aspect-ratio: 1; }
   .cal-limit-hint{ margin: 8px 0 0; font-size: 0.78rem; color: var(--text-muted); text-align: center; }
+  /* Окно 24 - строка про праздник под выбранной датой. Тон нейтральный: это
+     напоминание («не забудьте про свои планы»), а не ошибка и не запрет записи. */
+  .holiday-hint{ margin: 8px 0 0; font-size: 0.82rem; color: var(--wood); }
+  .holiday-hint[hidden]{ display: none; }
   .option-card{
     display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
     text-align: left; min-width: 150px; flex: 1 1 150px;
@@ -725,6 +729,10 @@
             <div id="cal-grid" class="cal-grid"></div>
             <p id="cal-limit-hint" class="cal-limit-hint" hidden>Запись открыта на 60 дней вперёд</p>
           </div>
+          <!-- Окно 24 (05.08.2026) - напоминание про праздник на УЖЕ выбранной дате.
+               Сознательно не бейдж на каждой ячейке календаря: там он был бы шумом,
+               а здесь попадается на глаза ровно в момент подтверждения записи. -->
+          <p id="holiday-hint" class="holiday-hint" hidden></p>
         </div>
 
         <div class="field">

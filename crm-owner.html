@@ -208,6 +208,9 @@
               <button type="button" class="day-nav-btn" id="dayNavNext" aria-label="Следующий день">›</button>
             </div>
             <p class="section-hint">Колонка = мастер (заголовок уже содержит аватар и имя, отдельный ряд карточек сверху убран как дублирующий)</p>
+            <!-- Бейдж праздника на выбранный день (Окно 24). Признак независимый: он не
+                 говорит, работает ли кто-то из мастеров, только что день праздничный. -->
+            <p class="day-holiday-note" id="dayHolidayNote" hidden></p>
 
             <div class="schedule-scroll">
               <div class="schedule-row-with-gutter">
@@ -250,21 +253,17 @@
             <div class="month-grid" id="monthGrid"></div>
           </div>
 
+          <!-- Окно 24 (05.08.2026) - производственный календарь больше не текст в разметке:
+               сетка рисуется из GET /holidays (assets/crm-schedule-views.js, renderYear).
+               Отметьте даты галочками и закройте их всем мастерам одним действием - раньше
+               владельцу пришлось бы пройти каждый день каждого мастера через модалку дня. -->
           <div class="seg-panel panel-sp-year">
-            <p class="section-hint" style="margin-top:12px">Справочный производственный календарь РФ на 2026 год - когда салон закрыт по стране (клиентская запись и так ограничена 2 месяцами вперёд, интерактивный график по мастерам на год не нужен, см. Окно 20)</p>
-            <div class="year-grid">
-              <div class="year-month"><div class="ym-name">Январь</div><span class="ym-holiday">Новогодние каникулы 1-8, Рождество 7</span></div>
-              <div class="year-month"><div class="ym-name">Февраль</div><span class="ym-holiday">23 - День защитника Отечества</span></div>
-              <div class="year-month"><div class="ym-name">Март</div><span class="ym-holiday">8 - Международный женский день</span></div>
-              <div class="year-month"><div class="ym-name">Апрель</div><span class="ym-holiday">без праздников</span></div>
-              <div class="year-month"><div class="ym-name">Май</div><span class="ym-holiday">1 - Праздник Весны и Труда, 9 - День Победы</span></div>
-              <div class="year-month"><div class="ym-name">Июнь</div><span class="ym-holiday">12 - День России</span></div>
-              <div class="year-month"><div class="ym-name">Июль</div><span class="ym-holiday">без праздников</span></div>
-              <div class="year-month"><div class="ym-name">Август</div><span class="ym-holiday">без праздников</span></div>
-              <div class="year-month"><div class="ym-name">Сентябрь</div><span class="ym-holiday">без праздников</span></div>
-              <div class="year-month"><div class="ym-name">Октябрь</div><span class="ym-holiday">без праздников</span></div>
-              <div class="year-month"><div class="ym-name">Ноябрь</div><span class="ym-holiday">4 - День народного единства</span></div>
-              <div class="year-month"><div class="ym-name">Декабрь</div><span class="ym-holiday">31 - предновогодний, сокращённый</span></div>
+            <p class="section-hint" style="margin-top:12px">Производственный календарь РФ на 2026 год - когда салон закрыт по стране (клиентская запись и так ограничена 2 месяцами вперёд, интерактивный график по мастерам на год не нужен, см. Окно 20). Отметьте даты и закройте их всем мастерам сразу</p>
+            <div class="year-grid" id="yearGrid"></div>
+            <div class="year-actions" id="yearActions">
+              <button type="button" class="btn btn-primary btn-sm" id="yearCloseSelected" disabled>Закрыть выбранные даты всем мастерам</button>
+              <p class="payroll-note" id="yearCloseNote"></p>
+              <div class="conflict-list" id="yearCloseConflicts" hidden></div>
             </div>
           </div>
         </div>

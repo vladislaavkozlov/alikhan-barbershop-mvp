@@ -64,6 +64,15 @@ function ruPluralBooking(n) {
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'записи';
   return 'записей';
 }
+// Склонение "даты" в кнопке массового закрытия - тот же приём, что ruPluralBooking
+// выше: "Закрыть 1 дату / 2 даты / 5 дат всем мастерам".
+export function ruPluralDate(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'дату';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'даты';
+  return 'дат';
+}
 function fmtRu(dateStr) {
   const [y, m, d] = dateStr.split('-');
   return `${d}.${m}.${y}`;
@@ -80,6 +89,41 @@ function weekRangeLabel(dateStr) {
   if (fy !== ty) return `${fd} ${MONTH_GENITIVE[fm - 1]} ${fy} - ${td} ${MONTH_GENITIVE[tm - 1]} ${ty}`;
   if (fm !== tm) return `${fd} ${MONTH_GENITIVE[fm - 1]} - ${td} ${MONTH_GENITIVE[tm - 1]}`;
   return `${fd}-${td} ${MONTH_GENITIVE[fm - 1]}`;
+}
+
+// ── Праздники (Окно 24, 05.08.2026) ────────────────────────────────────────
+// Вкладка "Год" перестала быть текстом в разметке и рисуется из GET /holidays. Сетка
+// остаётся той же - 12 карточек-месяцев, включая пустые: месяц без праздников честно
+// говорит "без праздников" ровно как в статике, которую этот рендер заменяет.
+export function groupHolidaysByMonth(holidays) {
+  const months = MONTH_LABEL.map((name, i) => ({ name, month: i + 1, holidays: [] }));
+  for (const h of holidays ?? []) {
+    const monthIdx = Number(h.date.slice(5, 7)) - 1;
+    if (months[monthIdx]) months[monthIdx].holidays.push(h);
+  }
+  for (const m of months) m.holidays.sort((a, b) => a.date.localeCompare(b.date));
+  return months;
+}
+
+// Владелец отмечает галочками произвольный набор дат, а POST /holidays/close принимает
+// диапазон from-to - подряд идущие даты схлопываем в один запрос. Иначе "закрыть
+// новогодние каникулы" ушло бы восемью отдельными запросами вместо одного.
+export function groupDatesToRanges(dates) {
+  const sorted = [...new Set(dates ?? [])].sort();
+  const ranges = [];
+  for (const date of sorted) {
+    const last = ranges[ranges.length - 1];
+    if (last && addDays(last.to, 1) === date) last.to = date;
+    else ranges.push({ from: date, to: date });
+  }
+  return ranges;
+}
+
+// Праздничность даты НЕ зависит от того, работает ли мастер в этот день (мастер может
+// выйти 23 февраля - день останется рабочим и праздничным одновременно), поэтому
+// бейдж считается по отдельной карте дат, а не по полям графика.
+export function holidayNameOf(holidayMap, dateStr) {
+  return holidayMap?.get(dateStr) ?? null;
 }
 
 export function viewAnchorLabel(view, dateStr) {
@@ -208,7 +252,35 @@ export function wireScheduleViews(ctx) {
     if (view === 'day') await loadDay(scheduleViewState.date);
     else if (view === 'week') await loadWeek();
     else if (view === 'month') await loadMonth();
-    // year - статичный справочный календарь, перерисовывать нечего
+    else if (view === 'year') await renderYear();
+  }
+
+  // ── Праздники (Окно 24, 05.08.2026) ──────────────────────────────────────
+  // Календарь года запрашивается один раз на год и кэшируется: Неделя и Месяц
+  // перерисовываются на каждое листание, и без кэша каждое нажатие стрелки давало бы
+  // лишний сетевой запрос за списком, который меняется раз в год.
+  const holidayCacheByYear = new Map();
+
+  async function holidaysOfYear(year) {
+    if (!holidayCacheByYear.has(year)) {
+      try {
+        const rows = await fetchJson(`/holidays?year=${year}`);
+        holidayCacheByYear.set(year, new Map(rows.map((h) => [h.date, h.name])));
+      } catch {
+        // Календарь - подсказка поверх графика, а не сам график: если он не
+        // загрузился, вкладки обязаны работать как раньше, просто без бейджей.
+        holidayCacheByYear.set(year, new Map());
+      }
+    }
+    return holidayCacheByYear.get(year);
+  }
+
+  // Неделя может пересекать границу года (31 декабря - 1 января), поэтому карта дат
+  // собирается по всем годам диапазона, а не по году его начала.
+  async function holidayMapForRange(from, to) {
+    const years = new Set([Number(from.slice(0, 4)), Number(to.slice(0, 4))]);
+    const maps = await Promise.all([...years].map((y) => holidaysOfYear(y)));
+    return new Map(maps.flatMap((m) => [...m]));
   }
 
   function wireViewTabs() {
@@ -220,12 +292,24 @@ export function wireScheduleViews(ctx) {
     renderViewAnchor();
   }
 
+  // Бейдж праздника на выбранном дне. Ставится НЕЗАВИСИМО от того, работает ли
+  // кто-то из мастеров в этот день: "1 января" остаётся праздником и когда мастер
+  // сам решил выйти работать (сценарий 2 промпта Окна 24).
+  async function renderDayHolidayNote(date) {
+    const noteEl = el('dayHolidayNote');
+    if (!noteEl) return; // страница без бейджа дня - остальные виды работают как раньше
+    const name = holidayNameOf(await holidaysOfYear(Number(date.slice(0, 4))), date);
+    noteEl.hidden = !name;
+    noteEl.textContent = name ? `🎉 ${fmtRu(date)} - ${name}` : '';
+  }
+
   async function loadDay(date) {
     scheduleViewState.date = date;
     // Виджет даты - часть того же состояния: до Окна 25 переход из Недели/Месяца
     // менял календарь, но оставлял в пикере старое число (jumpToDay его не трогал).
     const slot = el('dayNavDate-slot');
     if (slot) renderDateSelect(slot, 'dayNavDate', date);
+    await renderDayHolidayNote(date);
     let bookings = [];
     try {
       const res = await fetchJson(`/bookings?date=${date}`);
@@ -258,14 +342,17 @@ export function wireScheduleViews(ctx) {
   // ───────────────────────── Задача 2: "Неделя" ──────────────────────────────
   let weekMasterId = masters[0]?.id ?? null;
 
-  function weekDayCellHtml(day, count) {
+  // Праздник и рабочий статус - две независимые метки одной ячейки: бейдж
+  // добавляется РЯДОМ с "Выходной"/часами смены, а не вместо них (Окно 24).
+  function weekDayCellHtml(day, count, holidayName) {
     const dayNum = Number(day.date.slice(8, 10));
     const monthNum = Number(day.date.slice(5, 7));
     const wd = WEEKDAY_SHORT[isoWeekdayOf(day.date) - 1];
     const hours = day.isDayOff ? 'Выходной' : `${day.startTime}–${day.endTime}`;
-    return `<button type="button" class="month-day week-day-cell${day.isDayOff ? ' is-dayoff' : ''}" data-open-day="${day.date}">
+    return `<button type="button" class="month-day week-day-cell${day.isDayOff ? ' is-dayoff' : ''}${holidayName ? ' is-holiday' : ''}" data-open-day="${day.date}">
       <span class="num">${wd} ${dayNum}.${monthNum}</span>
       <span class="week-hours">${hours}</span>
+      ${holidayName ? `<span class="holiday-label" data-holiday-for="${day.date}">🎉 ${escapeHtml(holidayName)}</span>` : ''}
       ${count ? `<span class="appt-count">${count} ${ruPluralBooking(count)}</span>` : ''}
     </button>`;
   }
@@ -281,16 +368,19 @@ export function wireScheduleViews(ctx) {
     // под вкладками (Окно 25) - две одинаковые подписи на одном экране были шумом.
     grid.innerHTML = '<p class="section-hint">Загружаю…</p>';
     try {
-      const [rangeDays, bookingsRes] = await Promise.all([
+      const [rangeDays, bookingsRes, holidayMap] = await Promise.all([
         fetchJson(`/schedule-range?masterId=${weekMasterId}&from=${from}&to=${to}`),
         fetchJson(`/bookings?masterId=${weekMasterId}&from=${from}&to=${to}`),
+        holidayMapForRange(from, to),
       ]);
       const countByDate = new Map();
       for (const b of bookingsRes.bookings ?? []) {
         if (b.status === 'cancelled') continue;
         countByDate.set(b.date, (countByDate.get(b.date) || 0) + 1);
       }
-      grid.innerHTML = rangeDays.map((day) => weekDayCellHtml(day, countByDate.get(day.date) || 0)).join('');
+      grid.innerHTML = rangeDays
+        .map((day) => weekDayCellHtml(day, countByDate.get(day.date) || 0, holidayNameOf(holidayMap, day.date)))
+        .join('');
       grid.querySelectorAll('[data-open-day]').forEach((cellBtn) => {
         cellBtn.addEventListener('click', () => jumpToDay(cellBtn.dataset.openDay));
       });
@@ -450,10 +540,11 @@ export function wireScheduleViews(ctx) {
     const lastOfMonth = `${year}-${pad2(month)}-${pad2(daysInMonth)}`;
     grid.innerHTML = '<p class="section-hint">Загружаю…</p>';
     try {
-      const [rangeDays, weeklyRows, bookingsRes] = await Promise.all([
+      const [rangeDays, weeklyRows, bookingsRes, holidayMap] = await Promise.all([
         fetchJson(`/schedule-range?masterId=${monthMasterId}&from=${firstOfMonth}&to=${lastOfMonth}`),
         fetchJson(`/master-weekly-schedule?masterId=${monthMasterId}`),
         fetchJson(`/bookings?masterId=${monthMasterId}&from=${firstOfMonth}&to=${lastOfMonth}`),
+        holidayMapForRange(firstOfMonth, lastOfMonth),
       ]);
       const weeklyByWeekday = new Map(weeklyRows.map((r) => [r.weekday, r]));
       const countByDate = new Map();
@@ -471,8 +562,12 @@ export function wireScheduleViews(ctx) {
         const status = day.isDayOff ? '🔴' : overridden ? '🟡' : '🟢';
         const count = countByDate.get(day.date) || 0;
         const dayNum = Number(day.date.slice(8, 10));
-        cells += `<div class="month-day month-day--real" data-date="${day.date}">
+        // Праздничная метка - ВТОРОЙ независимый признак ячейки: статус 🔴/🟡/🟢
+        // продолжает отвечать за рабочий день, бейдж - за красный день календаря.
+        const holidayName = holidayNameOf(holidayMap, day.date);
+        cells += `<div class="month-day month-day--real${holidayName ? ' is-holiday' : ''}" data-date="${day.date}">
           <span class="num">${status} ${dayNum}</span>
+          ${holidayName ? `<span class="holiday-label" data-holiday-for="${day.date}">🎉 ${escapeHtml(holidayName)}</span>` : ''}
           ${count ? `<span class="appt-count">${count} ${ruPluralBooking(count)}</span>` : ''}
           ${isSolo ? '' : `<button type="button" class="month-day-edit" data-edit-date="${day.date}" aria-label="Редактировать день">✎</button>`}
         </div>`;
@@ -513,8 +608,109 @@ export function wireScheduleViews(ctx) {
     loadMonth();
   }
 
+  // ───────────────────────── Вкладка "Год" (Окно 24) ────────────────────────
+  // Раньше здесь лежали 12 захардкоженных строк с праздниками - справочный текст,
+  // с которым нельзя было ничего сделать. Теперь тот же список приходит из базы, а
+  // рядом с каждой датой стоит галочка: отметил новогодние каникулы, нажал одну
+  // кнопку - у всех мастеров эти дни стали выходными.
+  function yearMonthCardHtml(monthBlock) {
+    if (monthBlock.holidays.length === 0) {
+      return `<div class="year-month"><div class="ym-name">${monthBlock.name}</div><span class="ym-holiday">без праздников</span></div>`;
+    }
+    const rows = monthBlock.holidays
+      .map((h) => {
+        const dayNum = Number(h.date.slice(8, 10));
+        return `<label class="ym-holiday-row">
+          <input type="checkbox" data-holiday-date="${h.date}">
+          <span class="ym-holiday">${dayNum} - ${escapeHtml(h.name)}</span>
+        </label>`;
+      })
+      .join('');
+    return `<div class="year-month"><div class="ym-name">${monthBlock.name}</div>${rows}</div>`;
+  }
+
+  function selectedHolidayDates() {
+    return [...document.querySelectorAll('#yearGrid input[data-holiday-date]:checked')].map((cb) => cb.dataset.holidayDate);
+  }
+
+  function syncYearCloseButton() {
+    const btn = el('yearCloseSelected');
+    if (!btn) return;
+    const count = selectedHolidayDates().length;
+    btn.disabled = count === 0;
+    btn.textContent = count === 0
+      ? 'Закрыть выбранные даты всем мастерам'
+      : `Закрыть ${count} ${ruPluralDate(count)} всем мастерам`;
+  }
+
+  async function renderYear() {
+    const grid = el('yearGrid');
+    if (!grid) return; // страница со статичной вкладкой "Год" (мастер/админ) - не трогаем
+    // Год берётся из YEAR_PANEL_YEAR, а не из якоря: панель показывает справочный
+    // календарь конкретного года и под якорную дату не перерисовывается (Окно 25).
+    const holidayMap = await holidaysOfYear(YEAR_PANEL_YEAR);
+    const holidays = [...holidayMap].map(([date, name]) => ({ date, name }));
+    grid.innerHTML = groupHolidaysByMonth(holidays).map(yearMonthCardHtml).join('');
+    grid.querySelectorAll('input[data-holiday-date]').forEach((cb) => {
+      cb.addEventListener('change', syncYearCloseButton);
+    });
+    syncYearCloseButton();
+  }
+
+  async function closeSelectedHolidays() {
+    const btn = el('yearCloseSelected');
+    const note = el('yearCloseNote');
+    const conflictsEl = el('yearCloseConflicts');
+    const dates = selectedHolidayDates();
+    if (!btn || dates.length === 0) return;
+    btn.disabled = true;
+    note.textContent = 'Закрываю…';
+    conflictsEl.hidden = true;
+    try {
+      // Отмеченные даты идут пачками подряд идущих (groupDatesToRanges): каникулы
+      // 1-8 января - это один запрос, а не восемь.
+      const totals = { closed: 0, skipped: 0, conflicts: [] };
+      for (const range of groupDatesToRanges(dates)) {
+        const { ok, status, data } = await apiSend('/holidays/close', 'POST', range);
+        if (!ok) throw new Error(`HTTP ${status}`);
+        totals.closed += data.closed.length;
+        totals.skipped += data.skipped.length;
+        totals.conflicts.push(...data.conflicts);
+      }
+      const parts = [`Закрыто дней у мастеров: ${totals.closed}`];
+      if (totals.skipped) parts.push(`уже были выходными: ${totals.skipped}`);
+      note.textContent = parts.join(' · ');
+      // Даты с живой записью не закрываются молча - показываем их владельцу тем же
+      // списком с кнопкой перехода в день, что и конфликты в модалке дня (Окно 18).
+      if (totals.conflicts.length) {
+        note.textContent += ` · не закрыто из-за записей: ${totals.conflicts.length}`;
+        conflictsEl.innerHTML = conflictListWithOpenButton(
+          totals.conflicts.map((c) => ({ date: c.date, conflicts: c.conflicts }))
+        );
+        conflictsEl.hidden = false;
+        wireConflictOpenButtons(conflictsEl);
+      }
+      // Свежий запрос вместо оптимистичного обновления - тот же принцип, что у
+      // модалки дня: на экране должно быть то, что реально лежит в базе.
+      holidayCacheByYear.clear();
+      if (scheduleViewState.view === 'month') await loadMonth();
+      else if (scheduleViewState.view === 'week') await loadWeek();
+    } catch (err) {
+      note.textContent = `Не удалось закрыть: ${err.message}`;
+    } finally {
+      syncYearCloseButton();
+    }
+  }
+
+  function wireYearView() {
+    if (!el('yearGrid')) return;
+    el('yearCloseSelected')?.addEventListener('click', closeSelectedHolidays);
+    renderYear();
+  }
+
   wireViewTabs();
   wireDayNav();
   wireWeekView();
   wireMonthView();
+  wireYearView();
 }
