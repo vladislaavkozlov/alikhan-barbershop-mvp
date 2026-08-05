@@ -126,6 +126,31 @@ export function holidayNameOf(holidayMap, dateStr) {
   return holidayMap?.get(dateStr) ?? null;
 }
 
+// Окно 28 (05.08.2026) - точки статуса дня в сетке Месяца. Раньше это были эмодзи
+// 🟢/🟡/🔴 прямо в тексте ячейки: их рисует шрифт операционной системы (на маке -
+// глянцевые объёмные шарики ярко-зелёного/красного), в приглушённую тёмно-зелёную
+// палитру CRM они не попадают ни оттенком, ни блеском. Теперь это обычный кружок на
+// переменных проекта (--success/--accent/--danger), как .lp-dot в "живой боевой базе".
+// Смысловое различие трёх статусов сохранено, и цвет - не единственный носитель
+// смысла: у кружка есть title/aria-label словами (дальтонизм, скринридер).
+const DAY_STATUS_TITLE = { work: 'Обычный день', edit: 'Разовая правка на эту дату', off: 'Выходной' };
+export function dayStatusDot(status) {
+  const title = DAY_STATUS_TITLE[status] ?? '';
+  return `<span class="day-dot day-dot--${status}" role="img" title="${title}" aria-label="${title}"></span>`;
+}
+
+// Выходной ли конкретный день по ответу GET /schedule. Та же семантика, что у
+// isScheduleDayOff на сервере (api/server.mjs): перерыв накрывает смену ЭТОГО дня
+// целиком - границы берутся из самой смены, а не из литералов 10:00-20:00.
+// Окно 28: до этой правки модалка дня сравнивала перерыв с литералами, и у мастера
+// со сменой 09:00-18:00 закрытый день показывался как "Рабочий день" (см. тот же
+// класс бага в fullDayOffWindow, api/server.mjs, фикс 05.08.2026). Время в формате
+// HH:MM с ведущим нулём, поэтому строковое сравнение эквивалентно сравнению минут.
+export function isDayOffShift(shift) {
+  if (!shift) return false;
+  return (shift.breaks ?? []).some((b) => b.startTime <= shift.startTime && b.endTime >= shift.endTime);
+}
+
 export function viewAnchorLabel(view, dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
   if (view === 'day') return `День · ${WEEKDAY_FULL[isoWeekdayOf(dateStr) - 1]}, ${d} ${MONTH_GENITIVE[m - 1]}`;
@@ -415,6 +440,16 @@ export function wireScheduleViews(ctx) {
     el('dayEditFields').style.display = working ? '' : 'none';
     el('dayEditBreakToggleWrap').style.display = working ? '' : 'none';
     el('dayEditBreakFields').style.display = working && el('dayEditBreakOn').checked ? '' : 'none';
+    // Окно 28: подпись под переключателем называет состояние дня СЛОВОМ. Сам по себе
+    // выключенный тумблер рядом с надписью "Рабочий день" читается неоднозначно -
+    // владелец не понимает, это уже выходной или он ещё не нажал.
+    const stateEl = el('dayEditState');
+    if (stateEl) {
+      stateEl.textContent = working
+        ? `Сейчас: рабочий, ${timeSelectValue('dayEditStart') ?? GLOBAL_DEFAULT_START}–${timeSelectValue('dayEditEnd') ?? GLOBAL_DEFAULT_END}`
+        : 'Сейчас: выходной';
+      stateEl.classList.toggle('is-off', !working);
+    }
   }
 
   function closeDayEditModal() {
@@ -428,6 +463,10 @@ export function wireScheduleViews(ctx) {
     editingDate = date;
     el('dayEditTitle').textContent = fmtRu(date);
     el('dayEditNote').textContent = 'Загружаю текущий график…';
+    // Окно 28: пока график этого дня не приехал, тело модалки скрыто. Раньше в
+    // разметке стоял статичный checked, и в это окно владелец видел включённый
+    // "Рабочий день" на дне, который на самом деле выходной - заглушка, а не факт.
+    modal.querySelector('.day-edit-card')?.classList.add('is-loading');
     const conflictsEl = el('dayEditConflicts');
     conflictsEl.hidden = true;
     conflictsEl.innerHTML = '';
@@ -436,7 +475,10 @@ export function wireScheduleViews(ctx) {
     fetchJson(`/schedule?masterId=${monthMasterId}&date=${date}`)
       .then((shifts) => {
         const shift = shifts.find((s) => s.date === date);
-        const isDayOff = !!shift?.breaks?.some((b) => b.startTime <= GLOBAL_DEFAULT_START && b.endTime >= GLOBAL_DEFAULT_END);
+        // Окно 28: границы берутся из смены самого дня (isDayOffShift), а не из
+        // литералов 10:00-20:00 - иначе у мастера со сменой 09:00-18:00 закрытый
+        // день открывался как рабочий.
+        const isDayOff = isDayOffShift(shift);
         el('dayEditWorking').checked = !isDayOff;
         renderTimeSelect('dayEditStart-slot', 'dayEditStart', shift?.startTime || GLOBAL_DEFAULT_START);
         renderTimeSelect('dayEditEnd-slot', 'dayEditEnd', shift?.endTime || GLOBAL_DEFAULT_END);
@@ -445,9 +487,12 @@ export function wireScheduleViews(ctx) {
         renderTimeSelect('dayEditBreakStart-slot', 'dayEditBreakStart', realBreak?.startTime || '13:00');
         renderTimeSelect('dayEditBreakEnd-slot', 'dayEditBreakEnd', realBreak?.endTime || '14:00');
         el('dayEditNote').textContent = '';
+        modal.querySelector('.day-edit-card')?.classList.remove('is-loading');
         syncDayEditVisibility();
       })
       .catch((err) => {
+        // Тело так и остаётся скрытым: не зная реального графика дня, форму показывать
+        // нельзя - сохранение из неё молча перезаписало бы день значениями заглушки.
         el('dayEditNote').textContent = `Не удалось загрузить текущий график: ${err.message}`;
       });
   }
@@ -559,14 +604,15 @@ export function wireScheduleViews(ctx) {
         const baseline = weeklyBaselineFor(weeklyByWeekday, isoWeekdayOf(day.date));
         const current = { startTime: day.startTime, endTime: day.endTime, breaks: day.breaks };
         const overridden = !schedulesEqual(current, baseline);
-        const status = day.isDayOff ? '🔴' : overridden ? '🟡' : '🟢';
+        const status = day.isDayOff ? 'off' : overridden ? 'edit' : 'work';
         const count = countByDate.get(day.date) || 0;
         const dayNum = Number(day.date.slice(8, 10));
-        // Праздничная метка - ВТОРОЙ независимый признак ячейки: статус 🔴/🟡/🟢
-        // продолжает отвечать за рабочий день, бейдж - за красный день календаря.
+        // Праздничная метка - ВТОРОЙ независимый признак ячейки: статус (выходной/
+        // правка/обычный) продолжает отвечать за рабочий день, бейдж - за красный
+        // день календаря.
         const holidayName = holidayNameOf(holidayMap, day.date);
-        cells += `<div class="month-day month-day--real${holidayName ? ' is-holiday' : ''}" data-date="${day.date}">
-          <span class="num">${status} ${dayNum}</span>
+        cells += `<div class="month-day month-day--real${holidayName ? ' is-holiday' : ''}" data-date="${day.date}" data-status="${status}">
+          <span class="num">${dayStatusDot(status)}${dayNum}</span>
           ${holidayName ? `<span class="holiday-label" data-holiday-for="${day.date}">🎉 ${escapeHtml(holidayName)}</span>` : ''}
           ${count ? `<span class="appt-count">${count} ${ruPluralBooking(count)}</span>` : ''}
           ${isSolo ? '' : `<button type="button" class="month-day-edit" data-edit-date="${day.date}" aria-label="Редактировать день">✎</button>`}
