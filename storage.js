@@ -253,6 +253,21 @@ export function getMasters() {
   return MASTERS;
 }
 
+// Задача C промпта Окна 29 (05.08.2026) - мастер без единого рабочего дня в
+// стандартном графике не должен быть виден в списке выбора клиента (бэкенд остаётся
+// финальным рубежом - см. master_not_bookable в api/server.mjs createBookingTx, это
+// первая линия UX, не защита). hasWorkingScheduleByMasterId=null - ответ
+// /masters-next-availability ещё не пришёл (или офлайн-демо без ALIKHAN_API_URL) -
+// ничего не фильтруем, виджет не ломается (тот же принцип, что уже применён к
+// masterAvailabilityReady в app.js). Мастер, которого нет в карте вовсе (например
+// нет ни одной услуги в master_services - другая, не эта, причина небронируемости) -
+// тоже не трогаем, значение по умолчанию "показан", чтобы не смешивать два разных
+// условия в одном фильтре.
+export function filterBookableMasters(masterList, hasWorkingScheduleByMasterId) {
+  if (!hasWorkingScheduleByMasterId) return masterList;
+  return masterList.filter((m) => hasWorkingScheduleByMasterId.get(m.id) !== false);
+}
+
 export function getServices() {
   return SERVICES;
 }

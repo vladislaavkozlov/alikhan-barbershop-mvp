@@ -288,6 +288,24 @@ export function filterStaffForViewer(staffRows, viewerRole, scheduledMasterIds) 
   return staffRows.filter((r) => !r.providesServices || scheduledMasterIds.has(r.id));
 }
 
+// Задача C промпта Окна 29 (05.08.2026) - единый источник истины "у мастера есть
+// хотя бы один рабочий день в стандартном графике", тот же критерий, что уже
+// использует Окно 22 (hasWorkingSchedule) для CRM. Раньше эта проверка жила только
+// в GET /staff (видимость в CRM) - публичный клиентский виджет её не знал вообще
+// (берёт мастеров из статичного storage.js MASTERS[], GET /staff не вызывает), и
+// POST /bookings её тоже не проверял - живой repro 05.08.2026: запись к мастеру без
+// единой is_working=true строки создавалась (HTTP 200). Теперь одна функция служит
+// трём местам: GET /staff (CRM), GET /masters-next-availability (публичный виджет,
+// фильтр списка выбора) и createBookingTx (финальный рубеж, задача C.1).
+export async function mastersWithWorkingSchedule(client, masterIds) {
+  if (masterIds.length === 0) return new Set();
+  const res = await client.query(
+    `SELECT DISTINCT master_id FROM master_weekly_schedule WHERE master_id = ANY($1) AND is_working = true`,
+    [masterIds]
+  );
+  return new Set(res.rows.map((r) => r.master_id));
+}
+
 // Единое представление "занятого" времени дня - до начала смены, после конца смены
 // и сами перерывы - как один список интервалов. Позволяет и createBookingTx, и
 // findScheduleConflicts проверять пересечение брони с ЛЮБОЙ причиной блокировки
@@ -460,6 +478,19 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     const totalDuration = msRes.rows.reduce((sum, r) => sum + r.duration_min, 0);
     const totalPrice = msRes.rows.reduce((sum, r) => sum + r.price, 0);
     const endTime = addMinutes(startTime, totalDuration);
+
+    // Задача C промпта Окна 29 (05.08.2026) - финальный рубеж: мастер без единого
+    // рабочего дня в стандартном графике физически ещё не готов принимать записи
+    // (только что нанят, график не выставлен). До этой правки getEffectiveSchedule
+    // молча фолбэчился на GLOBAL_DEFAULT "10:00-20:00, без перерыва" - день выглядел
+    // полностью свободным. Проверка тем же критерием, что уже видит владелец в CRM
+    // (hasWorkingSchedule, Окно 22) - защищает и от прямого вызова API в обход
+    // фронта, по тому же принципу, что и существующая защита от гонки (schedule_blocked).
+    const workingSet = await mastersWithWorkingSchedule(client, [masterId]);
+    if (!workingSet.has(masterId)) {
+      await client.query('ROLLBACK');
+      return { status: 409, body: { ok: false, reason: 'master_not_bookable' } };
+    }
 
     const { date: today, time: nowTime } = shopNow();
     if (date < today || (date === today && startTime < nowTime)) {
@@ -1045,14 +1076,9 @@ const server = createServer(async (req, res) => {
       // раньше + hasWorkingSchedule, чтобы сам увидел, кому нужно донастроить график -
       // остальные роли таких мастеров в ответе не получают вовсе.
       const serviceMasterIds = mapped.filter((r) => r.providesServices).map((r) => r.id);
-      let scheduledIds = new Set();
-      if (serviceMasterIds.length > 0) {
-        const schedRes = await pool.query(
-          `SELECT DISTINCT master_id FROM master_weekly_schedule WHERE master_id = ANY($1) AND is_working = true`,
-          [serviceMasterIds]
-        );
-        scheduledIds = new Set(schedRes.rows.map((r) => r.master_id));
-      }
+      // Задача C промпта Окна 29 - вынесено в общую mastersWithWorkingSchedule
+      // (тот же SQL, теперь единственный источник, см. комментарий там же).
+      const scheduledIds = await mastersWithWorkingSchedule(pool, serviceMasterIds);
       return sendJson(res, 200, filterStaffForViewer(mapped, auth.role, scheduledIds));
     }
 
@@ -1635,10 +1661,18 @@ const server = createServer(async (req, res) => {
       const { date: from } = shopNow();
       const to = addDaysIso(from, MASTER_NEXT_AVAILABILITY_WINDOW_DAYS);
 
+      // Задача C промпта Окна 29 (05.08.2026) - публичный виджет (app.js/storage.js)
+      // раньше не знал, есть ли у мастера вообще стандартный график, поэтому мог
+      // предложить клиенту записаться к мастеру, который физически ещё не готов
+      // принимать (только что нанят). hasWorkingSchedule здесь - та же проверка, что
+      // видит владелец в CRM (Окно 22) и что реально блокирует запись на бэкенде
+      // (createBookingTx, master_not_bookable) - одно и то же условие в трёх местах.
+      const scheduledIds = await mastersWithWorkingSchedule(pool, [...minDurationByMaster.keys()]);
+
       const result = [];
       for (const [masterId, durationMin] of minDurationByMaster) {
         const nextAvailableDate = await computeMasterNextAvailability(pool, masterId, durationMin, from, to);
-        result.push({ masterId, nextAvailableDate });
+        result.push({ masterId, nextAvailableDate, hasWorkingSchedule: scheduledIds.has(masterId) });
       }
       return sendJson(res, 200, result);
     }

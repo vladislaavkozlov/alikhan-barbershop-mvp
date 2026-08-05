@@ -7,6 +7,7 @@ import {
   priceForMaster,
   mergeServiceCombos,
   isServiceBlockedByCombo,
+  filterBookableMasters,
 } from './storage.js';
 
 // Если на странице задан window.ALIKHAN_API_URL (см. index.html) - работаем через
@@ -91,6 +92,10 @@ let currentServiceButtons = new Map();
 // показывает бейдж вообще, не выдумывает дату.
 let masterAvailability = new Map(); // masterId -> дата ('YYYY-MM-DD') | null (недоступен в 60 днях)
 let masterAvailabilityReady = false;
+// Задача C промпта Окна 29 (05.08.2026) - masterId -> hasWorkingSchedule (boolean),
+// тот же батч-ответ /masters-next-availability. null пока не пришёл ответ -
+// filterBookableMasters тогда не фильтрует ничего (см. комментарий в storage.js).
+let masterWorkingSchedule = null;
 
 async function loadMasterNextAvailability() {
   if (!window.ALIKHAN_API_URL) return; // офлайн-демо режим - бейдж не показываем, не выдумываем данные
@@ -100,6 +105,7 @@ async function loadMasterNextAvailability() {
     const rows = await res.json();
     if (!Array.isArray(rows)) return;
     masterAvailability = new Map(rows.map((r) => [r.masterId, r.nextAvailableDate]));
+    masterWorkingSchedule = new Map(rows.map((r) => [r.masterId, r.hasWorkingSchedule]));
     masterAvailabilityReady = true;
   } catch {
     // сеть недоступна - masterAvailabilityReady остаётся false, виджет не ломается
@@ -461,7 +467,9 @@ function renderMasters() {
 
 function renderMasterOptions() {
   masterGrid.replaceChildren();
-  for (const master of masters) {
+  // Задача C промпта Окна 29 - мастер без стандартного графика не появляется в
+  // списке выбора вообще (см. filterBookableMasters в storage.js).
+  for (const master of filterBookableMasters(masters, masterWorkingSchedule)) {
     // Окно 26 (04.08.2026, Задача 2) - карточка обёрнута в wrap, чтобы кнопка выбора
     // мастера (.option-card) и отдельная ссылка "Позвонить администратору" были
     // соседями, не вложены друг в друга - вложенный <a> внутри <button> невалиден
