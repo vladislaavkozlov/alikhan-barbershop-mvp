@@ -225,6 +225,17 @@ h1 { margin: 0 0 4px; color: var(--accent); font-size: clamp(1.5rem, 1.4vw + 1.0
 #pt-a:checked ~ .panel-a { display: block; }
 #pt-b:checked ~ .panel-b { display: block; }
 
+/* мобильные вьюпорты (≤430px, iPhone SE/стандарт) - вкладки не переносятся строкой,
+   едут в горизонтальном скролле, как нижняя панель в iOS-приложениях */
+@media (max-width: 430px) {
+  .page-tabs .tab-bar {
+    flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; padding-bottom: 2px;
+  }
+  .page-tabs .tab-bar::-webkit-scrollbar { display: none; }
+  .page-tabs .tab-bar label { flex: none; margin-right: 14px; white-space: nowrap; }
+}
+
 section, .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -689,6 +700,11 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .day-dot--work { background: var(--success); }
 .day-dot--edit { background: var(--accent); }
 .day-dot--off { background: var(--danger); }
+/* компактная лёгенда-чипы (Окно 32) - вместо абзаца-инструкции, точка+короткое слово,
+   как в Google Calendar, а не предложение с описанием клика */
+.day-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; font-size: 0.82rem; }
+.day-legend .day-dot { margin-right: 5px; }
+.day-legend .legend-note { margin-left: 10px; color: var(--text-muted); }
 .month-day.is-holiday { background: rgba(185,139,84,0.14); border-color: var(--wood); }
 .month-day .holiday-label { display: block; color: var(--wood); font-size: 0.64rem; margin-top: 2px; line-height: 1.3; }
 .month-day .appt-count { display: block; color: var(--text-muted); font-size: 0.64rem; margin-top: 2px; }

@@ -100,16 +100,15 @@
 
 <main class="wrap page" id="crmMain">
   <h1>Владелец</h1>
-  <p class="subtitle">Видит всё: расписание всех мастеров, сотрудников любой точки, зарплаты, настройку ЗП</p>
 
   <div class="retention-alert" id="retention-panel">
     <div class="ra-head"><span class="ico">⚠</span><strong>3 клиента не приходили 3+ месяца</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
     <div class="ra-body">
-    <p class="section-hint" style="margin:6px 0 12px">У владельца показывается запущенный случай (3+ месяца). Мастера и администраторы видят таких клиентов раньше - от 2 месяцев, у себя в кабинете</p>
+    <p class="section-hint" style="margin:6px 0 12px">Показан запущенный случай - от 3 месяцев без визита</p>
     <div class="ra-list">
-      <div class="ra-row"><span class="ra-name">Клиент Ж (пример)</span><span class="ra-last">Последний визит 15.04.2026 · 3.4 мес назад</span><span class="ra-master">Мамедхан</span><button class="btn-ghost btn-sm" type="button">Позвонить (пример)</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-row"><span class="ra-name">Клиент З (пример)</span><span class="ra-last">Последний визит 02.03.2026 · 4.8 мес назад</span><span class="ra-master">Алиовсад</span><button class="btn-ghost btn-sm" type="button">Позвонить (пример)</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-row"><span class="ra-name">Клиент И (пример)</span><span class="ra-last">Последний визит 20.02.2026 · 5.2 мес назад</span><span class="ra-master">Елизавета</span><button class="btn-ghost btn-sm" type="button">Позвонить (пример)</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
+      <div class="ra-row"><span class="ra-name">Клиент Ж</span><span class="ra-last">Последний визит 15.04.2026 · 3.4 мес назад</span><span class="ra-master">Мамедхан</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
+      <div class="ra-row"><span class="ra-name">Клиент З</span><span class="ra-last">Последний визит 02.03.2026 · 4.8 мес назад</span><span class="ra-master">Алиовсад</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
+      <div class="ra-row"><span class="ra-name">Клиент И</span><span class="ra-last">Последний визит 20.02.2026 · 5.2 мес назад</span><span class="ra-master">Елизавета</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
       <div class="ra-restore" hidden><button class="btn-ghost btn-sm" type="button" onclick="restoreRetentionRows(this)">Показать скрытые (<span class="count">0</span>)</button></div>
     </div>
     </div>
@@ -131,9 +130,7 @@
     <div class="tab-panel panel-a">
       <section>
         <h2>Расписание</h2>
-        <p class="section-hint">Ряд карточек мастеров сверху, под каждым дневное расписание сверху вниз, в стиле мини-Outlook</p>
 
-        <p class="section-hint" style="margin-bottom:14px">Клиент без предварительной записи - кнопка «+» в шапке колонки нужного мастера ниже</p>
 
         <div class="walkin-form" id="walkinForm" hidden>
           <h3>Новая запись без предзаписи · <span id="wfMasterName" class="wf-master-name"></span></h3>
@@ -185,7 +182,6 @@
               <div id="dayNavDate-slot"></div>
               <button type="button" class="day-nav-btn" id="dayNavNext" aria-label="Следующий день">›</button>
             </div>
-            <p class="section-hint">Колонка = мастер (заголовок уже содержит аватар и имя, отдельный ряд карточек сверху убран как дублирующий)</p>
             <!-- Бейдж праздника на выбранный день (Окно 24). Признак независимый: он не
                  говорит, работает ли кто-то из мастеров, только что день праздничный. -->
             <p class="day-holiday-note" id="dayHolidayNote" hidden></p>
@@ -214,7 +210,6 @@
               <button type="button" class="day-nav-btn" id="weekNavPrev" aria-label="Предыдущая неделя">‹</button>
               <button type="button" class="day-nav-btn" id="weekNavNext" aria-label="Следующая неделя">›</button>
             </div>
-            <p class="section-hint">Переключи мастера. Клик по дню открывает его как «Мой день»</p>
             <div class="master-switch-row" id="weekMasterSwitch"></div>
             <!-- Заполняется wireScheduleViews (assets/crm-schedule-views.js) - 7 компактных
                  ячеек (часы или Выходной + число записей), не часовая сетка с карточками -->
@@ -226,7 +221,7 @@
               <button type="button" class="day-nav-btn" id="monthNavPrev" aria-label="Предыдущий месяц">‹</button>
               <button type="button" class="day-nav-btn" id="monthNavNext" aria-label="Следующий месяц">›</button>
             </div>
-            <p class="section-hint"><span class="day-dot day-dot--work"></span>обычный день · <span class="day-dot day-dot--edit"></span>разовая правка на эту дату · <span class="day-dot day-dot--off"></span>выходной. Клик по числу дня открывает «Мой день», ✎ - редактирует именно этот день</p>
+            <p class="section-hint day-legend"><span class="day-dot day-dot--work"></span>Рабочий&nbsp; <span class="day-dot day-dot--edit"></span>Правка&nbsp; <span class="day-dot day-dot--off"></span>Выходной</p>
             <div class="master-switch-row" id="monthMasterSwitch"></div>
             <div class="month-grid" id="monthGrid"></div>
           </div>
@@ -236,7 +231,7 @@
                Отметьте даты галочками и закройте их всем мастерам одним действием - раньше
                владельцу пришлось бы пройти каждый день каждого мастера через модалку дня. -->
           <div class="seg-panel panel-sp-year">
-            <p class="section-hint" style="margin-top:12px">Производственный календарь РФ на 2026 год - когда салон закрыт по стране (клиентская запись и так ограничена 2 месяцами вперёд, интерактивный график по мастерам на год не нужен, см. Окно 20). Отметьте даты и закройте их всем мастерам сразу</p>
+            <p class="section-hint" style="margin-top:12px">Отметьте нерабочие даты и закройте их всем мастерам сразу</p>
             <div class="year-grid" id="yearGrid"></div>
             <div class="year-actions" id="yearActions">
               <button type="button" class="btn btn-primary btn-sm" id="yearCloseSelected" disabled>Закрыть выбранные даты всем мастерам</button>
@@ -284,7 +279,7 @@
              assets/crm-schedule-requests.js -->
         <section style="margin-top:26px">
           <h2 style="font-size:1rem">Заявки мастеров на изменение графика</h2>
-          <p class="section-hint">«Отменить» снимает блокировку сразу со всех дат заявки и возвращает дни к стандартному графику. Мастер получит уведомление</p>
+          <p class="section-hint">«Отменить» возвращает дни к стандартному графику - мастер получит уведомление</p>
           <div class="break-row" style="margin-bottom:10px">
             <button class="btn btn-ghost btn-sm" type="button" id="ownerReqReload">Обновить список</button>
           </div>
@@ -292,7 +287,7 @@
         </section>
 
         <details class="booking-detail" id="bd-1" open>
-          <summary><strong id="bd-now">Клиент А (пример) · Стрижка · 10:00–10:40 (Алиовсад)</strong></summary>
+          <summary><strong id="bd-now">Клиент А · Стрижка · 10:00–10:40 (Алиовсад)</strong></summary>
           <div class="booking-detail-body">
             <div class="walkin-banner" id="bk-walkin-banner" hidden>
               <span class="ico">★</span>
@@ -323,8 +318,8 @@
               <span>Пример: день рождения клиента - 15 августа, через 6 дней. Настройка в разделе «Акции» может заранее предложить ему скидку, чтобы клиент успел подготовиться и записаться</span>
             </div>
             <div class="field-grid">
-              <div class="field"><label>Клиент</label><input id="bk-client" value="Клиент А (пример)" readonly></div>
-              <div class="field"><label>Телефон</label><input id="bk-phone" value="+7 900 000-00-01 (пример)" readonly></div>
+              <div class="field"><label>Клиент</label><input id="bk-client" value="Клиент А" readonly></div>
+              <div class="field"><label>Телефон</label><input id="bk-phone" value="+7 900 000-00-01" readonly></div>
               <div class="field"><label>Мастер записи</label><input id="bk-master" value="Алиовсад" readonly></div>
               <div class="field field--wide">
                 <label>Закреплён за мастером</label>
@@ -339,8 +334,8 @@
                 </div>
               </div>
               <div class="field"><label>Услуга</label><input id="bk-service" value="Стрижка · 2000₽" readonly></div>
-              <div class="field"><label>Дата рождения клиента</label><input value="15.08 (пример)" readonly></div>
-              <div class="field"><label>Клиент с нами с</label><input value="03.02.2025 (пример)" readonly></div>
+              <div class="field"><label>Дата рождения клиента</label><input value="15.08" readonly></div>
+              <div class="field"><label>Клиент с нами с</label><input value="03.02.2025" readonly></div>
               <div class="field"><label>Плановое время</label><input id="bk-planned" value="10:00–10:40" readonly></div>
               <div class="field"><label>Длительность услуги у этого мастера</label><input id="bk-duration" value="40 мин" readonly></div>
               <div class="field">
@@ -357,7 +352,7 @@
 
             <details class="service-edit">
               <summary>Изменить или добавить услугу этой записи</summary>
-              <p class="section-hint">Пример на случай, если клиент пришёл не за той услугой, что планировал (например записан на стрижку, а хочет ещё и бороду). Отметьте нужные пункты - пересчёт суммы и комиссии в этом макете не считается, только сам выбор</p>
+              <p class="section-hint">Если клиент пришёл не за той услугой - отметьте нужные пункты</p>
               <div class="service-picker">
                 <label class="service-check"><input type="checkbox" checked onclick="pickServiceForBooking(this)"><span><span class="sc-name">Стрижка</span><span class="sc-price">2000₽</span></span></label>
                 <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Борода</span><span class="sc-price">1600₽</span></span></label>
@@ -413,13 +408,13 @@
             <div class="staff-card-body">
               <h4>Контакты</h4>
               <div class="field-grid">
-                <div class="field"><label>Телефон</label><input value="+7 900 000-00-01 (пример)" readonly></div>
-                <div class="field"><label>Email</label><input value="ali@example.com (пример)" readonly></div>
+                <div class="field"><label>Телефон</label><input value="+7 900 000-00-01" readonly></div>
+                <div class="field"><label>Email</label><input value="ali@example.com" readonly></div>
                 <div class="field"><label>Должность (свободный текст)</label><input value="Мастер" readonly></div>
               </div>
 
               <h4>Портфолио <span class="badge badge-todo">заполняет Алихан</span></h4>
-              <p class="section-hint" style="margin:6px 0 10px">Стаж, сильные стороны, курсы/сертификаты, фото «до-после» - данных пока нет (Блок 6 в.23-26, Алихан заполнит сам), поля рабочие и сохраняются в базу. Личный инстаграм мастера - вопрос задан отдельно, ответа нет, поля здесь пока нет (в.27)</p>
+              <p class="section-hint" style="margin:6px 0 10px">Стаж, сильные стороны, курсы/сертификаты, фото «до-после» - заполняется вручную, видно клиентам</p>
               <div class="field-grid">
                 <div class="field"><label>Стаж</label><input type="text" id="portfolioExperience-master-1" placeholder="например «5 лет барбером»"></div>
                 <div class="field"><label>Сильные стороны</label><input type="text" id="portfolioStrengths-master-1" placeholder="например «фейды, оформление бороды»"></div>
@@ -430,7 +425,7 @@
               <p class="payroll-note" id="portfolioNote-master-1"></p>
 
               <h4>Роль <span class="badge badge-todo">можно несколько</span></h4>
-              <p class="role-hint">Роли комбинируются - правка Влада 27.07.2026: владелец может дополнительно работать администратором и мастером, администратор - мастером. Отметьте все роли, которые выполняет сотрудник</p>
+              <p class="role-hint">Роли комбинируются - владелец может дополнительно работать администратором и мастером, администратор - мастером. Отметьте все роли, которые выполняет сотрудник</p>
               <div class="role-picker">
                 <label class="role-option"><input type="checkbox" name="role-ivan1" checked><span class="rn">Владелец</span><span class="rd">Видит и меняет всё: прайс, зарплаты всех, настройки, все точки</span></label>
                 <label class="role-option"><input type="checkbox" name="role-ivan1"><span class="rn">Администратор</span><span class="rd">Ведёт запись и финансы одной точки. Не меняет прайс и ставки ЗП</span></label>
@@ -442,16 +437,16 @@
                 <div><div class="tr-label">Оказывает услуги</div><div class="tr-sub">staff.provides_services</div></div>
                 <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label>
               </div>
-              <p class="section-hint" style="margin:10px 0">Какие именно услуги - раньше был статичный список, теперь выбор чекбоксами (правка Влада 27.07.2026). У каждого мастера показаны все 8 услуг заведения (правка 28.07.2026 - раньше у части мастеров список по ошибке был неполным) - отметьте галочками, что умеет оказывать конкретный мастер; менять список может только владелец</p>
+              <p class="section-hint" style="margin:10px 0">Отметьте галочками, что умеет оказывать этот мастер - менять список может только владелец</p>
               <!-- Правка 03.08.2026: раньше статичные чекбоксы (ни один не сохранял ничего) -
                    теперь реальный редактор, рисует assets/crm-auth.js (wireMasterServiceEditors)
                    из живой master_services, владелец реально включает/выключает услугу и
                    меняет длительность (PUT /master-services/:masterId/:serviceId). -->
               <div class="service-picker" data-master-id="master-1"></div>
-              <p class="section-hint" style="margin:6px 0 0">Длительность - из подтверждённого прайса (уже в реальной базе, таблицы <code>services</code>/<code>master_services</code>), сейчас одинаковая у всех трёх мастеров. Поле редактируемое - можно задать своё число именно этому мастеру, если он работает быстрее/медленнее среднего. Меняется здесь → видно в карточке записи ниже, когда открыта запись этого мастера на эту услугу</p>
+              <p class="section-hint" style="margin:6px 0 0">Можно задать своё число для этого мастера, если он работает быстрее или медленнее среднего</p>
 
               <h4>График работы</h4>
-              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - работает/выходной, рабочие часы, опциональный перерыв. Мастер видит тот же график у себя, менять может только владелец</p>
+              <p class="section-hint" style="margin:6px 0 10px">Мастер видит тот же график у себя - менять может только владелец</p>
               <div id="weeklyEditor-master-1"></div>
 
               <!-- Разовая правка одного дня (Влад 03.08.2026 - старая кнопка "+ Добавить
@@ -496,10 +491,10 @@
                     </div>
                     <div class="seg-panel panel-zp1p-day">
                       <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">100% от выручки по своим услугам - сумма считается по реальным броням этого мастера за сегодня. В расчёт пока идут все статусы - фильтра «Выполнена» ещё нет (см. открытые вопросы релиза)</p>
+                      <p class="payroll-note">100% от выручки по своим услугам - сумма по броням этого мастера за сегодня</p>
                     </div>
-                    <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster1Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю (с понедельника по сегодня) - сумма реальная, по броням этого мастера в базе</p></div>
-                    <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная, по броням этого мастера в базе</p></div>
+                    <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster1Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
+                    <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
                     <div class="seg-panel panel-zp1p-period">
                       <div class="payroll-period-picker">
                         <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
@@ -507,7 +502,7 @@
                         <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-1">Показать</button>
                       </div>
                       <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                      <p class="payroll-note">Сумма реальная, по броням этого мастера за выбранный диапазон дат</p>
+                      <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
                     </div>
                   </div>
                   <a class="btn btn-primary btn-sm" href="#nastroika-zp">Перейти к настройке ЗП</a>
@@ -515,7 +510,7 @@
               </div>
 
               <h4>Возвращаемость клиентов</h4>
-              <p class="section-hint">Доля клиентов, которые вернулись к этому мастеру повторно. Данных пока нет ни у Алихана, ни в базе - весь блок плейсхолдер</p>
+              <p class="section-hint">Появится после первых визитов</p>
               <div class="seg-tabs">
                 <input type="radio" name="rt1-period" id="rt1-3" checked>
                 <input type="radio" name="rt1-period" id="rt1-6">
@@ -537,7 +532,7 @@
               </div>
 
               <h4>Как приходят клиенты</h4>
-              <p class="section-hint">Доля визитов по предварительной записи и без записи (walk-in). Данных пока нет - весь блок плейсхолдер</p>
+              <p class="section-hint">Появится после первых записей</p>
               <div class="seg-tabs">
                 <input type="radio" name="wi1-period" id="wi1-month" checked>
                 <input type="radio" name="wi1-period" id="wi1-3m">
@@ -580,8 +575,8 @@
             <div class="staff-card-body">
               <h4>Контакты</h4>
               <div class="field-grid">
-                <div class="field"><label>Телефон</label><input value="+7 900 000-00-02 (пример)" readonly></div>
-                <div class="field"><label>Email</label><input value="mamed@example.com (пример)" readonly></div>
+                <div class="field"><label>Телефон</label><input value="+7 900 000-00-02" readonly></div>
+                <div class="field"><label>Email</label><input value="mamed@example.com" readonly></div>
               </div>
               <h4>Портфолио <span class="badge badge-todo">заполняет Алихан</span></h4>
               <div class="field-grid">
@@ -593,7 +588,7 @@
               <button class="btn btn-ghost btn-sm portfolio-save" type="button" data-master-id="master-2">Сохранить портфолио</button>
               <p class="payroll-note" id="portfolioNote-master-2"></p>
               <h4>Роль <span class="badge badge-todo">можно несколько</span></h4>
-              <p class="role-hint">Пример совмещения: Мамедхан ведёт запись как администратор точки и сам же стрижёт как мастер</p>
+              <p class="role-hint">Совмещает роли: ведёт запись как администратор и стрижёт как мастер</p>
               <div class="role-picker">
                 <label class="role-option"><input type="checkbox" name="role-ivan2"><span class="rn">Владелец</span><span class="rd">Видит и меняет всё</span></label>
                 <label class="role-option"><input type="checkbox" name="role-ivan2" checked><span class="rn">Администратор</span><span class="rd">Одна точка, без прайса и ставок</span></label>
@@ -641,10 +636,10 @@
                     </div>
                     <div class="seg-panel panel-zp2p-day">
                       <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">100% от выручки по своим услугам - сумма реальная, по броням этого мастера в базе</p>
+                      <p class="payroll-note">100% от выручки по своим услугам - сумма по броням этого мастера</p>
                     </div>
-                    <div class="seg-panel panel-zp2p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster2Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю (с понедельника по сегодня) - сумма реальная</p></div>
-                    <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная</p></div>
+                    <div class="seg-panel panel-zp2p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster2Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
+                    <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
                     <div class="seg-panel panel-zp2p-period">
                       <div class="payroll-period-picker">
                         <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
@@ -652,7 +647,7 @@
                         <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-2">Показать</button>
                       </div>
                       <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                      <p class="payroll-note">Сумма реальная, по броням этого мастера за выбранный диапазон дат</p>
+                      <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
                     </div>
                   </div>
                 </div>
@@ -673,8 +668,8 @@
             <div class="staff-card-body">
               <h4>Контакты</h4>
               <div class="field-grid">
-                <div class="field"><label>Телефон</label><input value="+7 900 000-00-03 (пример)" readonly></div>
-                <div class="field"><label>Email</label><input value="elizaveta@example.com (пример)" readonly></div>
+                <div class="field"><label>Телефон</label><input value="+7 900 000-00-03" readonly></div>
+                <div class="field"><label>Email</label><input value="elizaveta@example.com" readonly></div>
               </div>
               <h4>Портфолио <span class="badge badge-todo">заполняет Алихан</span></h4>
               <div class="field-grid">
@@ -720,7 +715,7 @@
                 </div>
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="elizavetaPctSave">Сохранить ставку</button>
-              <p class="payroll-note" id="elizavetaPctNote">Точный порог перехода 40→50% Алихан не назвал - не авто-расчёт, владелец меняет число здесь вручную, когда сочтёт нужным</p>
+              <p class="payroll-note" id="elizavetaPctNote">Порог перехода 40→50% владелец меняет здесь вручную</p>
               <div class="seg-tabs" style="margin-top:14px">
                 <input type="radio" name="zp3-sub" id="zp3-calc" checked>
                 <div class="seg-bar">
@@ -740,10 +735,10 @@
                     </div>
                     <div class="seg-panel panel-zp3p-day">
                       <div class="payroll-sum"><span class="amount" id="payrollMaster3Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">За сегодня, по ставке из поля выше - сумма реальная, по броням этого мастера в базе</p>
+                      <p class="payroll-note">За сегодня, по ставке из поля выше</p>
                     </div>
-                    <div class="seg-panel panel-zp3p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster3Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю (с понедельника по сегодня) - сумма реальная</p></div>
-                    <div class="seg-panel panel-zp3p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster3Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц (с 1 числа по сегодня) - сумма реальная</p></div>
+                    <div class="seg-panel panel-zp3p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster3Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
+                    <div class="seg-panel panel-zp3p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster3Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
                     <div class="seg-panel panel-zp3p-period">
                       <div class="payroll-period-picker">
                         <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
@@ -751,7 +746,7 @@
                         <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-3">Показать</button>
                       </div>
                       <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                      <p class="payroll-note">Сумма реальная, по броням этого мастера за выбранный диапазон дат</p>
+                      <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
                     </div>
                   </div>
                 </div>
@@ -765,16 +760,16 @@
 
       <section id="nastroika-zp">
         <h2>Настройка ЗП</h2>
-        <p class="section-hint">Ответ Алихана 30.07.2026 (ТЗ разд.17.3): ставка зависит от МАСТЕРА, не от типа услуги - единого % на всех больше нет, редактируемая ставка теперь в карточке каждого сотрудника (вкладка «Сотрудники» → карточка мастера)</p>
+        <p class="section-hint">Ставка зависит от мастера, не от типа услуги - редактируется в карточке каждого сотрудника («Сотрудники» → карточка мастера)</p>
         <div class="settings-form">
           <div class="field"><label>% за продажу косметики</label><input value="200 ₽ за штуку (не проценты)" readonly></div>
         </div>
-        <p class="payroll-note" style="margin-top:6px">Бонус за нового клиента убран - Алихан подтвердил, что его не существует. Косметика сейчас не продаётся вообще - поле здесь неактивно, до появления первой продажи (backlog, не блокер)</p>
+
 
         <h4 style="margin-top:26px">Формула расчёта зарплаты</h4>
         <div class="payroll-empty">
           <div class="pe-icon">🧮</div>
-          <p>Алиовсад и Мамедхан - 100% от выручки по своим услугам. Елизавета - 40% или 50% в зависимости от клиентской базы и возвращаемости (точный порог перехода Алихан не назвал - не автоматический расчёт, а ручное поле в её карточке, владелец меняет сам когда сочтёт нужным)</p>
+          <p>Алиовсад и Мамедхан - 100% от выручки по своим услугам. Елизавета - 40% или 50% в зависимости от клиентской базы и возвращаемости, порог владелец меняет вручную в её карточке</p>
         </div>
       </section>
     </div>
@@ -783,7 +778,7 @@
     <div class="tab-panel panel-c">
       <section>
         <h2>Выручка</h2>
-        <p class="section-hint">Выручка, зарплаты мастеров и чистый доход за период - считается реально из базы (тестовый контур), ставка своя у каждого мастера (100% Алиовсад/Мамедхан, 40% по умолчанию у Елизаветы - разд.17.3), фильтра по статусу «Выполнена» пока нет, считаются все брони за период. Неделя/Месяц/Квартал/Год = "с начала периода по сегодня" (например Месяц = с 1 числа), не скользящее окно - если нужен другой принцип, скажи. Переключатель по точкам убран (Окно 13, 01.08.2026) - у Алихана одна точка, не две (уточнено самим Алиханом)</p>
+        <p class="section-hint">Неделя/Месяц/Квартал/Год считается с начала периода по сегодня</p>
 
         <div class="seg-tabs">
           <input type="radio" name="rv-period-all" id="rvpa-day" checked>
@@ -833,12 +828,11 @@
     <div class="tab-panel panel-d">
       <section>
         <h2>Скидки и акции на услуги <span class="badge badge-todo">скоро</span></h2>
-        <p class="section-hint">Механика ещё не спроектирована - решаем отдельно, когда определимся с форматом (скидка на позицию, промокод или общая акция на точку). Пока просто зарезервировано место в меню, чтобы Алиовсад знал, что искать этот раздел здесь</p>
       </section>
 
       <section>
         <h2>Дни рождения и годовщины клиентов</h2>
-        <p class="section-hint">Даты хранятся в карточке клиента (видны в карточке записи выше). Здесь Алиовсад настраивает, что с ними делать - скидка заранее и/или поздравление. Цифры ниже - пример, не решены с Алиханом</p>
+        <p class="section-hint">Настройте скидку и/или поздравление к дню рождения клиента</p>
 
         <div class="toggle-row">
           <div><div class="tr-label">Скидка перед днём рождения</div><div class="tr-sub">Система предложит клиенту скидку заранее, чтобы успел записаться и подготовиться</div></div>
@@ -870,7 +864,7 @@
             <span class="note" style="flex:1">День барбера - дата уточняется (в разных источниках разная, нужно уточнить у Алихана какую считать)</span>
           </div>
         </div>
-        <button class="btn-ghost btn-sm" type="button">+ Добавить повод (пример, в макете не работает)</button>
+        <button class="btn-ghost btn-sm" type="button" disabled>+ Добавить повод</button>
       </section>
     </div>
 

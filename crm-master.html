@@ -38,7 +38,7 @@
   <div class="nav">
     <a href="index.html" class="brand">АЛИХАН</a>
     <div class="nav-right">
-      <span class="location-badge">Вы: <strong id="selfNameBadge">Алиовсад</strong> (пример)</span>
+      <span class="location-badge">Вы: <strong id="selfNameBadge">Алиовсад</strong></span>
       <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили">🔔<span class="notif-badge">2</span></button>
       <div class="msg-bell-wrap" style="position:relative">
         <button class="notif-bell" type="button" id="msgBell" aria-label="Уведомления о записях и графике">✉<span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
@@ -57,15 +57,14 @@
 
 <main class="wrap page" id="crmMain">
   <h1>Мастер</h1>
-  <p class="subtitle">Видит только свой день и свой заработок. Не видит телефоны клиентов, не видит других сотрудников и настройки</p>
 
   <div class="retention-alert" id="retention-panel">
     <div class="ra-head"><span class="ico">⚠</span><strong>2 моих клиента не приходили 2+ месяца</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
     <div class="ra-body">
-    <p class="section-hint" style="margin:6px 0 12px">Только мои клиенты - чужих телефонов и истории мастер не видит, как и в карточке записи</p>
+    <p class="section-hint" style="margin:6px 0 12px">Видны только мои клиенты - без чужих телефонов и истории</p>
     <div class="ra-list">
-      <div class="ra-row"><span class="ra-name">Клиент Д (пример)</span><span class="ra-last">Последний визит 25.05.2026 · 2.1 мес назад</span><button class="btn-ghost btn-sm" type="button">Позвонить (пример)</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-row"><span class="ra-name">Клиент Ж (пример)</span><span class="ra-last">Последний визит 15.04.2026 · 3.4 мес назад</span><button class="btn-ghost btn-sm" type="button">Позвонить (пример)</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
+      <div class="ra-row"><span class="ra-name">Клиент Д</span><span class="ra-last">Последний визит 25.05.2026 · 2.1 мес назад</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
+      <div class="ra-row"><span class="ra-name">Клиент Ж</span><span class="ra-last">Последний визит 15.04.2026 · 3.4 мес назад</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
       <div class="ra-restore" hidden><button class="btn-ghost btn-sm" type="button" onclick="restoreRetentionRows(this)">Показать скрытые (<span class="count">0</span>)</button></div>
     </div>
     </div>
@@ -91,7 +90,6 @@
     <div class="tab-panel panel-a">
       <section>
         <h2>Мой день</h2>
-        <p class="section-hint">Без ряда других мастеров сверху, только собственное расписание</p>
 
         <button class="btn btn-primary btn-sm" type="button" style="margin-bottom:18px" id="walkinSoloTrigger">+ Новая запись (клиент без предварительной записи)</button>
 
@@ -150,25 +148,25 @@
                     <div class="schedule-col-head"><div class="avatar" id="selfAvatar">АЛ</div><span class="name" id="selfNameHead">Алиовсад (вы)</span></div>
                     <div class="schedule-track">
                       <div class="appt appt--done" style="top:0px;height:43px" tabindex="0" onclick="openBooking(this)"
-                           data-client="Клиент А (пример)" data-master="Алиовсад" data-service="Стрижка · 2000₽" data-planned="10:00–10:40" data-actual="10:03"
+                           data-client="Клиент А" data-master="Алиовсад" data-service="Стрижка · 2000₽" data-planned="10:00–10:40" data-actual="10:03"
                            data-status="came" data-confirmed="true" data-noshow="false">
-                        <span class="t">10:00–10:40</span><span class="c">Клиент А (пример) · Стрижка</span>
+                        <span class="t">10:00–10:40</span><span class="c">Клиент А · Стрижка</span>
                       </div>
                       <div class="appt appt--new" style="top:64px;height:64px" tabindex="0" onclick="openBooking(this)"
-                           data-client="Клиент Б (пример)" data-master="Алиовсад" data-service="Комплекс стрижка+борода · 3500₽" data-planned="11:00–12:00" data-actual=""
+                           data-client="Клиент Б" data-master="Алиовсад" data-service="Комплекс стрижка+борода · 3500₽" data-planned="11:00–12:00" data-actual=""
                            data-status="wait" data-confirmed="false" data-noshow="false">
-                        <span class="t">11:00–12:00</span><span class="c">Клиент Б (пример) · Комплекс стрижка+борода</span>
+                        <span class="t">11:00–12:00</span><span class="c">Клиент Б · Комплекс стрижка+борода</span>
                       </div>
                       <div class="appt appt--break" style="top:192px;height:64px">Перерыв 13:00–14:00 (пример)</div>
                       <div class="appt appt--done" style="top:288px;height:32px" tabindex="0" onclick="openBooking(this)"
-                           data-client="Клиент В (пример)" data-master="Алиовсад" data-service="Борода · 1600₽" data-planned="14:30–15:00" data-actual="14:31"
+                           data-client="Клиент В" data-master="Алиовсад" data-service="Борода · 1600₽" data-planned="14:30–15:00" data-actual="14:31"
                            data-status="came" data-confirmed="true" data-noshow="false">
-                        <span class="t">14:30–15:00</span><span class="c">Клиент В (пример) · Борода</span>
+                        <span class="t">14:30–15:00</span><span class="c">Клиент В · Борода</span>
                       </div>
                       <div class="appt appt--new" style="top:384px;height:64px" tabindex="0" onclick="openBooking(this)"
-                           data-client="Клиент Г (пример)" data-master="Алиовсад" data-service="СПА уход · 3000₽" data-planned="16:00–17:00" data-actual=""
+                           data-client="Клиент Г" data-master="Алиовсад" data-service="СПА уход · 3000₽" data-planned="16:00–17:00" data-actual=""
                            data-status="no" data-confirmed="true" data-noshow="true">
-                        <span class="t">16:00–17:00</span><span class="c"><span class="appt-warn">⚠</span>Клиент Г (пример) · СПА уход</span>
+                        <span class="t">16:00–17:00</span><span class="c"><span class="appt-warn">⚠</span>Клиент Г · СПА уход</span>
                       </div>
                     </div>
                   </div>
@@ -182,7 +180,6 @@
               <button type="button" class="day-nav-btn" id="weekNavPrev" aria-label="Предыдущая неделя">‹</button>
               <button type="button" class="day-nav-btn" id="weekNavNext" aria-label="Следующая неделя">›</button>
             </div>
-            <p class="section-hint">Только моя неделя (переключателя между мастерами нет). Клик по дню открывает его как «Мой день»</p>
             <!-- Заполняется wireScheduleViews (assets/crm-schedule-views.js, solo-режим) -
                  без .master-switch-row, у мастера переключателя между сотрудниками нет. -->
             <div class="week-grid" id="weekGrid"></div>
@@ -193,12 +190,12 @@
               <button type="button" class="day-nav-btn" id="monthNavPrev" aria-label="Предыдущий месяц">‹</button>
               <button type="button" class="day-nav-btn" id="monthNavNext" aria-label="Следующий месяц">›</button>
             </div>
-            <p class="section-hint"><span class="day-dot day-dot--work"></span>обычный день · <span class="day-dot day-dot--edit"></span>разовая правка на эту дату · <span class="day-dot day-dot--off"></span>выходной. Клик по числу дня открывает «Мой день» - только просмотр, редактировать график может владелец или администратор</p>
+            <p class="section-hint day-legend"><span class="day-dot day-dot--work"></span>Рабочий&nbsp; <span class="day-dot day-dot--edit"></span>Правка&nbsp; <span class="day-dot day-dot--off"></span>Выходной<span class="legend-note">- изменить может владелец или администратор</span></p>
             <div class="month-grid" id="monthGrid"></div>
           </div>
 
           <div class="seg-panel panel-sp-year">
-            <p class="section-hint" style="margin-top:12px">Пример: 2026 год, только мои записи. Праздники - официальный календарь РФ (нерабочие дни), не выдуманы</p>
+            <p class="section-hint" style="margin-top:12px">Год - только мои записи. Праздники - официальный календарь РФ</p>
             <div class="year-grid">
               <div class="year-month"><div class="ym-name">Январь</div><span class="ym-holiday">Новогодние каникулы 1-8, Рождество 7</span><div class="ym-note">38 записей <span class="unsure">пример</span></div></div>
               <div class="year-month"><div class="ym-name">Февраль</div><span class="ym-holiday">23 - День защитника Отечества</span><div class="ym-note">27 записей <span class="unsure">пример</span></div></div>
@@ -217,7 +214,7 @@
         </div>
 
         <details class="booking-detail" id="bd-1" open>
-          <summary><strong id="bd-now">Клиент А (пример) · Стрижка · 10:00–10:40</strong></summary>
+          <summary><strong id="bd-now">Клиент А · Стрижка · 10:00–10:40</strong></summary>
           <div class="booking-detail-body">
             <div class="walkin-banner" id="bk-walkin-banner" hidden>
               <span class="ico">★</span>
@@ -248,11 +245,11 @@
             </div>
             <div class="field-grid">
               <input type="hidden" id="bk-master" value="Алиовсад">
-              <div class="field"><label>Клиент</label><input id="bk-client" value="Клиент А (пример)" readonly></div>
+              <div class="field"><label>Клиент</label><input id="bk-client" value="Клиент А" readonly></div>
               <div class="field phone-hidden"><label>Телефон</label><input value="—" readonly><span class="why">скрыто - доступно только владельцу и администратору</span></div>
               <div class="field"><label>Услуга</label><input id="bk-service" value="Стрижка · 2000₽" readonly></div>
-              <div class="field"><label>Дата рождения клиента</label><input value="15.08 (пример)" readonly></div>
-              <div class="field"><label>Клиент с нами с</label><input value="03.02.2025 (пример)" readonly></div>
+              <div class="field"><label>Дата рождения клиента</label><input value="15.08" readonly></div>
+              <div class="field"><label>Клиент с нами с</label><input value="03.02.2025" readonly></div>
               <div class="field"><label>Плановое время</label><input id="bk-planned" value="10:00–10:40" readonly></div>
               <div class="field"><label>Длительность услуги у этого мастера</label><input id="bk-duration" value="40 мин" readonly></div>
               <div class="field">
@@ -269,7 +266,7 @@
 
             <details class="service-edit">
               <summary>Изменить или добавить услугу этой записи</summary>
-              <p class="section-hint">Пример на случай, если клиент пришёл не за той услугой, что планировал. Отметьте нужные пункты - пересчёт суммы и комиссии в этом макете не считается, только сам выбор</p>
+              <p class="section-hint">Если клиент пришёл не за той услугой - отметьте нужные пункты</p>
               <div class="service-picker">
                 <label class="service-check"><input type="checkbox" checked onclick="pickServiceForBooking(this)"><span><span class="sc-name">Стрижка</span><span class="sc-price">2000₽</span></span></label>
                 <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Борода</span><span class="sc-price">1600₽</span></span></label>
@@ -303,7 +300,6 @@
     <div class="tab-panel panel-b">
       <section>
         <h2>Моя зарплата</h2>
-        <p class="section-hint">Только свои цифры — без вкладки «Настройка ЗП», её нет у мастера вообще</p>
 
         <div class="seg-tabs">
           <input type="radio" name="zpm-sub" id="zpm-calc" checked>
@@ -325,7 +321,7 @@
               </div>
               <div class="seg-panel panel-zpmp-day">
                 <div class="payroll-sum"><span class="amount" id="myPayrollDay">000 ₽ <span class="unsure">считаю…</span></span></div>
-                <p class="payroll-note">По своей ставке (100% у Алиовсада/Мамедхана, 40% по умолчанию у Елизаветы) от реальной суммы моих сегодняшних записей в базе. Пока считаются все мои записи на сегодня (фильтр по статусу «Выполнена» - следующий шаг)</p>
+                <p class="payroll-note">По своей ставке - от суммы моих сегодняшних записей</p>
               </div>
               <div class="seg-panel panel-zpmp-week"><div class="payroll-sum"><span class="amount" id="myPayrollWeek">000 ₽ <span class="unsure">считаю…</span></span></div></div>
               <div class="seg-panel panel-zpmp-month"><div class="payroll-sum"><span class="amount" id="myPayrollMonth">000 ₽ <span class="unsure">считаю…</span></span></div></div>
@@ -336,7 +332,7 @@
                   <button class="btn btn-ghost btn-sm" type="button" onclick="calcCustomPayroll(this)">Показать</button>
                 </div>
                 <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                <p class="payroll-note">Баг исправлен: раньше даты нельзя было задать физически, теперь оба поля рабочие. Сумма всё ещё плейсхолдер - реальных записей в макете нет</p>
+
               </div>
             </div>
           </div>
@@ -345,7 +341,7 @@
 
       <section>
         <h2>Моя возвращаемость клиентов</h2>
-        <p class="section-hint">Доля моих клиентов, которые вернулись повторно. Данных пока нет - плейсхолдер</p>
+        <p class="section-hint">Появится после первых визитов</p>
         <div class="stat-cards">
           <div class="stat-card"><div class="sc-label">3 мес</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
           <div class="stat-card"><div class="sc-label">6 мес</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
@@ -357,7 +353,7 @@
 
       <section>
         <h2>Как приходят мои клиенты</h2>
-        <p class="section-hint">Доля визитов по предварительной записи и без записи (walk-in). Данных пока нет - плейсхолдер</p>
+        <p class="section-hint">Появится после первых записей</p>
         <div class="seg-tabs">
           <input type="radio" name="wim-period" id="wim-month" checked>
           <input type="radio" name="wim-period" id="wim-3m">
@@ -400,7 +396,7 @@
       </style>
       <section>
         <h2>Личные данные</h2>
-        <p class="section-hint">Ваша карточка сотрудника - портфолио редактируете сами, остальное (роль/услуги/ставка/график) назначает владелец, здесь только для просмотра</p>
+        <p class="section-hint">Портфолио редактируете сами, остальное назначает владелец</p>
         <div class="staff-list">
           <details class="staff-card" open>
             <summary>
@@ -433,7 +429,7 @@
               </div>
 
               <h4>График работы</h4>
-              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - работает/выходной, рабочие часы, опциональный перерыв. Только просмотр - структуру меняет владелец или администратор</p>
+              <p class="section-hint" style="margin:6px 0 10px">Только просмотр - график меняет владелец или администратор</p>
               <div id="weeklyEditor-self"></div>
 
               <h4 style="margin-top:18px">Разовое изменение на дату</h4>
