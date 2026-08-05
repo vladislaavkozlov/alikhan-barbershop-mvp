@@ -815,6 +815,91 @@ async function applyScheduleDay(client, masterId, date, startTime, endTime) {
   ]);
 }
 
+// ── Праздники (Окно 24, 05.08.2026) ────────────────────────────────────────
+// Производственный календарь как данные (таблица holidays, миграция 034) вместо
+// 12 захардкоженных строк во вкладке "Год". Праздничность даты и рабочий статус дня
+// у мастера - два НЕЗАВИСИМЫХ признака: мастер может сам выйти работать 23 февраля,
+// день останется рабочим, но праздником быть не перестанет. Поэтому holidays ничего
+// не знает про мастеров, а schedule_shifts ничего не знает про праздники - связывает
+// их только явное действие владельца (POST /holidays/close).
+export async function listHolidays(client, year) {
+  const res = await client.query(
+    'SELECT date, name FROM holidays WHERE EXTRACT(YEAR FROM date) = $1 ORDER BY date',
+    [year]
+  );
+  return res.rows.map((r) => ({ date: dateColToStr(r.date), name: r.name }));
+}
+
+// Кого закрываем: без явного списка - всех, кто реально принимает клиентов
+// (provides_services, тот же признак, по которому мастера попадают в публичный
+// виджет), уволенных не трогаем. Явный список сужает выборку и заодно отсеивает
+// несуществующие id - молча, потому что для владельца это не ошибка ввода: список
+// приходит из его же интерфейса, а мастер мог быть уволен в соседней вкладке.
+export async function holidayCloseTargets(client, masterIds) {
+  const res = await client.query('SELECT id FROM staff WHERE employed = true AND provides_services = true');
+  const all = res.rows.map((r) => r.id);
+  if (masterIds == null) return all;
+  const requested = new Set(masterIds);
+  return all.filter((id) => requested.has(id));
+}
+
+// Границы перерыва, которым закрывается день. Фиксированной пары 10:00-20:00 здесь
+// НЕ достаточно: applyScheduleDay создаёт смену 10:00-20:00 только если строки в
+// schedule_shifts ещё нет, а на уже существующей смене (например разовая правка
+// 09:00-18:00) оставляет её окно нетронутым. Перерыв 10:00-20:00 такую смену не
+// накрывает слева, isScheduleDayOff вернул бы false и день остался бы "рабочим с
+// длинным перерывом" - ровно то, чего владелец не ожидает, нажимая "закрыть".
+// Берём объединение эффективного окна мастера и того, что может создать сама
+// applyScheduleDay.
+export function holidayDayOffWindow(effectiveSchedule) {
+  const startTime = toMinutes(effectiveSchedule.startTime) < toMinutes(GLOBAL_DEFAULT_START)
+    ? effectiveSchedule.startTime
+    : GLOBAL_DEFAULT_START;
+  const endTime = toMinutes(effectiveSchedule.endTime) > toMinutes(GLOBAL_DEFAULT_END)
+    ? effectiveSchedule.endTime
+    : GLOBAL_DEFAULT_END;
+  return { startTime, endTime };
+}
+
+// Что именно произойдёт при массовом закрытии - считается ДО записи, отдельно от неё
+// (роут применяет план в транзакции). Три исхода на пару мастер+дата:
+//   closed    - закрываем (в ответе видно, каким окном)
+//   skipped   - мастер на эту дату уже выходной; повторный applyScheduleDay положил бы
+//               второй такой же перерыв поверх, дубль в графике без всякой пользы
+//   conflicts - на дате есть живая бронь; такую дату НЕ трогаем вовсе
+// Про конфликты: правило проекта - не ломать живую бронь молча (POST /schedule отвечает
+// 409, см. решение Влада от 04.08.2026). Но отказывать во ВСЁМ диапазоне из-за одной
+// брони здесь было бы хуже: единственная запись 8 марта заблокировала бы закрытие всех
+// январских дат всем мастерам. Поэтому закрываем что можем, конфликтные пары возвращаем
+// владельцу списком - он решает по каждой (перенести клиента или оставить день рабочим).
+export async function planHolidayClose(client, masterIds, dates) {
+  const closed = [];
+  const skipped = [];
+  const conflicts = [];
+  for (const masterId of masterIds) {
+    for (const date of dates) {
+      const eff = await getEffectiveSchedule(client, masterId, date);
+      if (isScheduleDayOff(eff)) {
+        skipped.push({ masterId, date, reason: 'already_day_off' });
+        continue;
+      }
+      const window = holidayDayOffWindow(eff);
+      const dayConflicts = await findScheduleConflicts(client, masterId, date, [window]);
+      if (dayConflicts.length) {
+        conflicts.push({ masterId, date, conflicts: dayConflicts });
+        continue;
+      }
+      closed.push({ masterId, date, startTime: window.startTime, endTime: window.endTime });
+    }
+  }
+  return { closed, skipped, conflicts };
+}
+
+// Разумный максимум одного массового закрытия - календарный год. Больше владельцу
+// незачем (таблица праздников ведётся по годам), а без потолка один запрос мог бы
+// перебрать произвольное число дат × мастеров.
+export const HOLIDAY_CLOSE_MAX_DAYS = 366;
+
 const server = createServer(async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') {
@@ -1411,6 +1496,60 @@ const server = createServer(async (req, res) => {
       }
       const days = await computeScheduleRangeDays(pool, masterId, from, to);
       return sendJson(res, 200, days);
+    }
+
+    // ── /holidays - производственный календарь (Окно 24, 05.08.2026). Анонимный
+    // GET: тот же уровень доступа, что у /services и узкого /schedule - публичному
+    // виджету записи (index.html, без логина) он нужен, чтобы подсказать клиенту
+    // "выбранная дата - праздник", а приватного в списке красных дней страны ничего нет.
+    if (parts[0] === 'holidays' && parts.length === 1 && req.method === 'GET') {
+      const yearParam = url.searchParams.get('year');
+      const year = yearParam ? Number(yearParam) : new Date().getFullYear();
+      if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+        return sendJson(res, 400, { error: 'invalid_year' });
+      }
+      return sendJson(res, 200, await listHolidays(pool, year));
+    }
+
+    // POST /holidays/close - "закрыть эти даты всем мастерам" одним действием, вместо
+    // ручного прохода по каждому мастеру и каждому дню в модалке дня. Owner-only: это
+    // решение по всему салону сразу, у админа точки таких прав нет нигде (ср. PUT
+    // /payroll-settings). Закрытие дня выполняет ТА ЖЕ applyScheduleDay, что применяет
+    // одобренный отгул (PATCH /schedule-requests/:id/decision) - отдельной механики
+    // "выходной по празднику" в базе не заводим, иначе в графике появилось бы два
+    // разных выходных с разным поведением.
+    if (parts[0] === 'holidays' && parts[1] === 'close' && parts.length === 2 && req.method === 'POST') {
+      const auth = await authenticate(req);
+      if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+      const body = await readBody(req);
+      if (!body.from || !body.to) return sendJson(res, 400, { error: 'missing_fields' });
+      if (body.masterIds != null && !Array.isArray(body.masterIds)) {
+        return sendJson(res, 400, { error: 'invalid_master_ids' });
+      }
+      const dayCount = rangeDayCount(body.from, body.to);
+      if (!Number.isFinite(dayCount) || dayCount < 1 || dayCount > HOLIDAY_CLOSE_MAX_DAYS) {
+        return sendJson(res, 400, { error: 'invalid_range', maxDays: HOLIDAY_CLOSE_MAX_DAYS });
+      }
+      const dates = enumerateDateRange(body.from, body.to);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        // План считается ВНУТРИ той же транзакции, что и применение: иначе между
+        // "проверили конфликты" и "записали выходной" клиент успел бы записаться на
+        // эту дату через публичный виджет, и бронь оказалась бы внутри выходного.
+        const targets = await holidayCloseTargets(client, body.masterIds ?? null);
+        const plan = await planHolidayClose(client, targets, dates);
+        for (const item of plan.closed) {
+          await applyScheduleDay(client, item.masterId, item.date, item.startTime, item.endTime);
+        }
+        await client.query('COMMIT');
+        return sendJson(res, 200, { ok: true, ...plan });
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally {
+        client.release();
+      }
     }
 
     // ── /schedule-availability - Задача 1 промпта Окна 21 (04.08.2026). Реальная
