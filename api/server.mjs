@@ -958,6 +958,67 @@ export async function planHolidayClose(client, masterIds, dates) {
 // перебрать произвольное число дат × мастеров.
 export const HOLIDAY_CLOSE_MAX_DAYS = 366;
 
+// ── Окно 33 (06.08.2026), Задача C: реестр роутов default-deny ─────────────
+// Ровно та дыра, которую эксплуатировали /kv/:key (Задача A этого же окна) -
+// роут существовал в if/else ниже без единой проверки auth. Реестр делает
+// авторизацию декларативной и обязательной: у каждого роута явное поле auth,
+// 'public' - осознанное решение, не отсутствие проверки. Роут без записи здесь
+// получает 404 РАНЬШЕ, чем дойдёт до if/else - забыть зарегистрировать новый
+// роут теперь равносильно "роута не существует", а не "существует без проверки".
+//
+// 'owner' - реестр сам требует роль owner до обработчика. 'any-staff' - реестр
+// требует любой валидный токен (роль не сужена); более узкое требование
+// конкретного роута (только admin+owner, только master и т.п.) как и раньше
+// проверяет свой requireRole() внутри обработчика - реестр его не заменяет,
+// только гарантирует, что аноним до этой проверки вообще не дойдёт.
+const ROUTES = [
+  { method: 'GET', path: 'health', auth: 'public' },
+  { method: 'POST', path: 'auth/login', auth: 'public' },
+  { method: 'GET', path: 'auth/me', auth: 'any-staff' },
+  { method: 'GET', path: 'staff', auth: 'any-staff' },
+  { method: 'PUT', path: 'staff/:id/portfolio', auth: 'owner' },
+  { method: 'PUT', path: 'staff/:id/role', auth: 'owner' },
+  { method: 'GET', path: 'services', auth: 'any-staff' },
+  { method: 'GET', path: 'master-services', auth: 'public' },
+  { method: 'PUT', path: 'master-services/:masterId/:serviceId', auth: 'owner' },
+  { method: 'GET', path: 'bookings', auth: 'public' },
+  { method: 'POST', path: 'bookings', auth: 'public' },
+  { method: 'POST', path: 'bookings/:id/cancel', auth: 'any-staff' },
+  { method: 'PATCH', path: 'bookings/:id/status', auth: 'any-staff' },
+  { method: 'GET', path: 'sales', auth: 'any-staff' },
+  { method: 'POST', path: 'sales', auth: 'any-staff' },
+  { method: 'GET', path: 'schedule', auth: 'public' },
+  { method: 'POST', path: 'schedule', auth: 'any-staff' },
+  { method: 'DELETE', path: 'schedule', auth: 'any-staff' },
+  { method: 'GET', path: 'schedule-range', auth: 'any-staff' },
+  { method: 'GET', path: 'holidays', auth: 'public' },
+  { method: 'POST', path: 'holidays/close', auth: 'owner' },
+  { method: 'GET', path: 'schedule-availability', auth: 'public' },
+  { method: 'GET', path: 'masters-next-availability', auth: 'public' },
+  { method: 'GET', path: 'master-weekly-schedule', auth: 'any-staff' },
+  { method: 'PUT', path: 'master-weekly-schedule', auth: 'any-staff' },
+  { method: 'POST', path: 'schedule-requests', auth: 'any-staff' },
+  { method: 'GET', path: 'schedule-requests', auth: 'any-staff' },
+  { method: 'PATCH', path: 'schedule-requests/:id/decision', auth: 'owner' },
+  { method: 'PATCH', path: 'schedule-requests/:id/cancel', auth: 'owner' },
+  { method: 'GET', path: 'notifications', auth: 'any-staff' },
+  { method: 'GET', path: 'notifications/unread-count', auth: 'any-staff' },
+  { method: 'POST', path: 'notifications/:id/read', auth: 'any-staff' },
+  { method: 'POST', path: 'notifications/read-all', auth: 'any-staff' },
+  { method: 'GET', path: 'payroll-settings', auth: 'any-staff' },
+  { method: 'PUT', path: 'payroll-settings', auth: 'owner' },
+];
+
+function matchRoute(method, parts) {
+  for (const route of ROUTES) {
+    if (route.method !== method) continue;
+    const routeParts = route.path.split('/');
+    if (routeParts.length !== parts.length) continue;
+    if (routeParts.every((seg, i) => seg.startsWith(':') || seg === parts[i])) return route;
+  }
+  return null;
+}
+
 const server = createServer(async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') {
@@ -970,6 +1031,19 @@ const server = createServer(async (req, res) => {
   const parts = url.pathname.split('/').filter(Boolean);
 
   try {
+    // Гейт реестра - до любого обработчика ниже. Незарегистрированный
+    // метод+путь получает 404 здесь и не доходит до if/else вообще.
+    const matchedRoute = matchRoute(req.method, parts);
+    if (!matchedRoute) return sendJson(res, 404, { error: 'route_not_found' });
+    if (matchedRoute.auth !== 'public') {
+      const gateAuth = await authenticate(req);
+      if (matchedRoute.auth === 'owner') {
+        if (!requireRole(gateAuth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+      } else if (!gateAuth) {
+        return sendJson(res, 401, { error: 'unauthorized' });
+      }
+    }
+
     if (url.pathname === '/health') {
       await pool.query('SELECT 1');
       return sendJson(res, 200, { ok: true });
