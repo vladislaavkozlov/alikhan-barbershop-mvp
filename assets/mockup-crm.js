@@ -76,13 +76,19 @@ function openBooking(el) {
   const radio = document.getElementById('st-' + (d.status || 'wait'));
   if (radio) radio.checked = true;
 
+  // Чекбокс "Клиент подтвердил запись" (bconfirm) - на crm-owner.html убран Окном 36
+  // (06.08.2026): роута на запись bookings.client_confirmed не существует, показывать
+  // интерактивный элемент без реального сохранения было бы декоративным. На
+  // crm-admin.html/crm-master.html чекбокс жив (это окно их не касалось) - getElementById
+  // безопасно вернёт null на owner-странице, блок no-op, как и для остальных
+  // опциональных полей в этой функции.
   const confirmBox = document.getElementById('bconfirm');
   if (confirmBox) confirmBox.checked = d.confirmed === 'true';
 
-  // Правка 03.08.2026: "Клиент не пришёл" теперь реальная кнопка (window.toggleNoShow,
-  // assets/crm-auth.js) вместо декоративного тумблера bnoshow - id брони и текущий
-  // РЕАЛЬНЫЙ статус (planned/done/no_show, не отображаемый wait/came/no) кладём на
-  // сам bd-1, чтобы кнопка знала, что сохранять и в какую сторону переключать.
+  // Правка Окна 36 (06.08.2026, была 03.08.2026): статус визита теперь пишет радио
+  // выше (wireBookingStatusRadios, assets/crm-auth.js), не отдельная кнопка - id
+  // брони и текущий РЕАЛЬНЫЙ статус (planned/done/no_show, не отображаемый
+  // wait/came/no) кладём на сам bd-1, чтобы обработчик знал, что сохранять.
   if (panel) {
     panel.dataset.bookingId = d.id || '';
     panel.dataset.realStatus = d.realStatus || 'planned';
@@ -121,8 +127,12 @@ function ruPlural(n, one, few, many) {
 // Правка 03.08.2026: кнопка "Клиент не пришёл" (window.toggleNoShow, assets/crm-auth.js)
 // заменила декоративное "Фактическое время прихода" - это единственное место, которое
 // рисует её текущее состояние (label кнопки + баннер реальной истории неявок клиента).
-// Вызывается из openBooking() и из самого toggleNoShow() после успешного PATCH, чтобы
-// не перезагружать страницу для отражения нового состояния.
+// ВАЖНО (Окно 36, 06.08.2026): на crm-owner.html кнопки bk-noshow-btn больше нет
+// (заменена радио-статусом, assets/crm-auth.js wireBookingStatusRadios) - `btn` там
+// будет null и блок ниже безопасно no-op, как и раньше было для страниц без кнопки.
+// На crm-admin.html/crm-master.html кнопка жива, это окно их не касалось.
+// Вызывается из openBooking() и из toggleNoShow()/обработчика радио после PATCH,
+// чтобы не перезагружать страницу для отражения нового состояния.
 function updateNoShowUi() {
   const panel = document.getElementById('bd-1');
   if (!panel) return;

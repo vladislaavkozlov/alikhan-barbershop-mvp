@@ -47,8 +47,6 @@
   /* третья верхняя вкладка "Выручка" (только у владельца) */
   #pt-c:checked ~ .tab-bar label[for="pt-c"] { color: var(--accent); border-color: var(--accent); }
   #pt-c:checked ~ .panel-c { display: block; }
-  #pt-d:checked ~ .tab-bar label[for="pt-d"] { color: var(--accent); border-color: var(--accent); }
-  #pt-d:checked ~ .panel-d { display: block; }
 
   /* период выручки (Окно 13, 01.08.2026 - переключатель по точкам убран, у Алихана
      одна точка, см. Задача 1 промпта корректировки) */
@@ -114,16 +112,21 @@
     </div>
   </div>
 
+  <!-- Вкладка "Акции" (pt-d) скрыта из навигации Окном 36 (06.08.2026) - весь блок
+       "Скидки и акции" был бейджем "скоро" без содержимого, "+ Добавить повод"
+       захардкожен disabled, дни-рождения-переключатели никуда не сохранялись
+       (FINAL_PRODUCT_DECISION.md, раздел REMOVE: висящее "скоро" без даты работает
+       против доверия так же, как декоративные чекбоксы). Вернуть - убрать pt-d
+       radio+label ниже, когда появится реальный план реализации (panel-d удалена
+       целиком, была недостижима без radio). -->
   <div class="page-tabs">
     <input type="radio" name="pt" id="pt-a" checked>
     <input type="radio" name="pt" id="pt-b">
     <input type="radio" name="pt" id="pt-c">
-    <input type="radio" name="pt" id="pt-d">
     <div class="tab-bar">
       <label for="pt-a">Расписание</label>
       <label for="pt-b">Сотрудники</label>
       <label for="pt-c">Выручка</label>
-      <label for="pt-d">Акции</label>
     </div>
 
     <!-- ======================= РАСПИСАНИЕ ======================= -->
@@ -293,6 +296,14 @@
               <span class="ico">★</span>
               <span>Клиент без предварительной записи - поля ниже очищены, впишите имя, телефон и услугу вручную. Время прихода и статус уже проставлены автоматически</span>
             </div>
+            <!-- Правка Окна 36 (06.08.2026) - раньше радио и toggleNoShow-кнопка ниже
+                 (в field-grid) делали одно и то же (PATCH /bookings/:id/status), но
+                 выглядели как два разных элемента - владелец не мог отличить рабочий от
+                 декоративного (аудит, PRODUCT_AUDIT_REPORT.md, разд. "Владелец"). Радио
+                 реально отражало РЕАЛЬНЫЙ статус и раньше (assets/crm-calendar.js,
+                 STATUS_TO_DATA: planned/done/no_show → wait/came/no) - просто клик по нему
+                 никуда не отправлялся. Теперь это единственный, самый полный (3 из 3
+                 состояний, кнопка ниже знала только 2) контрол статуса визита. -->
             <div class="status-row">
               <input type="radio" name="bstatus" id="st-wait">
               <input type="radio" name="bstatus" id="st-came" checked>
@@ -301,22 +312,25 @@
               <label for="st-came">Пришёл</label>
               <label for="st-no">Не пришёл</label>
             </div>
-            <div class="confirm-row">
-              <input type="checkbox" id="bconfirm" checked>
-              <label for="bconfirm">Клиент подтвердил запись</label>
-            </div>
-            <!-- Правка 03.08.2026: тумблер "Клиент не пришёл без предупреждения" убран -
-                 дублировал ту же самую (тоже нерабочую) кнопку "Клиент пришёл" ниже, два
-                 разных элемента на одну и ту же отметку сбивали с толку. Осталась одна
-                 реальная кнопка в field-grid (bk-noshow-btn) - см. отчёт сессии 03.08.2026. -->
+            <p class="commission-note" id="bk-status-note" hidden></p>
+            <!-- Чекбокс "Клиент подтвердил запись" убран Окном 36 (06.08.2026):
+                 bookings.client_confirmed реально существует в схеме и приходит в GET
+                 /bookings (clientConfirmed), но роута на ЗАПИСЬ в это поле нет нигде в
+                 server.mjs (grep - 0 совпадений) - клик по чекбоксу ничего не сохранял бы.
+                 Открытый вопрос Владу: нужен ли этот флаг вообще, и кто его должен
+                 проставлять - клиент сам через публичный виджет записи, или
+                 администратор вручную звонком? До ответа честнее не показывать элемент,
+                 чем изображать рабочий. -->
             <div class="noshow-banner" id="bk-noshow-banner" hidden>
               <span class="ico">⚠</span>
               <span></span>
             </div>
-            <div class="birthday-banner">
-              <span class="ico">🎂</span>
-              <span>Пример: день рождения клиента - 15 августа, через 6 дней. Настройка в разделе «Акции» может заранее предложить ему скидку, чтобы клиент успел подготовиться и записаться</span>
-            </div>
+            <!-- Баннер "Пример: день рождения клиента..." убран Окном 36 (06.08.2026) -
+                 был статичным hardcoded текстом на любой брони (не читал реальную дату
+                 рождения этого клиента, хотя она есть рядом, поле "Дата рождения
+                 клиента" ниже) и ссылался на раздел "Акции", который этим же окном
+                 скрыт из навигации как нерабочий - оставлять ссылку на недостижимый
+                 раздел было бы хуже исходной проблемы. -->
             <div class="field-grid">
               <div class="field"><label>Клиент</label><input id="bk-client" value="Клиент А" readonly></div>
               <div class="field"><label>Телефон</label><input id="bk-phone" value="+7 900 000-00-01" readonly></div>
@@ -339,11 +353,6 @@
               <div class="field"><label>Плановое время</label><input id="bk-planned" value="10:00–10:40" readonly></div>
               <div class="field"><label>Длительность услуги у этого мастера</label><input id="bk-duration" value="40 мин" readonly></div>
               <div class="field">
-                <label>Статус визита</label>
-                <button id="bk-noshow-btn" class="btn btn-ghost btn-sm" type="button" onclick="toggleNoShow(this)">Клиент не пришёл</button>
-                <p class="commission-note" id="bk-noshow-note" hidden></p>
-              </div>
-              <div class="field">
                 <label>Комиссия мастера за запись</label>
                 <input id="bk-commission" value="Не начисляется" readonly>
                 <p class="commission-note" id="bk-commission-note">Алиовсад - владелец, комиссию самому себе не платит, вся сумма услуги и так остаётся в бизнесе</p>
@@ -365,18 +374,13 @@
               </div>
             </details>
 
-            <div class="field">
-              <label>Комментарии по клиенту <span class="badge badge-todo">видна вся история, не только эта запись</span></label>
-              <div class="comment-thread" id="bk-comment-thread">
-                <div class="comment-item"><div class="ci-meta">12.07.2026 · Мамедхан</div><div class="ci-text">Аллергия на определённый шампунь - использовать гипоаллергенную линейку (пример)</div></div>
-                <div class="comment-item"><div class="ci-meta">03.06.2026 · Алиовсад</div><div class="ci-text">Просит стричь покороче, не любит долго ждать (пример)</div></div>
-              </div>
-              <div class="comment-add-row">
-                <input type="text" id="bk-comment-new" placeholder="Новый комментарий">
-                <button class="btn btn-ghost btn-sm" type="button" onclick="addComment(this)">Добавить</button>
-              </div>
-              <p class="commission-note">Хранится по клиенту, видно при открытии любой его записи. Срок хранения - открытый вопрос, отдельно считать сколько места потянет база (не решено в этом окне)</p>
-            </div>
+            <!-- Поле "Комментарии по клиенту" скрыто Окном 36 (06.08.2026) - не
+                 сохранялось вообще (addComment в mockup-crm.js только дописывал DOM,
+                 без fetch, под это ни одной таблицы в схеме нет), а срок хранения
+                 персональных данных клиента (аллергии, привычки) не решён Владом
+                 (PRODUCT_ARCHITECTURE_PLAN.md, Decision C). Функция addComment оставлена
+                 в mockup-crm.js - её так же вызывают crm-admin.html/crm-master.html, это
+                 окно их не касается (см. промпт окна, "только crm-owner.html"). -->
           </div>
         </details>
       </section>
@@ -386,9 +390,12 @@
     <div class="tab-panel panel-b">
       <section>
         <h2>Сотрудники</h2>
-        <div class="staff-filter-row">
-          <button class="btn-ghost btn-sm" type="button">+ Добавить сотрудника</button>
-        </div>
+        <!-- Кнопка "+ Добавить сотрудника" убрана Окном 36 (06.08.2026) - у неё не было
+             обработчика, и добавить его сейчас нельзя честно: роута POST /staff нет
+             нигде в server.mjs (grep - 0 совпадений), только PUT на уже существующего
+             сотрудника (portfolio/role). Заведение нового сотрудника - отдельная
+             бэкенд-задача (миграция под пароль/PIN нового логина, не только вставка
+             строки), кандидат в бэклог, не решается в рамках этого фронтенд-окна. -->
 
         <div class="staff-list">
           <!-- ИВАН 1 — полная карточка со всеми экранами разд.16.4/16.5 -->
@@ -397,7 +404,7 @@
               <div class="avatar lg">АЛ</div>
               <div class="summary-meta">
                 <div class="name">Алиовсад <span class="badge badge-example">пример</span></div>
-                <div class="role">Владелец + Мастер</div>
+                <div class="role" id="roleLabel-master-1">Владелец</div>
               </div>
               <div class="summary-badges">
                 <span class="badge badge-on">Оказывает услуги</span>
@@ -424,13 +431,22 @@
               <button class="btn btn-ghost btn-sm portfolio-save" type="button" data-master-id="master-1">Сохранить портфолио</button>
               <p class="payroll-note" id="portfolioNote-master-1"></p>
 
-              <h4>Роль <span class="badge badge-todo">можно несколько</span></h4>
-              <p class="role-hint">Роли комбинируются - владелец может дополнительно работать администратором и мастером, администратор - мастером. Отметьте все роли, которые выполняет сотрудник</p>
-              <div class="role-picker">
-                <label class="role-option"><input type="checkbox" name="role-ivan1" checked><span class="rn">Владелец</span><span class="rd">Видит и меняет всё: прайс, зарплаты всех, настройки, все точки</span></label>
-                <label class="role-option"><input type="checkbox" name="role-ivan1"><span class="rn">Администратор</span><span class="rd">Ведёт запись и финансы одной точки. Не меняет прайс и ставки ЗП</span></label>
-                <label class="role-option"><input type="checkbox" name="role-ivan1" checked><span class="rn">Мастер</span><span class="rd">Видит только свой день и свой заработок. Не видит чужие телефоны клиентов</span></label>
+              <h4>Роль</h4>
+              <!-- Правка Окна 36 (06.08.2026) - раньше здесь были 3 чекбокса ("Роли
+                   комбинируются"), хотя staff.role в схеме - одно значение, не массив
+                   (PRODUCT_AUDIT_REPORT.md, разд. "Владелец"), и ни один клик по ним
+                   никогда никуда не отправлялся. Роут PUT /staff/:id/role уже был готов
+                   с Окна 14 - просто не вызывался с этой страницы. Короткий список из
+                   3 опций - по КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md обычный select. -->
+              <div class="field" style="max-width:360px">
+                <select id="roleSelect-master-1" class="role-select" data-master-id="master-1">
+                  <option value="owner">Владелец</option>
+                  <option value="admin">Администратор</option>
+                  <option value="master">Мастер</option>
+                </select>
               </div>
+              <p class="section-hint" style="margin:6px 0 0">Одна роль на сотрудника, сохраняется сразу при выборе. Владелец - видит и меняет всё: прайс, зарплаты всех, настройки, все точки. Администратор - ведёт запись и финансы одной точки, не меняет прайс и ставки ЗП. Мастер - видит только свой день и свой заработок, не видит чужие телефоны клиентов</p>
+              <p class="payroll-note" id="roleNote-master-1"></p>
 
               <h4>Услуги</h4>
               <div class="toggle-row">
@@ -568,7 +584,7 @@
           <details class="staff-card" id="staffCard-master-2">
             <summary>
               <div class="avatar lg">МА</div>
-              <div class="summary-meta"><div class="name">Мамедхан <span class="badge badge-example">пример</span></div><div class="role">Администратор + Мастер</div></div>
+              <div class="summary-meta"><div class="name">Мамедхан <span class="badge badge-example">пример</span></div><div class="role" id="roleLabel-master-2">Администратор</div></div>
               <div class="summary-badges"><span class="badge badge-on">Оказывает услуги</span><span class="badge badge-on">Доступ к сервису</span></div>
               <span class="chevron">▸</span>
             </summary>
@@ -587,13 +603,15 @@
               <div class="field"><label>Фото «до-после» (ссылки, по одной на строку)</label><textarea id="portfolioBeforeAfter-master-2" rows="2" placeholder="https://..."></textarea></div>
               <button class="btn btn-ghost btn-sm portfolio-save" type="button" data-master-id="master-2">Сохранить портфолио</button>
               <p class="payroll-note" id="portfolioNote-master-2"></p>
-              <h4>Роль <span class="badge badge-todo">можно несколько</span></h4>
-              <p class="role-hint">Совмещает роли: ведёт запись как администратор и стрижёт как мастер</p>
-              <div class="role-picker">
-                <label class="role-option"><input type="checkbox" name="role-ivan2"><span class="rn">Владелец</span><span class="rd">Видит и меняет всё</span></label>
-                <label class="role-option"><input type="checkbox" name="role-ivan2" checked><span class="rn">Администратор</span><span class="rd">Одна точка, без прайса и ставок</span></label>
-                <label class="role-option"><input type="checkbox" name="role-ivan2" checked><span class="rn">Мастер</span><span class="rd">Свой день и заработок</span></label>
+              <h4>Роль</h4>
+              <div class="field" style="max-width:360px">
+                <select id="roleSelect-master-2" class="role-select" data-master-id="master-2">
+                  <option value="owner">Владелец</option>
+                  <option value="admin">Администратор</option>
+                  <option value="master">Мастер</option>
+                </select>
               </div>
+              <p class="payroll-note" id="roleNote-master-2"></p>
 
               <h4>Услуги</h4>
               <div class="service-picker" data-master-id="master-2"></div>
@@ -661,7 +679,7 @@
           <details class="staff-card" id="staffCard-master-3">
             <summary>
               <div class="avatar lg">ЕЛ</div>
-              <div class="summary-meta"><div class="name">Елизавета <span class="badge badge-example">пример</span></div><div class="role">Мастер</div></div>
+              <div class="summary-meta"><div class="name">Елизавета <span class="badge badge-example">пример</span></div><div class="role" id="roleLabel-master-3">Мастер</div></div>
               <div class="summary-badges"><span class="badge badge-on">Оказывает услуги</span><span class="badge badge-off">Доступ к сервису выкл.</span></div>
               <span class="chevron">▸</span>
             </summary>
@@ -680,12 +698,15 @@
               <div class="field"><label>Фото «до-после» (ссылки, по одной на строку)</label><textarea id="portfolioBeforeAfter-master-3" rows="2" placeholder="https://..."></textarea></div>
               <button class="btn btn-ghost btn-sm portfolio-save" type="button" data-master-id="master-3">Сохранить портфолио</button>
               <p class="payroll-note" id="portfolioNote-master-3"></p>
-              <h4>Роль <span class="badge badge-todo">можно несколько</span></h4>
-              <div class="role-picker">
-                <label class="role-option"><input type="checkbox" name="role-ivan3"><span class="rn">Владелец</span><span class="rd">Видит и меняет всё</span></label>
-                <label class="role-option"><input type="checkbox" name="role-ivan3"><span class="rn">Администратор</span><span class="rd">Одна точка, без прайса и ставок</span></label>
-                <label class="role-option"><input type="checkbox" name="role-ivan3" checked><span class="rn">Мастер</span><span class="rd">Свой день и заработок</span></label>
+              <h4>Роль</h4>
+              <div class="field" style="max-width:360px">
+                <select id="roleSelect-master-3" class="role-select" data-master-id="master-3">
+                  <option value="owner">Владелец</option>
+                  <option value="admin">Администратор</option>
+                  <option value="master">Мастер</option>
+                </select>
               </div>
+              <p class="payroll-note" id="roleNote-master-3"></p>
               <h4>Услуги</h4>
               <div class="service-picker" data-master-id="master-3"></div>
               <h4>График работы</h4>
@@ -824,49 +845,13 @@
       </section>
     </div>
 
-    <!-- ======================= АКЦИИ (новая вкладка, добавлена по правке Влада 27.07.2026) ======================= -->
-    <div class="tab-panel panel-d">
-      <section>
-        <h2>Скидки и акции на услуги <span class="badge badge-todo">скоро</span></h2>
-      </section>
-
-      <section>
-        <h2>Дни рождения и годовщины клиентов</h2>
-        <p class="section-hint">Настройте скидку и/или поздравление к дню рождения клиента</p>
-
-        <div class="toggle-row">
-          <div><div class="tr-label">Скидка перед днём рождения</div><div class="tr-sub">Система предложит клиенту скидку заранее, чтобы успел записаться и подготовиться</div></div>
-          <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label>
-        </div>
-        <div class="field-grid" style="max-width:420px;margin-top:14px">
-          <div class="field"><label>Скидка, % (пример / уточняется)</label><input value="10%" readonly></div>
-          <div class="field"><label>За сколько дней до дня рождения (пример)</label><input value="7 дней" readonly></div>
-        </div>
-
-        <div class="toggle-row" style="margin-top:18px">
-          <div><div class="tr-label">Бонус на годовщину первого визита</div><div class="tr-sub">Тот же принцип, но от даты «клиент с нами с»</div></div>
-          <label class="switch"><input type="checkbox"><span class="track"></span><span class="knob"></span></label>
-        </div>
-        <div class="field-grid" style="max-width:420px;margin-top:14px">
-          <div class="field"><label>Бонус, % (пример / уточняется)</label><input value="—" readonly></div>
-          <div class="field"><label>За сколько дней до даты (пример)</label><input value="—" readonly></div>
-        </div>
-
-        <div class="toggle-row" style="margin-top:18px">
-          <div><div class="tr-label">Отправлять клиенту поздравление</div><div class="tr-sub">Канал - СМС и MAX (подтверждено Алиханом, не WhatsApp), сама интеграция ещё не подключена - здесь только включает механику дат</div></div>
-          <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label>
-        </div>
-
-        <h4 style="margin-top:22px">Другие поводы</h4>
-        <p class="section-hint" style="margin-bottom:10px">Дополнительные даты для скидок и поздравлений - список пополняется вручную</p>
-        <div class="breaks-list">
-          <div class="break-row">
-            <span class="note" style="flex:1">День барбера - дата уточняется (в разных источниках разная, нужно уточнить у Алихана какую считать)</span>
-          </div>
-        </div>
-        <button class="btn-ghost btn-sm" type="button" disabled>+ Добавить повод</button>
-      </section>
-    </div>
+    <!-- Панель "Акции" (panel-d) удалена целиком Окном 36 (06.08.2026) вместе с
+         radio pt-d выше - без него панель недостижима из UI, оставлять мёртвую
+         разметку в DOM не честнее, чем прятать вкладку. Весь блок был нерабочим:
+         "скоро" без даты, disabled-кнопка, тумблеры дней рождения ни разу никуда
+         не сохранялись (нет ни одного роута под это в server.mjs). Содержимое
+         легко восстановить из git-истории этого коммита, когда появится реальный
+         план (см. FINAL_PRODUCT_DECISION.md, SHOULD HAVE). -->
 
   </div>
 </main>

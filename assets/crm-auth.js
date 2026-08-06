@@ -336,6 +336,8 @@ async function renderLiveProof(staff) {
     });
 
     wirePortfolioEditors(staffList);
+    wireRoleEditors(staffList);
+    wireBookingStatusRadios();
     ['master-1', 'master-2', 'master-3'].forEach((masterId) => {
       wireScheduleEditor(masterId, fetchJson);
       wireWeeklyScheduleEditor(masterId, staff.role === 'owner', fetchJson);
@@ -399,6 +401,51 @@ function wirePortfolioEditors(staffList) {
         if (noteEl) noteEl.textContent = `Не удалось сохранить: ${err.message}`;
       }
     });
+  });
+}
+
+// Окно 36 (06.08.2026) - "Роль" в карточке сотрудника была набором чекбоксов
+// ("Роли комбинируются"), хотя staff.role в схеме - одно значение, ни один клик
+// никуда не отправлялся (PRODUCT_AUDIT_REPORT.md, разд. "Владелец"). Роут
+// PUT /staff/:id/role уже существовал с Окна 14 (owner-only) - просто не был
+// вызван отсюда. Тот же паттерн, что wirePortfolioEditors выше: читает текущее
+// значение из уже загруженного /staff один раз (dataset.filled), пишет на change.
+const ROLE_SUMMARY_LABEL = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
+function wireRoleEditors(staffList) {
+  document.querySelectorAll('.role-select').forEach((select) => {
+    const masterId = select.dataset.masterId;
+    if (!select.dataset.filled) {
+      const staff = staffList.find((s) => s.id === masterId);
+      if (staff) select.value = staff.role;
+      select.dataset.filled = '1';
+    }
+
+    if (select.dataset.wired) return;
+    select.dataset.wired = '1';
+    const noteEl = el(`roleNote-${masterId}`);
+    const labelEl = el(`roleLabel-${masterId}`);
+    select.addEventListener('change', async () => {
+      const prevValue = select.dataset.lastValue ?? select.value;
+      const nextValue = select.value;
+      select.disabled = true;
+      try {
+        const res = await fetch(`${API}/staff/${masterId}/role`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ role: nextValue }),
+        });
+        if (!res.ok) throw new Error(`staff/${masterId}/role → ${res.status}`);
+        select.dataset.lastValue = nextValue;
+        if (noteEl) noteEl.textContent = 'Сохранено';
+        if (labelEl) labelEl.textContent = ROLE_SUMMARY_LABEL[nextValue] ?? nextValue;
+      } catch (err) {
+        select.value = prevValue;
+        if (noteEl) noteEl.textContent = `Не удалось сохранить: ${err.message}`;
+      } finally {
+        select.disabled = false;
+      }
+    });
+    select.dataset.lastValue = select.value;
   });
 }
 
@@ -1631,14 +1678,87 @@ export function initCrmAuth(requiredRole) {
 // Реэкспорт для отладки в консоли из макета, если понадобится (не используется UI).
 window.__crmAuthDebug = { getMasters, getServices };
 
+// Окно 36 (06.08.2026) - crm-owner.html СПЕЦИФИЧНО (промпт окна: "другие роли это
+// окно не касается"). ВАЖНО: crm-admin.html и crm-master.html имеют СВОИ собственные
+// радио с теми же id (bstatus/st-wait/st-came/st-no) и СВОЮ кнопку "Клиент не пришёл"
+// (toggleNoShow ниже) - этот код их не касается и не должен. Owner-only гейт - через
+// #bk-status-note, элемент существует ТОЛЬКО в crm-owner.html (добавлен этим же
+// окном); без него функция no-op, тот же паттерн, что у wireMasterSelfView выше.
+//
+// Аудит (PRODUCT_AUDIT_REPORT.md, разд. "Владелец") нашёл, что на owner-странице
+// радио "Ожидание/Пришёл/Не пришёл" и кнопка toggleNoShow делали одно и то же (один
+// и тот же PATCH /bookings/:id/status) через два визуально похожих, но разных
+// контрола - владелец не мог на глаз отличить рабочий от декоративного. Радио и
+// раньше честно ОТОБРАЖАЛО реальный статус (assets/crm-calendar.js, STATUS_TO_DATA),
+// просто клик по нему никуда не отправлялся. На owner-странице радио теперь
+// единственный контрол статуса (кнопка убрана из crm-owner.html), и он полнее
+// прежней кнопки (все 3 статуса из схемы, не только planned/no_show).
+// mockup-crm.js - классический (не module) скрипт, но браузер делит один и тот же
+// глобальный объект между ним и этим модулем, поэтому updateNoShowUi() (объявлена
+// там) видна здесь как обычная глобальная функция без явного window.-префикса.
+const RADIO_ID_TO_STATUS = { 'st-wait': 'planned', 'st-came': 'done', 'st-no': 'no_show' };
+function wireBookingStatusRadios() {
+  if (!document.getElementById('bk-status-note')) return; // не owner-страница - no-op
+  const radios = document.querySelectorAll('input[name="bstatus"]');
+  radios.forEach((radio) => {
+    if (radio.dataset.wired) return;
+    radio.dataset.wired = '1';
+    radio.addEventListener('change', async () => {
+      const panel = document.getElementById('bd-1');
+      const bookingId = panel?.dataset.bookingId;
+      const note = document.getElementById('bk-status-note');
+      if (note) note.hidden = true;
+      const prevStatus = panel?.dataset.realStatus || 'planned';
+      const nextStatus = RADIO_ID_TO_STATUS[radio.id];
+      if (!panel || !bookingId) return; // пример-заглушка без реальной брони, см. openBooking
+
+      document.querySelectorAll('input[name="bstatus"]').forEach((r) => (r.disabled = true));
+      try {
+        const res = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ status: nextStatus }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        panel.dataset.realStatus = nextStatus;
+        // Сервер уже применил счётчик неявок (see server.mjs, /bookings/:id/status) -
+        // зеркалим ТОЧНО ТУ ЖЕ if/else-if очерёдность локально, чтобы баннер обновился
+        // без перезагрузки страницы (несовпадающий порядок дал бы неверную цифру на
+        // переходах вроде no_show → done).
+        const prevStreak = parseInt(panel.dataset.noshowStreak, 10) || 0;
+        let streak = prevStreak;
+        if (nextStatus === 'no_show' && prevStatus !== 'no_show') {
+          streak = prevStreak + 1;
+        } else if (nextStatus === 'planned' && prevStatus === 'no_show') {
+          streak = Math.max(prevStreak - 1, 0);
+        } else if (nextStatus === 'done') {
+          streak = 0;
+        }
+        panel.dataset.noshowStreak = String(streak);
+        if (typeof updateNoShowUi === 'function') updateNoShowUi();
+      } catch (err) {
+        const prevRadioId = Object.keys(RADIO_ID_TO_STATUS).find((id) => RADIO_ID_TO_STATUS[id] === prevStatus);
+        const prevRadio = prevRadioId && document.getElementById(prevRadioId);
+        if (prevRadio) prevRadio.checked = true;
+        if (note) {
+          note.hidden = false;
+          note.textContent = `Не удалось сохранить: ${err.message}`;
+        }
+      } finally {
+        document.querySelectorAll('input[name="bstatus"]').forEach((r) => (r.disabled = false));
+      }
+    });
+  });
+}
+
 // Правка 03.08.2026: кнопка "Клиент не пришёл" в bd-1 (assets/mockup-crm.js,
 // onclick="toggleNoShow(this)") - раньше это была декоративная "Фактическое время
 // прихода", ничего не сохранявшая. Реально переключает статус брони через уже
 // существующий PATCH /bookings/:id/status ('no_show' инкрементирует
 // clients.no_show_streak на сервере, обратный клик - откатывает, см. server.mjs).
-// mockup-crm.js - классический (не module) скрипт, но браузер делит один и тот же
-// глобальный объект между ним и этим модулем, поэтому updateNoShowUi() (объявлена
-// там) видна здесь как обычная глобальная функция без явного window.-префикса.
+// ВАЖНО (Окно 36, 06.08.2026): эта кнопка убрана из crm-owner.html (заменена
+// радио выше), но живёт в crm-admin.html/crm-master.html - окно 36 их не касалось,
+// функция здесь остаётся нетронутой ради этих двух страниц.
 window.toggleNoShow = async function toggleNoShow(btn) {
   const panel = document.getElementById('bd-1');
   const bookingId = panel?.dataset.bookingId;
