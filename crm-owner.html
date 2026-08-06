@@ -48,6 +48,10 @@
   #pt-c:checked ~ .tab-bar label[for="pt-c"] { color: var(--accent); border-color: var(--accent); }
   #pt-c:checked ~ .panel-c { display: block; }
 
+  /* первая вкладка "Сегодня" (Окно 40, только у владельца) - тот же паттерн, что pt-c */
+  #pt-today:checked ~ .tab-bar label[for="pt-today"] { color: var(--accent); border-color: var(--accent); }
+  #pt-today:checked ~ .panel-today { display: block; }
+
   /* период выручки (Окно 13, 01.08.2026 - переключатель по точкам убран, у Алихана
      одна точка, см. Задача 1 промпта корректировки) */
   #rvpa-day:checked ~ .seg-bar label[for="rvpa-day"],
@@ -99,25 +103,6 @@
 <main class="wrap page" id="crmMain">
   <h1>Владелец</h1>
 
-  <!-- Окно 39 (06.08.2026) - раньше здесь был статичный декоративный пример
-       "3 клиента не приходили 3+ месяца" (Клиент Ж/З/И, фейковые даты/мастера,
-       .ra-note ничего не сохраняла) - PRODUCT_AUDIT_REPORT.md, "Бизнес-проблемы":
-       no_show_streak уже собирался (Окно 13), но нигде не превращался в решение
-       владельца. Теперь список наполняет assets/crm-clients.js через
-       GET /clients?risk=true - реальные клиенты, реальный no_show_streak. Честная
-       оговорка промпта: requiresPrepayment ничего не блокирует технически - текст
-       риска (risk.label с сервера) всегда "стоит позвонить", никогда "заблокирован".
-       .ra-dismiss/.ra-restore/updateNotifBadge (assets/mockup-crm.js) - оставлены как
-       есть, это только "скрыть из вида в этой сессии", не запись в БД. .ra-note (текстовая
-       заметка) убрана - ничего не сохраняла, была декоративной. -->
-  <div class="retention-alert" id="retention-panel">
-    <div class="ra-head"><span class="ico">⚠</span><strong id="raHeadline">Клиенты, которым стоит позвонить</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
-    <div class="ra-body">
-    <p class="section-hint" style="margin:6px 0 12px">Клиент давно не был - это подсказка, не блокировка. Запись всё равно оформляется как обычно.</p>
-    <div class="ra-list" id="raList"><span class="note">Загрузка…</span></div>
-    </div>
-  </div>
-
   <!-- Вкладка "Акции" (pt-d) скрыта из навигации Окном 36 (06.08.2026) - весь блок
        "Скидки и акции" был бейджем "скоро" без содержимого, "+ Добавить повод"
        захардкожен disabled, дни-рождения-переключатели никуда не сохранялись
@@ -126,13 +111,57 @@
        radio+label ниже, когда появится реальный план реализации (panel-d удалена
        целиком, была недостижима без radio). -->
   <div class="page-tabs">
-    <input type="radio" name="pt" id="pt-a" checked>
+    <input type="radio" name="pt" id="pt-today" checked>
+    <input type="radio" name="pt" id="pt-a">
     <input type="radio" name="pt" id="pt-b">
     <input type="radio" name="pt" id="pt-c">
     <div class="tab-bar">
+      <label for="pt-today">Сегодня</label>
       <label for="pt-a">Расписание</label>
       <label for="pt-b">Сотрудники</label>
       <label for="pt-c">Выручка</label>
+    </div>
+
+    <!-- ======================= СЕГОДНЯ (Окно 40, 06.08.2026) =======================
+         Первый экран после входа - три вопроса за секунды (PRODUCT_ARCHITECTURE_PLAN
+         разд.1): сколько заработал, кто требует внимания, не потерял ли деньги/клиента
+         незаметно. Алерты и клиенты в риске - GET /owner/alerts (computeOwnerAlerts,
+         Окна 35/39 переиспользованы без пересчёта). Выручка - тот же #revenueTodayAmount,
+         что уже заполняет renderLiveProof (assets/crm-auth.js) на crm-admin.html - здесь
+         просто появляется элемент с тем же id, JS не менялся. Неделя/месяц - по клику
+         переключает на вкладку "Выручка" (pt-c), не дублирует расчёт на этом экране. -->
+    <div class="tab-panel panel-today">
+      <section>
+        <h2>Сегодня</h2>
+
+        <div class="stat-cards" style="max-width:280px;margin-bottom:18px">
+          <div class="stat-card stat-card--net">
+            <div class="sc-label">Выручка сегодня</div>
+            <div class="sc-value" id="revenueTodayAmount">— <span class="unsure">считаю…</span></div>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('pt-c').checked=true">Выручка за неделю/месяц →</button>
+
+        <h3 style="margin-top:24px">Требует внимания</h3>
+        <div class="breaks-list" id="ownerAlertsSchedule"><span class="note">Загрузка…</span></div>
+        <div class="breaks-list" id="ownerAlertsRequests" style="margin-top:8px"><span class="note">Загрузка…</span></div>
+
+        <!-- Окно 39 (06.08.2026) - раньше здесь был статичный декоративный пример
+             "3 клиента не приходили 3+ месяца" (Клиент Ж/З/И, фейковые даты/мастера,
+             .ra-note ничего не сохраняла) - PRODUCT_AUDIT_REPORT.md, "Бизнес-проблемы":
+             no_show_streak уже собирался (Окно 13), но нигде не превращался в решение
+             владельца. Список наполняет assets/crm-clients.js через GET /clients?risk=true -
+             реальные клиенты, реальный no_show_streak. Честная оговорка промпта:
+             requiresPrepayment ничего не блокирует технически - текст риска (risk.label с
+             сервера) всегда "стоит позвонить", никогда "заблокирован". Окно 40 переносит
+             этот блок из отдельного баннера НАД вкладками (был виден всегда, вне
+             зависимости от выбранной вкладки) сюда, на первый экран "Сегодня" - тот же
+             #raList, JS (assets/crm-clients.js) не менялся, он ищет элемент по id, не по
+             месту в DOM. -->
+        <h3 style="margin-top:24px">Клиенты, которым стоит позвонить</h3>
+        <p class="section-hint" style="margin:6px 0 12px">Клиент давно не был - это подсказка, не блокировка. Запись всё равно оформляется как обычно.</p>
+        <div class="ra-list" id="raList"><span class="note">Загрузка…</span></div>
+      </section>
     </div>
 
     <!-- ======================= РАСПИСАНИЕ ======================= -->
@@ -895,9 +924,11 @@
   import { initCrmAuth } from './assets/crm-auth.js';
   import { initOwnerScheduleRequests } from './assets/crm-schedule-requests.js';
   import { wireClientsRisk } from './assets/crm-clients.js';
+  import { wireOwnerToday } from './assets/crm-owner-today.js';
   initCrmAuth('owner');
   initOwnerScheduleRequests();
   wireClientsRisk();
+  wireOwnerToday();
 </script>
 </body>
 </html>
