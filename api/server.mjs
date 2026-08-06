@@ -504,6 +504,38 @@ export async function computeMasterPayroll(client, masterId, from, to) {
   return { revenue, payroll };
 }
 
+// Окно 38 (06.08.2026) - дневная выручка (SUM sales.amount за сегодня МСК).
+// Администратор физически не мог ответить на "сколько мы заработали сегодня" без
+// звонка владельцу (PRODUCT_AUDIT_REPORT, разд. "Администратор"; FINAL_PRODUCT_
+// DECISION, Epic 6) - read-only режим администратора в остальном сделан правильно,
+// это единственный реальный пробел. Данные (sales) уже собираются /sales (POST) -
+// здесь только агрегация, не новый сбор данных.
+//
+// nowMs - инъекция текущего времени для юнит-тестов (граница суток), в проде
+// вызывается без третьего аргумента (реальный Date.now()). МСК = UTC+3 круглый
+// год (тот же приём, что computeMasterPayroll/scanBookingReminders/bookings-
+// cancel - Amvera работает в UTC, не MSK).
+//
+// locationId=null (владелец без явной точки) - без фильтра по location_id,
+// сумма по ВСЕМ точкам. Контракт не ломается при появлении второй точки: SQL не
+// хардкодит число точек, просто не сужает выборку.
+export async function computeRevenueToday(client, locationId, nowMs = Date.now()) {
+  const todayStr = new Date(nowMs + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const dayStart = new Date(`${todayStr}T00:00:00+03:00`);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+  let query = `SELECT s.amount FROM sales s JOIN bookings b ON b.id = s.booking_id
+               WHERE s.created_at >= $1 AND s.created_at < $2`;
+  const params = [dayStart, dayEnd];
+  if (locationId) {
+    params.push(locationId);
+    query += ` AND b.location_id = $${params.length}`;
+  }
+  const result = await client.query(query, params);
+  const revenue = result.rows.reduce((sum, r) => sum + Number(r.amount), 0);
+  return { revenue };
+}
+
 // ── Бронирование поверх нормализованной схемы (Шаг 1-2 Окна 8) ────────────
 // Та же гарантия, что раньше давал casWrite по kv_store: pg_advisory_xact_lock
 // сериализует все параллельные попытки одного мастера на одну дату, поэтому два
@@ -1095,6 +1127,7 @@ const ROUTES = [
   { method: 'GET', path: 'payroll-settings', auth: 'any-staff' },
   { method: 'PUT', path: 'payroll-settings', auth: 'owner' },
   { method: 'GET', path: 'payroll', auth: 'any-staff' },
+  { method: 'GET', path: 'revenue/today', auth: 'any-staff' },
 ];
 
 function matchRoute(method, parts) {
@@ -2345,6 +2378,19 @@ const server = createServer(async (req, res) => {
         }
       }
       const result = await computeMasterPayroll(pool, masterId, from, to);
+      return sendJson(res, 200, result);
+    }
+
+    // ── /revenue/today - Окно 38 (06.08.2026). Дневная выручка через
+    // computeRevenueToday. Тот же приём разграничения по роли, что у /staff и
+    // /payroll: администратор форсирован на свою точку (не может передать чужой
+    // locationId), владелец без locationId получает сумму по ВСЕМ точкам, с
+    // locationId - по конкретной.
+    if (parts[0] === 'revenue' && parts[1] === 'today' && parts.length === 2 && req.method === 'GET') {
+      const auth = await authenticate(req);
+      if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+      const locationId = auth.role === 'admin' ? auth.locationId : url.searchParams.get('locationId');
+      const result = await computeRevenueToday(pool, locationId);
       return sendJson(res, 200, result);
     }
 

@@ -279,6 +279,21 @@ async function renderLiveProof(staff) {
       ]);
     }
 
+    // Администратор: единственная цифра "Выручка сегодня" (Окно 38, 06.08.2026) -
+    // GET /revenue/today уже фильтрует по точке администратора на сервере, здесь
+    // просто рендерим то, что вернул бэкенд. Элемент есть только на
+    // crm-admin.html (Окно 40 - отдельная задача для crm-owner.html, вне скоупа
+    // этого окна).
+    const revenueTodayEl = el('revenueTodayAmount');
+    if (revenueTodayEl) {
+      try {
+        const { revenue } = await fetchJson('/revenue/today');
+        revenueTodayEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
+      } catch {
+        // "считаю…" останется как было - основная ошибка уже видна в панели выше
+      }
+    }
+
     // Владелец: поле "Ставка от выручки, %" в карточке Елизаветы (Окно 10,
     // разд.17.3 ТЗ) - реальное, читает и пишет master_payroll_settings. Не
     // автоматический порог 40→50%, владелец меняет число сам, когда сочтёт нужным.

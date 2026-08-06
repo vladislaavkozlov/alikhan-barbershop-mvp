@@ -79,6 +79,18 @@
 <main class="wrap page" id="crmMain">
   <h1>Администратор</h1>
 
+  <!-- Окно 38 (06.08.2026) - единственная цифра дневной выручки: администратор
+       раньше физически не мог ответить на "сколько мы заработали сегодня" без
+       звонка владельцу (PRODUCT_AUDIT_REPORT, разд. "Администратор"). Сумма
+       продаж (sales) за сегодня по своей точке - не полная аналитика владельца,
+       не разбивка по мастерам/услугам (вне объёма Окна 38). -->
+  <div class="stat-cards" style="max-width:280px;margin-bottom:18px">
+    <div class="stat-card stat-card--net">
+      <div class="sc-label">Выручка сегодня</div>
+      <div class="sc-value" id="revenueTodayAmount">— <span class="unsure">считаю…</span></div>
+    </div>
+  </div>
+
   <div class="retention-alert" id="retention-panel">
     <div class="ra-head"><span class="ico">⚠</span><strong>3 клиента точки не приходили 2+ месяца</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
     <div class="ra-body">
