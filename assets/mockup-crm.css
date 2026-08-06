@@ -424,6 +424,10 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
 .status-legend { color: var(--text-muted); font-size: 0.76rem; line-height: 1.55; margin: -8px 0 16px; }
 
 .field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 14px; margin-bottom: 14px; }
+/* Окно 39 (06.08.2026) - тот же конфликт специфичности, что уже чинили у .ra-row[hidden]:
+   .field-grid{display:grid} и атрибут [hidden] равны по специфичности, класс ниже в
+   каскаде выигрывает - без явного правила #wfDateTimeRow остался бы виден с hidden. */
+#wfDateTimeRow[hidden] { display: none; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 0.76rem; color: var(--text-muted); }
 /* поле с бейджем в лейбле (например "Закреплён за мастером") шире обычного столбца -

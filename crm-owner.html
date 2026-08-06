@@ -80,7 +80,7 @@
     <a href="index.html" class="brand">АЛИХАН</a>
     <div class="nav-right">
       <span class="location-badge">Ставрополь, ул. Андрея Голуба 16 ст1</span>
-      <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили">🔔<span class="notif-badge">3</span></button>
+      <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которым стоит позвонить">🔔<span class="notif-badge">0</span></button>
       <div class="msg-bell-wrap" style="position:relative">
         <button class="notif-bell" type="button" id="msgBell" aria-label="Уведомления о записях и графике">✉<span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
         <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
@@ -99,16 +99,22 @@
 <main class="wrap page" id="crmMain">
   <h1>Владелец</h1>
 
+  <!-- Окно 39 (06.08.2026) - раньше здесь был статичный декоративный пример
+       "3 клиента не приходили 3+ месяца" (Клиент Ж/З/И, фейковые даты/мастера,
+       .ra-note ничего не сохраняла) - PRODUCT_AUDIT_REPORT.md, "Бизнес-проблемы":
+       no_show_streak уже собирался (Окно 13), но нигде не превращался в решение
+       владельца. Теперь список наполняет assets/crm-clients.js через
+       GET /clients?risk=true - реальные клиенты, реальный no_show_streak. Честная
+       оговорка промпта: requiresPrepayment ничего не блокирует технически - текст
+       риска (risk.label с сервера) всегда "стоит позвонить", никогда "заблокирован".
+       .ra-dismiss/.ra-restore/updateNotifBadge (assets/mockup-crm.js) - оставлены как
+       есть, это только "скрыть из вида в этой сессии", не запись в БД. .ra-note (текстовая
+       заметка) убрана - ничего не сохраняла, была декоративной. -->
   <div class="retention-alert" id="retention-panel">
-    <div class="ra-head"><span class="ico">⚠</span><strong>3 клиента не приходили 3+ месяца</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
+    <div class="ra-head"><span class="ico">⚠</span><strong id="raHeadline">Клиенты, которым стоит позвонить</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
     <div class="ra-body">
-    <p class="section-hint" style="margin:6px 0 12px">Показан запущенный случай - от 3 месяцев без визита</p>
-    <div class="ra-list">
-      <div class="ra-row"><span class="ra-name">Клиент Ж</span><span class="ra-last">Последний визит 15.04.2026 · 3.4 мес назад</span><span class="ra-master">Мамедхан</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-row"><span class="ra-name">Клиент З</span><span class="ra-last">Последний визит 02.03.2026 · 4.8 мес назад</span><span class="ra-master">Алиовсад</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-row"><span class="ra-name">Клиент И</span><span class="ra-last">Последний визит 20.02.2026 · 5.2 мес назад</span><span class="ra-master">Елизавета</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-restore" hidden><button class="btn-ghost btn-sm" type="button" onclick="restoreRetentionRows(this)">Показать скрытые (<span class="count">0</span>)</button></div>
-    </div>
+    <p class="section-hint" style="margin:6px 0 12px">Клиент давно не был - это подсказка, не блокировка. Запись всё равно оформляется как обычно.</p>
+    <div class="ra-list" id="raList"><span class="note">Загрузка…</span></div>
     </div>
   </div>
 
@@ -136,7 +142,18 @@
 
 
         <div class="walkin-form" id="walkinForm" hidden>
-          <h3>Новая запись без предзаписи · <span id="wfMasterName" class="wf-master-name"></span></h3>
+          <h3><span id="wfModeLabel">Новая запись без предзаписи</span> · <span id="wfMasterName" class="wf-master-name"></span></h3>
+          <!-- Окно 39 (06.08.2026) - "Записать снова" (карточка клиента) открывает эту же
+               форму в режиме будущей записи: дата/время выбираются заново (не "прямо
+               сейчас", как у обычного walk-in), реальная доступность проверяется тем же
+               POST /bookings при сохранении (overlap/schedule_blocked/past_time - см.
+               createBookingTx, server.mjs) - тот же контракт, что и у обычной записи,
+               отдельного пред-фильтра слотов не заводим. Скрыто по умолчанию - обычный
+               walk-in "прямо сейчас" эти поля не показывает. -->
+          <div class="field-grid" id="wfDateTimeRow" hidden>
+            <div class="field"><label>Дата</label><div id="wfDate-slot"></div></div>
+            <div class="field"><label>Время</label><div id="wfTime-slot"></div></div>
+          </div>
           <div class="field-grid">
             <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
             <div class="field"><label>Телефон</label><input id="wfClientPhone" type="tel" placeholder="+7 900 000-00-00"></div>
@@ -271,6 +288,22 @@
             </div>
             <p class="payroll-note" id="dayEditNote"></p>
             <div class="conflict-list" id="dayEditConflicts" hidden></div>
+          </div>
+        </div>
+
+        <!-- Карточка клиента (Окно 39, 06.08.2026) - GET /clients/:id: история визитов +
+             индикатор риска ухода, кнопка "Записать снова". Тот же generic overlay-модал,
+             что уже есть у dayEditModal (Окно 18) - переиспользуем классы, своей CSS не
+             заводим. Наполняет assets/crm-clients.js (openClientCard). -->
+        <div class="day-edit-modal" id="clientCardModal" hidden>
+          <div class="day-edit-card">
+            <button type="button" class="day-edit-close" id="clientCardClose" aria-label="Закрыть">✕</button>
+            <h3 id="clientCardName">Клиент</h3>
+            <p class="payroll-note" id="clientCardPhone"></p>
+            <p class="payroll-note" id="clientCardRisk" hidden></p>
+            <button class="btn btn-primary btn-sm" type="button" id="clientCardRebook" hidden>Записать снова</button>
+            <h4 style="margin-top:18px">История визитов</h4>
+            <div class="breaks-list" id="clientCardVisits"><span class="note">Загрузка…</span></div>
           </div>
         </div>
 
@@ -861,8 +894,10 @@
 <script type="module">
   import { initCrmAuth } from './assets/crm-auth.js';
   import { initOwnerScheduleRequests } from './assets/crm-schedule-requests.js';
+  import { wireClientsRisk } from './assets/crm-clients.js';
   initCrmAuth('owner');
   initOwnerScheduleRequests();
+  wireClientsRisk();
 </script>
 </body>
 </html>

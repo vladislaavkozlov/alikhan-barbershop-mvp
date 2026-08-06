@@ -536,6 +536,123 @@ export async function computeRevenueToday(client, locationId, nowMs = Date.now()
   return { revenue };
 }
 
+// Окно 39 (06.08.2026) - индикатор риска ухода клиента. no_show_streak уже
+// собирается (Окно 13) и уже управляет requiresPrepayment (>=2, см. createBookingTx
+// выше), но нигде не превращается в решение человека - PRODUCT_ARCHITECTURE_PLAN,
+// Модуль 2. Честная оговорка промпта: requiresPrepayment ничего не блокирует
+// технически (комментарий у createBookingTx - "предоплата ручная, оплат в MVP нет"),
+// поэтому текст статуса всегда "стоит позвонить", никогда "клиент заблокирован".
+// >=1 - клиент уже пропустил последний визит, стоит присмотреться; >=2 - тот же
+// порог, что уже требует предоплаты при следующей записи (createBookingTx).
+function pluralRaz(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return 'раз';
+  if (mod10 === 1) return 'раз';
+  if (mod10 >= 2 && mod10 <= 4) return 'раза';
+  return 'раз';
+}
+
+export function describeClientRisk(noShowStreak) {
+  const n = Number(noShowStreak) || 0;
+  if (n <= 0) return { level: 'none', label: null };
+  if (n === 1) return { level: 'watch', label: 'Пропустил последнюю запись - стоит позвонить' };
+  return { level: 'high', label: `Не пришёл ${n} ${pluralRaz(n)} подряд - стоит позвонить` };
+}
+
+// Карточка клиента: сам клиент + история визитов (мастер, услуги через
+// booking_services - миграция 013 уже backfill-нула старые брони, отдельный
+// фолбэк на bookings.service_id не нужен). Роль-агностичный резолвер (тот же
+// принцип, что у computeRevenueToday/computeMasterPayroll) - видимость телефона и
+// scoping по точке/мастеру решает вызывающий роут по auth.role, не эта функция.
+export async function getClientCard(client, clientId) {
+  const clientRes = await client.query(
+    'SELECT id, name, phone, birthday, no_show_streak FROM clients WHERE id = $1',
+    [clientId]
+  );
+  if (clientRes.rows.length === 0) return null;
+  const row = clientRes.rows[0];
+
+  const visitsRes = await client.query(
+    `SELECT b.id, b.date, b.start_time, b.end_time, b.status, b.master_id, b.location_id,
+            st.name AS master_name
+     FROM bookings b LEFT JOIN staff st ON st.id = b.master_id
+     WHERE b.client_id = $1
+     ORDER BY b.date DESC, b.start_time DESC`,
+    [clientId]
+  );
+
+  const bookingIds = visitsRes.rows.map((r) => r.id);
+  const servicesRes = bookingIds.length
+    ? await client.query(
+        `SELECT bs.booking_id, bs.service_id, s.name AS service_name
+         FROM booking_services bs JOIN services s ON s.id = bs.service_id
+         WHERE bs.booking_id = ANY($1)`,
+        [bookingIds]
+      )
+    : { rows: [] };
+  const servicesByBooking = new Map();
+  for (const r of servicesRes.rows) {
+    if (!servicesByBooking.has(r.booking_id)) servicesByBooking.set(r.booking_id, []);
+    servicesByBooking.get(r.booking_id).push({ id: r.service_id, name: r.service_name });
+  }
+
+  const visits = visitsRes.rows.map((r) => ({
+    id: r.id,
+    date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : r.date,
+    startTime: r.start_time,
+    endTime: r.end_time,
+    status: r.status,
+    masterId: r.master_id,
+    masterName: r.master_name,
+    locationId: r.location_id,
+    services: servicesByBooking.get(r.id) ?? [],
+  }));
+
+  return {
+    id: row.id,
+    name: row.name,
+    phone: row.phone,
+    birthday: row.birthday instanceof Date ? row.birthday.toISOString().slice(0, 10) : row.birthday,
+    noShowStreak: row.no_show_streak,
+    risk: describeClientRisk(row.no_show_streak),
+    visits,
+    // Готовое сырьё для "Записать снова" (Задача 2, фронтенд) - мастер/услуги
+    // последнего визита, дата и время выбираются заново на актуальной доступности.
+    lastVisit: visits[0]
+      ? { masterId: visits[0].masterId, masterName: visits[0].masterName, services: visits[0].services }
+      : null,
+  };
+}
+
+// Список "требует внимания" - клиенты с no_show_streak >= 1. locationId/masterId
+// опциональны и взаимоисключающи (тот же паттерн, что у computeRevenueToday) -
+// роут передаёт ровно один по роли вызывающего (admin -> своя точка, master ->
+// свои клиенты), owner - без фильтра, все клиенты всех точек.
+export async function listClientsAtRisk(client, { locationId, masterId } = {}) {
+  let query = `SELECT DISTINCT c.id, c.name, c.phone, c.no_show_streak
+               FROM clients c JOIN bookings b ON b.client_id = c.id
+               WHERE c.no_show_streak >= 1`;
+  const params = [];
+  if (locationId) {
+    params.push(locationId);
+    query += ` AND b.location_id = $${params.length}`;
+  }
+  if (masterId) {
+    params.push(masterId);
+    query += ` AND b.master_id = $${params.length}`;
+  }
+  query += ' ORDER BY c.no_show_streak DESC, c.name';
+  const result = await client.query(query, params);
+  return result.rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    phone: r.phone,
+    noShowStreak: r.no_show_streak,
+    risk: describeClientRisk(r.no_show_streak),
+  }));
+}
+
 // ── Бронирование поверх нормализованной схемы (Шаг 1-2 Окна 8) ────────────
 // Та же гарантия, что раньше давал casWrite по kv_store: pg_advisory_xact_lock
 // сериализует все параллельные попытки одного мастера на одну дату, поэтому два
@@ -1128,6 +1245,8 @@ const ROUTES = [
   { method: 'PUT', path: 'payroll-settings', auth: 'owner' },
   { method: 'GET', path: 'payroll', auth: 'any-staff' },
   { method: 'GET', path: 'revenue/today', auth: 'any-staff' },
+  { method: 'GET', path: 'clients', auth: 'any-staff' },
+  { method: 'GET', path: 'clients/:id', auth: 'any-staff' },
 ];
 
 function matchRoute(method, parts) {
@@ -2392,6 +2511,48 @@ const server = createServer(async (req, res) => {
       const locationId = auth.role === 'admin' ? auth.locationId : url.searchParams.get('locationId');
       const result = await computeRevenueToday(pool, locationId);
       return sendJson(res, 200, result);
+    }
+
+    // ── /clients?risk=true - Окно 39 (06.08.2026, Задача 1). Список "требует
+    // внимания" через listClientsAtRisk. Тот же приём разграничения по роли, что у
+    // /payroll и /revenue/today: admin форсирован на свою точку, master - на своих
+    // клиентов (тех, у кого есть бронь с этим мастером), owner видит всех. Телефон -
+    // тот же уровень видимости, что в GET /bookings (разд.12 п.1 ТЗ): мастеру не отдаём.
+    if (parts[0] === 'clients' && parts.length === 1 && req.method === 'GET') {
+      const auth = await authenticate(req);
+      if (!requireRole(auth, ['owner', 'admin', 'master'])) return sendJson(res, 401, { error: 'unauthorized' });
+      if (url.searchParams.get('risk') !== 'true') return sendJson(res, 400, { error: 'missing_fields' });
+      const locationId = auth.role === 'admin' ? auth.locationId : undefined;
+      const masterId = auth.role === 'master' ? auth.id : undefined;
+      const list = await listClientsAtRisk(pool, { locationId, masterId });
+      const shaped = auth.role === 'master' ? list.map(({ phone, ...rest }) => rest) : list;
+      return sendJson(res, 200, shaped);
+    }
+
+    // ── /clients/:id - Окно 39 (06.08.2026, Задача 1). Карточка клиента через
+    // getClientCard. Резолвер роль-агностичен (всегда отдаёт полную карточку) -
+    // scoping и видимость телефона решает роут: admin видит клиента только если у
+    // него есть хоть один визит на точке admin'а, master - только если есть визит У
+    // ЭТОГО мастера (403, не тихий пустой ответ - тот же приём, что у /payroll с
+    // чужим masterId). Существование клиента проверяется ДО scope-проверки - 404
+    // для несуществующего id одинаков для всех ролей, не палит своей/чужой доступ.
+    if (parts[0] === 'clients' && parts.length === 2 && req.method === 'GET') {
+      const auth = await authenticate(req);
+      if (!requireRole(auth, ['owner', 'admin', 'master'])) return sendJson(res, 401, { error: 'unauthorized' });
+      const clientId = decodeURIComponent(parts[1]);
+      const card = await getClientCard(pool, clientId);
+      if (!card) return sendJson(res, 404, { error: 'client_not_found' });
+      if (auth.role === 'admin' && !card.visits.some((v) => v.locationId === auth.locationId)) {
+        return sendJson(res, 403, { error: 'forbidden' });
+      }
+      if (auth.role === 'master' && !card.visits.some((v) => v.masterId === auth.id)) {
+        return sendJson(res, 403, { error: 'forbidden' });
+      }
+      if (auth.role === 'master') {
+        const { phone, ...cardWithoutPhone } = card;
+        return sendJson(res, 200, cardWithoutPhone);
+      }
+      return sendJson(res, 200, card);
     }
 
     sendJson(res, 404, { error: 'route_not_found' });

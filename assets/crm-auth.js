@@ -895,6 +895,16 @@ function wireWalkIn(staff, services, masterServices) {
   if (!form || !picker || !summary || !submitBtn || !cancelBtn || !resultEl || !nameLabel || !clientNameEl || !clientPhoneEl) {
     return; // страница без этого блока (или он ещё не дошёл до нужной страницы)
   }
+  // Окно 39 (06.08.2026) - "Записать снова" (карточка клиента) открывает ту же форму
+  // в режиме будущей записи: дата/время выбираются виджетами (не "прямо сейчас"), после
+  // сохранения статус остаётся 'planned' (не форсируется 'done' - клиента физически ещё
+  // нет в кресле). modeLabelEl/dateTimeRow - опциональны (crm-admin.html/crm-master.html
+  // этот блок не получали в этом окне, getElementById безопасно вернёт null, весь режим
+  // rebook просто недоступен там, обычный walk-in работает как раньше).
+  const modeLabelEl = el('wfModeLabel');
+  const dateTimeRow = el('wfDateTimeRow');
+  const hasRebookUi = !!(modeLabelEl && dateTimeRow);
+  let rebookMode = false;
 
   // Блок В (ТЗ-готовность-к-продакшену, 01.08.2026) - "Добавить продажу", POST /sales
   // уже готов и рабочий на бэкенде (owner/admin-only), просто не вызывался ни разу с
@@ -997,11 +1007,10 @@ function wireWalkIn(staff, services, masterServices) {
     renderSummary();
   }
 
-  function openForWalkin(masterId, masterName) {
+  function openForWalkin(masterId, masterName, options = {}) {
     currentMasterId = masterId;
     nameLabel.textContent = masterName;
-    clientNameEl.value = '';
-    clientPhoneEl.value = '';
+    rebookMode = hasRebookUi && !!options.rebook;
     resultEl.hidden = true;
     if (hasSaleForm) {
       saleForm.hidden = true;
@@ -1010,7 +1019,30 @@ function wireWalkIn(staff, services, masterServices) {
       saleAmountEl.value = '';
       saleResultEl.hidden = true;
     }
+    if (hasRebookUi) {
+      modeLabelEl.textContent = rebookMode ? 'Повторная запись' : 'Новая запись без предзаписи';
+      dateTimeRow.hidden = !rebookMode;
+      if (rebookMode) {
+        // Дефолт - сегодня и ближайшее ближайшее 15-минутное время в рабочем окне
+        // магазина (10:00-20:00, SHOP_TIME_OPTIONS выше) - владелец меняет на любое
+        // реальное свободное, доступность проверяет сервер при сохранении.
+        const now = new Date();
+        const roundedMin = Math.min(20 * 60, Math.max(10 * 60, Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15));
+        const defaultTime = `${String(Math.floor(roundedMin / 60)).padStart(2, '0')}:${String(roundedMin % 60).padStart(2, '0')}`;
+        renderDateSelect('wfDate-slot', 'wfDateValue', todayStr());
+        renderTimeSelect('wfTime-slot', 'wfTimeValue', defaultTime);
+      }
+    }
+    clientNameEl.value = options.clientName || '';
+    clientPhoneEl.value = options.clientPhone || '';
     renderPicker(masterId);
+    if (rebookMode && options.serviceIds?.length) {
+      const available = new Set(checkboxByService.keys());
+      selected = new Set(options.serviceIds.filter((id) => available.has(id)));
+      selected = mergeServiceCombos(selected);
+      syncCheckboxes();
+      renderSummary();
+    }
     form.hidden = false;
     form.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -1037,16 +1069,28 @@ function wireWalkIn(staff, services, masterServices) {
       submitBtn.disabled = true;
       submitBtn.textContent = 'Сохраняю…';
       try {
-        const now = new Date();
-        const rounded = new Date(Math.ceil(now.getTime() / (5 * 60000)) * 5 * 60000);
-        const startTime = `${pad2(rounded.getHours())}:${pad2(rounded.getMinutes())}`;
+        let date;
+        let startTime;
+        if (rebookMode) {
+          // "Записать снова" - дата/время выбраны заново виджетами (не "прямо сейчас"),
+          // реальная доступность проверяется этим же POST /bookings (overlap/
+          // schedule_blocked/past_time - createBookingTx, server.mjs).
+          date = dateSelectValue('wfDateValue');
+          startTime = timeSelectValue('wfTimeValue');
+          if (!date || !startTime) throw new Error('укажите дату и время');
+        } else {
+          const now = new Date();
+          const rounded = new Date(Math.ceil(now.getTime() / (5 * 60000)) * 5 * 60000);
+          date = todayStr();
+          startTime = `${pad2(rounded.getHours())}:${pad2(rounded.getMinutes())}`;
+        }
         const res = await fetch(`${API}/bookings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
           body: JSON.stringify({
             masterId: currentMasterId,
             serviceIds: [...selected],
-            date: todayStr(),
+            date,
             startTime,
             clientName: clientNameEl.value.trim() || null,
             clientPhone: clientPhoneEl.value.trim() || null,
@@ -1055,17 +1099,31 @@ function wireWalkIn(staff, services, masterServices) {
         });
         const data = await res.json();
         if (!res.ok || data.ok === false) {
-          throw new Error(data.reason === 'overlap' ? 'у мастера уже занято это время' : data.error || `HTTP ${res.status}`);
+          const REASON_TEXT = {
+            overlap: 'у мастера уже занято это время',
+            schedule_blocked: 'у мастера в это время перерыв или выходной',
+            past_time: 'нельзя записать в прошлое',
+            master_not_bookable: 'у мастера ещё не настроен график',
+          };
+          throw new Error(REASON_TEXT[data.reason] || data.error || `HTTP ${res.status}`);
         }
-        await fetch(`${API}/bookings/${encodeURIComponent(data.booking.id)}/status`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ status: 'done' }),
-        });
+        // Обычный walk-in - клиент физически уже в кресле, статус сразу "пришёл".
+        // "Записать снова" (rebookMode) - это будущая запись, статус остаётся 'planned'
+        // по умолчанию (createBookingTx), PATCH здесь был бы нечестным (клиента ещё нет).
+        if (!rebookMode) {
+          await fetch(`${API}/bookings/${encodeURIComponent(data.booking.id)}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+            body: JSON.stringify({ status: 'done' }),
+          });
+        }
         resultEl.hidden = false;
         resultEl.className = 'wf-result wf-result--ok';
-        resultEl.textContent = `Готово: ${nameLabel.textContent}, ${startTime}, ${data.booking.totalDurationMin} мин, ${formatMoney(data.booking.totalPrice)}`;
-        if (hasSaleForm) {
+        const whenText = rebookMode ? `${date} ${startTime}` : startTime;
+        resultEl.textContent = `Готово: ${nameLabel.textContent}, ${whenText}, ${data.booking.totalDurationMin} мин, ${formatMoney(data.booking.totalPrice)}`;
+        // "Добавить продажу" - только для walk-in (клиент физически в кресле сейчас).
+        // Будущая запись (rebookMode) продажу добавит администратор в день визита.
+        if (hasSaleForm && !rebookMode) {
           saleForm.dataset.bookingId = data.booking.id;
           saleForm.hidden = false;
         }
@@ -1117,6 +1175,19 @@ function wireWalkIn(staff, services, masterServices) {
         saleSubmitBtn.textContent = originalLabel;
       }
     });
+  }
+
+  // Окно 39 (06.08.2026) - точка входа для "Записать снова" (карточка клиента,
+  // assets/crm-clients.js). Глобальная функция (не export ES-модуля) - тот же приём,
+  // что у остальных onclick-обработчиков этой страницы (openBooking и т.д. в
+  // mockup-crm.js), потому что клиентская карточка рисует кнопку динамически, не
+  // статичной разметкой с прямым import. hasRebookUi=false (страница без
+  // wfModeLabel/wfDateTimeRow, пока только crm-owner.html) - выходим тихо, вызывающий
+  // код (openClientCard) сам прячет кнопку "Записать снова", если функции нет.
+  if (hasRebookUi) {
+    window.openRebookBooking = (masterId, masterName, clientName, clientPhone, serviceIds) => {
+      openForWalkin(masterId, masterName, { rebook: true, clientName, clientPhone, serviceIds });
+    };
   }
 }
 
