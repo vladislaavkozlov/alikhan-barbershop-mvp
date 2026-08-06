@@ -157,10 +157,10 @@ export function defaultBackend() {
   throw new Error('storage.js: нет доступного storage-бэкенда, передайте его явно (напр. in-memory в тестах)');
 }
 
-// Бэкенд поверх реального API (Amvera + Postgres) вместо localStorage - тот же
-// getItem/setItem-контракт, но по сети. Все вызовы createStore() уже await'ят
-// backend.getItem/setItem, поэтому localStorage (синхронный) и этот (асинхронный)
-// бэкенды взаимозаменяемы без изменений в остальном коде.
+// Бэкенд поверх реального API (Amvera + Postgres) вместо localStorage - REST-методы
+// ниже (listBookings/createBooking и т.д.), не общий getItem/setItem-контракт: тот
+// был снят вместе с /kv/:key роутами (Окно 33, мёртвый код против прод-трафика,
+// isRichBackend в createStore ниже всегда обходит его на этом бэкенде).
 //
 // getToken - необязательная функция () => string|null. Если задана, её текущее
 // значение уходит в заголовке Authorization на каждый запрос - так вызывающий код
@@ -175,35 +175,6 @@ export function createHttpBackend(apiBaseUrl, getToken) {
   }
 
   return {
-    async getItem(key) {
-      const res = await fetch(`${apiBaseUrl}/kv/${encodeURIComponent(key)}`);
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`storage.js: GET /kv/${key} → ${res.status}`);
-      const data = await res.json();
-      return data.value;
-    },
-    async setItem(key, value) {
-      const res = await fetch(`${apiBaseUrl}/kv/${encodeURIComponent(key)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: String(value) }),
-      });
-      if (!res.ok) throw new Error(`storage.js: PUT /kv/${key} → ${res.status}`);
-    },
-    // Атомарная запись на стороне сервера: API проверяет текущее значение в той же
-    // транзакции, что и запись, поэтому гонка между двумя устройствами реально исключена
-    // (не просто "два fetch подряд" из клиента, где между ними всегда есть окно гонки).
-    async casSetItem(key, expected, value) {
-      const res = await fetch(`${apiBaseUrl}/kv/${encodeURIComponent(key)}/cas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expected: expected ?? null, value: String(value) }),
-      });
-      if (res.status === 409) return false;
-      if (!res.ok) throw new Error(`storage.js: POST /kv/${key}/cas → ${res.status}`);
-      return true;
-    },
-
     // ── Окно 8: бронирования поверх нормализованной схемы, не kv-блока ──────
     // Присутствие этого метода на бэкенде - переключатель для createStore ниже:
     // если он есть, createBooking/listBookings/calcPayrollEstimate идут через REST

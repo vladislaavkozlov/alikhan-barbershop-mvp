@@ -1003,37 +1003,6 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, { staff: auth });
     }
 
-    // ── Устаревший общий kv-контракт (Окно 7) - оставлен как есть ────────
-    if (parts[0] === 'kv' && parts[1] && !parts[2]) {
-      const key = decodeURIComponent(parts[1]);
-
-      if (req.method === 'GET') {
-        const result = await pool.query('SELECT value FROM kv_store WHERE key = $1', [key]);
-        if (result.rows.length === 0) return sendJson(res, 404, { error: 'not_found' });
-        return sendJson(res, 200, { value: result.rows[0].value });
-      }
-
-      if (req.method === 'PUT') {
-        const body = await readBody(req);
-        if (typeof body.value !== 'string') return sendJson(res, 400, { error: 'value_required' });
-        await pool.query(
-          `INSERT INTO kv_store (key, value, updated_at) VALUES ($1, $2, now())
-           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
-          [key, body.value]
-        );
-        return sendJson(res, 200, { ok: true });
-      }
-    }
-
-    if (parts[0] === 'kv' && parts[1] && parts[2] === 'cas' && req.method === 'POST') {
-      const key = decodeURIComponent(parts[1]);
-      const body = await readBody(req);
-      if (typeof body.value !== 'string') return sendJson(res, 400, { error: 'value_required' });
-      const result = await casWrite(key, body.expected ?? null, body.value);
-      if (!result.ok) return sendJson(res, 409, { error: 'conflict' });
-      return sendJson(res, 200, { ok: true });
-    }
-
     // ── /staff - роль ограничивает выдачу на уровне SQL, не только в UI ──
     if (parts[0] === 'staff' && parts.length === 1 && req.method === 'GET') {
       const auth = await authenticate(req);
