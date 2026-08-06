@@ -177,7 +177,7 @@ export function createHttpBackend(apiBaseUrl, getToken) {
   return {
     // ── Окно 8: бронирования поверх нормализованной схемы, не kv-блока ──────
     // Присутствие этого метода на бэкенде - переключатель для createStore ниже:
-    // если он есть, createBooking/listBookings/calcPayrollEstimate идут через REST
+    // если он есть, createBooking/listBookings идут через REST
     // (сервер сам считает пересечения и решает, какие поля клиента отдавать по роли),
     // если нет (localStorage/in-memory бэкенды в тестах) - используется старая логика
     // на JSON-блоке без изменений.
@@ -471,24 +471,5 @@ export function createStore(backend = defaultBackend()) {
     });
   }
 
-  async function calcPayrollEstimate({ masterId, from, to } = {}) {
-    // Сервер не умеет фильтровать по диапазону дат (только точная дата или всё) -
-    // берём весь список этого мастера и фильтруем диапазон здесь же, как раньше.
-    const all = isRichBackend ? await backend.listBookings({ masterId }) : await readBookings(backend);
-    const filtered = all.filter((b) => {
-      if (masterId && b.masterId !== masterId) return false;
-      if (from && b.date < from) return false;
-      if (to && b.date > to) return false;
-      return true;
-    });
-    // Окно 11: сумма по ВСЕМ услугам брони (serviceIds), не одной - serviceIds
-    // приоритетнее, serviceId остаётся для старых записей без массива.
-    const total = filtered.reduce((sum, b) => {
-      const ids = b.serviceIds ?? (b.serviceId ? [b.serviceId] : []);
-      return sum + ids.reduce((s, id) => s + (SERVICES.find((sv) => sv.id === id)?.price ?? 0), 0);
-    }, 0);
-    return { total, low: total * 0.45, high: total * 0.5 };
-  }
-
-  return { listBookings, getFreeSlots, createBooking, calcPayrollEstimate };
+  return { listBookings, getFreeSlots, createBooking };
 }

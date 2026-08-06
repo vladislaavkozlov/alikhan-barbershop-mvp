@@ -25,11 +25,6 @@
 
   .phone-hidden { color: var(--text-muted); }
   .phone-hidden .why { display: block; font-size: 0.7rem; font-style: italic; margin-top: 2px; }
-
-  #wim-month:checked ~ .seg-bar label[for="wim-month"], #wim-3m:checked ~ .seg-bar label[for="wim-3m"],
-  #wim-6m:checked ~ .seg-bar label[for="wim-6m"], #wim-year:checked ~ .seg-bar label[for="wim-year"] { background: var(--accent); color: var(--leather); }
-  #wim-month:checked ~ .panel-wim-month, #wim-3m:checked ~ .panel-wim-3m,
-  #wim-6m:checked ~ .panel-wim-6m, #wim-year:checked ~ .panel-wim-year { display: block; }
 </style>
 </head>
 <body>
@@ -196,19 +191,25 @@
 
           <div class="seg-panel panel-sp-year">
             <p class="section-hint" style="margin-top:12px">Год - только мои записи. Праздники - официальный календарь РФ</p>
+            <!-- Окно 37 (06.08.2026, Задача 2) - "N записей <пример>" убрано из каждого
+                 месяца: та же логика, что и удалённые блоки возвращаемости/каналов выше -
+                 счётчик записей за месяц никогда реально не считался, только текстовый
+                 плейсхолдер. Вкладка "Год" остаётся - она статично-справочная по
+                 назначению (PROJECT_UNDERSTANDING.md, разд.8), реальны только названия
+                 месяцев и официальный календарь праздников РФ. -->
             <div class="year-grid">
-              <div class="year-month"><div class="ym-name">Январь</div><span class="ym-holiday">Новогодние каникулы 1-8, Рождество 7</span><div class="ym-note">38 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Февраль</div><span class="ym-holiday">23 - День защитника Отечества</span><div class="ym-note">27 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Март</div><span class="ym-holiday">8 - Международный женский день</span><div class="ym-note">31 запись <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Апрель</div><span class="ym-holiday">без праздников</span><div class="ym-note">28 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Май</div><span class="ym-holiday">1 - Праздник Весны и Труда, 9 - День Победы</span><div class="ym-note">30 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Июнь</div><span class="ym-holiday">12 - День России</span><div class="ym-note">29 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Июль</div><span class="ym-holiday">без праздников</span><div class="ym-note">25 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Август</div><span class="ym-holiday">без праздников</span><div class="ym-note">24 записи <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Сентябрь</div><span class="ym-holiday">без праздников</span><div class="ym-note">29 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Октябрь</div><span class="ym-holiday">без праздников</span><div class="ym-note">31 запись <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Ноябрь</div><span class="ym-holiday">4 - День народного единства</span><div class="ym-note">30 записей <span class="unsure">пример</span></div></div>
-              <div class="year-month"><div class="ym-name">Декабрь</div><span class="ym-holiday">31 - предновогодний, сокращённый</span><div class="ym-note">35 записей <span class="unsure">пример</span></div></div>
+              <div class="year-month"><div class="ym-name">Январь</div><span class="ym-holiday">Новогодние каникулы 1-8, Рождество 7</span></div>
+              <div class="year-month"><div class="ym-name">Февраль</div><span class="ym-holiday">23 - День защитника Отечества</span></div>
+              <div class="year-month"><div class="ym-name">Март</div><span class="ym-holiday">8 - Международный женский день</span></div>
+              <div class="year-month"><div class="ym-name">Апрель</div><span class="ym-holiday">без праздников</span></div>
+              <div class="year-month"><div class="ym-name">Май</div><span class="ym-holiday">1 - Праздник Весны и Труда, 9 - День Победы</span></div>
+              <div class="year-month"><div class="ym-name">Июнь</div><span class="ym-holiday">12 - День России</span></div>
+              <div class="year-month"><div class="ym-name">Июль</div><span class="ym-holiday">без праздников</span></div>
+              <div class="year-month"><div class="ym-name">Август</div><span class="ym-holiday">без праздников</span></div>
+              <div class="year-month"><div class="ym-name">Сентябрь</div><span class="ym-holiday">без праздников</span></div>
+              <div class="year-month"><div class="ym-name">Октябрь</div><span class="ym-holiday">без праздников</span></div>
+              <div class="year-month"><div class="ym-name">Ноябрь</div><span class="ym-holiday">4 - День народного единства</span></div>
+              <div class="year-month"><div class="ym-name">Декабрь</div><span class="ym-holiday">31 - предновогодний, сокращённый</span></div>
             </div>
           </div>
         </div>
@@ -297,6 +298,15 @@
     </div>
 
     <!-- ======================= МОЯ ЗАРПЛАТА ======================= -->
+    <!-- Окно 37 (06.08.2026, Задача 2) - "Моя возвращаемость клиентов" и "Как
+         приходят мои клиенты" удалены целиком: 100% выдуманные "00% пример", ни
+         единого запроса к серверу, для этого нет бэкенд-резолвера и полноценная
+         аналитика удержания не входит в MVP (PRODUCT_ARCHITECTURE_PLAN.md, Future
+         Evolution). Тот же принцип, что уже применён к вкладке "Акции" на
+         crm-owner.html Окном 36 (FINAL_PRODUCT_DECISION.md, раздел REMOVE: висящее
+         "скоро" без даты работает против доверия так же, как декоративные
+         чекбоксы) - убрано, не помечено "скоро". Вернуть - когда появится реальный
+         бэкенд-резолвер удержания/каналов прихода, не раньше. -->
     <div class="tab-panel panel-b">
       <section>
         <h2>Моя зарплата</h2>
@@ -329,9 +339,9 @@
                 <div class="payroll-period-picker">
                   <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
                   <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
-                  <button class="btn btn-ghost btn-sm" type="button" onclick="calcCustomPayroll(this)">Показать</button>
+                  <button class="btn btn-ghost btn-sm" type="button" id="myPayrollPeriodBtn">Показать</button>
                 </div>
-                <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
+                <div class="payroll-sum"><span class="amount" id="myPayrollPeriodAmount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
 
               </div>
             </div>
@@ -339,50 +349,6 @@
         </div>
       </section>
 
-      <section>
-        <h2>Моя возвращаемость клиентов</h2>
-        <p class="section-hint">Появится после первых визитов</p>
-        <div class="stat-cards">
-          <div class="stat-card"><div class="sc-label">3 мес</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          <div class="stat-card"><div class="sc-label">6 мес</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          <div class="stat-card"><div class="sc-label">1 год</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          <div class="stat-card"><div class="sc-label">2 года</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          <div class="stat-card"><div class="sc-label">3 года</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-        </div>
-      </section>
-
-      <section>
-        <h2>Как приходят мои клиенты</h2>
-        <p class="section-hint">Появится после первых записей</p>
-        <div class="seg-tabs">
-          <input type="radio" name="wim-period" id="wim-month" checked>
-          <input type="radio" name="wim-period" id="wim-3m">
-          <input type="radio" name="wim-period" id="wim-6m">
-          <input type="radio" name="wim-period" id="wim-year">
-          <div class="seg-bar">
-            <label for="wim-month">Месяц</label>
-            <label for="wim-3m">3 мес</label>
-            <label for="wim-6m">Полгода</label>
-            <label for="wim-year">Год</label>
-          </div>
-          <div class="seg-panel panel-wim-month"><div class="stat-cards">
-            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          </div></div>
-          <div class="seg-panel panel-wim-3m"><div class="stat-cards">
-            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          </div></div>
-          <div class="seg-panel panel-wim-6m"><div class="stat-cards">
-            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          </div></div>
-          <div class="seg-panel panel-wim-year"><div class="stat-cards">
-            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          </div></div>
-        </div>
-      </section>
     </div>
 
     <!-- ======================= ЛИЧНЫЕ ДАННЫЕ (Задача 2, Окно 14, 02.08.2026) =======================

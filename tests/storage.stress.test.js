@@ -156,28 +156,6 @@ test('stress: getFreeSlots никогда не предлагает слот, п
   }
 });
 
-test('stress: calcPayrollEstimate для каждого мастера равен сумме цен его принятых записей', async () => {
-  const { store, accepted } = await runStressPass(SEED, N);
-  const serviceById = (id) => services.find((s) => s.id === id);
-
-  for (const master of masters) {
-    const expectedTotal = accepted
-      .filter((b) => b.masterId === master.id)
-      .reduce((sum, b) => sum + serviceById(b.serviceId).price, 0);
-
-    const result = await store.calcPayrollEstimate({ masterId: master.id });
-
-    assert.equal(result.total, expectedTotal, `calcPayrollEstimate.total разошёлся с суммой цен для ${master.id}`);
-    assert.equal(result.low, expectedTotal * 0.45, `low разошёлся для ${master.id}`);
-    assert.equal(result.high, expectedTotal * 0.5, `high разошёлся для ${master.id}`);
-  }
-
-  // И общий расчёт (без фильтра по мастеру) должен совпасть с суммой по всем
-  const grandExpected = accepted.reduce((sum, b) => sum + serviceById(b.serviceId).price, 0);
-  const grandResult = await store.calcPayrollEstimate({});
-  assert.equal(grandResult.total, grandExpected, 'calcPayrollEstimate без фильтра разошёлся с суммой всех принятых записей');
-});
-
 test('stress: детерминированность — тот же seed даёт тот же результат при повторном прогоне', async () => {
   const runA = await runStressPass(SEED, N);
   const runB = await runStressPass(SEED, N);

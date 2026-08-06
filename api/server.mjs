@@ -453,6 +453,57 @@ export async function computeMasterNextAvailability(client, masterId, durationMi
   return null;
 }
 
+// Окно 37 (06.08.2026, Задача 1) - единый резолвер ЗП мастера за произвольный
+// период. До этого окна одна и та же формула (сумма цены броней × ставка мастера
+// / 100) жила в двух местах: мёртвый calcPayrollEstimate в storage.js (хардкод
+// 45%/50%, ни один живой вызов не найден grep-аудитом) и рабочий client-side дубль
+// в assets/crm-auth.js (bookingPrice+pctOf, читает /bookings + /payroll-settings).
+// Здесь та же формула переносится на бэкенд как единственный источник цифры для
+// "Моей зарплаты" мастера (crm-master.html) - День/Неделя/Месяц/произвольный
+// период через один вызов, не три реализации. Статус брони намеренно НЕ
+// фильтруется - сохраняет 1:1 поведение уже работающих Недели/Месяца (регрессия
+// 0), фильтрация по статусу вне скоупа этого окна.
+export async function computeMasterPayroll(client, masterId, from, to) {
+  const pctRes = await client.query('SELECT pct FROM master_payroll_settings WHERE master_id = $1', [masterId]);
+  const pct = pctRes.rows[0]?.pct ?? 0;
+
+  const bookingsRes = await client.query(
+    'SELECT id, service_id AS "serviceId" FROM bookings WHERE master_id = $1 AND date >= $2 AND date <= $3',
+    [masterId, from, to]
+  );
+  const bookingIds = bookingsRes.rows.map((r) => r.id);
+  const linkRes = bookingIds.length
+    ? await client.query(
+        'SELECT booking_id AS "bookingId", service_id AS "serviceId" FROM booking_services WHERE booking_id = ANY($1)',
+        [bookingIds]
+      )
+    : { rows: [] };
+  const serviceIdsByBooking = new Map();
+  for (const row of linkRes.rows) {
+    if (!serviceIdsByBooking.has(row.bookingId)) serviceIdsByBooking.set(row.bookingId, []);
+    serviceIdsByBooking.get(row.bookingId).push(row.serviceId);
+  }
+
+  // Цена - как у /master-services на фронте (priceOf): своя цена мастера в
+  // приоритете, общий прайс services - только страховка на случай пары, которую
+  // почему-то не завели в master_services.
+  const masterPriceRes = await client.query('SELECT service_id AS "serviceId", price FROM master_services WHERE master_id = $1', [
+    masterId,
+  ]);
+  const priceByService = new Map(masterPriceRes.rows.map((r) => [r.serviceId, r.price]));
+  const basePriceRes = await client.query('SELECT id, price FROM services');
+  const basePriceByService = new Map(basePriceRes.rows.map((r) => [r.id, r.price]));
+  const priceOf = (serviceId) => priceByService.get(serviceId) ?? basePriceByService.get(serviceId) ?? 0;
+
+  let revenue = 0;
+  for (const b of bookingsRes.rows) {
+    const serviceIds = serviceIdsByBooking.get(b.id)?.length ? serviceIdsByBooking.get(b.id) : b.serviceId ? [b.serviceId] : [];
+    revenue += serviceIds.reduce((sum, id) => sum + priceOf(id), 0);
+  }
+  const payroll = (revenue * pct) / 100;
+  return { revenue, payroll };
+}
+
 // ── Бронирование поверх нормализованной схемы (Шаг 1-2 Окна 8) ────────────
 // Та же гарантия, что раньше давал casWrite по kv_store: pg_advisory_xact_lock
 // сериализует все параллельные попытки одного мастера на одну дату, поэтому два
@@ -1043,6 +1094,7 @@ const ROUTES = [
   { method: 'POST', path: 'notifications/read-all', auth: 'any-staff' },
   { method: 'GET', path: 'payroll-settings', auth: 'any-staff' },
   { method: 'PUT', path: 'payroll-settings', auth: 'owner' },
+  { method: 'GET', path: 'payroll', auth: 'any-staff' },
 ];
 
 function matchRoute(method, parts) {
@@ -2265,6 +2317,35 @@ const server = createServer(async (req, res) => {
         );
         return sendJson(res, 200, { ok: true });
       }
+    }
+
+    // ── /payroll - Окно 37 (06.08.2026, Задача 1). ЗП мастера за произвольный
+    // период (masterId+from+to) через computeMasterPayroll - единый резолвер вместо
+    // клиентского дубля формулы. Мастер не может запросить чужую ЗП, даже подставив
+    // чужой masterId в query - роль форсирует свой id, тот же приём, что уже есть у
+    // /payroll-settings и listBookingsForRequest. Админ ограничен своей точкой
+    // (проверка location_id) - тот же уровень защиты денежных данных, что и у
+    // /payroll-settings GET, роут не завязан только на текущего потребителя
+    // (crm-master.html), должен быть безопасен и при будущем переиспользовании.
+    if (parts[0] === 'payroll' && parts.length === 1 && req.method === 'GET') {
+      const auth = await authenticate(req);
+      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
+      const from = url.searchParams.get('from');
+      const to = url.searchParams.get('to');
+      if (!from || !to) return sendJson(res, 400, { error: 'missing_fields' });
+      let masterId = url.searchParams.get('masterId');
+      if (auth.role === 'master') {
+        masterId = auth.id;
+      } else {
+        if (!masterId) return sendJson(res, 400, { error: 'missing_fields' });
+        if (auth.role === 'admin') {
+          const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [masterId]);
+          if (staffRes.rows.length === 0) return sendJson(res, 404, { error: 'staff_not_found' });
+          if (staffRes.rows[0].location_id !== auth.locationId) return sendJson(res, 403, { error: 'forbidden' });
+        }
+      }
+      const result = await computeMasterPayroll(pool, masterId, from, to);
+      return sendJson(res, 200, result);
     }
 
     sendJson(res, 404, { error: 'route_not_found' });

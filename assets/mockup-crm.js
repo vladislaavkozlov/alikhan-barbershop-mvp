@@ -297,29 +297,13 @@ function updateNotifBadge() {
 // разойдётся со списком примеров при следующей правке, а так оно всегда верное.
 updateNotifBadge();
 
-// Кнопка "Показать" в панели "Задать период" (Расчёт ЗП - владелец/админ/мастер).
-// Раньше это поле было полностью нерабочим - просто прочерк без дат, задать период
-// физически было нельзя. Теперь два date-инпута реально выбираются, кнопка считывает
-// выбранный диапазон и подставляет его в текст. Сама сумма всё ещё "000 ₽ пример" -
-// реальных записей для расчёта в макете нет, баг был именно в невозможности задать даты.
-function calcCustomPayroll(btn) {
-  const panel = btn.closest('.seg-panel');
-  if (!panel) return;
-  // Правка 03.08.2026 (Окно 16): было input[type="date"].value - теперь свой
-  // date-picker (.custom-date), значение читается из data-value, не .value.
-  const dates = panel.querySelectorAll('.custom-date');
-  const from = dates[0] ? dates[0].dataset.value : '';
-  const to = dates[1] ? dates[1].dataset.value : '';
-  const amountEl = panel.querySelector('.payroll-sum .amount');
-  const noteEl = panel.querySelector('.payroll-note');
-  if (!from || !to) {
-    if (noteEl) noteEl.textContent = 'Укажите обе даты (с и по), чтобы задать период';
-    return;
-  }
-  const fmt = (s) => { const [y, m, day] = s.split('-'); return `${day}.${m}.${y}`; };
-  if (amountEl) amountEl.innerHTML = '000 ₽ <span class="unsure">пример</span>';
-  if (noteEl) noteEl.textContent = `Период ${fmt(from)}–${fmt(to)} задан. Сумма всё ещё плейсхолдер - реальных записей нет, но период теперь действительно выбирается`;
-}
+// Кнопка "Показать" в панели "Задать период" ("Моя зарплата" мастера,
+// crm-master.html) была здесь как глобальная onclick-функция (mockup-crm.js не
+// модуль, не имеет доступа к fetchJson/сессии). Окно 37 (06.08.2026, Задача 2)
+// перенесло реальный расчёт в assets/crm-auth.js (уже ES-модуль, уже знает
+// staff.id и токен сессии) - там же, где Блок В (owner/admin) уже делает то же
+// самое своим отдельным обработчиком. calcCustomPayroll здесь больше не нужна -
+// единственный вызов (crm-master.html) переведён на wireMasterPayrollPeriod.
 
 // Кастомный дропдаун "Закреплён за мастером" (правка 30.07.2026) - заменяет нативный
 // <select>, у которого список опций красит ОС, а не тема сайта (Алихан заметил это на

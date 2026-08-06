@@ -97,10 +97,11 @@ export function dateSelectValue(id) {
 
 // Правка 03.08.2026 (Окно 16): "Задать период" в карточках ЗП (владелец/админ - по
 // мастеру, свой "Моя зарплата" у мастера) раньше был <input type="date"> без id,
-// найденный позиционно (первый/второй в панели) - calcCustomPayroll (mockup-crm.js)
-// и renderStaffPayrollPeriods ниже так и продолжают искать позиционно, просто внутри
-// .custom-date вместо input. Здесь только рендер виджетов в пустые слоты
-// .payroll-date-slot - один проход на всю страницу, сколько бы панелей ни было.
+// найденный позиционно (первый/второй в панели) - renderStaffPayrollPeriods и
+// wireMasterPayrollPeriod ниже (Окно 37, 06.08.2026 - заменила calcCustomPayroll
+// из mockup-crm.js) так и продолжают искать позиционно, просто внутри .custom-date
+// вместо input. Здесь только рендер виджетов в пустые слоты .payroll-date-slot -
+// один проход на всю страницу, сколько бы панелей ни было.
 function wirePayrollDateSlots() {
   document.querySelectorAll('.payroll-date-slot').forEach((slot, i) => {
     if (slot.dataset.wired) return;
@@ -237,14 +238,6 @@ async function renderLiveProof(staff) {
       netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;
     }
 
-    // Мастер: "Моя зарплата → За день" - только его брони сегодня, по своей ставке.
-    const myPayrollEl = el('myPayrollDay');
-    if (myPayrollEl) {
-      const mine = bookings.filter((b) => b.masterId === staff.id);
-      const myRevenue = mine.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
-      myPayrollEl.innerHTML = `${formatMoney((myRevenue * pctOf(staff.id)) / 100)} <span class="unsure">реально</span>`;
-    }
-
     // Владелец/админ: карточка КАЖДОГО мастера в "Сотрудники" → "Расчёт ЗП → За
     // день" - реальная сумма по его же броням сегодня, своя цена и своя ставка.
     // master-1/2/3 = порядок мастеров в /staff (Алиовсад/Мамедхан/Елизавета в макете -
@@ -257,28 +250,33 @@ async function renderLiveProof(staff) {
       cardEl.innerHTML = `${formatMoney((theirRevenue * pctOf(masterId)) / 100)} <span class="unsure">реально</span>`;
     });
 
-    // Мастер: та же "Моя зарплата", но Неделя/Месяц (раньше "000 ₽ пример") -
-    // переиспользуем годовой диапазон, который уже тянет renderRevenuePeriods для
-    // владельца; для роли "мастер" его там нет, поэтому свой отдельный, но лёгкий
-    // (masterId сужает выборку на сервере - см. GET /bookings) запрос за год.
+    // Мастер: "Моя зарплата" (День/Неделя/Месяц) - Окно 37 (06.08.2026, Задача 2).
+    // Раньше День считался локально (bookingPrice×pctOf по уже загруженным bookings
+    // за сегодня), Неделя/Месяц - отдельным запросом /bookings?from&to с той же
+    // формулой ещё раз. Два места, одна формула - именно то дублирование, которое
+    // это окно убирает. Теперь все три - один и тот же вызов единого бэкенд-
+    // резолвера (GET /payroll, computeMasterPayroll в api/server.mjs), различается
+    // только диапазон дат. Владельца/админа (карточки выше, revenueEl/payrollEl)
+    // не трогает - вне скоупа этого окна (см. crm-owner.html/crm-admin.html).
+    const myPayrollDayEl = el('myPayrollDay');
     const myWeekEl = el('myPayrollWeek');
     const myMonthEl = el('myPayrollMonth');
-    if (myWeekEl || myMonthEl) {
-      try {
-        const today = todayStr();
-        const yearRes = await fetchJson(`/bookings?masterId=${staff.id}&from=${periodStartStr('year')}&to=${today}`);
-        const mine = yearRes.bookings || [];
-        const fillMine = (targetEl, start) => {
-          if (!targetEl) return;
-          const rows = mine.filter((b) => b.date >= start && b.date <= today);
-          const sum = rows.reduce((s, b) => s + bookingPrice(b, priceOf), 0);
-          targetEl.innerHTML = `${formatMoney((sum * pctOf(staff.id)) / 100)} <span class="unsure">реально</span>`;
-        };
-        fillMine(myWeekEl, periodStartStr('week'));
-        fillMine(myMonthEl, periodStartStr('month'));
-      } catch {
-        // "000 ₽ пример" останется как было - основная ошибка уже видна в панели выше
-      }
+    if (myPayrollDayEl || myWeekEl || myMonthEl) {
+      const today = todayStr();
+      const fillMyPayroll = async (targetEl, from, to) => {
+        if (!targetEl) return;
+        try {
+          const { payroll } = await fetchJson(`/payroll?masterId=${staff.id}&from=${from}&to=${to}`);
+          targetEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
+        } catch {
+          // "считаю…" останется как было - основная ошибка уже видна в панели выше
+        }
+      };
+      await Promise.all([
+        fillMyPayroll(myPayrollDayEl, today, today),
+        fillMyPayroll(myWeekEl, periodStartStr('week'), today),
+        fillMyPayroll(myMonthEl, periodStartStr('month'), today),
+      ]);
     }
 
     // Владелец: поле "Ставка от выручки, %" в карточке Елизаветы (Окно 10,
@@ -347,6 +345,7 @@ async function renderLiveProof(staff) {
     wireMasterSelfDataTab(staff, services, masterServices, pctOf);
     wireMasterServiceEditors(staff.role, services, masterServices);
     wirePayrollDateSlots();
+    wireMasterPayrollPeriod(staff);
 
     await renderRevenuePeriods(priceOf, pctOf, ownerIds);
     await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds);
@@ -1296,6 +1295,37 @@ function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
   wireScheduleRequestForm(staff);
 }
 
+// "Моя зарплата → Задать период" (мастер, crm-master.html) - Окно 37 (06.08.2026,
+// Задача 2). Заменяет calcCustomPayroll (была в mockup-crm.js, глобальная
+// onclick-функция без доступа к сессии/fetchJson - реально работать не могла,
+// оставляла "000 ₽ пример"). Кнопка/поле дат уникальны для этой страницы (только
+// crm-master.html их использовал), поэтому no-op на crm-owner.html/crm-admin.html -
+// там свой отдельный обработчик в renderStaffPayrollPeriods выше, не трогается.
+function wireMasterPayrollPeriod(staff) {
+  const btn = el('myPayrollPeriodBtn');
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', async () => {
+    const panel = btn.closest('.seg-panel');
+    const dates = panel ? panel.querySelectorAll('.custom-date') : [];
+    const from = dates[0]?.dataset.value;
+    const to = dates[1]?.dataset.value;
+    const amountEl = el('myPayrollPeriodAmount');
+    if (!from || !to) {
+      if (amountEl) amountEl.innerHTML = `— <span class="unsure">укажите обе даты (с и по)</span>`;
+      return;
+    }
+    if (!amountEl) return;
+    amountEl.innerHTML = `— <span class="unsure">считаю…</span>`;
+    try {
+      const { payroll } = await fetchJson(`/payroll?masterId=${staff.id}&from=${from}&to=${to}`);
+      amountEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально, период ${from}–${to}</span>`;
+    } catch (err) {
+      amountEl.innerHTML = `— <span class="unsure">не удалось посчитать: ${err.message}</span>`;
+    }
+  });
+}
+
 // Форма "Разовое изменение на дату" (Задача 3, Окно 14, заголовок переименован
 // Окно 16 03.08.2026 - было "Запросить перерыв/выходной") - POST /schedule-requests,
 // владелец подтверждает/отклоняет отдельно (PATCH .../decision), время реально
@@ -1567,11 +1597,10 @@ async function renderStaffPayrollPeriods(priceOf, pctOf, ownerIds) {
     renderInto(monthEl, masterId, rowsFor('month'));
   });
 
-  // "Задать период" - раньше calcCustomPayroll (mockup-crm.js) только проверяла, что
-  // обе даты выбраны, и оставляла "000 ₽ пример". Здесь - тот же реальный расчёт, но
-  // по произвольному диапазону (data-master-id на кнопке, см. HTML). Не переопределяет
-  // глобальную calcCustomPayroll - та отдельно осталась для личной "Моей зарплаты"
-  // мастера (crm-master.html), где этот пункт не входил в скоуп Блока В.
+  // "Задать период" (владелец/админ, по мастеру) - реальный расчёт по произвольному
+  // диапазону (data-master-id на кнопке, см. HTML). Свой отдельный обработчик от
+  // wireMasterPayrollPeriod ниже (личная "Моя зарплата" мастера, crm-master.html,
+  // Окно 37) - этот блок вне скоупа Окна 37, не тронут.
   document.querySelectorAll('.payroll-period-picker button[data-master-id]').forEach((btn) => {
     if (btn.dataset.wired) return;
     btn.dataset.wired = '1';

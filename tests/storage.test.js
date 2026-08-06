@@ -197,54 +197,6 @@ test('createBooking: двойная попытка забронировать о
   assert.equal((await store.listBookings({ date: '2026-08-02', masterId: masterA.id })).length, 1);
 });
 
-test('calcPayrollEstimate: сумма/диапазон по фикстурным записям считается арифметически верно', async () => {
-  const store = createStore(createMemoryBackend());
-  const strizhka = serviceById('strizhka'); // 2000
-  const boroda = serviceById('boroda'); // 1600
-  const vosk = serviceById('vosk'); // 500
-
-  await store.createBooking({
-    masterId: masterA.id,
-    serviceId: strizhka.id,
-    date: '2026-08-01',
-    startTime: '10:00',
-    clientName: 'Клиент 1',
-    clientPhone: '+79990000001',
-  });
-  await store.createBooking({
-    masterId: masterA.id,
-    serviceId: boroda.id,
-    date: '2026-08-01',
-    startTime: '11:00',
-    clientName: 'Клиент 2',
-    clientPhone: '+79990000002',
-  });
-  await store.createBooking({
-    masterId: masterA.id,
-    serviceId: vosk.id,
-    date: '2026-08-01',
-    startTime: '12:00',
-    clientName: 'Клиент 3',
-    clientPhone: '+79990000003',
-  });
-  // Другой мастер — не должен попасть в расчёт masterA
-  await store.createBooking({
-    masterId: masterB.id,
-    serviceId: strizhka.id,
-    date: '2026-08-01',
-    startTime: '10:00',
-    clientName: 'Клиент 4',
-    clientPhone: '+79990000004',
-  });
-
-  const result = await store.calcPayrollEstimate({ masterId: masterA.id });
-  const expectedTotal = strizhka.price + boroda.price + vosk.price;
-
-  assert.equal(result.total, expectedTotal);
-  assert.equal(result.low, expectedTotal * 0.45);
-  assert.equal(result.high, expectedTotal * 0.5);
-});
-
 test('getMasters/getServices: каталог соответствует брифу (3 мастера-плейсхолдера, 8 услуг)', () => {
   const masters = getMasters();
   const allServices = getServices();
@@ -275,24 +227,6 @@ test('createBooking: несколько serviceIds - endTime считается 
   assert.equal(result.ok, true);
   assert.deepEqual(result.booking.serviceIds, [strizhka.id, boroda.id]);
   assert.equal(result.booking.endTime, '11:30'); // 10:00 + 60 + 30 мин
-});
-
-test('calcPayrollEstimate: сумма по serviceIds считает ВСЕ услуги брони, не первую', async () => {
-  const store = createStore(createMemoryBackend());
-  const strizhka = serviceById('strizhka');
-  const boroda = serviceById('boroda');
-
-  await store.createBooking({
-    masterId: masterA.id,
-    serviceIds: [strizhka.id, boroda.id],
-    date: '2026-08-01',
-    startTime: '10:00',
-    clientName: 'Клиент',
-    clientPhone: '+70000000000',
-  });
-
-  const result = await store.calcPayrollEstimate({ masterId: masterA.id });
-  assert.equal(result.total, strizhka.price + boroda.price);
 });
 
 // Правки Влада 03.08.2026 (п.3/4): "стрижка"+"борода" отдельно нельзя выбрать
