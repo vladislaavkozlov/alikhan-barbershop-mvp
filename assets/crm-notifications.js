@@ -13,7 +13,23 @@ const TYPE_ICON = {
   booking_start: '▶️',
   schedule_request_new: '🗓',
   schedule_request_decided: '✅',
+  master_lost_schedule: '⚠️',
 };
+
+// Окно 35 (06.08.2026) - клик по уведомлению "у мастера пропал график" ведёт прямым
+// действием к его карточке в разделе "Сотрудники" (вкладка pt-b, переключатель на
+// чистом CSS radio - см. crm-owner.html), не просто показывает текст. Карточки
+// мастеров сейчас статичный HTML с id="staffCard-<masterId>" (id мастера в БД
+// буквально совпадает с мокап-разметкой - master-1/master-2/master-3, см.
+// api/migrations/002_schema.sql) - открываем <details> и скроллим к ней.
+function openMasterCard(masterId) {
+  const tab = document.getElementById('pt-b');
+  if (tab) tab.checked = true;
+  const card = document.getElementById(`staffCard-${masterId}`);
+  if (!card) return;
+  card.open = true;
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -86,7 +102,7 @@ export function wireNotifications(staff) {
                    <button class="btn-ghost btn-sm" type="button" data-decide="rejected" data-req="${n.scheduleRequestId}" data-ntf="${n.id}">Отклонить</button>
                  </div>`
               : '';
-          return `<div class="msg-item${n.read ? '' : ' msg-item--unread'}" data-ntf-id="${n.id}">
+          return `<div class="msg-item${n.read ? '' : ' msg-item--unread'}" data-ntf-id="${n.id}" data-type="${n.type}" data-related-master-id="${n.relatedMasterId ?? ''}">
               <span class="msg-ico">${TYPE_ICON[n.type] ?? '🔔'}</span>
               <div class="msg-body">
                 <div class="msg-title">${n.title}</div>
@@ -110,6 +126,12 @@ export function wireNotifications(staff) {
             } catch {
               /* бейдж просто не обновится досрочно, следующий поллинг поправит */
             }
+          }
+          // Окно 35 - "мастер без графика" ведёт прямым действием к его карточке,
+          // не просто отмечает уведомление прочитанным.
+          if (item.dataset.type === 'master_lost_schedule' && item.dataset.relatedMasterId) {
+            panel.classList.remove('open');
+            openMasterCard(item.dataset.relatedMasterId);
           }
         });
       });

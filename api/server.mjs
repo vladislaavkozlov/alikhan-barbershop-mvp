@@ -715,13 +715,49 @@ function requireRole(auth, roles) {
 // индексы notifications_booking_dedup/notifications_schedreq_dedup (миграция 015)
 // защищают от дублей при повторном вызове (например фоновый сканер + ручное
 // действие в одну минуту) - ON CONFLICT DO NOTHING, не считается ошибкой.
-async function notifyStaff(client, staffId, type, { bookingId = null, scheduleRequestId = null, title, body = null }) {
+async function notifyStaff(
+  client,
+  staffId,
+  type,
+  { bookingId = null, scheduleRequestId = null, relatedMasterId = null, title, body = null }
+) {
   await client.query(
-    `INSERT INTO notifications (id, staff_id, type, booking_id, schedule_request_id, title, body)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO notifications (id, staff_id, type, booking_id, schedule_request_id, related_master_id, title, body)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT DO NOTHING`,
-    [`ntf-${randomBytes(8).toString('hex')}`, staffId, type, bookingId, scheduleRequestId, title, body]
+    [`ntf-${randomBytes(8).toString('hex')}`, staffId, type, bookingId, scheduleRequestId, relatedMasterId, title, body]
   );
+}
+
+// Окно 35 (06.08.2026) - чистая функция: из мастеров, которые оказывают услуги,
+// отбирает тех, кого нет в scheduledMasterIds (уже посчитанном mastersWithWorkingSchedule,
+// не переизобретаем вычисление). Отдельно от notifyOwnerAboutMastersMissingSchedule,
+// чтобы юнит-тест не зависел от fake DB client вообще.
+export function findMastersMissingSchedule(serviceMasterIds, scheduledMasterIds) {
+  return serviceMasterIds.filter((id) => !scheduledMasterIds.has(id));
+}
+
+// FINAL_PRODUCT_DECISION.md MUST HAVE Epic 3 - владелец не должен узнавать о
+// пропавшем графике мастера только ручной curl-проверкой (реальный инцидент с
+// Мамедханом, PROJECT_UNDERSTANDING.md разд.7). Вызывается при входе владельца
+// (POST /auth/login). Дедуп - постоянный уникальный индекс notifications_master_dedup
+// (миграция 037, тот же приём, что notifications_schedreq_dedup) через ON CONFLICT
+// DO NOTHING внутри notifyStaff - если для этого мастера уже создавали уведомление
+// этого типа (когда-либо, не только непрочитанное), повторно не создаём даже если
+// график успел восстановиться и снова пропасть (простое решение по Окну 35).
+export async function notifyOwnerAboutMastersMissingSchedule(client, ownerId) {
+  const staffRes = await client.query('SELECT id, name FROM staff WHERE employed = true AND provides_services = true');
+  const serviceMasterIds = staffRes.rows.map((r) => r.id);
+  const scheduledIds = await mastersWithWorkingSchedule(client, serviceMasterIds);
+  const missingIds = findMastersMissingSchedule(serviceMasterIds, scheduledIds);
+  const nameById = new Map(staffRes.rows.map((r) => [r.id, r.name]));
+  for (const masterId of missingIds) {
+    await notifyStaff(client, ownerId, 'master_lost_schedule', {
+      relatedMasterId: masterId,
+      title: `У мастера ${nameById.get(masterId) ?? masterId} пропал график работы`,
+      body: 'Клиенты не могут записаться, пока график не будет настроен заново.',
+    });
+  }
 }
 
 // Окно 16 (03.08.2026) - валидирует payload единого блока "График работы" (владелец
@@ -1064,6 +1100,16 @@ const server = createServer(async (req, res) => {
         return sendJson(res, 401, { error: 'invalid_credentials' });
       }
       const { token, expiresAt } = await createSession(staff.id);
+      // Окно 35 - алерт "мастер без графика" считается при входе владельца, не
+      // фоновым кроном (по решению промпта - проверки при входе достаточно). Обёрнуто
+      // в try/catch: сбой этой проверки не должен ронять сам логин.
+      if (staff.role === 'owner') {
+        try {
+          await notifyOwnerAboutMastersMissingSchedule(pool, staff.id);
+        } catch (err) {
+          console.error('notifyOwnerAboutMastersMissingSchedule failed:', err);
+        }
+      }
       return sendJson(res, 200, {
         token,
         expiresAt,
@@ -2132,7 +2178,7 @@ const server = createServer(async (req, res) => {
       const auth = await authenticate(req);
       if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
       const unreadOnly = url.searchParams.get('unreadOnly') === 'true';
-      let query = 'SELECT id, type, booking_id, schedule_request_id, title, body, read_at, created_at FROM notifications WHERE staff_id = $1';
+      let query = 'SELECT id, type, booking_id, schedule_request_id, related_master_id, title, body, read_at, created_at FROM notifications WHERE staff_id = $1';
       const params = [auth.id];
       if (unreadOnly) query += ' AND read_at IS NULL';
       query += ' ORDER BY created_at DESC LIMIT 50';
@@ -2145,6 +2191,7 @@ const server = createServer(async (req, res) => {
           type: r.type,
           bookingId: r.booking_id,
           scheduleRequestId: r.schedule_request_id,
+          relatedMasterId: r.related_master_id,
           title: r.title,
           body: r.body,
           read: r.read_at !== null,
