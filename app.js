@@ -684,13 +684,30 @@ async function refreshSlots() {
     .filter((s) => requestServiceIds.has(s.id))
     .reduce((sum, s) => sum + s.durationMin, 0);
   const requestDate = date;
-  const slots = await store.getFreeSlots(requestMaster.id, requestDate, totalDuration);
-  // Пока ждали ответ сети, пользователь мог переключить мастера/услуги/дату - тогда
-  // этот ответ уже устарел, не перерисовываем поверх более свежего выбора.
-  const sameServices =
-    selectedServiceIds.size === requestServiceIds.size &&
-    [...selectedServiceIds].every((id) => requestServiceIds.has(id));
-  if (selectedMaster !== requestMaster || !sameServices || selectedDate !== requestDate) return;
+
+  // Пока ждали ответ сети (успех или ошибку), пользователь мог переключить
+  // мастера/услуги/дату - тогда этот ответ уже устарел, не перерисовываем поверх
+  // более свежего выбора. Общий для обеих веток ниже (success и catch).
+  const isStaleRequest = () => {
+    const sameServices =
+      selectedServiceIds.size === requestServiceIds.size &&
+      [...selectedServiceIds].every((id) => requestServiceIds.has(id));
+    return selectedMaster !== requestMaster || !sameServices || selectedDate !== requestDate;
+  };
+
+  // Окно 34: раньше сетевая ошибка здесь (бэкенд недоступен) вылетала необработанным
+  // исключением из storage.js (fetch/`res.ok` throw) - слоты молча не обновлялись,
+  // клиент не понимал, что происходит.
+  let slots;
+  try {
+    slots = await store.getFreeSlots(requestMaster.id, requestDate, totalDuration);
+  } catch (err) {
+    console.error('refreshSlots: сетевая ошибка', err);
+    if (isStaleRequest()) return;
+    resetSlots('Не удалось загрузить свободное время - проверьте подключение и выберите дату ещё раз');
+    return;
+  }
+  if (isStaleRequest()) return;
 
   selectedSlot = null;
   submitBtn.disabled = true;
@@ -781,14 +798,25 @@ form.addEventListener('submit', async (event) => {
   }
 
   submitBtn.disabled = true;
-  const result = await store.createBooking({
-    masterId,
-    serviceIds,
-    date,
-    startTime: selectedSlot,
-    clientName,
-    clientPhone,
-  });
+  // Окно 34: раньше сетевая ошибка здесь (бэкенд недоступен в момент нажатия) вылетала
+  // необработанным исключением - кнопка оставалась disabled навсегда, без сообщения,
+  // клиент не мог повторить попытку без перезагрузки страницы.
+  let result;
+  try {
+    result = await store.createBooking({
+      masterId,
+      serviceIds,
+      date,
+      startTime: selectedSlot,
+      clientName,
+      clientPhone,
+    });
+  } catch (err) {
+    console.error('createBooking: сетевая ошибка', err);
+    showMsg('Не получилось отправить запись - проверьте подключение и нажмите «Подтвердить запись» ещё раз', 'error');
+    updateSubmitState();
+    return;
+  }
 
   if (!result.ok) {
     // Раньше здесь всегда был один текст про "заняли", даже когда причина - чужой
