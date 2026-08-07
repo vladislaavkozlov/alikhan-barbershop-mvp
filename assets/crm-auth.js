@@ -6,6 +6,7 @@ import { getMasters, getServices, mergeServiceCombos, isServiceBlockedByCombo } 
 import { wireNotifications } from './crm-notifications.js';
 import { renderDayCalendar } from './crm-calendar.js';
 import { wireScheduleViews } from './crm-schedule-views.js';
+import { el, todayStr, formatMoney, bookingPrice, pad2 } from './crm-shared.js';
 
 const API = window.ALIKHAN_API_URL;
 const TOKEN_KEY = 'alikhan-crm:token';
@@ -30,10 +31,6 @@ function setSession(token, staff) {
 function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(STAFF_KEY);
-}
-
-function el(id) {
-  return document.getElementById(id);
 }
 
 // Правка 03.08.2026: время перерыва/графика раньше вписывалось вручную текстом
@@ -163,25 +160,6 @@ export async function apiSend(path, method, body) {
     // тело может быть пустым (например 204) - не считается ошибкой парсинга
   }
   return { ok: res.ok, status: res.status, data };
-}
-
-export function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function formatMoney(value) {
-  return `${Math.round(value).toLocaleString('ru-RU')} ₽`;
-}
-
-// Окно 11 (найдено Владом 30.07.2026): бронь может содержать НЕСКОЛЬКО услуг -
-// b.serviceIds (см. GET /bookings, server.mjs) - сумма по всем, не одной. serviceId
-// (единичное значение) остаётся страховкой на случай очень старых броней без
-// booking_services. priceOf передаётся снаружи - у renderLiveProof и
-// renderRevenuePeriods разные замыкания с одинаковой сигнатурой (masterId, serviceId) => price.
-function bookingPrice(booking, priceOf) {
-  const serviceIds = booking.serviceIds?.length ? booking.serviceIds : [booking.serviceId];
-  return serviceIds.reduce((sum, id) => sum + priceOf(booking.masterId, id), 0);
 }
 
 // Живое доказательство, что это не рисунок - реальный запрос к Postgres на Amvera
@@ -1570,9 +1548,6 @@ function renderWeeklySelfReadOnly(staff) {
     });
 }
 
-function pad2(n) {
-  return String(n).padStart(2, '0');
-}
 function dateToStr(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
