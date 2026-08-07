@@ -53,7 +53,6 @@ function sidebarMarkup() {
   return `
     <div class="app-sidebar-brand">АЛИХАН</div>
     <nav class="app-nav">${items}</nav>
-    <button type="button" class="app-nav-cta" id="appShellNewBooking" title="Скоро - Окно 45" disabled>+ Новая запись</button>
     <div class="app-sidebar-location">Алихан, Ставрополь</div>
     <div class="app-sidebar-profile" id="appShellProfile">Владелец</div>
   `;
