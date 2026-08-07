@@ -13,12 +13,13 @@
 //   ALLOWED_ORIGIN - домен фронтенда, которому разрешено обращаться сюда (CORS)
 //   PORT - опционально, порт, на котором слушает сам сервер (по умолчанию 8080)
 import { createServer } from 'node:http';
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { setCors, sendJson, readBody } from './lib/http.js';
 import { pool, casWrite } from './lib/db.js';
+import { hashPin, verifyPin, createSession, authenticate, requireRole } from './lib/auth.js';
 import {
   toMinutes,
   minutesToTime,
@@ -36,7 +37,6 @@ import {
 export { isoWeekday, enumerateDateRange } from './lib/time.js';
 
 const PORT = Number(process.env.PORT) || 8080;
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 дней - простой логин, не нужен рефреш-стек
 // Задача 2 промпта корректировки Окна 13 (01.08.2026, Блок 5 в.19, Алихан): "отмена не
 // позже 2 часов" - до порога полный возврат/бесплатная отмена, после - без возврата.
 const CANCEL_FULL_REFUND_HOURS = 2;
@@ -46,55 +46,6 @@ const CANCEL_FULL_REFUND_HOURS = 2;
 // сохранения НОВЫЕ конфликтующие брони уже не создать (createBookingTx сверяется с
 // getEffectiveSchedule), риск есть только для броней, сделанных ДО правки графика.
 const RECURRING_CONFLICT_LOOKAHEAD_DAYS = 90;
-
-// ── PIN-хэш (email+PIN логин, Шаг 3 Окна 8) ────────────────────────────────
-// scrypt из node:crypto - без внешней зависимости (bcrypt пришлось бы ставить через
-// npm install, который в песочнице ненадёжен - см. память проекта). Формат хранения:
-// "saltHex:hashHex".
-function hashPin(pin) {
-  const salt = randomBytes(16).toString('hex');
-  const hash = scryptSync(pin, salt, 64).toString('hex');
-  return `${salt}:${hash}`;
-}
-
-function verifyPin(pin, stored) {
-  if (!stored || typeof stored !== 'string' || !stored.includes(':')) return false;
-  const [salt, hashHex] = stored.split(':');
-  const candidate = scryptSync(pin, salt, 64);
-  const expected = Buffer.from(hashHex, 'hex');
-  if (candidate.length !== expected.length) return false;
-  return timingSafeEqual(candidate, expected);
-}
-
-async function createSession(staffId) {
-  const token = randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  await pool.query('INSERT INTO sessions (token, staff_id, expires_at) VALUES ($1, $2, $3)', [
-    token,
-    staffId,
-    expiresAt,
-  ]);
-  return { token, expiresAt };
-}
-
-// Возвращает { id, name, role, locationId } текущего сотрудника по Bearer-токену,
-// или null (анонимный запрос - легален для GET/POST /bookings, см. ниже).
-async function authenticate(req) {
-  const header = req.headers['authorization'];
-  if (!header || !header.startsWith('Bearer ')) return null;
-  const token = header.slice('Bearer '.length).trim();
-  if (!token) return null;
-  const result = await pool.query(
-    `SELECT s.id, s.name, s.role, s.location_id, sess.expires_at
-     FROM sessions sess JOIN staff s ON s.id = sess.staff_id
-     WHERE sess.token = $1`,
-    [token]
-  );
-  if (result.rows.length === 0) return null;
-  const row = result.rows[0];
-  if (new Date(row.expires_at) < new Date()) return null;
-  return { id: row.id, name: row.name, role: row.role, locationId: row.location_id };
-}
 
 // Глобальный дефолт рабочего окна, когда для мастера нет ни явной правки на дату
 // (schedule_shifts), ни строки в master_weekly_schedule на этот день недели - тот
@@ -769,10 +720,6 @@ async function listBookingsForRequest(url, auth) {
     }
     return { ...base, clientName: r.client_name, clientBirthday }; // master: имя и ДР видно, телефон - нет
   });
-}
-
-function requireRole(auth, roles) {
-  return auth && roles.includes(auth.role);
 }
 
 // Задача 5 (Окно 14, 02.08.2026) - создаёт уведомление в личном кабинете. Уникальные
