@@ -384,6 +384,14 @@ button:active, .btn:active { transform: scale(0.96); }
   display: flex; align-items: center; justify-content: center;
 }
 .day-off-label { color: var(--text-muted); font-size: 0.82rem; font-style: italic; }
+/* Окно 43 (07.08.2026) - "мастер без графика" (никогда не настроенный график,
+   отличается от day-off - обычного выходного дня внутри настроенного графика).
+   Сплошной приглушённый фон вместо диагональной штриховки .day-off - штриховка уже
+   занята значением "выходной", одинаковый вид перепутал бы два разных состояния. */
+.schedule-track.no-schedule {
+  background-image: none; background-color: var(--surface-3);
+  display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 16px;
+}
 .hour-gutter { width: 44px; flex-shrink: 0; }
 .hour-gutter .schedule-col-head { visibility: hidden; }
 .hour-marks { position: relative; height: 640px; }
@@ -416,6 +424,42 @@ button:active, .btn:active { transform: scale(0.96); }
 .appt--cancelled {
   background: var(--surface-3); border-color: var(--border); color: var(--text-muted);
   cursor: default; text-decoration: line-through; opacity: 0.75;
+}
+
+/* Окно 43 (07.08.2026) - полоса слева по статусу записи (DoD промпта). Только
+   border-left переопределён (width+color), не полный border - background/остальные
+   стороны рамки остаются от appt--done/appt--new (Окно 15), эти правила идут ПОСЛЕ
+   них в каскаде, чтобы левая сторона выигрывала при той же специфичности. */
+.appt--status-planned, .appt--status-done, .appt--status-noshow { border-left-width: 4px; }
+.appt--status-planned { border-left-color: var(--success); }
+.appt--status-done { border-left-color: var(--text-muted); }
+.appt--status-noshow { border-left-color: var(--danger); }
+
+/* Окно 43 - "пунктирный слот на свободном месте": следует за курсором в
+   .schedule-track (assets/crm-calendar.js, wireEmptySlotInteraction), сам не ловит
+   клики/hover (pointer-events:none) - события всегда обрабатывает родительский
+   .schedule-track, иначе курсор на самом превью-элементе перекрыл бы клик.
+   ВАЖНО: не задавать здесь display - [hidden] полагается на дефолт display:none из
+   UA-стилей, свой display в этом же классе перебил бы его (см. память
+   reference_css-hidden-attribute-display-conflict.md, найдено живьём 28.07.2026 на
+   этом же проекте - login-gate). Текста внутри превью нет, центрировать нечего. */
+.appt--slot-preview {
+  border: 1.5px dashed var(--accent); background: rgba(198,161,91,0.1);
+  pointer-events: none; z-index: 1;
+}
+
+/* Окно 43 - горизонтальная линия "сейчас" (assets/crm-calendar.js, renderNowLine).
+   Один элемент на всю .schedule-row-with-gutter (не по колонке) - left:44px
+   пропускает часовую шкалу слева (.hour-gutter, ширина 44px), правее идёт под
+   .schedule-grid во всю его ширину, включая горизонтальный скролл контейнера. */
+.schedule-row-with-gutter { position: relative; }
+.now-line {
+  position: absolute; left: 44px; right: 0; height: 0; border-top: 2px solid var(--danger);
+  z-index: 6; pointer-events: none;
+}
+.now-line::before {
+  content: ''; position: absolute; left: -5px; top: -4px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--danger);
 }
 
 /* ---------- booking detail (expands under schedule) ---------- */

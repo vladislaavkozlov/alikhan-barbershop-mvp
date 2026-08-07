@@ -147,7 +147,7 @@ export function wireWalkIn(staff, services, masterServices) {
   function openForWalkin(masterId, masterName, options = {}) {
     currentMasterId = masterId;
     nameLabel.textContent = masterName;
-    rebookMode = hasRebookUi && !!options.rebook;
+    rebookMode = hasRebookUi && !!(options.rebook || options.slot);
     resultEl.hidden = true;
     if (hasSaleForm) {
       saleForm.hidden = true;
@@ -157,17 +157,24 @@ export function wireWalkIn(staff, services, masterServices) {
       saleResultEl.hidden = true;
     }
     if (hasRebookUi) {
-      modeLabelEl.textContent = rebookMode ? 'Повторная запись' : 'Новая запись без предзаписи';
+      // Окно 43 (07.08.2026) - тот же режим "будущая запись" (dateTimeRow виден,
+      // статус после сохранения остаётся 'planned'), что уже использует "Записать
+      // снова" (Окно 39), теперь и для клика по пустому слоту в дневном календаре
+      // (assets/crm-calendar.js, window.openSlotBooking ниже) - подпись отдельная,
+      // "Повторная запись" была бы нечестной для клиента, которого выбирают заново.
+      modeLabelEl.textContent = options.slot ? 'Новая запись на выбранное время' : rebookMode ? 'Повторная запись' : 'Новая запись без предзаписи';
       dateTimeRow.hidden = !rebookMode;
       if (rebookMode) {
-        // Дефолт - сегодня и ближайшее ближайшее 15-минутное время в рабочем окне
-        // магазина (10:00-20:00, SHOP_TIME_OPTIONS в crm-widgets.js) - владелец меняет
-        // на любое реальное свободное, доступность проверяет сервер при сохранении.
+        // Дефолт - сегодня и ближайшее 15-минутное время в рабочем окне магазина
+        // (10:00-20:00, SHOP_TIME_OPTIONS в crm-widgets.js), если конкретные
+        // дата/время не переданы явно (options.date/options.startTime - клик по
+        // слоту календаря их всегда передаёт) - владелец меняет на любое реальное
+        // свободное, доступность проверяет сервер при сохранении.
         const now = new Date();
         const roundedMin = Math.min(20 * 60, Math.max(10 * 60, Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15));
         const defaultTime = `${String(Math.floor(roundedMin / 60)).padStart(2, '0')}:${String(roundedMin % 60).padStart(2, '0')}`;
-        renderDateSelect('wfDate-slot', 'wfDateValue', todayStr());
-        renderTimeSelect('wfTime-slot', 'wfTimeValue', defaultTime);
+        renderDateSelect('wfDate-slot', 'wfDateValue', options.date || todayStr());
+        renderTimeSelect('wfTime-slot', 'wfTimeValue', options.startTime || defaultTime);
       }
     }
     clientNameEl.value = options.clientName || '';
@@ -324,6 +331,19 @@ export function wireWalkIn(staff, services, masterServices) {
   if (hasRebookUi) {
     window.openRebookBooking = (masterId, masterName, clientName, clientPhone, serviceIds) => {
       openForWalkin(masterId, masterName, { rebook: true, clientName, clientPhone, serviceIds });
+    };
+  }
+
+  // Окно 43 (07.08.2026) - точка входа для клика по пустому слоту в дневном
+  // календаре (assets/crm-calendar.js, wireEmptySlotInteraction). Тот же приём, что
+  // и у window.openRebookBooking чуть выше - глобальная функция, не export ES-модуля,
+  // потому что вызывающий код рисует превью-слот динамически. hasRebookUi=false
+  // (crm-admin.html/crm-master.html пока без wfDateTimeRow) - функция не
+  // регистрируется вовсе, crm-calendar.js проверяет typeof window.openSlotBooking
+  // перед вызовом и тихо не показывает превью/клик там, где открыть нечего.
+  if (hasRebookUi) {
+    window.openSlotBooking = (masterId, masterName, date, startTime) => {
+      openForWalkin(masterId, masterName, { slot: true, date, startTime });
     };
   }
 }
