@@ -18,6 +18,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import pg from 'pg';
+import { setCors, sendJson, readBody } from './lib/http.js';
 
 // Окно 17 (04.08.2026) - найдено живым тестом при проверке Задач 0/1/2 (не гипотеза):
 // pg парсит SQL `date` (schedule_shifts.date, schedule_change_requests.date_from/
@@ -37,7 +38,6 @@ process.env.TZ = 'UTC';
 const { Pool } = pg;
 
 const PORT = Number(process.env.PORT) || 8080;
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 дней - простой логин, не нужен рефреш-стек
 // Задача 2 промпта корректировки Окна 13 (01.08.2026, Блок 5 в.19, Алихан): "отмена не
 // позже 2 часов" - до порога полный возврат/бесплатная отмена, после - без возврата.
@@ -57,34 +57,6 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
   ssl: { rejectUnauthorized: false },
 });
-
-function setCors(res) {
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
-  // Окно 18 (04.08.2026) - найден живым тестом: DELETE /schedule (задача 2 промпта
-  // Окна 17) не работал из браузера ("Failed to fetch" на кнопке "Сбросить к
-  // стандартному") - метод существовал на сервере, но отсутствовал в CORS-preflight
-  // ответе, браузер блокировал реальный запрос ДО того как он вообще уходил на
-  // сервер. Добавлен DELETE - упущение Окна 17 при добавлении маршрута, не новая
-  // функциональность.
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-}
-
-function sendJson(res, status, body) {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(body));
-}
-
-async function readBody(req) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  if (chunks.length === 0) return {};
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
-  } catch {
-    return {};
-  }
-}
 
 // ── PIN-хэш (email+PIN логин, Шаг 3 Окна 8) ────────────────────────────────
 // scrypt из node:crypto - без внешней зависимости (bcrypt пришлось бы ставить через
