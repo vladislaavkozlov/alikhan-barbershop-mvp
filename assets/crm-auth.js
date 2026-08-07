@@ -13,6 +13,7 @@ import { WEEKDAY_SHORT, wireScheduleEditor, wireWeeklyScheduleEditor, renderWeek
 import { wireMasterServiceEditors } from './crm-master-services.js';
 import { wireScheduleRequestForm } from './crm-schedule-request-form.js';
 import { wirePayrollDateSlots, wireMasterPayrollPeriod, renderRevenuePeriods, renderStaffPayrollPeriods, periodStartStr } from './crm-payroll.js';
+import { wireMasterSelfView, wireMasterSelfDataTab } from './crm-master-self.js';
 
 export const API = window.ALIKHAN_API_URL;
 const TOKEN_KEY = 'alikhan-crm:token';
@@ -596,101 +597,6 @@ function wireWalkIn(staff, services, masterServices) {
       openForWalkin(masterId, masterName, { rebook: true, clientName, clientPhone, serviceIds });
     };
   }
-}
-
-// Задача Б.1 (ТЗ-готовность-к-продакшену, 01.08.2026): crm-master.html хардкодил
-// "Алиовсад" в location-badge / шапке колонки календаря / скрытом bk-master / тексте
-// комиссии - ломалось для Мамедхана и Екатерины, если они реально зайдут в свой
-// кабинет. Элементов может не быть на странице (crm-owner.html/crm-admin.html) -
-// функция тогда no-op, тот же паттерн, что у wirePortfolioEditors выше. Клик по
-// конкретной appt-карточке в календаре ниже всё ещё статичный макет (openBooking
-// в mockup-crm.js читает data-master из HTML) - календарь целиком не подключён к
-// реальным данным (отдельная крупная задача, см. ТЗ-готовность-к-продакшену, Блок В),
-// эта функция чинит только то, что видно ДО открытия любой записи.
-function wireMasterSelfView(staff, pctOf) {
-  const badge = el('selfNameBadge');
-  if (badge) badge.textContent = staff.name;
-
-  const avatarEl = el('selfAvatar');
-  if (avatarEl) avatarEl.textContent = staff.name.split(' ').map((p) => p[0]).join('').toUpperCase();
-
-  const nameHeadEl = el('selfNameHead');
-  if (nameHeadEl) nameHeadEl.textContent = `${staff.name} (вы)`;
-
-  const bkMaster = el('bk-master');
-  if (bkMaster) bkMaster.value = staff.name;
-
-  // На crm-master.html весь календарь - это ТОЛЬКО записи залогиненного (у мастера
-  // нет вкладок с другими сотрудниками) - все appt-карточки в статичном примере были
-  // написаны под "Алиовсад" буквально. Подменяем data-master на реальное имя, иначе
-  // клик по любой карточке (openBooking → updateCommission в mockup-crm.js) снова
-  // покажет "Алиовсад - владелец" Мамедхану или Екатерине. Не затрагивает
-  // crm-owner.html/crm-admin.html - там несколько мастеров в одном календаре по
-  // назначению, .appt[data-master] там обязаны остаться разными.
-  if (el('walkinSoloTrigger')) {
-    document.querySelectorAll('.appt[data-master]').forEach((node) => {
-      node.dataset.master = staff.name;
-    });
-  }
-
-  const noteEl = el('bk-commission-note');
-  if (noteEl) {
-    if (staff.role === 'owner') {
-      noteEl.textContent = `${staff.name} - владелец, комиссию самому себе не платит, вся сумма услуги и так остаётся в бизнесе`;
-    } else {
-      const pct = pctOf(staff.id);
-      noteEl.textContent = `${pct}% от суммы услуги (ваша ставка) - показано для примера-записи выше, у реальной записи сумма своя`;
-    }
-  }
-}
-
-// Задача 2 (Окно 14, 02.08.2026) - вкладка "Личные данные" на crm-master.html:
-// своя карточка сотрудника (портфолио редактируемо, услуги/ставка/график - только
-// чтение, роль вообще не показываем). Элементов нет на crm-owner.html/crm-admin.html
-// - тогда no-op.
-function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
-  const picker = el('selfServicePicker');
-  if (!picker) return;
-
-  const avatarEl = el('selfCardAvatar');
-  if (avatarEl) avatarEl.textContent = staff.name.split(' ').map((p) => p[0]).join('').toUpperCase();
-  const nameEl = el('selfCardName');
-  if (nameEl) nameEl.textContent = staff.name;
-
-  // Портфолио - переиспользуем wirePortfolioEditors как есть: переносим id-суффикс
-  // "-self" на реальный staff.id, чтобы el(`portfolioExperience-${masterId}`) внутри
-  // неё нашла именно эти поля.
-  const saveBtn = el('selfPortfolioSaveBtn');
-  if (saveBtn && saveBtn.dataset.masterId === 'self') {
-    saveBtn.dataset.masterId = staff.id;
-    ['portfolioExperience', 'portfolioStrengths', 'portfolioCertificates', 'portfolioBeforeAfter', 'portfolioNote'].forEach((prefix) => {
-      const node = document.getElementById(`${prefix}-self`);
-      if (node) node.id = `${prefix}-${staff.id}`;
-    });
-  }
-
-  // Услуги - read-only список всех 8, отмечены те, что реально есть у ЭТОГО мастера
-  // в master_services (назначает владелец в своей карточке "Сотрудники").
-  const mine = new Map(masterServices.filter((r) => r.masterId === staff.id).map((r) => [r.serviceId, r]));
-  picker.innerHTML = services
-    .map((s) => {
-      const row = mine.get(s.id);
-      const checked = row ? 'checked' : '';
-      const price = row ? `${row.price}₽` : s.priceLabel;
-      const duration = row ? row.durationMin : s.durationMin;
-      return `<label class="service-check"><input type="checkbox" ${checked} disabled><span><span class="sc-name">${s.name}</span><span class="sc-meta"><span class="sc-price">${price}</span><span class="sc-dot">·</span><span>${duration} мин</span></span></span></label>`;
-    })
-    .join('');
-
-  // Ставка ЗП - владелец её не платит себе, у остальных - реальный % из
-  // master_payroll_settings (тот же источник, что renderLiveProof уже читает).
-  const rateEl = el('selfRateInput');
-  if (rateEl) {
-    rateEl.value = staff.role === 'owner' ? 'Не начисляется - вы владелец' : `${pctOf(staff.id)}%`;
-  }
-
-  renderWeeklySelfReadOnly(staff);
-  wireScheduleRequestForm(staff);
 }
 
 export function initCrmAuth(requiredRole) {
