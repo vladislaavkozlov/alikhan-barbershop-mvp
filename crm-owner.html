@@ -53,6 +53,11 @@
   #pt-d:checked ~ .tab-bar label[for="pt-d"] { color: var(--accent); border-color: var(--accent); }
   #pt-d:checked ~ .panel-d { display: block; }
 
+  /* пятая вкладка "Уведомления" (правка 07.08.2026) - новый раздел sidebar, сюда
+     переехали "Заявки мастеров на изменение графика" из "Расписания" */
+  #pt-e:checked ~ .tab-bar label[for="pt-e"] { color: var(--accent); border-color: var(--accent); }
+  #pt-e:checked ~ .panel-e { display: block; }
+
   /* период выручки (Окно 13, 01.08.2026 - переключатель по точкам убран, у Алихана
      одна точка, см. Задача 1 промпта корректировки) */
   #rvpa-day:checked ~ .seg-bar label[for="rvpa-day"],
@@ -84,7 +89,8 @@
   <div class="nav">
     <a href="index.html" class="brand">АЛИХАН</a>
     <div class="nav-right">
-      <span class="location-badge">Ставрополь, ул. Андрея Голуба 16 ст1</span>
+      <!-- Правка 07.08.2026 - адрес точки убран из шапки CRM (не нужен в рабочем
+           интерфейсе владельца, только в публичном виджете index.html/crm-admin.html) -->
       <!-- Правка Влада 07.08.2026 - колокольчик "клиенты, которым стоит позвонить" (был
            отдельной мёртвой кнопкой с Окна 42: риск-список убрали с экрана до раздела
            "Клиенты", Окно 48, клик никуда не вёл) и колокольчик "уведомления" объединены
@@ -125,17 +131,21 @@
     <input type="radio" name="pt" id="pt-b">
     <input type="radio" name="pt" id="pt-c">
     <input type="radio" name="pt" id="pt-d">
+    <input type="radio" name="pt" id="pt-e">
     <div class="tab-bar">
       <label for="pt-a">Расписание</label>
       <label for="pt-b">Команда</label>
       <label for="pt-c">Выручка</label>
       <label for="pt-d">Аналитика</label>
+      <label for="pt-e">Уведомления</label>
     </div>
 
     <!-- ======================= РАСПИСАНИЕ ======================= -->
     <div class="tab-panel panel-a">
       <section>
-        <h2>Расписание</h2>
+        <!-- Правка 07.08.2026 - убран дублирующий <h2>Расписание</h2>: заголовок раздела
+             уже показывает topbar (#shellSectionTitle, assets/crm-app-shell.js) и пункт
+             sidebar - третье повторение того же слова внутри панели было лишним. -->
 
         <!-- Окно 42 (07.08.2026) - демонтаж вкладки "Сегодня": оба алерта переехали сюда,
              наверх раздела, где владелец реально их чинит (график - в "Команде", заявка -
@@ -148,45 +158,6 @@
              экрана до раздела "Клиенты" (Окно 48) - решение Влада, сигнал остаётся только в
              счётчике колокольчика (assets/crm-clients.js), см. правку в шапке ниже. -->
         <div class="breaks-list" id="ownerAlertsSchedule"><span class="note">Загрузка…</span></div>
-
-        <div class="walkin-form" id="walkinForm" hidden>
-          <h3><span id="wfModeLabel">Новая запись без предзаписи</span> · <span id="wfMasterName" class="wf-master-name"></span></h3>
-          <!-- Окно 39 (06.08.2026) - "Записать снова" (карточка клиента) открывает эту же
-               форму в режиме будущей записи: дата/время выбираются заново (не "прямо
-               сейчас", как у обычного walk-in), реальная доступность проверяется тем же
-               POST /bookings при сохранении (overlap/schedule_blocked/past_time - см.
-               createBookingTx, server.mjs) - тот же контракт, что и у обычной записи,
-               отдельного пред-фильтра слотов не заводим. Скрыто по умолчанию - обычный
-               walk-in "прямо сейчас" эти поля не показывает. -->
-          <div class="field-grid" id="wfDateTimeRow" hidden>
-            <div class="field"><label>Дата</label><div id="wfDate-slot"></div></div>
-            <div class="field"><label>Время</label><div id="wfTime-slot"></div></div>
-          </div>
-          <div class="field-grid">
-            <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
-            <div class="field"><label>Телефон</label><input id="wfClientPhone" type="tel" placeholder="+7 900 000-00-00"></div>
-          </div>
-          <details class="service-edit" open>
-            <summary>Услуги (можно выбрать несколько - список только этого мастера)</summary>
-            <div class="service-picker" id="wfServicePicker"></div>
-          </details>
-          <p class="wf-summary" id="wfSummary">Выберите хотя бы одну услугу</p>
-          <div class="wf-actions">
-            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить запись</button>
-            <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Отмена</button>
-          </div>
-          <p class="wf-result" id="wfResult" hidden></p>
-
-          <div class="wf-sale" id="wfSaleForm" hidden>
-            <h4 style="margin-top:18px">Добавить продажу к этой записи</h4>
-            <div class="field-grid">
-              <div class="field"><label>Товар</label><input id="wfSaleItem" type="text" placeholder="например Воск для укладки"></div>
-              <div class="field"><label>Сумма, ₽</label><input id="wfSaleAmount" type="number" min="1" step="1" placeholder="500"></div>
-            </div>
-            <button class="btn btn-ghost btn-sm" type="button" id="wfSaleSubmit">Добавить продажу</button>
-            <p class="wf-result" id="wfSaleResult" hidden></p>
-          </div>
-        </div>
 
         <div class="seg-tabs">
           <input type="radio" name="sched-period" id="sp-day" checked>
@@ -254,6 +225,55 @@
 
         </div>
 
+        <!-- Правка 07.08.2026 - форма walk-in/новой записи перенесена СЮДА, под календарь
+             (была выше, перед .seg-tabs День/Неделя/Месяц) - в hidden-состоянии разницы не
+             было, но при открытии (клик по пустому слоту в "День" - assets/crm-calendar.js
+             wireEmptySlotInteraction → window.openSlotBooking, assets/crm-walkin.js) форма
+             раскрывалась НАД календарём и сдвигала его вниз - ровно жалоба "вкладка 'День'
+             скачет по высоте". Календарь зафиксирован по высоте (.schedule-track, правка
+             того же дня чуть выше), но сама позиция начала календаря плавала из-за этого
+             блока. Здесь форма открывается уже ПОД зафиксированным календарём и никак не
+             сдвигает его - реальная причина прыжков устранена, а не замаскирована. ID/логика
+             не менялись, только место в DOM. -->
+        <div class="walkin-form" id="walkinForm" hidden>
+          <h3><span id="wfModeLabel">Новая запись без предзаписи</span> · <span id="wfMasterName" class="wf-master-name"></span></h3>
+          <!-- Окно 39 (06.08.2026) - "Записать снова" (карточка клиента) открывает эту же
+               форму в режиме будущей записи: дата/время выбираются заново (не "прямо
+               сейчас", как у обычного walk-in), реальная доступность проверяется тем же
+               POST /bookings при сохранении (overlap/schedule_blocked/past_time - см.
+               createBookingTx, server.mjs) - тот же контракт, что и у обычной записи,
+               отдельного пред-фильтра слотов не заводим. Скрыто по умолчанию - обычный
+               walk-in "прямо сейчас" эти поля не показывает. -->
+          <div class="field-grid" id="wfDateTimeRow" hidden>
+            <div class="field"><label>Дата</label><div id="wfDate-slot"></div></div>
+            <div class="field"><label>Время</label><div id="wfTime-slot"></div></div>
+          </div>
+          <div class="field-grid">
+            <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
+            <div class="field"><label>Телефон</label><input id="wfClientPhone" type="tel" placeholder="+7 900 000-00-00"></div>
+          </div>
+          <details class="service-edit" open>
+            <summary>Услуги (можно выбрать несколько - список только этого мастера)</summary>
+            <div class="service-picker" id="wfServicePicker"></div>
+          </details>
+          <p class="wf-summary" id="wfSummary">Выберите хотя бы одну услугу</p>
+          <div class="wf-actions">
+            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить запись</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Отмена</button>
+          </div>
+          <p class="wf-result" id="wfResult" hidden></p>
+
+          <div class="wf-sale" id="wfSaleForm" hidden>
+            <h4 style="margin-top:18px">Добавить продажу к этой записи</h4>
+            <div class="field-grid">
+              <div class="field"><label>Товар</label><input id="wfSaleItem" type="text" placeholder="например Воск для укладки"></div>
+              <div class="field"><label>Сумма, ₽</label><input id="wfSaleAmount" type="number" min="1" step="1" placeholder="500"></div>
+            </div>
+            <button class="btn btn-ghost btn-sm" type="button" id="wfSaleSubmit">Добавить продажу</button>
+            <p class="wf-result" id="wfSaleResult" hidden></p>
+          </div>
+        </div>
+
         <!-- Модалка редактирования дня (Задача 3, Окно 18) - открывается иконкой ✎ в
              ячейке Месяца. Общая на страницу (не по одной на мастера) - editingDate/
              editingMasterId держит assets/crm-schedule-views.js. -->
@@ -299,25 +319,6 @@
             <div class="breaks-list" id="clientCardVisits"><span class="note">Загрузка…</span></div>
           </div>
         </div>
-
-        <!-- Заявки мастеров на изменение графика (Окно 23, 04.08.2026). До этого окна
-             владелец видел заявку ТОЛЬКО как уведомление в колокольчике: одобрил - и
-             заявка исчезала с глаз, а её эффект (заблокированные даты) оставался.
-             Здесь она видна всегда, вместе со статусом, и одобренный отгул/отпуск
-             снимается одной кнопкой сразу со всего диапазона дат. Наполняется
-             assets/crm-schedule-requests.js -->
-        <!-- id для скролла: Окно 42 (07.08.2026) - кнопка "Открыть" у алерта "на
-             рассмотрении" (наверху раздела) ведёт сюда же, тем же приёмом, что
-             openMasterCard (assets/crm-notifications.js) уже использует для карточки
-             мастера в "Команде". -->
-        <section style="margin-top:26px" id="scheduleRequestsHistory">
-          <h2 style="font-size:1rem">Заявки мастеров на изменение графика</h2>
-          <p class="section-hint">«Отменить» возвращает дни к стандартному графику - мастер получит уведомление</p>
-          <div class="break-row" style="margin-bottom:10px">
-            <button class="btn btn-ghost btn-sm" type="button" id="ownerReqReload">Обновить список</button>
-          </div>
-          <div id="ownerReqList" class="req-cards"><span class="note">Загрузка…</span></div>
-        </section>
 
         <details class="booking-detail" id="bd-1" open>
           <summary><strong id="bd-now">Запись клиента</strong></summary>
@@ -419,7 +420,8 @@
     <!-- ======================= СОТРУДНИКИ ======================= -->
     <div class="tab-panel panel-b">
       <section>
-        <h2>Команда</h2>
+        <!-- Правка 07.08.2026 - убран дублирующий <h2>Команда</h2> (topbar + sidebar уже
+             показывают название раздела), тот же приём, что и у "Расписание"/"Аналитика". -->
         <!-- Кнопка "+ Добавить сотрудника" убрана Окном 36 (06.08.2026) - у неё не было
              обработчика, и добавить его сейчас нельзя честно: роута POST /staff нет
              нигде в server.mjs (grep - 0 совпадений), только PUT на уже существующего
@@ -429,7 +431,10 @@
 
         <div class="staff-list">
           <!-- ИВАН 1 — полная карточка со всеми экранами разд.16.4/16.5 -->
-          <details class="staff-card" id="staffCard-master-1" open>
+          <!-- Правка 07.08.2026 - убран атрибут open: все карточки мастеров теперь
+               одинаково свёрнуты по умолчанию (было - эта первая карточка открыта, две
+               остальные ниже уже были свёрнуты, несогласованно). -->
+          <details class="staff-card" id="staffCard-master-1">
             <summary>
               <div class="avatar lg">АЛ</div>
               <div class="summary-meta">
@@ -517,37 +522,6 @@
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-1">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-1"></p>
-
-              <h4>Как приходят клиенты</h4>
-              <p class="section-hint">Появится после первых записей</p>
-              <div class="seg-tabs">
-                <input type="radio" name="wi1-period" id="wi1-month" checked>
-                <input type="radio" name="wi1-period" id="wi1-3m">
-                <input type="radio" name="wi1-period" id="wi1-6m">
-                <input type="radio" name="wi1-period" id="wi1-year">
-                <div class="seg-bar">
-                  <label for="wi1-month">Месяц</label>
-                  <label for="wi1-3m">3 мес</label>
-                  <label for="wi1-6m">Полгода</label>
-                  <label for="wi1-year">Год</label>
-                </div>
-                <div class="seg-panel panel-wi1-month"><div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                  <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                </div></div>
-                <div class="seg-panel panel-wi1-3m"><div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                  <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                </div></div>
-                <div class="seg-panel panel-wi1-6m"><div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                  <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                </div></div>
-                <div class="seg-panel panel-wi1-year"><div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                  <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                </div></div>
-              </div>
             </div>
           </details>
 
@@ -674,8 +648,18 @@
 
     <!-- ======================= ВЫРУЧКА (новая вкладка, добавлена по правке Влада 27.07.2026) ======================= -->
     <div class="tab-panel panel-c">
+      <!-- Правка 07.08.2026 - "Выручка" и "Зарплаты мастеров" стали сворачиваемыми
+           блоками, тот же паттерн (details.staff-card/summary/staff-card-body), что уже
+           применён к карточкам мастеров в "Команде" - минималистичный вид по умолчанию,
+           без своей новой CSS. -->
       <section>
-        <h2>Выручка</h2>
+      <div class="staff-list">
+      <details class="staff-card">
+        <summary>
+          <div class="summary-meta"><div class="name">Выручка</div></div>
+          <span class="chevron">▸</span>
+        </summary>
+        <div class="staff-card-body">
         <p class="section-hint">Неделя/Месяц/Квартал/Год считается с начала периода по сегодня</p>
 
         <div class="seg-tabs">
@@ -719,18 +703,23 @@
             <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllYearNet">000 ₽ <span class="unsure">считаю…</span></div></div>
           </div></div>
         </div>
-      </section>
+        </div>
+      </details>
 
       <!-- Правка Влада 07.08.2026 - блоки "Зарплата" (по мастеру) и "Настройка ЗП"
            перенесены сюда из вкладки "Сотрудники"/"Команда" (panel-b): деньги
            логичнее смотреть рядом с "Выручкой" на одной вкладке "Финансы", а не в
            карточке сотрудника. Разметка/id/радио перенесены 1:1, поведение не
-           менялось - только новое место в DOM. Ссылка "Перейти к настройке ЗП"
-           у Алиовсада теперь ведёт на #nastroika-zp в той же вкладке (раньше вела
-           на другую вкладку "Сотрудники" - тот же приём same-page якоря, что и
-           #scheduleViewAnchor, просто без перехода между разделами). -->
-      <section>
-        <h2>Зарплаты мастеров</h2>
+           менялось - только новое место в DOM. Правка 07.08.2026 - "Настройка ЗП" (была
+           отдельной пустой вкладкой ниже) удалена целиком, дублировала эту же карточку
+           "Зарплаты мастеров" - ссылка "Перейти к настройке ЗП" у Алиовсада удалена
+           вместе с ней (вела на теперь несуществующий #nastroika-zp). -->
+      <details class="staff-card">
+        <summary>
+          <div class="summary-meta"><div class="name">Зарплаты мастеров</div></div>
+          <span class="chevron">▸</span>
+        </summary>
+        <div class="staff-card-body">
         <p class="section-hint">Расчёт по каждому мастеру - День/Неделя/Месяц/свой период, тот же резолвер, что и «Зарплаты мастеров» в карточках выручки выше</p>
 
         <h3>Алиовсад</h3>
@@ -769,7 +758,6 @@
                 <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
               </div>
             </div>
-            <a class="btn btn-primary btn-sm" href="#nastroika-zp">Перейти к настройке ЗП</a>
           </div>
         </div>
 
@@ -856,10 +844,9 @@
             </div>
           </div>
         </div>
-      </section>
-
-      <section id="nastroika-zp">
-        <h2>Настройка ЗП</h2>
+        </div>
+      </details>
+      </div>
       </section>
     </div>
 
@@ -874,10 +861,20 @@
          неверна (widget уехал на другую вкладку). Явно по просьбе Влада - больше
          сюда пока ничего не добавлять. -->
     <div class="tab-panel panel-d">
+      <!-- Правка 07.08.2026 - убран дублирующий <h2>Аналитика</h2> (topbar + sidebar уже
+           называют раздел). "Возвращаемость клиентов" и "Как приходят клиенты" (второй
+           блок перенесён 1:1 из карточки Алиовсада в "Команде" - тот же company-wide
+           показатель, что и "Возвращаемость", просто раньше жил не на своей вкладке за
+           неимением места) оформлены сворачиваемыми блоками, тот же паттерн
+           (details.staff-card), что уже применён у карточек мастеров и на "Финансах". -->
       <section>
-        <h2>Аналитика</h2>
-
-        <h4>Возвращаемость клиентов</h4>
+      <div class="staff-list">
+      <details class="staff-card">
+        <summary>
+          <div class="summary-meta"><div class="name">Возвращаемость клиентов</div></div>
+          <span class="chevron">▸</span>
+        </summary>
+        <div class="staff-card-body">
         <p class="section-hint">Появится после первых визитов</p>
         <div class="seg-tabs">
           <input type="radio" name="rt1-period" id="rt1-3" checked>
@@ -897,6 +894,61 @@
           <div class="seg-panel panel-rt1-12"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 1 год</div></div></div></div>
           <div class="seg-panel panel-rt1-24"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 2 года</div></div></div></div>
           <div class="seg-panel panel-rt1-36"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 3 года</div></div></div></div>
+        </div>
+        </div>
+      </details>
+
+      <details class="staff-card">
+        <summary>
+          <div class="summary-meta"><div class="name">Как приходят клиенты</div></div>
+          <span class="chevron">▸</span>
+        </summary>
+        <div class="staff-card-body">
+        <p class="section-hint">Появится после первых записей</p>
+        <div class="seg-tabs">
+          <input type="radio" name="wi1-period" id="wi1-month" checked>
+          <input type="radio" name="wi1-period" id="wi1-3m">
+          <input type="radio" name="wi1-period" id="wi1-6m">
+          <input type="radio" name="wi1-period" id="wi1-year">
+          <div class="seg-bar">
+            <label for="wi1-month">Месяц</label>
+            <label for="wi1-3m">3 мес</label>
+            <label for="wi1-6m">Полгода</label>
+            <label for="wi1-year">Год</label>
+          </div>
+          <div class="seg-panel panel-wi1-month"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          </div></div>
+          <div class="seg-panel panel-wi1-3m"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          </div></div>
+          <div class="seg-panel panel-wi1-6m"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          </div></div>
+          <div class="seg-panel panel-wi1-year"><div class="stat-cards">
+            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
+          </div></div>
+        </div>
+        </div>
+      </details>
+      </div>
+      </section>
+    </div>
+
+    <!-- ======================= УВЕДОМЛЕНИЯ (новая вкладка sidebar, правка 07.08.2026) =======================
+         "Заявки мастеров на изменение графика" переехали сюда из "Расписания" целиком
+         (были там же, что и view с 04.08.2026 - Окно 23) - id/логика/assets/crm-schedule-
+         requests.js не менялись, только новое место в DOM. Поясняющая строка про
+         «Отменить» убрана по прямой правке Влада 07.08.2026. -->
+    <div class="tab-panel panel-e">
+      <section>
+        <div id="ownerReqList" class="req-cards"><span class="note">Загрузка…</span></div>
+        <div class="break-row" style="margin-top:10px">
+          <button class="btn btn-ghost btn-sm" type="button" id="ownerReqReload">Обновить список</button>
         </div>
       </section>
     </div>

@@ -33,22 +33,28 @@
 // тот же принцип, что уже применён к Клиентам/Настройкам выше (пункт появляется
 // в момент, когда раздел реально наполнен). Эмодзи-иконки заменены на SVG
 // (assets/crm-icons.js) - разный рендер эмодзи по ОС/браузерам ломал премиум-вид.
-import { ICON_SCHEDULE, ICON_TEAM, ICON_FINANCE, ICON_ANALYTICS } from './crm-icons.js';
+import { ICON_SCHEDULE, ICON_TEAM, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL } from './crm-icons.js';
 
-const SECTION_RADIO = { schedule: 'pt-a', team: 'pt-b', finance: 'pt-c', analytics: 'pt-d' };
+// Правка 07.08.2026 - добавлен пункт "Уведомления" (radio pt-e/panel-e, новый слот):
+// "Заявки мастеров на изменение графика" переехали сюда из "Расписания" целиком
+// (crm-owner.html). Иконка переиспользует ICON_BELL (тот же SVG, что уже стоит в
+// колокольчике topbar) - "в стиле новых иконок" в буквальном смысле, без новой SVG.
+const SECTION_RADIO = { schedule: 'pt-a', team: 'pt-b', finance: 'pt-c', analytics: 'pt-d', notifications: 'pt-e' };
 const SECTION_LABEL = {
   schedule: 'Расписание',
   team: 'Команда',
   finance: 'Финансы',
   analytics: 'Аналитика',
+  notifications: 'Уведомления',
 };
 const SECTION_ICON = {
   schedule: ICON_SCHEDULE,
   team: ICON_TEAM,
   finance: ICON_FINANCE,
   analytics: ICON_ANALYTICS,
+  notifications: ICON_BELL,
 };
-const SECTION_ORDER = ['schedule', 'team', 'finance', 'analytics'];
+const SECTION_ORDER = ['schedule', 'team', 'finance', 'analytics', 'notifications'];
 
 let currentSection = 'schedule';
 

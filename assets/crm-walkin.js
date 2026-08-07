@@ -188,7 +188,13 @@ export function wireWalkIn(staff, services, masterServices) {
       renderSummary();
     }
     form.hidden = false;
-    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Правка 07.08.2026 - было block:'start': форма теперь лежит В DOM ПОД календарём
+    // (crm-owner.html, тот же приём, что уже фиксирует высоту .schedule-track - см.
+    // комментарий там же), а 'start' насильно прокручивал страницу так, что календарь
+    // "День" уезжал за верх экрана - ровно жалоба "вкладка скачет". 'nearest' скроллит,
+    // только если форма реально не видна, и на минимальное расстояние - клик по слоту
+    // календаря уже держит нужное место в поле зрения, дальний прыжок не нужен.
+    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   // crm-master.html: единственный мастер - он и есть залогиненный сотрудник, выбирать не из чего
