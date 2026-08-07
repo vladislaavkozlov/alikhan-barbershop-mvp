@@ -9,17 +9,6 @@
 .app-sidebar { display: none; }
 
 .shell-topbar-title { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
-.shell-search-stub {
-  font-family: 'Manrope', sans-serif;
-  font-size: 0.86rem;
-  color: var(--text-muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
-  width: min(280px, 60vw);
-}
-.shell-search-stub:disabled { cursor: not-allowed; opacity: 0.7; }
 
 @media (min-width: 1024px) {
   body.app-shell-active {
