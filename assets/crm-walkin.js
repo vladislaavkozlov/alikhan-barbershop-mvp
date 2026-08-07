@@ -5,7 +5,8 @@
 // перенесён 1в1, поведение не менялось.
 import { el, formatMoney, todayStr, pad2 } from './crm-shared.js';
 import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } from './crm-widgets.js';
-import { API, getToken, renderLiveProof } from './crm-auth.js';
+import { API, getToken } from './crm-auth.js';
+import { renderLiveProof } from './crm-dashboard.js';
 import { mergeServiceCombos, isServiceBlockedByCombo } from '../storage.js';
 
 // Задача Влада (01.08.2026): "Клиент без предварительной записи" была рисунком -
