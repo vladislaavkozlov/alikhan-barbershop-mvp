@@ -9,7 +9,8 @@
 //
 // ШАГ 0 промпта нашёл 3 места, которые раньше напрямую трогали radio pt-*:
 // (1) инлайн-кнопка "Выручка за неделю/месяц →" на "Сегодня" (crm-owner.html),
-// (2) goToTab() в crm-owner-today.js (алерты "мастер без графика"/заявка),
+// (2) goToTab() в crm-owner-today.js (алерты "мастер без графика"/заявка,
+//     файл переименован в crm-schedule-alerts.js Окном 42),
 // (3) openMasterCard() в crm-notifications.js (клик по уведомлению). Все три
 // переведены на goToSection() - см. правки в соответствующих файлах.
 //
@@ -20,23 +21,26 @@
 // пункт возвращается в SECTION_LABEL/SECTION_ICON/SECTION_ORDER ровно в том окне,
 // где раздел реально наполняется контентом (Клиенты, Настройки - номера окон,
 // присвоенные в исходном плане, не переиспользовать для другого смысла).
+//
+// Окно 42 (07.08.2026, ПРОМПТ-ОКНО-42-ДЕМОНТАЖ-СЕГОДНЯ.md): пункт "Сегодня" убран
+// целиком (не заглушка - был наполнен, но 2 из 3 виджетов дублировали другие
+// разделы, третий переехал в счётчик колокольчика без своего экрана). Вход по
+// умолчанию - "Расписание", не "Сегодня".
 
-const SECTION_RADIO = { today: 'pt-today', schedule: 'pt-a', team: 'pt-b', finance: 'pt-c' };
+const SECTION_RADIO = { schedule: 'pt-a', team: 'pt-b', finance: 'pt-c' };
 const SECTION_LABEL = {
-  today: 'Сегодня',
   schedule: 'Расписание',
   team: 'Команда',
   finance: 'Финансы',
 };
 const SECTION_ICON = {
-  today: '🏠',
   schedule: '🗓',
   team: '✂️',
   finance: '₽',
 };
-const SECTION_ORDER = ['today', 'schedule', 'team', 'finance'];
+const SECTION_ORDER = ['schedule', 'team', 'finance'];
 
-let currentSection = 'today';
+let currentSection = 'schedule';
 
 function el(id) {
   return document.getElementById(id);
@@ -116,7 +120,7 @@ export function initAppShell() {
   new MutationObserver(sync).observe(main, { attributes: true, attributeFilter: ['hidden'] });
   sync();
 
-  goToSection('today');
+  goToSection('schedule');
 }
 
 // Мост для инлайн-обработчиков в HTML (тот же установившийся в проекте паттерн,

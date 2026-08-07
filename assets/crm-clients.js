@@ -6,6 +6,14 @@
 // технически - весь текст риска приходит с сервера (risk.label, server.mjs
 // describeClientRisk) уже в форме "стоит позвонить", фронт его не сочиняет и не
 // подаёт как "клиент заблокирован".
+//
+// Окно 42 (07.08.2026, ПРОМПТ-ОКНО-42-ДЕМОНТАЖ-СЕГОДНЯ.md): у списка больше нет
+// экрана на crm-owner.html (раздел "Клиенты" - Окно 48, пока заглушка) - решение
+// Влада не городить временный дом ради одного списка. renderRiskList() продолжает
+// реально дёргать /clients?risk=true и живьём считать риск-клиентов в счётчике
+// колокольчика (#riskClientsBadge), чтобы сигнал не пропадал совсем - #raList на
+// странице сейчас нет, рендер списка просто пропускается (guard ниже), сам модуль
+// не удалён и вернётся к полноценному рендеру, когда появится раздел "Клиенты".
 import { fetchJson } from './crm-auth.js';
 
 function escapeHtml(s) {
@@ -25,33 +33,37 @@ const STATUS_LABEL = { planned: 'ожидается', done: 'пришёл', canc
 
 async function renderRiskList() {
   const list = el('raList');
-  if (!list) return;
+  const badge = el('riskClientsBadge');
+  // Ни списка (страница без раздела "Клиенты"), ни бейджа (страница без этого
+  // колокольчика вообще) - нечего обновлять, тихо выходим (тот же no-op паттерн,
+  // что и у wireNotifications, assets/crm-notifications.js).
+  if (!list && !badge) return;
   try {
     const clients = await fetchJson('/clients?risk=true');
-    if (clients.length === 0) {
-      list.innerHTML = '<p class="payroll-note">Нет клиентов, которым сейчас стоит позвонить</p>';
-    } else {
-      list.innerHTML = clients
-        .map(
-          (c) => `<div class="ra-row">
-            <span class="ra-name">${escapeHtml(c.name || 'Без имени')}</span>
-            <span class="ra-last">${escapeHtml(c.risk.label || '')}</span>
-            ${c.phone ? `<a class="btn btn-ghost btn-sm" href="tel:${escapeHtml(c.phone)}">Позвонить</a>` : ''}
-            <button class="btn btn-ghost btn-sm" type="button" data-open-client-id="${escapeHtml(c.id)}">Открыть карточку</button>
-            <button class="ra-dismiss" type="button" title="Скрыть из списка на эту сессию" onclick="dismissRetentionRow(this)">✕</button>
-          </div>`
-        )
-        .join('');
-      list.querySelectorAll('[data-open-client-id]').forEach((btn) => {
-        btn.addEventListener('click', () => openClientCard(btn.dataset.openClientId));
-      });
+    if (badge) badge.textContent = String(clients.length);
+    if (list) {
+      if (clients.length === 0) {
+        list.innerHTML = '<p class="payroll-note">Нет клиентов, которым сейчас стоит позвонить</p>';
+      } else {
+        list.innerHTML = clients
+          .map(
+            (c) => `<div class="ra-row">
+              <span class="ra-name">${escapeHtml(c.name || 'Без имени')}</span>
+              <span class="ra-last">${escapeHtml(c.risk.label || '')}</span>
+              ${c.phone ? `<a class="btn btn-ghost btn-sm" href="tel:${escapeHtml(c.phone)}">Позвонить</a>` : ''}
+              <button class="btn btn-ghost btn-sm" type="button" data-open-client-id="${escapeHtml(c.id)}">Открыть карточку</button>
+              <button class="ra-dismiss" type="button" title="Скрыть из списка на эту сессию" onclick="dismissRetentionRow(this)">✕</button>
+            </div>`
+          )
+          .join('');
+        list.querySelectorAll('[data-open-client-id]').forEach((btn) => {
+          btn.addEventListener('click', () => openClientCard(btn.dataset.openClientId));
+        });
+      }
     }
   } catch (err) {
-    list.innerHTML = `<p class="payroll-note">Не удалось загрузить список: ${escapeHtml(err.message)}</p>`;
+    if (list) list.innerHTML = `<p class="payroll-note">Не удалось загрузить список: ${escapeHtml(err.message)}</p>`;
   }
-  // .ra-row только что перерисованы - счётчик на колокольчике (assets/mockup-crm.js)
-  // должен увидеть реальное число, не оставшееся от предыдущей загрузки/примера.
-  window.updateNotifBadge?.();
 }
 
 export function wireClientsRisk() {

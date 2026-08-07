@@ -1,9 +1,10 @@
-// Окно 40 (06.08.2026, Задача 2) - вкладка "Сегодня" (crm-owner.html): два новых
-// списка алертов (мастера без графика, необработанные заявки) через
-// GET /owner/alerts (computeOwnerAlerts, api/server.mjs). Выручка сегодня и клиенты
-// в риске на этой же вкладке рендерятся уже существующими модулями без изменений
-// (renderLiveProof заполняет #revenueTodayAmount, assets/crm-clients.js заполняет
-// #raList) - этот файл их не трогает и не дублирует запрос.
+// Окно 42 (07.08.2026) - переименован из crm-owner-today.js (демонтаж вкладки
+// "Сегодня", ПРОМПТ-ОКНО-42-ДЕМОНТАЖ-СЕГОДНЯ.md): два алерта (мастера без графика,
+// необработанные заявки), GET /owner/alerts (computeOwnerAlerts, api/server.mjs) -
+// теперь рендерятся наверху раздела "Расписание" (crm-owner.html, #ownerAlertsSchedule/
+// #ownerAlertsRequests), а не на отдельной вкладке. Выручка сегодня и риск-список
+// клиентов, которые раньше жили на той же вкладке "Сегодня", убраны этим же окном -
+// см. правки в crm-owner.html/assets/crm-clients.js, этот файл их не касается.
 import { fetchJson } from './crm-auth.js';
 import { goToSection } from './crm-app-shell.js';
 
@@ -25,12 +26,19 @@ function periodOf(r) {
   return `${r.dateFrom} ${r.startTime}–${r.endTime}`;
 }
 
-// Прямое действие каждой строки - переключить раздел на то место, где эту
-// проблему реально решают (график - "Команда", заявки - история в "Расписание"),
-// не просто показать текст. Окно 41 - переведено с прямого radio.checked=true на
-// общий роутер app shell (assets/crm-app-shell.js), сама панель не изменилась.
+// "Настроить график" по-прежнему уводит в "Команду" - там и чинится отсутствующий
+// график мастера, баннер уже живёт в "Расписании" (Окно 42), но это другой раздел.
 function goToTab(sectionId) {
   goToSection(sectionId);
+}
+
+// "Открыть" у заявки на рассмотрении раньше переключало на вкладку "Расписание"
+// (баннер жил на "Сегодня") - Окно 42 переносит сам баннер в "Расписание", так что
+// переключать раздел больше незачем, нужен скролл до истории заявок ниже на той же
+// странице (#scheduleRequestsHistory, crm-owner.html) - тот же приём, что уже
+// применяет openMasterCard (assets/crm-notifications.js) для карточки мастера.
+function scrollToRequestsHistory() {
+  el('scheduleRequestsHistory')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function renderOwnerAlerts() {
@@ -76,7 +84,7 @@ async function renderOwnerAlerts() {
         })
         .join('');
       requestsEl.querySelectorAll('[data-open-requests-tab]').forEach((btn) => {
-        btn.addEventListener('click', () => goToTab('schedule'));
+        btn.addEventListener('click', () => scrollToRequestsHistory());
       });
     }
 
@@ -91,7 +99,7 @@ async function renderOwnerAlerts() {
   }
 }
 
-export function wireOwnerToday() {
+export function wireScheduleAlerts() {
   // #crmMain остаётся hidden (initCrmAuth, assets/crm-auth.js) до успешного входа -
   // тот же приём ожидания, что уже применён в assets/crm-clients.js
   // (wireClientsRisk)/assets/crm-schedule-requests.js (initOwnerScheduleRequests).
