@@ -105,251 +105,27 @@ import {
   handleScheduleRequestDecision,
   handleScheduleRequestCancel,
 } from './routes/schedule-requests.js';
+import {
+  handleNotificationsList,
+  handleNotificationsUnreadCount,
+  handleNotificationRead,
+  handleNotificationsReadAll,
+} from './routes/notifications.js';
+import { computeMasterPayroll, computeRevenueToday, handlePayrollSettings, handlePayroll, handleRevenueToday } from './routes/payroll.js';
+import {
+  describeClientRisk,
+  getClientCard,
+  listClientsAtRisk,
+  computeOwnerAlerts,
+  handleOwnerAlerts,
+  handleClientsAtRisk,
+  handleClientCard,
+} from './routes/clients.js';
+// Ре-экспорт для tests/*.test.js.
+export { describeClientRisk, getClientCard, listClientsAtRisk, computeOwnerAlerts } from './routes/clients.js';
+export { computeMasterPayroll, computeRevenueToday } from './routes/payroll.js';
 
 const PORT = Number(process.env.PORT) || 8080;
-// Окно 37 (06.08.2026, Задача 1) - единый резолвер ЗП мастера за произвольный
-// период. До этого окна одна и та же формула (сумма цены броней × ставка мастера
-// / 100) жила в двух местах: мёртвый calcPayrollEstimate в storage.js (хардкод
-// 45%/50%, ни один живой вызов не найден grep-аудитом) и рабочий client-side дубль
-// в assets/crm-auth.js (bookingPrice+pctOf, читает /bookings + /payroll-settings).
-// Здесь та же формула переносится на бэкенд как единственный источник цифры для
-// "Моей зарплаты" мастера (crm-master.html) - День/Неделя/Месяц/произвольный
-// период через один вызов, не три реализации. Статус брони намеренно НЕ
-// фильтруется - сохраняет 1:1 поведение уже работающих Недели/Месяца (регрессия
-// 0), фильтрация по статусу вне скоупа этого окна.
-export async function computeMasterPayroll(client, masterId, from, to) {
-  const pctRes = await client.query('SELECT pct FROM master_payroll_settings WHERE master_id = $1', [masterId]);
-  const pct = pctRes.rows[0]?.pct ?? 0;
-
-  const bookingsRes = await client.query(
-    'SELECT id, service_id AS "serviceId" FROM bookings WHERE master_id = $1 AND date >= $2 AND date <= $3',
-    [masterId, from, to]
-  );
-  const bookingIds = bookingsRes.rows.map((r) => r.id);
-  const linkRes = bookingIds.length
-    ? await client.query(
-        'SELECT booking_id AS "bookingId", service_id AS "serviceId" FROM booking_services WHERE booking_id = ANY($1)',
-        [bookingIds]
-      )
-    : { rows: [] };
-  const serviceIdsByBooking = new Map();
-  for (const row of linkRes.rows) {
-    if (!serviceIdsByBooking.has(row.bookingId)) serviceIdsByBooking.set(row.bookingId, []);
-    serviceIdsByBooking.get(row.bookingId).push(row.serviceId);
-  }
-
-  // Цена - как у /master-services на фронте (priceOf): своя цена мастера в
-  // приоритете, общий прайс services - только страховка на случай пары, которую
-  // почему-то не завели в master_services.
-  const masterPriceRes = await client.query('SELECT service_id AS "serviceId", price FROM master_services WHERE master_id = $1', [
-    masterId,
-  ]);
-  const priceByService = new Map(masterPriceRes.rows.map((r) => [r.serviceId, r.price]));
-  const basePriceRes = await client.query('SELECT id, price FROM services');
-  const basePriceByService = new Map(basePriceRes.rows.map((r) => [r.id, r.price]));
-  const priceOf = (serviceId) => priceByService.get(serviceId) ?? basePriceByService.get(serviceId) ?? 0;
-
-  let revenue = 0;
-  for (const b of bookingsRes.rows) {
-    const serviceIds = serviceIdsByBooking.get(b.id)?.length ? serviceIdsByBooking.get(b.id) : b.serviceId ? [b.serviceId] : [];
-    revenue += serviceIds.reduce((sum, id) => sum + priceOf(id), 0);
-  }
-  const payroll = (revenue * pct) / 100;
-  return { revenue, payroll };
-}
-
-// Окно 38 (06.08.2026) - дневная выручка (SUM sales.amount за сегодня МСК).
-// Администратор физически не мог ответить на "сколько мы заработали сегодня" без
-// звонка владельцу (PRODUCT_AUDIT_REPORT, разд. "Администратор"; FINAL_PRODUCT_
-// DECISION, Epic 6) - read-only режим администратора в остальном сделан правильно,
-// это единственный реальный пробел. Данные (sales) уже собираются /sales (POST) -
-// здесь только агрегация, не новый сбор данных.
-//
-// nowMs - инъекция текущего времени для юнит-тестов (граница суток), в проде
-// вызывается без третьего аргумента (реальный Date.now()). МСК = UTC+3 круглый
-// год (тот же приём, что computeMasterPayroll/scanBookingReminders/bookings-
-// cancel - Amvera работает в UTC, не MSK).
-//
-// locationId=null (владелец без явной точки) - без фильтра по location_id,
-// сумма по ВСЕМ точкам. Контракт не ломается при появлении второй точки: SQL не
-// хардкодит число точек, просто не сужает выборку.
-export async function computeRevenueToday(client, locationId, nowMs = Date.now()) {
-  const todayStr = new Date(nowMs + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const dayStart = new Date(`${todayStr}T00:00:00+03:00`);
-  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-
-  let query = `SELECT s.amount FROM sales s JOIN bookings b ON b.id = s.booking_id
-               WHERE s.created_at >= $1 AND s.created_at < $2`;
-  const params = [dayStart, dayEnd];
-  if (locationId) {
-    params.push(locationId);
-    query += ` AND b.location_id = $${params.length}`;
-  }
-  const result = await client.query(query, params);
-  const revenue = result.rows.reduce((sum, r) => sum + Number(r.amount), 0);
-  return { revenue };
-}
-
-// Окно 39 (06.08.2026) - индикатор риска ухода клиента. no_show_streak уже
-// собирается (Окно 13) и уже управляет requiresPrepayment (>=2, см. createBookingTx
-// выше), но нигде не превращается в решение человека - PRODUCT_ARCHITECTURE_PLAN,
-// Модуль 2. Честная оговорка промпта: requiresPrepayment ничего не блокирует
-// технически (комментарий у createBookingTx - "предоплата ручная, оплат в MVP нет"),
-// поэтому текст статуса всегда "стоит позвонить", никогда "клиент заблокирован".
-// >=1 - клиент уже пропустил последний визит, стоит присмотреться; >=2 - тот же
-// порог, что уже требует предоплаты при следующей записи (createBookingTx).
-function pluralRaz(n) {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return 'раз';
-  if (mod10 === 1) return 'раз';
-  if (mod10 >= 2 && mod10 <= 4) return 'раза';
-  return 'раз';
-}
-
-export function describeClientRisk(noShowStreak) {
-  const n = Number(noShowStreak) || 0;
-  if (n <= 0) return { level: 'none', label: null };
-  if (n === 1) return { level: 'watch', label: 'Пропустил последнюю запись - стоит позвонить' };
-  return { level: 'high', label: `Не пришёл ${n} ${pluralRaz(n)} подряд - стоит позвонить` };
-}
-
-// Карточка клиента: сам клиент + история визитов (мастер, услуги через
-// booking_services - миграция 013 уже backfill-нула старые брони, отдельный
-// фолбэк на bookings.service_id не нужен). Роль-агностичный резолвер (тот же
-// принцип, что у computeRevenueToday/computeMasterPayroll) - видимость телефона и
-// scoping по точке/мастеру решает вызывающий роут по auth.role, не эта функция.
-export async function getClientCard(client, clientId) {
-  const clientRes = await client.query(
-    'SELECT id, name, phone, birthday, no_show_streak FROM clients WHERE id = $1',
-    [clientId]
-  );
-  if (clientRes.rows.length === 0) return null;
-  const row = clientRes.rows[0];
-
-  const visitsRes = await client.query(
-    `SELECT b.id, b.date, b.start_time, b.end_time, b.status, b.master_id, b.location_id,
-            st.name AS master_name
-     FROM bookings b LEFT JOIN staff st ON st.id = b.master_id
-     WHERE b.client_id = $1
-     ORDER BY b.date DESC, b.start_time DESC`,
-    [clientId]
-  );
-
-  const bookingIds = visitsRes.rows.map((r) => r.id);
-  const servicesRes = bookingIds.length
-    ? await client.query(
-        `SELECT bs.booking_id, bs.service_id, s.name AS service_name
-         FROM booking_services bs JOIN services s ON s.id = bs.service_id
-         WHERE bs.booking_id = ANY($1)`,
-        [bookingIds]
-      )
-    : { rows: [] };
-  const servicesByBooking = new Map();
-  for (const r of servicesRes.rows) {
-    if (!servicesByBooking.has(r.booking_id)) servicesByBooking.set(r.booking_id, []);
-    servicesByBooking.get(r.booking_id).push({ id: r.service_id, name: r.service_name });
-  }
-
-  const visits = visitsRes.rows.map((r) => ({
-    id: r.id,
-    date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : r.date,
-    startTime: r.start_time,
-    endTime: r.end_time,
-    status: r.status,
-    masterId: r.master_id,
-    masterName: r.master_name,
-    locationId: r.location_id,
-    services: servicesByBooking.get(r.id) ?? [],
-  }));
-
-  return {
-    id: row.id,
-    name: row.name,
-    phone: row.phone,
-    birthday: row.birthday instanceof Date ? row.birthday.toISOString().slice(0, 10) : row.birthday,
-    noShowStreak: row.no_show_streak,
-    risk: describeClientRisk(row.no_show_streak),
-    visits,
-    // Готовое сырьё для "Записать снова" (Задача 2, фронтенд) - мастер/услуги
-    // последнего визита, дата и время выбираются заново на актуальной доступности.
-    lastVisit: visits[0]
-      ? { masterId: visits[0].masterId, masterName: visits[0].masterName, services: visits[0].services }
-      : null,
-  };
-}
-
-// Список "требует внимания" - клиенты с no_show_streak >= 1. locationId/masterId
-// опциональны и взаимоисключающи (тот же паттерн, что у computeRevenueToday) -
-// роут передаёт ровно один по роли вызывающего (admin -> своя точка, master ->
-// свои клиенты), owner - без фильтра, все клиенты всех точек.
-export async function listClientsAtRisk(client, { locationId, masterId } = {}) {
-  let query = `SELECT DISTINCT c.id, c.name, c.phone, c.no_show_streak
-               FROM clients c JOIN bookings b ON b.client_id = c.id
-               WHERE c.no_show_streak >= 1`;
-  const params = [];
-  if (locationId) {
-    params.push(locationId);
-    query += ` AND b.location_id = $${params.length}`;
-  }
-  if (masterId) {
-    params.push(masterId);
-    query += ` AND b.master_id = $${params.length}`;
-  }
-  query += ' ORDER BY c.no_show_streak DESC, c.name';
-  const result = await client.query(query, params);
-  return result.rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    phone: r.phone,
-    noShowStreak: r.no_show_streak,
-    risk: describeClientRisk(r.no_show_streak),
-  }));
-}
-
-// Окно 40 (06.08.2026) - агрегатор дашборда владельца "Сегодня"
-// (PRODUCT_ARCHITECTURE_PLAN разд.1, UX_UI_REDESIGN_SPECIFICATION разд.5). Один
-// роут вместо трёх - избегает N+1 запросов с фронта. Мастера без графика -
-// ровно тот же расчёт, что уже даёт notifyOwnerAboutMastersMissingSchedule выше
-// (findMastersMissingSchedule/mastersWithWorkingSchedule, Окно 35), не
-// пересчитывается заново. Клиенты на грани ухода - listClientsAtRisk без
-// фильтра (Окно 39), владелец видит всех. Единственный НОВЫЙ агрегат - список
-// необработанных заявок (schedule_change_requests, status='pending') - раньше
-// такого списка для владельца в едином виде не было (только полная история в
-// GET /schedule-requests, assets/crm-schedule-requests.js).
-export async function computeOwnerAlerts(client) {
-  const staffRes = await client.query('SELECT id, name FROM staff WHERE employed = true AND provides_services = true');
-  const serviceMasterIds = staffRes.rows.map((r) => r.id);
-  const scheduledIds = await mastersWithWorkingSchedule(client, serviceMasterIds);
-  const missingIds = findMastersMissingSchedule(serviceMasterIds, scheduledIds);
-  const nameById = new Map(staffRes.rows.map((r) => [r.id, r.name]));
-  const mastersWithoutSchedule = missingIds.map((id) => ({ id, name: nameById.get(id) ?? id }));
-
-  const pendingRes = await client.query(
-    `SELECT r.id, r.master_id, st.name AS master_name, r.request_type, r.category,
-            r.date_from, r.date_to, r.start_time, r.end_time, r.master_comment, r.created_at
-     FROM schedule_change_requests r LEFT JOIN staff st ON st.id = r.master_id
-     WHERE r.status = 'pending'
-     ORDER BY r.created_at ASC`
-  );
-  const pendingRequests = pendingRes.rows.map((r) => ({
-    id: r.id,
-    masterId: r.master_id,
-    masterName: r.master_name,
-    requestType: r.request_type,
-    category: r.category,
-    dateFrom: r.date_from instanceof Date ? r.date_from.toISOString().slice(0, 10) : r.date_from,
-    dateTo: r.date_to instanceof Date ? r.date_to.toISOString().slice(0, 10) : r.date_to,
-    startTime: r.start_time,
-    endTime: r.end_time,
-    masterComment: r.master_comment,
-    createdAt: r.created_at,
-  }));
-
-  const clientsAtRisk = await listClientsAtRisk(client, {});
-
-  return { mastersWithoutSchedule, pendingRequests, clientsAtRisk };
-}
 
 // ── Окно 33 (06.08.2026), Задача C: реестр роутов default-deny ─────────────
 // Ровно та дыра, которую эксплуатировали /kv/:key (Задача A этого же окна) -
@@ -644,50 +420,19 @@ const server = createServer(async (req, res) => {
     // ── /notifications - Задача 5 (Окно 14, 02.08.2026). In-app поллинг, не push -
     // список/бейдж на странице, обновляется по таймеру фронтенда.
     if (parts[0] === 'notifications' && parts.length === 1 && req.method === 'GET') {
-      const auth = await authenticate(req);
-      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-      const unreadOnly = url.searchParams.get('unreadOnly') === 'true';
-      let query = 'SELECT id, type, booking_id, schedule_request_id, related_master_id, title, body, read_at, created_at FROM notifications WHERE staff_id = $1';
-      const params = [auth.id];
-      if (unreadOnly) query += ' AND read_at IS NULL';
-      query += ' ORDER BY created_at DESC LIMIT 50';
-      const result = await pool.query(query, params);
-      return sendJson(
-        res,
-        200,
-        result.rows.map((r) => ({
-          id: r.id,
-          type: r.type,
-          bookingId: r.booking_id,
-          scheduleRequestId: r.schedule_request_id,
-          relatedMasterId: r.related_master_id,
-          title: r.title,
-          body: r.body,
-          read: r.read_at !== null,
-          createdAt: r.created_at,
-        }))
-      );
+      return handleNotificationsList(req, res, url);
     }
 
     if (parts[0] === 'notifications' && parts[1] === 'unread-count' && parts.length === 2 && req.method === 'GET') {
-      const auth = await authenticate(req);
-      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-      const result = await pool.query('SELECT count(*)::int AS n FROM notifications WHERE staff_id = $1 AND read_at IS NULL', [auth.id]);
-      return sendJson(res, 200, { count: result.rows[0].n });
+      return handleNotificationsUnreadCount(req, res);
     }
 
     if (parts[0] === 'notifications' && parts[1] && parts[2] === 'read' && parts.length === 3 && req.method === 'POST') {
-      const auth = await authenticate(req);
-      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-      await pool.query('UPDATE notifications SET read_at = now() WHERE id = $1 AND staff_id = $2 AND read_at IS NULL', [parts[1], auth.id]);
-      return sendJson(res, 200, { ok: true });
+      return handleNotificationRead(req, res, parts);
     }
 
     if (parts[0] === 'notifications' && parts[1] === 'read-all' && parts.length === 2 && req.method === 'POST') {
-      const auth = await authenticate(req);
-      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-      await pool.query('UPDATE notifications SET read_at = now() WHERE staff_id = $1 AND read_at IS NULL', [auth.id]);
-      return sendJson(res, 200, { ok: true });
+      return handleNotificationsReadAll(req, res);
     }
 
     // ── /payroll-settings - ставка ПО МАСТЕРУ (Окно 10, разд.17.3 ТЗ). Заменяет
@@ -699,41 +444,7 @@ const server = createServer(async (req, res) => {
     // мастер видит только себя, админ только свою точку, владелец - всех. Менять
     // ставку может только владелец (разд.7 ТЗ: "Изменение прайса - я").
     if (parts[0] === 'payroll-settings' && parts.length === 1) {
-      const auth = await authenticate(req);
-      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-
-      if (req.method === 'GET') {
-        const masterId = url.searchParams.get('masterId');
-        let query = 'SELECT mps.master_id, mps.pct FROM master_payroll_settings mps WHERE 1=1';
-        const params = [];
-        if (auth.role === 'master') {
-          params.push(auth.id);
-          query += ` AND mps.master_id = $${params.length}`;
-        } else if (auth.role === 'admin') {
-          params.push(auth.locationId);
-          query += ` AND mps.master_id IN (SELECT id FROM staff WHERE location_id = $${params.length})`;
-        }
-        if (masterId) {
-          params.push(masterId);
-          query += ` AND mps.master_id = $${params.length}`;
-        }
-        const result = await pool.query(query, params);
-        return sendJson(res, 200, result.rows.map((r) => ({ masterId: r.master_id, pct: Number(r.pct) })));
-      }
-
-      if (req.method === 'PUT') {
-        if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
-        const body = await readBody(req);
-        if (!body.masterId || typeof body.pct !== 'number') {
-          return sendJson(res, 400, { error: 'missing_fields' });
-        }
-        await pool.query(
-          `INSERT INTO master_payroll_settings (master_id, pct) VALUES ($1, $2)
-           ON CONFLICT (master_id) DO UPDATE SET pct = EXCLUDED.pct`,
-          [body.masterId, body.pct]
-        );
-        return sendJson(res, 200, { ok: true });
-      }
+      return handlePayrollSettings(req, res, url);
     }
 
     // ── /payroll - Окно 37 (06.08.2026, Задача 1). ЗП мастера за произвольный
@@ -745,24 +456,7 @@ const server = createServer(async (req, res) => {
     // /payroll-settings GET, роут не завязан только на текущего потребителя
     // (crm-master.html), должен быть безопасен и при будущем переиспользовании.
     if (parts[0] === 'payroll' && parts.length === 1 && req.method === 'GET') {
-      const auth = await authenticate(req);
-      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-      const from = url.searchParams.get('from');
-      const to = url.searchParams.get('to');
-      if (!from || !to) return sendJson(res, 400, { error: 'missing_fields' });
-      let masterId = url.searchParams.get('masterId');
-      if (auth.role === 'master') {
-        masterId = auth.id;
-      } else {
-        if (!masterId) return sendJson(res, 400, { error: 'missing_fields' });
-        if (auth.role === 'admin') {
-          const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [masterId]);
-          if (staffRes.rows.length === 0) return sendJson(res, 404, { error: 'staff_not_found' });
-          if (staffRes.rows[0].location_id !== auth.locationId) return sendJson(res, 403, { error: 'forbidden' });
-        }
-      }
-      const result = await computeMasterPayroll(pool, masterId, from, to);
-      return sendJson(res, 200, result);
+      return handlePayroll(req, res, url);
     }
 
     // ── /revenue/today - Окно 38 (06.08.2026). Дневная выручка через
@@ -771,21 +465,14 @@ const server = createServer(async (req, res) => {
     // locationId), владелец без locationId получает сумму по ВСЕМ точкам, с
     // locationId - по конкретной.
     if (parts[0] === 'revenue' && parts[1] === 'today' && parts.length === 2 && req.method === 'GET') {
-      const auth = await authenticate(req);
-      if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
-      const locationId = auth.role === 'admin' ? auth.locationId : url.searchParams.get('locationId');
-      const result = await computeRevenueToday(pool, locationId);
-      return sendJson(res, 200, result);
+      return handleRevenueToday(req, res, url);
     }
 
     // ── /owner/alerts - Окно 40 (06.08.2026). Один агрегирующий роут для дашборда
     // "Сегодня" через computeOwnerAlerts - владелец получает три источника алертов
     // (мастера без графика, необработанные заявки, клиенты в риске) одним запросом.
     if (parts[0] === 'owner' && parts[1] === 'alerts' && parts.length === 2 && req.method === 'GET') {
-      const auth = await authenticate(req);
-      if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
-      const result = await computeOwnerAlerts(pool);
-      return sendJson(res, 200, result);
+      return handleOwnerAlerts(req, res);
     }
 
     // ── /clients?risk=true - Окно 39 (06.08.2026, Задача 1). Список "требует
@@ -794,14 +481,7 @@ const server = createServer(async (req, res) => {
     // клиентов (тех, у кого есть бронь с этим мастером), owner видит всех. Телефон -
     // тот же уровень видимости, что в GET /bookings (разд.12 п.1 ТЗ): мастеру не отдаём.
     if (parts[0] === 'clients' && parts.length === 1 && req.method === 'GET') {
-      const auth = await authenticate(req);
-      if (!requireRole(auth, ['owner', 'admin', 'master'])) return sendJson(res, 401, { error: 'unauthorized' });
-      if (url.searchParams.get('risk') !== 'true') return sendJson(res, 400, { error: 'missing_fields' });
-      const locationId = auth.role === 'admin' ? auth.locationId : undefined;
-      const masterId = auth.role === 'master' ? auth.id : undefined;
-      const list = await listClientsAtRisk(pool, { locationId, masterId });
-      const shaped = auth.role === 'master' ? list.map(({ phone, ...rest }) => rest) : list;
-      return sendJson(res, 200, shaped);
+      return handleClientsAtRisk(req, res, url);
     }
 
     // ── /clients/:id - Окно 39 (06.08.2026, Задача 1). Карточка клиента через
@@ -812,22 +492,7 @@ const server = createServer(async (req, res) => {
     // чужим masterId). Существование клиента проверяется ДО scope-проверки - 404
     // для несуществующего id одинаков для всех ролей, не палит своей/чужой доступ.
     if (parts[0] === 'clients' && parts.length === 2 && req.method === 'GET') {
-      const auth = await authenticate(req);
-      if (!requireRole(auth, ['owner', 'admin', 'master'])) return sendJson(res, 401, { error: 'unauthorized' });
-      const clientId = decodeURIComponent(parts[1]);
-      const card = await getClientCard(pool, clientId);
-      if (!card) return sendJson(res, 404, { error: 'client_not_found' });
-      if (auth.role === 'admin' && !card.visits.some((v) => v.locationId === auth.locationId)) {
-        return sendJson(res, 403, { error: 'forbidden' });
-      }
-      if (auth.role === 'master' && !card.visits.some((v) => v.masterId === auth.id)) {
-        return sendJson(res, 403, { error: 'forbidden' });
-      }
-      if (auth.role === 'master') {
-        const { phone, ...cardWithoutPhone } = card;
-        return sendJson(res, 200, cardWithoutPhone);
-      }
-      return sendJson(res, 200, card);
+      return handleClientCard(req, res, parts);
     }
 
     sendJson(res, 404, { error: 'route_not_found' });
