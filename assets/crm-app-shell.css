@@ -21,26 +21,6 @@
 }
 .shell-search-stub:disabled { cursor: not-allowed; opacity: 0.7; }
 
-.shell-section-empty {
-  display: none;
-  background: var(--surface);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-6);
-  text-align: center;
-}
-body[data-shell-section="clients"] .shell-section-empty[data-stub="clients"],
-body[data-shell-section="settings"] .shell-section-empty[data-stub="settings"] {
-  display: block;
-}
-/* На реальных разделах (Сегодня/Расписание/Команда/Финансы) .page-tabs остаётся
-   видимым как раньше; на заглушках прячем его целиком - иначе последняя реальная
-   панель осталась бы видна ПОД заглушкой. */
-body[data-shell-section="clients"] .page-tabs,
-body[data-shell-section="settings"] .page-tabs {
-  display: none;
-}
-
 @media (min-width: 1024px) {
   body.app-shell-active {
     padding-left: var(--sidebar-w-expanded);

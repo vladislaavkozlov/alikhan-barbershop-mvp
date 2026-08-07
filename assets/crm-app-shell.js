@@ -1,38 +1,40 @@
 // Окно 41 (07.08.2026) - app shell владельца (sidebar + topbar + роутинг между
 // разделами), первое окно 13-оконного плана премиального редизайна
-// (plans/2026-08-06-owner-crm-premium-redesign.md). Инфраструктурный слой -
-// разделы "Клиенты"/"Настройки" пока без контента (заглушки, наполнение - Окна
-// 48/51), "Сегодня"/"Расписание"/"Команда"/"Финансы" продолжают показывать РОВНО
-// тот же контент, что и раньше (panel-today/panel-a/panel-b/panel-c), роутинг
-// лишь переключает те же скрытые radio-input, что уже управляют их видимостью
-// через существующий CSS (:checked ~ .panel-X) - ничего в самих панелях не
-// переписано.
+// (plans/2026-08-06-owner-crm-premium-redesign.md, план восстанавливается заново -
+// исходный файл потерян). "Сегодня"/"Расписание"/"Команда"/"Финансы" продолжают
+// показывать РОВНО тот же контент, что и раньше (panel-today/panel-a/panel-b/
+// panel-c), роутинг лишь переключает те же скрытые radio-input, что уже управляют
+// их видимостью через существующий CSS (:checked ~ .panel-X) - ничего в самих
+// панелях не переписано.
 //
 // ШАГ 0 промпта нашёл 3 места, которые раньше напрямую трогали radio pt-*:
 // (1) инлайн-кнопка "Выручка за неделю/месяц →" на "Сегодня" (crm-owner.html),
 // (2) goToTab() в crm-owner-today.js (алерты "мастер без графика"/заявка),
 // (3) openMasterCard() в crm-notifications.js (клик по уведомлению). Все три
 // переведены на goToSection() - см. правки в соответствующих файлах.
+//
+// Правка (после 41): пункты "Клиенты"/"Настройки" убраны из sidebar целиком -
+// решение Влада, не показывать в меню то, что ведёт на заглушку "в разработке",
+// подрывает премиум-ощущение, ради которого затевался редизайн (прецедент - Окно
+// 36, честный интерфейс, убирать нерабочее, не оговаривать его текстом). Каждый
+// пункт возвращается в SECTION_LABEL/SECTION_ICON/SECTION_ORDER ровно в том окне,
+// где раздел реально наполняется контентом (Клиенты, Настройки - номера окон,
+// присвоенные в исходном плане, не переиспользовать для другого смысла).
 
 const SECTION_RADIO = { today: 'pt-today', schedule: 'pt-a', team: 'pt-b', finance: 'pt-c' };
 const SECTION_LABEL = {
   today: 'Сегодня',
   schedule: 'Расписание',
-  clients: 'Клиенты',
   team: 'Команда',
   finance: 'Финансы',
-  settings: 'Настройки',
 };
 const SECTION_ICON = {
   today: '🏠',
   schedule: '🗓',
-  clients: '👥',
   team: '✂️',
   finance: '₽',
-  settings: '⚙️',
 };
-const SECTION_ORDER = ['today', 'schedule', 'clients', 'team', 'finance', 'settings'];
-const STUB_NOTE = { clients: 'Полный раздел - Окно 48', settings: 'Полный раздел - Окно 51' };
+const SECTION_ORDER = ['today', 'schedule', 'team', 'finance'];
 
 let currentSection = 'today';
 
@@ -57,12 +59,6 @@ function sidebarMarkup() {
   `;
 }
 
-function stubMarkup(sectionId) {
-  return `<div class="shell-section-empty" data-stub="${sectionId}">
-    <p class="note">Раздел «${SECTION_LABEL[sectionId]}» в разработке - ${STUB_NOTE[sectionId] ?? 'скоро'}</p>
-  </div>`;
-}
-
 function insertSidebar() {
   if (el('appSidebar')) return;
   const aside = document.createElement('aside');
@@ -72,18 +68,6 @@ function insertSidebar() {
   document.body.insertBefore(aside, document.body.firstChild);
   aside.querySelectorAll('[data-section]').forEach((btn) => {
     btn.addEventListener('click', () => goToSection(btn.dataset.section));
-  });
-}
-
-function insertStubs() {
-  const pageTabs = document.querySelector('.page-tabs');
-  if (!pageTabs || el('shellStub-clients')) return;
-  ['clients', 'settings'].forEach((id) => {
-    const wrap = document.createElement('div');
-    wrap.innerHTML = stubMarkup(id);
-    const stub = wrap.firstElementChild;
-    stub.id = `shellStub-${id}`;
-    pageTabs.insertAdjacentElement('afterend', stub);
   });
 }
 
@@ -124,7 +108,6 @@ export function initAppShell() {
   if (!main) return;
 
   insertSidebar();
-  insertStubs();
 
   // #crmMain остаётся hidden до успешного входа (initCrmAuth, crm-auth.js) - тот
   // же приём синхронизации, что уже использует wireOwnerToday (crm-owner-today.js).
