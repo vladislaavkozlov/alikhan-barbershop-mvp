@@ -301,6 +301,24 @@ button:active, .btn:active { transform: scale(0.96); }
 .badge-role-admin { background: var(--info); color: var(--leather); }
 .badge-role-master { background: var(--surface-3); color: var(--text); border: 1px solid var(--border); }
 .badge-todo { background: transparent; color: var(--wood); border: 1px dashed var(--wood); }
+.badge-status-pending { background: var(--wood); color: var(--leather); }
+.badge-status-rejected { background: var(--danger); color: var(--text); }
+
+/* Правка Влада 07.08.2026 - "Заявки мастеров на изменение графика" (Окно 23) была
+   неоформленным текстовым списком (.break-row), заменена на карточки в стиле
+   остального премиум-редизайна (Окно 41 spacing/radius, тот же язык, что .stat-card). */
+.req-cards { display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: 12px; }
+.req-cards > .note { color: var(--wood); font-size: 0.72rem; font-style: italic; }
+.req-card {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap;
+}
+.req-card-main { min-width: 0; }
+.req-card-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--text); }
+.req-card-meta { color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; }
+.req-card-comment { color: var(--text-muted); font-size: 0.78rem; font-style: italic; margin-top: 4px; }
+.req-card-action { flex-shrink: 0; }
 
 .avatar {
   width: 46px; height: 46px; border-radius: 50%;
@@ -362,9 +380,11 @@ button:active, .btn:active { transform: scale(0.96); }
   gap: 14px; min-width: 100%;
 }
 .schedule-col { position: relative; }
+/* Правка Влада 07.08.2026 - шапка колонки мастера в "День" по центру, имя под
+   кружком-аватаром (было в ряд, слева) */
 .schedule-col-head {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
-  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 10px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border); text-align: center;
 }
 .schedule-col-head .name { font-weight: 600; font-size: 0.92rem; }
 .walkin-add-btn {
@@ -377,7 +397,10 @@ button:active, .btn:active { transform: scale(0.96); }
   position: relative; border: 1px solid var(--border); border-radius: 10px;
   background-image: linear-gradient(var(--border) 1px, transparent 1px);
   background-size: 100% 64px; background-color: var(--surface-2);
-  min-height: 640px; overflow: visible;
+  /* Правка Влада 07.08.2026 - зафиксировано (было min-height): страница "прыгала"
+     по высоте между выходным/пустым/заполненным днём. 640px = ровно 10 часовых
+     слотов (10:00-20:00 × 64px), рабочее окно точки не меняется */
+  height: 640px; overflow: visible;
 }
 .schedule-track.day-off {
   background-image: repeating-linear-gradient(135deg, var(--surface-3) 0 10px, var(--surface-2) 10px 20px);

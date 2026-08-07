@@ -1,6 +1,6 @@
 /* Окно 41 (07.08.2026) - app shell владельца (sidebar + topbar). Инфраструктурный
    слой поверх mockup-crm.css, ничего в нём не переопределяет - только новые
-   классы (.app-sidebar/.app-nav-*/.shell-*), которых нет ни на одной другой
+   классы (.app-sidebar / .app-nav-* / .shell-*), которых нет ни на одной другой
    странице (crm-admin.html/crm-master.html/index.html не подключают этот файл,
    он безопасен для них по построению). Sidebar - только desktop (>=1024px), по
    явному пункту промпта Окна 41; на мобильном/планшете старая горизонтальная
@@ -32,15 +32,6 @@
     overflow-y: auto;
   }
 
-  .app-sidebar-brand {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-weight: 600;
-    font-size: 1.2rem;
-    letter-spacing: 0.04em;
-    color: var(--accent);
-    padding: 0 var(--space-2);
-  }
-
   .app-nav { display: flex; flex-direction: column; gap: var(--space-1); }
   .app-nav-item {
     display: flex;
@@ -60,7 +51,8 @@
   }
   .app-nav-item:hover { background: var(--surface-2); color: var(--text); }
   .app-nav-item.is-active { background: var(--accent); color: var(--leather); }
-  .app-nav-icon { font-size: 1rem; width: 1.4em; text-align: center; }
+  .app-nav-icon { width: 1.4em; display: inline-flex; align-items: center; justify-content: center; }
+  .app-nav-icon svg { width: 18px; height: 18px; }
 
   .app-sidebar-location {
     margin-top: auto;

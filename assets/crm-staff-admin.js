@@ -60,24 +60,43 @@ export function wirePortfolioEditors(staffList) {
 // PUT /staff/:id/role уже существовал с Окна 14 (owner-only) - просто не был
 // вызван отсюда. Тот же паттерн, что wirePortfolioEditors выше: читает текущее
 // значение из уже загруженного /staff один раз (dataset.filled), пишет на change.
+//
+// Правка Влада 07.08.2026 - нативный <select> заменён на .custom-select (тот же
+// виджет, что уже используют "Закреплён за мастером"/время/дата -
+// КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md прежде явно разрешала обычный select для
+// короткого списка из 2-3 опций, но премиум-редизайн Окна 41 требует единый
+// стиль выпадашек). pickCustomSelectOption (assets/mockup-crm.js) уже шлёт
+// 'customselect:change' с {detail.value} - слушаем его вместо нативного 'change'.
 const ROLE_SUMMARY_LABEL = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
+
+function setRoleSelectValue(wrap, value) {
+  const trigger = wrap.querySelector('.custom-select-trigger');
+  const options = wrap.querySelectorAll('.custom-select-option');
+  options.forEach((o) => o.classList.toggle('selected', o.dataset.value === value));
+  const matched = wrap.querySelector(`.custom-select-option[data-value="${value}"]`);
+  if (trigger && matched) trigger.textContent = matched.textContent;
+  wrap.dataset.value = value;
+}
+
 export function wireRoleEditors(staffList) {
-  document.querySelectorAll('.role-select').forEach((select) => {
-    const masterId = select.dataset.masterId;
-    if (!select.dataset.filled) {
+  document.querySelectorAll('.role-select').forEach((wrap) => {
+    const masterId = wrap.dataset.masterId;
+    if (!wrap.dataset.filled) {
       const staff = staffList.find((s) => s.id === masterId);
-      if (staff) select.value = staff.role;
-      select.dataset.filled = '1';
+      if (staff) setRoleSelectValue(wrap, staff.role);
+      wrap.dataset.filled = '1';
     }
 
-    if (select.dataset.wired) return;
-    select.dataset.wired = '1';
+    if (wrap.dataset.wired) return;
+    wrap.dataset.wired = '1';
     const noteEl = el(`roleNote-${masterId}`);
     const labelEl = el(`roleLabel-${masterId}`);
-    select.addEventListener('change', async () => {
-      const prevValue = select.dataset.lastValue ?? select.value;
-      const nextValue = select.value;
-      select.disabled = true;
+    wrap.dataset.lastValue = wrap.dataset.value;
+    wrap.addEventListener('customselect:change', async (e) => {
+      const prevValue = wrap.dataset.lastValue ?? e.detail.value;
+      const nextValue = e.detail.value;
+      const trigger = wrap.querySelector('.custom-select-trigger');
+      if (trigger) trigger.disabled = true;
       try {
         const res = await fetch(`${API}/staff/${masterId}/role`, {
           method: 'PUT',
@@ -85,16 +104,15 @@ export function wireRoleEditors(staffList) {
           body: JSON.stringify({ role: nextValue }),
         });
         if (!res.ok) throw new Error(`staff/${masterId}/role → ${res.status}`);
-        select.dataset.lastValue = nextValue;
+        wrap.dataset.lastValue = nextValue;
         if (noteEl) noteEl.textContent = 'Сохранено';
         if (labelEl) labelEl.textContent = ROLE_SUMMARY_LABEL[nextValue] ?? nextValue;
       } catch (err) {
-        select.value = prevValue;
+        setRoleSelectValue(wrap, prevValue);
         if (noteEl) noteEl.textContent = `Не удалось сохранить: ${err.message}`;
       } finally {
-        select.disabled = false;
+        if (trigger) trigger.disabled = false;
       }
     });
-    select.dataset.lastValue = select.value;
   });
 }

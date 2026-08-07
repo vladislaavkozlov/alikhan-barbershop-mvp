@@ -9,11 +9,10 @@
 <style>
   /* теги радио-вкладок этой страницы: День/Неделя расписания + ЗП Алиовсад + Выручка */
   #sp-day:checked ~ .panel-sp-day, #sp-week:checked ~ .panel-sp-week,
-  #sp-month:checked ~ .panel-sp-month, #sp-year:checked ~ .panel-sp-year { display: block; }
+  #sp-month:checked ~ .panel-sp-month { display: block; }
   #sp-day:checked ~ .seg-bar label[for="sp-day"],
   #sp-week:checked ~ .seg-bar label[for="sp-week"],
-  #sp-month:checked ~ .seg-bar label[for="sp-month"],
-  #sp-year:checked ~ .seg-bar label[for="sp-year"] { background: var(--accent); color: var(--leather); }
+  #sp-month:checked ~ .seg-bar label[for="sp-month"] { background: var(--accent); color: var(--leather); }
 
   #zp1-calc:checked ~ .panel-zp1-calc { display: block; }
   #zp1-calc:checked ~ .seg-bar label[for="zp1-calc"] { background: var(--accent); color: var(--leather); }
@@ -49,6 +48,11 @@
   #pt-c:checked ~ .tab-bar label[for="pt-c"] { color: var(--accent); border-color: var(--accent); }
   #pt-c:checked ~ .panel-c { display: block; }
 
+  /* четвёртая верхняя вкладка "Аналитика" (правка 07.08.2026, слот pt-d/panel-d
+     свободен с Окна 36) */
+  #pt-d:checked ~ .tab-bar label[for="pt-d"] { color: var(--accent); border-color: var(--accent); }
+  #pt-d:checked ~ .panel-d { display: block; }
+
   /* период выручки (Окно 13, 01.08.2026 - переключатель по точкам убран, у Алихана
      одна точка, см. Задача 1 промпта корректировки) */
   #rvpa-day:checked ~ .seg-bar label[for="rvpa-day"],
@@ -81,16 +85,16 @@
     <a href="index.html" class="brand">АЛИХАН</a>
     <div class="nav-right">
       <span class="location-badge">Ставрополь, ул. Андрея Голуба 16 ст1</span>
-      <!-- Окно 42 (07.08.2026) - риск-список "Клиенты, которым стоит позвонить" убран с
-           экрана (раздел "Клиенты" появится в Окне 48), но сигнал не пропадает - счётчик
-           здесь реален (assets/crm-clients.js, GET /clients?risk=true), не декоративный
-           "0". Раньше кнопка звала toggleRetentionPanel(this) (assets/mockup-crm.js) -
-           на этой странице целевой #retention-panel никогда не существовал (тот паттерн
-           только на crm-admin.html со статичными фикстурами), клик был мёртвым - убрано,
-           чтобы не изображать несуществующую выпадашку. -->
-      <button class="notif-bell" type="button" aria-label="Клиенты, которым стоит позвонить">🔔<span class="notif-badge" id="riskClientsBadge">0</span></button>
+      <!-- Правка Влада 07.08.2026 - колокольчик "клиенты, которым стоит позвонить" (был
+           отдельной мёртвой кнопкой с Окна 42: риск-список убрали с экрана до раздела
+           "Клиенты", Окно 48, клик никуда не вёл) и колокольчик "уведомления" объединены
+           в одну кнопку - один визуальный пункт вместо двух, бейдж = сумма обоих реальных
+           счётчиков (assets/crm-notifications.js, refreshBadge). Открывает единственную
+           реально рабочую выпадашку (#msgPanel) - риск-сигнал не теряется (входит в
+           сумму), полноценный список риск-клиентов появится там же, когда будет готов
+           раздел "Клиенты" (Окно 48). -->
       <div class="msg-bell-wrap" style="position:relative">
-        <button class="notif-bell" type="button" id="msgBell" aria-label="Уведомления о записях и графике">✉<span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
+        <button class="notif-bell" type="button" id="msgBell" aria-label="Уведомления и клиенты, которым стоит позвонить"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
         <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
       </div>
       <span id="sessionInfo" class="session-info" hidden></span>
@@ -120,10 +124,12 @@
     <input type="radio" name="pt" id="pt-a" checked>
     <input type="radio" name="pt" id="pt-b">
     <input type="radio" name="pt" id="pt-c">
+    <input type="radio" name="pt" id="pt-d">
     <div class="tab-bar">
       <label for="pt-a">Расписание</label>
-      <label for="pt-b">Сотрудники</label>
+      <label for="pt-b">Команда</label>
       <label for="pt-c">Выручка</label>
+      <label for="pt-d">Аналитика</label>
     </div>
 
     <!-- ======================= РАСПИСАНИЕ ======================= -->
@@ -142,7 +148,6 @@
              экрана до раздела "Клиенты" (Окно 48) - решение Влада, сигнал остаётся только в
              счётчике колокольчика (assets/crm-clients.js), см. правку в шапке ниже. -->
         <div class="breaks-list" id="ownerAlertsSchedule"><span class="note">Загрузка…</span></div>
-        <div class="breaks-list" id="ownerAlertsRequests" style="margin-top:8px"><span class="note">Загрузка…</span></div>
 
         <div class="walkin-form" id="walkinForm" hidden>
           <h3><span id="wfModeLabel">Новая запись без предзаписи</span> · <span id="wfMasterName" class="wf-master-name"></span></h3>
@@ -187,12 +192,10 @@
           <input type="radio" name="sched-period" id="sp-day" checked>
           <input type="radio" name="sched-period" id="sp-week">
           <input type="radio" name="sched-period" id="sp-month">
-          <input type="radio" name="sched-period" id="sp-year">
           <div class="seg-bar">
             <label for="sp-day">День</label>
             <label for="sp-week">Неделя</label>
             <label for="sp-month">Месяц</label>
-            <label for="sp-year">Год</label>
           </div>
           <!-- Окно 25 - подпись-якорь: какая именно дата сейчас показана в выбранной
                плотности ("Неделя · 3-9 августа"). Заполняет wireScheduleViews
@@ -249,19 +252,6 @@
             <div class="month-grid" id="monthGrid"></div>
           </div>
 
-          <!-- Окно 24 (05.08.2026) - производственный календарь больше не текст в разметке:
-               сетка рисуется из GET /holidays (assets/crm-schedule-views.js, renderYear).
-               Отметьте даты галочками и закройте их всем мастерам одним действием - раньше
-               владельцу пришлось бы пройти каждый день каждого мастера через модалку дня. -->
-          <div class="seg-panel panel-sp-year">
-            <p class="section-hint" style="margin-top:12px">Отметьте нерабочие даты и закройте их всем мастерам сразу</p>
-            <div class="year-grid" id="yearGrid"></div>
-            <div class="year-actions" id="yearActions">
-              <button type="button" class="btn btn-primary btn-sm" id="yearCloseSelected" disabled>Закрыть выбранные даты всем мастерам</button>
-              <p class="payroll-note" id="yearCloseNote"></p>
-              <div class="conflict-list" id="yearCloseConflicts" hidden></div>
-            </div>
-          </div>
         </div>
 
         <!-- Модалка редактирования дня (Задача 3, Окно 18) - открывается иконкой ✎ в
@@ -326,11 +316,11 @@
           <div class="break-row" style="margin-bottom:10px">
             <button class="btn btn-ghost btn-sm" type="button" id="ownerReqReload">Обновить список</button>
           </div>
-          <div id="ownerReqList" class="breaks-list"><span class="note">Загрузка…</span></div>
+          <div id="ownerReqList" class="req-cards"><span class="note">Загрузка…</span></div>
         </section>
 
         <details class="booking-detail" id="bd-1" open>
-          <summary><strong id="bd-now">Клиент А · Стрижка · 10:00–10:40 (Алиовсад)</strong></summary>
+          <summary><strong id="bd-now">Запись клиента</strong></summary>
           <div class="booking-detail-body">
             <div class="walkin-banner" id="bk-walkin-banner" hidden>
               <span class="ico">★</span>
@@ -395,7 +385,7 @@
               <div class="field">
                 <label>Комиссия мастера за запись</label>
                 <input id="bk-commission" value="Не начисляется" readonly>
-                <p class="commission-note" id="bk-commission-note">Алиовсад - владелец, комиссию самому себе не платит, вся сумма услуги и так остаётся в бизнесе</p>
+                <p class="commission-note" id="bk-commission-note"></p>
               </div>
             </div>
 
@@ -429,7 +419,7 @@
     <!-- ======================= СОТРУДНИКИ ======================= -->
     <div class="tab-panel panel-b">
       <section>
-        <h2>Сотрудники</h2>
+        <h2>Команда</h2>
         <!-- Кнопка "+ Добавить сотрудника" убрана Окном 36 (06.08.2026) - у неё не было
              обработчика, и добавить его сейчас нельзя честно: роута POST /staff нет
              нигде в server.mjs (grep - 0 совпадений), только PUT на уже существующего
@@ -443,7 +433,7 @@
             <summary>
               <div class="avatar lg">АЛ</div>
               <div class="summary-meta">
-                <div class="name">Алиовсад <span class="badge badge-example">пример</span></div>
+                <div class="name">Алиовсад</div>
                 <div class="role" id="roleLabel-master-1">Владелец</div>
               </div>
               <div class="summary-badges">
@@ -460,7 +450,7 @@
                 <div class="field"><label>Должность (свободный текст)</label><input value="Мастер" readonly></div>
               </div>
 
-              <h4>Портфолио <span class="badge badge-todo">заполняет Алихан</span></h4>
+              <h4>Портфолио</h4>
               <p class="section-hint" style="margin:6px 0 10px">Стаж, сильные стороны, курсы/сертификаты, фото «до-после» - заполняется вручную, видно клиентам</p>
               <div class="field-grid">
                 <div class="field"><label>Стаж</label><input type="text" id="portfolioExperience-master-1" placeholder="например «5 лет барбером»"></div>
@@ -479,18 +469,20 @@
                    с Окна 14 - просто не вызывался с этой страницы. Короткий список из
                    3 опций - по КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md обычный select. -->
               <div class="field" style="max-width:360px">
-                <select id="roleSelect-master-1" class="role-select" data-master-id="master-1">
-                  <option value="owner">Владелец</option>
-                  <option value="admin">Администратор</option>
-                  <option value="master">Мастер</option>
-                </select>
+                <div class="custom-select role-select" id="roleSelect-master-1" data-master-id="master-1" data-value="owner">
+                  <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">Владелец</button>
+                  <div class="custom-select-list" hidden>
+                    <div class="custom-select-option selected" data-value="owner" onclick="pickCustomSelectOption(this)">Владелец</div>
+                    <div class="custom-select-option" data-value="admin" onclick="pickCustomSelectOption(this)">Администратор</div>
+                    <div class="custom-select-option" data-value="master" onclick="pickCustomSelectOption(this)">Мастер</div>
+                  </div>
+                </div>
               </div>
-              <p class="section-hint" style="margin:6px 0 0">Одна роль на сотрудника, сохраняется сразу при выборе. Владелец - видит и меняет всё: прайс, зарплаты всех, настройки, все точки. Администратор - ведёт запись и финансы одной точки, не меняет прайс и ставки ЗП. Мастер - видит только свой день и свой заработок, не видит чужие телефоны клиентов</p>
               <p class="payroll-note" id="roleNote-master-1"></p>
 
               <h4>Услуги</h4>
               <div class="toggle-row">
-                <div><div class="tr-label">Оказывает услуги</div><div class="tr-sub">staff.provides_services</div></div>
+                <div><div class="tr-label">Оказывает услуги</div></div>
                 <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label>
               </div>
               <p class="section-hint" style="margin:10px 0">Отметьте галочками, что умеет оказывать этот мастер - менять список может только владелец</p>
@@ -525,67 +517,6 @@
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-1">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-1"></p>
-
-              <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
-              <div class="seg-tabs">
-                <input type="radio" name="zp1-sub" id="zp1-calc" checked>
-                <div class="seg-bar">
-                  <label for="zp1-calc">Расчёт ЗП</label>
-                </div>
-
-                <div class="seg-panel panel-zp1-calc">
-                  <div class="seg-tabs">
-                    <input type="radio" name="zp1-period" id="zp1p-day" checked>
-                    <input type="radio" name="zp1-period" id="zp1p-week">
-                    <input type="radio" name="zp1-period" id="zp1p-month">
-                    <input type="radio" name="zp1-period" id="zp1p-period">
-                    <div class="seg-bar">
-                      <label for="zp1p-day">За день</label>
-                      <label for="zp1p-week">За неделю</label>
-                      <label for="zp1p-month">За месяц</label>
-                      <label for="zp1p-period">Задать период</label>
-                    </div>
-                    <div class="seg-panel panel-zp1p-day">
-                      <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">100% от выручки по своим услугам - сумма по броням этого мастера за сегодня</p>
-                    </div>
-                    <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster1Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
-                    <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
-                    <div class="seg-panel panel-zp1p-period">
-                      <div class="payroll-period-picker">
-                        <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
-                        <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
-                        <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-1">Показать</button>
-                      </div>
-                      <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                      <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
-                    </div>
-                  </div>
-                  <a class="btn btn-primary btn-sm" href="#nastroika-zp">Перейти к настройке ЗП</a>
-                </div>
-              </div>
-
-              <h4>Возвращаемость клиентов</h4>
-              <p class="section-hint">Появится после первых визитов</p>
-              <div class="seg-tabs">
-                <input type="radio" name="rt1-period" id="rt1-3" checked>
-                <input type="radio" name="rt1-period" id="rt1-6">
-                <input type="radio" name="rt1-period" id="rt1-12">
-                <input type="radio" name="rt1-period" id="rt1-24">
-                <input type="radio" name="rt1-period" id="rt1-36">
-                <div class="seg-bar">
-                  <label for="rt1-3">3 мес</label>
-                  <label for="rt1-6">6 мес</label>
-                  <label for="rt1-12">1 год</label>
-                  <label for="rt1-24">2 года</label>
-                  <label for="rt1-36">3 года</label>
-                </div>
-                <div class="seg-panel panel-rt1-3"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 3 месяца, среди клиентов Алиовсада</div></div></div></div>
-                <div class="seg-panel panel-rt1-6"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 6 месяцев</div></div></div></div>
-                <div class="seg-panel panel-rt1-12"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 1 год</div></div></div></div>
-                <div class="seg-panel panel-rt1-24"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 2 года</div></div></div></div>
-                <div class="seg-panel panel-rt1-36"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 3 года</div></div></div></div>
-              </div>
 
               <h4>Как приходят клиенты</h4>
               <p class="section-hint">Появится после первых записей</p>
@@ -624,7 +555,7 @@
           <details class="staff-card" id="staffCard-master-2">
             <summary>
               <div class="avatar lg">МА</div>
-              <div class="summary-meta"><div class="name">Мамедхан <span class="badge badge-example">пример</span></div><div class="role" id="roleLabel-master-2">Администратор</div></div>
+              <div class="summary-meta"><div class="name">Мамедхан</div><div class="role" id="roleLabel-master-2">Администратор</div></div>
               <div class="summary-badges"><span class="badge badge-on">Оказывает услуги</span><span class="badge badge-on">Доступ к сервису</span></div>
               <span class="chevron">▸</span>
             </summary>
@@ -634,7 +565,7 @@
                 <div class="field"><label>Телефон</label><input value="+7 900 000-00-02" readonly></div>
                 <div class="field"><label>Email</label><input value="mamed@example.com" readonly></div>
               </div>
-              <h4>Портфолио <span class="badge badge-todo">заполняет Алихан</span></h4>
+              <h4>Портфолио</h4>
               <div class="field-grid">
                 <div class="field"><label>Стаж</label><input type="text" id="portfolioExperience-master-2" placeholder="например «5 лет барбером»"></div>
                 <div class="field"><label>Сильные стороны</label><input type="text" id="portfolioStrengths-master-2" placeholder="например «фейды, оформление бороды»"></div>
@@ -645,18 +576,20 @@
               <p class="payroll-note" id="portfolioNote-master-2"></p>
               <h4>Роль</h4>
               <div class="field" style="max-width:360px">
-                <select id="roleSelect-master-2" class="role-select" data-master-id="master-2">
-                  <option value="owner">Владелец</option>
-                  <option value="admin">Администратор</option>
-                  <option value="master">Мастер</option>
-                </select>
+                <div class="custom-select role-select" id="roleSelect-master-2" data-master-id="master-2" data-value="admin">
+                  <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">Администратор</button>
+                  <div class="custom-select-list" hidden>
+                    <div class="custom-select-option" data-value="owner" onclick="pickCustomSelectOption(this)">Владелец</div>
+                    <div class="custom-select-option selected" data-value="admin" onclick="pickCustomSelectOption(this)">Администратор</div>
+                    <div class="custom-select-option" data-value="master" onclick="pickCustomSelectOption(this)">Мастер</div>
+                  </div>
+                </div>
               </div>
               <p class="payroll-note" id="roleNote-master-2"></p>
 
               <h4>Услуги</h4>
               <div class="service-picker" data-master-id="master-2"></div>
               <h4>График работы</h4>
-              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - работает/выходной, рабочие часы, опциональный перерыв. Мастер видит тот же график у себя, менять может только владелец</p>
               <div id="weeklyEditor-master-2"></div>
 
               <h4 style="margin-top:18px">Разовое изменение на дату</h4>
@@ -674,44 +607,6 @@
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-2">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-2"></p>
-              <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
-              <div class="seg-tabs">
-                <input type="radio" name="zp2-sub" id="zp2-calc" checked>
-                <div class="seg-bar">
-                  <label for="zp2-calc">Расчёт ЗП</label>
-                </div>
-                <div class="seg-panel panel-zp2-calc">
-                  <div class="seg-tabs">
-                    <input type="radio" name="zp2-period" id="zp2p-day" checked>
-                    <input type="radio" name="zp2-period" id="zp2p-week">
-                    <input type="radio" name="zp2-period" id="zp2p-month">
-                    <input type="radio" name="zp2-period" id="zp2p-period">
-                    <div class="seg-bar">
-                      <label for="zp2p-day">За день</label>
-                      <label for="zp2p-week">За неделю</label>
-                      <label for="zp2p-month">За месяц</label>
-                      <label for="zp2p-period">Задать период</label>
-                    </div>
-                    <div class="seg-panel panel-zp2p-day">
-                      <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">100% от выручки по своим услугам - сумма по броням этого мастера</p>
-                    </div>
-                    <div class="seg-panel panel-zp2p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster2Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
-                    <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
-                    <div class="seg-panel panel-zp2p-period">
-                      <div class="payroll-period-picker">
-                        <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
-                        <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
-                        <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-2">Показать</button>
-                      </div>
-                      <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                      <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <h4>Возвращаемость клиентов</h4>
-              <div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно (12 мес)</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">Полный период-переключатель - см. карточку Алиовсада выше</div></div></div>
             </div>
           </details>
 
@@ -719,7 +614,7 @@
           <details class="staff-card" id="staffCard-master-3">
             <summary>
               <div class="avatar lg">ЕЛ</div>
-              <div class="summary-meta"><div class="name">Елизавета <span class="badge badge-example">пример</span></div><div class="role" id="roleLabel-master-3">Мастер</div></div>
+              <div class="summary-meta"><div class="name">Елизавета</div><div class="role" id="roleLabel-master-3">Мастер</div></div>
               <div class="summary-badges"><span class="badge badge-on">Оказывает услуги</span><span class="badge badge-off">Доступ к сервису выкл.</span></div>
               <span class="chevron">▸</span>
             </summary>
@@ -729,7 +624,7 @@
                 <div class="field"><label>Телефон</label><input value="+7 900 000-00-03" readonly></div>
                 <div class="field"><label>Email</label><input value="elizaveta@example.com" readonly></div>
               </div>
-              <h4>Портфолио <span class="badge badge-todo">заполняет Алихан</span></h4>
+              <h4>Портфолио</h4>
               <div class="field-grid">
                 <div class="field"><label>Стаж</label><input type="text" id="portfolioExperience-master-3" placeholder="например «5 лет барбером»"></div>
                 <div class="field"><label>Сильные стороны</label><input type="text" id="portfolioStrengths-master-3" placeholder="например «фейды, оформление бороды»"></div>
@@ -740,17 +635,19 @@
               <p class="payroll-note" id="portfolioNote-master-3"></p>
               <h4>Роль</h4>
               <div class="field" style="max-width:360px">
-                <select id="roleSelect-master-3" class="role-select" data-master-id="master-3">
-                  <option value="owner">Владелец</option>
-                  <option value="admin">Администратор</option>
-                  <option value="master">Мастер</option>
-                </select>
+                <div class="custom-select role-select" id="roleSelect-master-3" data-master-id="master-3" data-value="master">
+                  <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">Мастер</button>
+                  <div class="custom-select-list" hidden>
+                    <div class="custom-select-option" data-value="owner" onclick="pickCustomSelectOption(this)">Владелец</div>
+                    <div class="custom-select-option" data-value="admin" onclick="pickCustomSelectOption(this)">Администратор</div>
+                    <div class="custom-select-option selected" data-value="master" onclick="pickCustomSelectOption(this)">Мастер</div>
+                  </div>
+                </div>
               </div>
               <p class="payroll-note" id="roleNote-master-3"></p>
               <h4>Услуги</h4>
               <div class="service-picker" data-master-id="master-3"></div>
               <h4>График работы</h4>
-              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - работает/выходной, рабочие часы, опциональный перерыв. Мастер видит тот же график у себя, менять может только владелец</p>
               <div id="weeklyEditor-master-3"></div>
 
               <h4 style="margin-top:18px">Разовое изменение на дату</h4>
@@ -768,71 +665,11 @@
               </div>
               <button class="btn btn-ghost btn-sm" type="button" id="schedSave-master-3">Сохранить перерыв/выходной</button>
               <p class="payroll-note" id="schedNote-master-3"></p>
-              <h4>Зарплата <span class="badge badge-example">40% по умолчанию, редактируется</span></h4>
-              <div class="field-grid">
-                <div class="field">
-                  <label>Ставка от выручки, % (40 или 50 - зависит от клиентской базы)</label>
-                  <input type="number" min="0" max="100" id="elizavetaPctInput" value="40">
-                </div>
-              </div>
-              <button class="btn btn-ghost btn-sm" type="button" id="elizavetaPctSave">Сохранить ставку</button>
-              <p class="payroll-note" id="elizavetaPctNote">Порог перехода 40→50% владелец меняет здесь вручную</p>
-              <div class="seg-tabs" style="margin-top:14px">
-                <input type="radio" name="zp3-sub" id="zp3-calc" checked>
-                <div class="seg-bar">
-                  <label for="zp3-calc">Расчёт ЗП</label>
-                </div>
-                <div class="seg-panel panel-zp3-calc">
-                  <div class="seg-tabs">
-                    <input type="radio" name="zp3-period" id="zp3p-day" checked>
-                    <input type="radio" name="zp3-period" id="zp3p-week">
-                    <input type="radio" name="zp3-period" id="zp3p-month">
-                    <input type="radio" name="zp3-period" id="zp3p-period">
-                    <div class="seg-bar">
-                      <label for="zp3p-day">За день</label>
-                      <label for="zp3p-week">За неделю</label>
-                      <label for="zp3p-month">За месяц</label>
-                      <label for="zp3p-period">Задать период</label>
-                    </div>
-                    <div class="seg-panel panel-zp3p-day">
-                      <div class="payroll-sum"><span class="amount" id="payrollMaster3Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">За сегодня, по ставке из поля выше</p>
-                    </div>
-                    <div class="seg-panel panel-zp3p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster3Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
-                    <div class="seg-panel panel-zp3p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster3Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
-                    <div class="seg-panel panel-zp3p-period">
-                      <div class="payroll-period-picker">
-                        <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
-                        <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
-                        <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-3">Показать</button>
-                      </div>
-                      <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                      <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <h4>Возвращаемость клиентов</h4>
-              <div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно (12 мес)</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">Полный период-переключатель - см. карточку Алиовсада выше</div></div></div>
             </div>
           </details>
         </div>
       </section>
 
-      <section id="nastroika-zp">
-        <h2>Настройка ЗП</h2>
-        <p class="section-hint">Ставка зависит от мастера, не от типа услуги - редактируется в карточке каждого сотрудника («Сотрудники» → карточка мастера)</p>
-        <div class="settings-form">
-          <div class="field"><label>% за продажу косметики</label><input value="200 ₽ за штуку (не проценты)" readonly></div>
-        </div>
-
-
-        <h4 style="margin-top:26px">Формула расчёта зарплаты</h4>
-        <div class="payroll-empty">
-          <div class="pe-icon">🧮</div>
-          <p>Алиовсад и Мамедхан - 100% от выручки по своим услугам. Елизавета - 40% или 50% в зависимости от клиентской базы и возвращаемости, порог владелец меняет вручную в её карточке</p>
-        </div>
-      </section>
     </div>
 
     <!-- ======================= ВЫРУЧКА (новая вкладка, добавлена по правке Влада 27.07.2026) ======================= -->
@@ -883,15 +720,186 @@
           </div></div>
         </div>
       </section>
+
+      <!-- Правка Влада 07.08.2026 - блоки "Зарплата" (по мастеру) и "Настройка ЗП"
+           перенесены сюда из вкладки "Сотрудники"/"Команда" (panel-b): деньги
+           логичнее смотреть рядом с "Выручкой" на одной вкладке "Финансы", а не в
+           карточке сотрудника. Разметка/id/радио перенесены 1:1, поведение не
+           менялось - только новое место в DOM. Ссылка "Перейти к настройке ЗП"
+           у Алиовсада теперь ведёт на #nastroika-zp в той же вкладке (раньше вела
+           на другую вкладку "Сотрудники" - тот же приём same-page якоря, что и
+           #scheduleViewAnchor, просто без перехода между разделами). -->
+      <section>
+        <h2>Зарплаты мастеров</h2>
+        <p class="section-hint">Расчёт по каждому мастеру - День/Неделя/Месяц/свой период, тот же резолвер, что и «Зарплаты мастеров» в карточках выручки выше</p>
+
+        <h3>Алиовсад</h3>
+        <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
+        <div class="seg-tabs">
+          <input type="radio" name="zp1-sub" id="zp1-calc" checked>
+          <div class="seg-bar">
+            <label for="zp1-calc">Расчёт ЗП</label>
+          </div>
+
+          <div class="seg-panel panel-zp1-calc">
+            <div class="seg-tabs">
+              <input type="radio" name="zp1-period" id="zp1p-day" checked>
+              <input type="radio" name="zp1-period" id="zp1p-week">
+              <input type="radio" name="zp1-period" id="zp1p-month">
+              <input type="radio" name="zp1-period" id="zp1p-period">
+              <div class="seg-bar">
+                <label for="zp1p-day">За день</label>
+                <label for="zp1p-week">За неделю</label>
+                <label for="zp1p-month">За месяц</label>
+                <label for="zp1p-period">Задать период</label>
+              </div>
+              <div class="seg-panel panel-zp1p-day">
+                <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
+                <p class="payroll-note">100% от выручки по своим услугам - сумма по броням этого мастера за сегодня</p>
+              </div>
+              <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster1Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
+              <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
+              <div class="seg-panel panel-zp1p-period">
+                <div class="payroll-period-picker">
+                  <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
+                  <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
+                  <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-1">Показать</button>
+                </div>
+                <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
+                <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
+              </div>
+            </div>
+            <a class="btn btn-primary btn-sm" href="#nastroika-zp">Перейти к настройке ЗП</a>
+          </div>
+        </div>
+
+        <h3 style="margin-top:24px">Мамедхан</h3>
+        <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
+        <div class="seg-tabs">
+          <input type="radio" name="zp2-sub" id="zp2-calc" checked>
+          <div class="seg-bar">
+            <label for="zp2-calc">Расчёт ЗП</label>
+          </div>
+          <div class="seg-panel panel-zp2-calc">
+            <div class="seg-tabs">
+              <input type="radio" name="zp2-period" id="zp2p-day" checked>
+              <input type="radio" name="zp2-period" id="zp2p-week">
+              <input type="radio" name="zp2-period" id="zp2p-month">
+              <input type="radio" name="zp2-period" id="zp2p-period">
+              <div class="seg-bar">
+                <label for="zp2p-day">За день</label>
+                <label for="zp2p-week">За неделю</label>
+                <label for="zp2p-month">За месяц</label>
+                <label for="zp2p-period">Задать период</label>
+              </div>
+              <div class="seg-panel panel-zp2p-day">
+                <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
+                <p class="payroll-note">100% от выручки по своим услугам - сумма по броням этого мастера</p>
+              </div>
+              <div class="seg-panel panel-zp2p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster2Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
+              <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
+              <div class="seg-panel panel-zp2p-period">
+                <div class="payroll-period-picker">
+                  <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
+                  <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
+                  <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-2">Показать</button>
+                </div>
+                <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
+                <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h3 style="margin-top:24px">Елизавета</h3>
+        <h4>Зарплата <span class="badge badge-example">40% по умолчанию, редактируется</span></h4>
+        <div class="field-grid">
+          <div class="field">
+            <label>Ставка от выручки, % (40 или 50 - зависит от клиентской базы)</label>
+            <input type="number" min="0" max="100" id="elizavetaPctInput" value="40">
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" type="button" id="elizavetaPctSave">Сохранить ставку</button>
+        <p class="payroll-note" id="elizavetaPctNote">Порог перехода 40→50% владелец меняет здесь вручную</p>
+        <div class="seg-tabs" style="margin-top:14px">
+          <input type="radio" name="zp3-sub" id="zp3-calc" checked>
+          <div class="seg-bar">
+            <label for="zp3-calc">Расчёт ЗП</label>
+          </div>
+          <div class="seg-panel panel-zp3-calc">
+            <div class="seg-tabs">
+              <input type="radio" name="zp3-period" id="zp3p-day" checked>
+              <input type="radio" name="zp3-period" id="zp3p-week">
+              <input type="radio" name="zp3-period" id="zp3p-month">
+              <input type="radio" name="zp3-period" id="zp3p-period">
+              <div class="seg-bar">
+                <label for="zp3p-day">За день</label>
+                <label for="zp3p-week">За неделю</label>
+                <label for="zp3p-month">За месяц</label>
+                <label for="zp3p-period">Задать период</label>
+              </div>
+              <div class="seg-panel panel-zp3p-day">
+                <div class="payroll-sum"><span class="amount" id="payrollMaster3Day">000 ₽ <span class="unsure">считаю…</span></span></div>
+                <p class="payroll-note">За сегодня, по ставке из поля выше</p>
+              </div>
+              <div class="seg-panel panel-zp3p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster3Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
+              <div class="seg-panel panel-zp3p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster3Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
+              <div class="seg-panel panel-zp3p-period">
+                <div class="payroll-period-picker">
+                  <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
+                  <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
+                  <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-3">Показать</button>
+                </div>
+                <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
+                <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="nastroika-zp">
+        <h2>Настройка ЗП</h2>
+      </section>
     </div>
 
-    <!-- Панель "Акции" (panel-d) удалена целиком Окном 36 (06.08.2026) вместе с
-         radio pt-d выше - без него панель недостижима из UI, оставлять мёртвую
-         разметку в DOM не честнее, чем прятать вкладку. Весь блок был нерабочим:
-         "скоро" без даты, disabled-кнопка, тумблеры дней рождения ни разу никуда
-         не сохранялись (нет ни одного роута под это в server.mjs). Содержимое
-         легко восстановить из git-истории этого коммита, когда появится реальный
-         план (см. FINAL_PRODUCT_DECISION.md, SHOULD HAVE). -->
+    <!-- Вкладка "Аналитика" (правка Влада 07.08.2026) - переиспользует слот pt-d/
+         panel-d, свободный с Окна 36 (см. историю выше - тогда убрали нерабочую
+         "Акции"). Пока единственное содержимое - "Возвращаемость клиентов",
+         перенесена сюда 1:1 с карточки Алиовсада (Сотрудники): это был company-wide
+         показатель ("вернулись повторно" по всей базе, а не только его личным
+         клиентам), просто раньше жил в чужой карточке за неимением другого места.
+         Два дублирующих текстовых упоминания "см. карточку Алиовсада выше" на
+         карточках Мамедхана/Елизаветы убраны вместе с переносом - ссылка была бы
+         неверна (widget уехал на другую вкладку). Явно по просьбе Влада - больше
+         сюда пока ничего не добавлять. -->
+    <div class="tab-panel panel-d">
+      <section>
+        <h2>Аналитика</h2>
+
+        <h4>Возвращаемость клиентов</h4>
+        <p class="section-hint">Появится после первых визитов</p>
+        <div class="seg-tabs">
+          <input type="radio" name="rt1-period" id="rt1-3" checked>
+          <input type="radio" name="rt1-period" id="rt1-6">
+          <input type="radio" name="rt1-period" id="rt1-12">
+          <input type="radio" name="rt1-period" id="rt1-24">
+          <input type="radio" name="rt1-period" id="rt1-36">
+          <div class="seg-bar">
+            <label for="rt1-3">3 мес</label>
+            <label for="rt1-6">6 мес</label>
+            <label for="rt1-12">1 год</label>
+            <label for="rt1-24">2 года</label>
+            <label for="rt1-36">3 года</label>
+          </div>
+          <div class="seg-panel panel-rt1-3"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 3 месяца</div></div></div></div>
+          <div class="seg-panel panel-rt1-6"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 6 месяцев</div></div></div></div>
+          <div class="seg-panel panel-rt1-12"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 1 год</div></div></div></div>
+          <div class="seg-panel panel-rt1-24"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 2 года</div></div></div></div>
+          <div class="seg-panel panel-rt1-36"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 3 года</div></div></div></div>
+        </div>
+      </section>
+    </div>
 
   </div>
 </main>

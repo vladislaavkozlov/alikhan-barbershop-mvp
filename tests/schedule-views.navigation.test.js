@@ -29,9 +29,9 @@ test('addMonths: соседний месяц берётся от первого 
   assert.equal(addMonths('2026-01-15', -1), '2025-12-01');
 });
 
-test('viewAnchorLabel/День: день недели и дата в родительном падеже', () => {
-  assert.equal(viewAnchorLabel('day', '2026-08-05'), 'День · среда, 5 августа');
-  assert.equal(viewAnchorLabel('day', '2026-01-01'), 'День · четверг, 1 января');
+test('viewAnchorLabel/День: правка 07.08.2026 - якорь пуст, дата и так видна в date-picker рядом', () => {
+  assert.equal(viewAnchorLabel('day', '2026-08-05'), '');
+  assert.equal(viewAnchorLabel('day', '2026-01-01'), '');
 });
 
 test('viewAnchorLabel/Неделя: диапазон понедельник-воскресенье от якорной даты', () => {

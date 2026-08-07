@@ -2,10 +2,16 @@
 // владельца). Элемент интерфейса уже открытой страницы, НЕ системный push - поллинг
 // раз в 45 сек, никакого Notification API/пермишен-промптов браузера (см.
 // Ограничения промпта - настоящий push на закрытый браузер вне скоупа этого окна).
-// Отдельный колокольчик (id="msgBell") - НЕ тот же, что уже занят под "клиенты давно
-// не приходили" (id="notif-bell"/notifRetentionPanel в crm-owner.html) - разная
-// разметка/обработчики, чтобы не столкнуться.
+//
+// Правка Влада 07.08.2026 - колокольчик "клиенты, которым стоит позвонить"
+// (crm-clients.js, GET /clients?risk=true) объединён с этим (id="msgBell") в одну
+// кнопку - раньше это были два разных колокольчика с разными обработчиками,
+// теперь один, бейдж = сумма /notifications/unread-count + /clients?risk=true.
+// Второй fetch сделан здесь напрямую (не импортом из crm-clients.js) - модуль уже
+// no-op на страницах без #msgBell (admin/master), а risk-клиенты видны только
+// владельцу, тянуть зависимость между модулями ради одного числа ни к чему.
 import { goToSection } from './crm-app-shell.js';
+import { ICON_BELL } from './crm-icons.js';
 
 const TOKEN_KEY = 'alikhan-crm:token';
 const API = window.ALIKHAN_API_URL;
@@ -77,11 +83,27 @@ export function wireNotifications(staff) {
   const list = document.getElementById('msgList');
   if (!bell || !badge || !panel || !list) return; // страница без этого блока - no-op
 
+  const iconEl = document.getElementById('msgBellIcon');
+  if (iconEl) iconEl.innerHTML = ICON_BELL;
+
+  // Риск-клиенты видны только владельцу (GET /clients?risk=true owner-only на
+  // сервере) - на admin/master страницах этот fetch честно вернёт 401/пусто,
+  // ловим отдельно, чтобы не гасить основной счётчик уведомлений при провале.
+  async function riskClientsCount() {
+    try {
+      const clients = await apiGet('/clients?risk=true');
+      return Array.isArray(clients) ? clients.length : 0;
+    } catch {
+      return 0;
+    }
+  }
+
   async function refreshBadge() {
     try {
-      const { count } = await apiGet('/notifications/unread-count');
-      badge.textContent = count;
-      badge.hidden = count === 0;
+      const [{ count }, riskCount] = await Promise.all([apiGet('/notifications/unread-count'), riskClientsCount()]);
+      const total = count + riskCount;
+      badge.textContent = total;
+      badge.hidden = total === 0;
     } catch {
       // тихо - основной индикатор живой базы уже есть в liveProof выше на странице
     }

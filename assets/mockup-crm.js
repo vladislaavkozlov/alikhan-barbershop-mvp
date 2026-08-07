@@ -171,7 +171,7 @@ function updateCommission(master, service) {
   if (!input) return;
   if (master === 'Алиовсад') {
     input.value = 'Не начисляется';
-    if (note) note.textContent = 'Алиовсад - владелец, комиссию самому себе не платит, вся сумма услуги и так остаётся в бизнесе';
+    if (note) note.textContent = '';
     return;
   }
   const priceMatch = (service || '').match(/([\d\s]+)\s*₽/);

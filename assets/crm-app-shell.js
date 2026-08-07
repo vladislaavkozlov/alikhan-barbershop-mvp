@@ -26,19 +26,29 @@
 // целиком (не заглушка - был наполнен, но 2 из 3 виджетов дублировали другие
 // разделы, третий переехал в счётчик колокольчика без своего экрана). Вход по
 // умолчанию - "Расписание", не "Сегодня".
+//
+// Правка Влада 07.08.2026 - добавлен пункт "Аналитика" (radio pt-d/panel-d,
+// свободный с Окна 36): переиспользован сразу с реальным содержимым
+// ("Возвращаемость клиентов", перенесена из "Сотрудники"), не пустой заглушкой -
+// тот же принцип, что уже применён к Клиентам/Настройкам выше (пункт появляется
+// в момент, когда раздел реально наполнен). Эмодзи-иконки заменены на SVG
+// (assets/crm-icons.js) - разный рендер эмодзи по ОС/браузерам ломал премиум-вид.
+import { ICON_SCHEDULE, ICON_TEAM, ICON_FINANCE, ICON_ANALYTICS } from './crm-icons.js';
 
-const SECTION_RADIO = { schedule: 'pt-a', team: 'pt-b', finance: 'pt-c' };
+const SECTION_RADIO = { schedule: 'pt-a', team: 'pt-b', finance: 'pt-c', analytics: 'pt-d' };
 const SECTION_LABEL = {
   schedule: 'Расписание',
   team: 'Команда',
   finance: 'Финансы',
+  analytics: 'Аналитика',
 };
 const SECTION_ICON = {
-  schedule: '🗓',
-  team: '✂️',
-  finance: '₽',
+  schedule: ICON_SCHEDULE,
+  team: ICON_TEAM,
+  finance: ICON_FINANCE,
+  analytics: ICON_ANALYTICS,
 };
-const SECTION_ORDER = ['schedule', 'team', 'finance'];
+const SECTION_ORDER = ['schedule', 'team', 'finance', 'analytics'];
 
 let currentSection = 'schedule';
 
@@ -55,7 +65,6 @@ function sidebarMarkup() {
       </button>`
   ).join('');
   return `
-    <div class="app-sidebar-brand">АЛИХАН</div>
     <nav class="app-nav">${items}</nav>
     <div class="app-sidebar-location">Алихан, Ставрополь</div>
     <div class="app-sidebar-profile" id="appShellProfile">Владелец</div>

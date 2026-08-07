@@ -67,20 +67,33 @@ export function initOwnerScheduleRequests() {
     }
   }
 
+  const STATUS_BADGE_CLASS = {
+    pending: 'badge-status-pending',
+    approved: 'badge-on',
+    rejected: 'badge-status-rejected',
+    cancelled: 'badge-off',
+  };
+
   function rowHtml(r) {
     const master = masterNameById.get(r.masterId) ?? r.masterId;
     const label = CATEGORY_LABEL[r.category] ?? (r.requestType === 'day_off' ? 'Выходной' : 'Перерыв');
     const status = STATUS_LABEL[r.status] ?? r.status;
-    const comment = r.masterComment ? ` · «${escapeHtml(r.masterComment)}»` : '';
+    const statusClass = STATUS_BADGE_CLASS[r.status] ?? 'badge-off';
+    const comment = r.masterComment ? `<p class="req-card-comment">«${escapeHtml(r.masterComment)}»</p>` : '';
     const action = isCancellable(r)
       ? `<button class="btn btn-ghost btn-sm" type="button" data-cancel-req="${r.id}">Отменить</button>`
       : '';
-    return `<div class="break-row" data-req-row="${r.id}">
-        <span class="note" style="font-style:normal;color:var(--text)">
-          ${escapeHtml(master)} · ${escapeHtml(label)} · ${escapeHtml(periodOf(r))} · ${escapeHtml(status)}${comment}
-        </span>
-        <span data-action-slot="${r.id}">${action}</span>
-      </div>`;
+    return `<article class="req-card" data-req-row="${r.id}">
+        <div class="req-card-main">
+          <div class="req-card-title">
+            <strong>${escapeHtml(master)}</strong>
+            <span class="badge ${statusClass}">${escapeHtml(status)}</span>
+          </div>
+          <p class="req-card-meta">${escapeHtml(label)} · ${escapeHtml(periodOf(r))}</p>
+          ${comment}
+        </div>
+        <div class="req-card-action" data-action-slot="${r.id}">${action}</div>
+      </article>`;
   }
 
   async function load() {

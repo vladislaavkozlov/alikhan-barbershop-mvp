@@ -4,7 +4,6 @@
 // 1:1 с исходных верхнеуровневых строк crm-schedule-views.js.
 
 export const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-export const WEEKDAY_FULL = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
 export const MONTH_LABEL = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 // Родительный падеж - нужен только подписи-якорю ("5 августа"), в заголовках
 // Месяца остаётся именительный MONTH_LABEL ("Август 2026"), как было до Окна 25.
@@ -170,8 +169,12 @@ export function loadPercent(day, bookingsForDay) {
 }
 
 export function viewAnchorLabel(view, dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  if (view === 'day') return `День · ${WEEKDAY_FULL[isoWeekdayOf(dateStr) - 1]}, ${d} ${MONTH_GENITIVE[m - 1]}`;
+  const [y, m] = dateStr.split('-').map(Number);
+  // День не подписывается здесь - дата и так видна и редактируема в date-picker
+  // рядом (dayNavDate-slot), повторная подпись сверху была лишней (правка Влада
+  // 07.08.2026). Неделя/Месяц/Год остаются - там якорь единственное место, где
+  // виден показанный диапазон/год.
+  if (view === 'day') return '';
   if (view === 'week') return `Неделя · ${weekRangeLabel(dateStr)}`;
   if (view === 'month') return `Месяц · ${MONTH_LABEL[m - 1]} ${y}`;
   if (view === 'year') return `Год · ${YEAR_PANEL_YEAR} (справочный)`;
