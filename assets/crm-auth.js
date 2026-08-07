@@ -7,6 +7,7 @@ import { wireNotifications } from './crm-notifications.js';
 import { renderDayCalendar } from './crm-calendar.js';
 import { wireScheduleViews } from './crm-schedule-views.js';
 import { el, todayStr, formatMoney, bookingPrice, pad2 } from './crm-shared.js';
+import { renderTimeSelect, timeSelectValue, renderDateSelect, dateSelectValue } from './crm-widgets.js';
 
 const API = window.ALIKHAN_API_URL;
 const TOKEN_KEY = 'alikhan-crm:token';
@@ -31,65 +32,6 @@ function setSession(token, staff) {
 function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(STAFF_KEY);
-}
-
-// Правка 03.08.2026: время перерыва/графика раньше вписывалось вручную текстом
-// (<input type="text" placeholder="13:00">) - не по теме сайта и без валидации.
-// Переиспользует уже существующий кастомный дропдаун (toggleCustomSelect/
-// pickCustomSelectOption, assets/mockup-crm.js), который раньше был только у
-// "Закреплён за мастером" - те же классы, тот же визуальный язык, не новый виджет.
-const SHOP_TIME_OPTIONS = (() => {
-  const opts = [];
-  for (let m = 10 * 60; m <= 20 * 60; m += 15) {
-    opts.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
-  }
-  return opts;
-})();
-
-function buildTimeSelectHtml(id, value) {
-  const v = value || '13:00';
-  const options = SHOP_TIME_OPTIONS.map(
-    (t) => `<div class="custom-select-option${t === v ? ' selected' : ''}" onclick="pickCustomSelectOption(this)" data-value="${t}">${t}</div>`
-  ).join('');
-  return `<div class="custom-select" id="${id}" data-value="${v}">
-    <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">${v}</button>
-    <div class="custom-select-list" hidden>${options}</div>
-  </div>`;
-}
-// Рисует time-picker внутрь ПУСТОГО контейнера slotId (тот же id, что в разметке
-// HTML вместо старого <input type="text">) - сам виджет .custom-select получает
-// ОТДЕЛЬНЫЙ id (valueId), иначе id задвоился бы (контейнер + вложенный div с тем
-// же id). Вызывающий код читает значение через timeSelectValue(valueId).
-export function renderTimeSelect(slotId, valueId, value) {
-  const container = el(slotId);
-  if (!container) return;
-  container.innerHTML = buildTimeSelectHtml(valueId, value);
-}
-export function timeSelectValue(id) {
-  return el(id)?.dataset.value || null;
-}
-
-// Правка 03.08.2026 (Окно 16) - свой date-picker вместо нативного <input type="date">
-// (см. КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md). Взаимодействие (открытие/закрытие,
-// месячная сетка, клик по дню) - assets/mockup-crm.js (toggleCustomDate и рядом),
-// тот же паттерн разделения, что уже есть у time-select выше. Формат value -
-// "YYYY-MM-DD", как у нативного input, чтобы не менять остальной код, который его
-// использует (сравнения дат строками уже работают в этом формате).
-function buildDateWidgetHtml(id, value) {
-  const v = value || todayStr();
-  const [y, m, d] = v.split('-');
-  return `<div class="custom-date" id="${id}" data-value="${v}" data-view-year="${y}" data-view-month="${m}">
-    <button type="button" class="custom-date-trigger" onclick="toggleCustomDate(this)">${d}.${m}.${y}</button>
-    <div class="custom-date-panel" hidden></div>
-  </div>`;
-}
-export function renderDateSelect(slotOrId, valueId, value) {
-  const container = typeof slotOrId === 'string' ? el(slotOrId) : slotOrId;
-  if (!container) return;
-  container.innerHTML = buildDateWidgetHtml(valueId, value);
-}
-export function dateSelectValue(id) {
-  return el(id)?.dataset.value || null;
 }
 
 // Правка 03.08.2026 (Окно 16): "Задать период" в карточках ЗП (владелец/админ - по
