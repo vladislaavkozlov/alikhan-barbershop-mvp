@@ -146,6 +146,29 @@ export function isDayOffShift(shift) {
   return (shift.breaks ?? []).some((b) => b.startTime <= shift.startTime && b.endTime >= shift.endTime);
 }
 
+// Окно 44 (07.08.2026, ПРОМПТ-ОКНО-44-РАСПИСАНИЕ-НЕДЕЛЯ-МЕСЯЦ.md) - % загрузки дня
+// для Недели/Месяца: занятые минуты (сумма длительностей неотменённых броней) от
+// доступных (рабочее окно смены минус перерывы). day - элемент ответа
+// GET /schedule-range (isDayOff/startTime/endTime/breaks), bookingsForDay - брони
+// ИМЕННО этого мастера и этой даты (status уже отфильтрован вызывающим кодом).
+// Выходной или день без доступных минут (перерыв на весь день) - 0%, не деление на
+// ноль/Infinity. Округляется до целого, ограничивается [0,100] - переполнение
+// возможно только если брони пересекаются (сервер такое не допускает - overlap-
+// проверка в createBookingTx), но клэмп на всякий случай честнее отрицательного
+// или >100% на экране.
+export function toMinutes(hhmm) {
+  const [h, m] = String(hhmm).split(':').map(Number);
+  return h * 60 + m;
+}
+export function loadPercent(day, bookingsForDay) {
+  if (!day || day.isDayOff) return 0;
+  const breakMin = (day.breaks ?? []).reduce((s, b) => s + (toMinutes(b.endTime) - toMinutes(b.startTime)), 0);
+  const availableMin = toMinutes(day.endTime) - toMinutes(day.startTime) - breakMin;
+  if (availableMin <= 0) return 0;
+  const bookedMin = (bookingsForDay ?? []).reduce((s, b) => s + (toMinutes(b.endTime) - toMinutes(b.startTime)), 0);
+  return Math.min(100, Math.max(0, Math.round((bookedMin / availableMin) * 100)));
+}
+
 export function viewAnchorLabel(view, dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
   if (view === 'day') return `День · ${WEEKDAY_FULL[isoWeekdayOf(dateStr) - 1]}, ${d} ${MONTH_GENITIVE[m - 1]}`;

@@ -1,9 +1,18 @@
 // Декомпозиция crm-schedule-views.js (07.08.2026) - вид "Месяц" + модалка
 // редактирования дня. Код перенесён 1:1, зависимости - через ctx.
+//
+// Окно 44 (07.08.2026, ПРОМПТ-ОКНО-44-РАСПИСАНИЕ-НЕДЕЛЯ-МЕСЯЦ.md) - добавлен
+// переключатель "Все мастера / по одному" (честная поправка к ТЗ: промпт говорит
+// "как на существующем", но живым grep'ом по проекту такого переключателя нигде не
+// было - строим с нуля). "Все мастера" (дефолт) - агрегат: % загрузки команды за
+// день + общее число записей, БЕЗ dot-статуса (work/edit/off - смысл только для
+// ОДНОГО графика, у команды дни расходятся) и без карандаша редактирования (правка
+// дня требует конкретного мастера). "По одному" - прежнее поведение 1:1
+// (weeklyBaselineFor/dayStatusDot/modal), просто с добавленным % загрузки в ячейке.
 import {
   isoWeekdayOf, addMonths, pad2, dayStatusDot, ruPluralBooking, holidayNameOf, escapeHtml,
   conflictListWithOpenButton, buildMasterSwitch, isDayOffShift, GLOBAL_DEFAULT_START, GLOBAL_DEFAULT_END,
-  fmtRu,
+  fmtRu, loadPercent, toMinutes,
 } from './crm-schedule-shared.js';
 
 export function wireMonthView(ctx) {
@@ -14,6 +23,11 @@ export function wireMonthView(ctx) {
 
   let monthMasterId = masters[0]?.id ?? null;
   let editingDate = null;
+  // Переключатель только имеет смысл, когда реально есть команда (не solo-мастер на
+  // crm-master.html и не единственный мастер в системе) - иначе "Все/по одному" были
+  // бы двумя одинаковыми экранами.
+  const hasTeamToggle = !isSolo && masters.length > 1;
+  let monthMode = hasTeamToggle ? 'all' : 'single';
 
   // Ожидаемый график ЭТОГО дня недели по "Стандартному графику" (master_weekly_schedule) -
   // та же логика приоритета, что у getEffectiveSchedule на сервере (api/server.mjs),
@@ -179,15 +193,26 @@ export function wireMonthView(ctx) {
     document.getElementById('dayEditReset').addEventListener('click', resetDayEdit);
   }
 
-  async function loadMonth() {
-    const grid = document.getElementById('monthGrid');
-    if (!grid || !monthMasterId) return;
+  function monthRange() {
     // Тот же принцип, что у Недели: месяц берётся из общего якоря, своей пары
     // monthViewYear/monthViewMonth больше нет.
     const [year, month] = scheduleViewState.date.split('-').map(Number);
     const firstOfMonth = `${year}-${pad2(month)}-01`;
     const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
     const lastOfMonth = `${year}-${pad2(month)}-${pad2(daysInMonth)}`;
+    return { firstOfMonth, lastOfMonth };
+  }
+  function leadingEmptyCells(firstOfMonth) {
+    const firstWeekday = isoWeekdayOf(firstOfMonth); // 1..7, Пн=1
+    let cells = '';
+    for (let i = 1; i < firstWeekday; i++) cells += '<div class="month-day is-empty"></div>';
+    return cells;
+  }
+
+  async function loadMonthSingle() {
+    const grid = document.getElementById('monthGrid');
+    if (!grid || !monthMasterId) return;
+    const { firstOfMonth, lastOfMonth } = monthRange();
     grid.innerHTML = '<p class="section-hint">Загружаю…</p>';
     try {
       const [rangeDays, weeklyRows, bookingsRes, holidayMap] = await Promise.all([
@@ -197,27 +222,28 @@ export function wireMonthView(ctx) {
         holidayMapForRange(firstOfMonth, lastOfMonth),
       ]);
       const weeklyByWeekday = new Map(weeklyRows.map((r) => [r.weekday, r]));
-      const countByDate = new Map();
+      const bookingsByDate = new Map();
       for (const b of bookingsRes.bookings ?? []) {
         if (b.status === 'cancelled') continue;
-        countByDate.set(b.date, (countByDate.get(b.date) || 0) + 1);
+        if (!bookingsByDate.has(b.date)) bookingsByDate.set(b.date, []);
+        bookingsByDate.get(b.date).push(b);
       }
-      const firstWeekday = isoWeekdayOf(firstOfMonth); // 1..7, Пн=1
-      let cells = '';
-      for (let i = 1; i < firstWeekday; i++) cells += '<div class="month-day is-empty"></div>';
+      let cells = leadingEmptyCells(firstOfMonth);
       for (const day of rangeDays) {
         const baseline = weeklyBaselineFor(weeklyByWeekday, isoWeekdayOf(day.date));
         const current = { startTime: day.startTime, endTime: day.endTime, breaks: day.breaks };
         const overridden = !schedulesEqual(current, baseline);
         const status = day.isDayOff ? 'off' : overridden ? 'edit' : 'work';
-        const count = countByDate.get(day.date) || 0;
+        const dayBookings = bookingsByDate.get(day.date) ?? [];
+        const count = dayBookings.length;
+        const pct = loadPercent(day, dayBookings);
         const dayNum = Number(day.date.slice(8, 10));
         // Праздничная метка - ВТОРОЙ независимый признак ячейки: статус (выходной/
         // правка/обычный) продолжает отвечать за рабочий день, бейдж - за красный
         // день календаря.
         const holidayName = holidayNameOf(holidayMap, day.date);
         cells += `<div class="month-day month-day--real${holidayName ? ' is-holiday' : ''}" data-date="${day.date}" data-status="${status}">
-          <span class="num">${dayStatusDot(status)}${dayNum}</span>
+          <span class="num">${dayStatusDot(status)}${dayNum}${!day.isDayOff ? ` <span class="month-load-pct">${pct}%</span>` : ''}</span>
           ${holidayName ? `<span class="holiday-label" data-holiday-for="${day.date}">🎉 ${escapeHtml(holidayName)}</span>` : ''}
           ${count ? `<span class="appt-count">${count} ${ruPluralBooking(count)}</span>` : ''}
           ${isSolo ? '' : `<button type="button" class="month-day-edit" data-edit-date="${day.date}" aria-label="Редактировать день">✎</button>`}
@@ -241,6 +267,87 @@ export function wireMonthView(ctx) {
     }
   }
 
+  // "Все мастера" - агрегат по команде: % загрузки = суммарные занятые минуты всех
+  // мастеров в этот день / суммарные доступные минуты всех мастеров в этот день.
+  // Мастера без настроенного графика (hasWorkingSchedule===false, GET /staff, Окно
+  // 22) исключены из знаменателя целиком - иначе getEffectiveSchedule молча
+  // подставил бы им глобальный дефолт 10:00-20:00 (тот же класс бага, что чинило
+  // Окно 43 для Дня) и завысил бы доступность команды мастером, которого физически
+  // нельзя забронировать. dataStatus/dot и карандаш редактирования здесь не
+  // показываем - "рабочий/правка/выходной" осмысленно только для ОДНОГО графика, у
+  // команды в один день кто-то работает, а кто-то нет одновременно.
+  async function loadMonthAggregate() {
+    const grid = document.getElementById('monthGrid');
+    if (!grid) return;
+    const { firstOfMonth, lastOfMonth } = monthRange();
+    const bookableMasters = masters.filter((m) => m.hasWorkingSchedule !== false);
+    if (bookableMasters.length === 0) {
+      // Крайний случай - у ВСЕХ мастеров пуст график (не должно случаться на живом
+      // проекте, но теоретически возможно на свежей базе до первой настройки) -
+      // считать агрегат не по чему, честное сообщение вместо пустой/сломанной сетки.
+      grid.innerHTML = '<p class="section-hint">Ни у одного мастера ещё не настроен рабочий график - переключитесь на «По одному» или настройте график в разделе «Команда»</p>';
+      return;
+    }
+    grid.innerHTML = '<p class="section-hint">Загружаю…</p>';
+    try {
+      const [schedulesByMaster, bookingsRes, holidayMap] = await Promise.all([
+        Promise.all(bookableMasters.map((m) => fetchJson(`/schedule-range?masterId=${m.id}&from=${firstOfMonth}&to=${lastOfMonth}`))),
+        fetchJson(`/bookings?from=${firstOfMonth}&to=${lastOfMonth}`),
+        holidayMapForRange(firstOfMonth, lastOfMonth),
+      ]);
+      const bookingsByMasterDate = new Map();
+      for (const b of bookingsRes.bookings ?? []) {
+        if (b.status === 'cancelled') continue;
+        const key = `${b.masterId}|${b.date}`;
+        if (!bookingsByMasterDate.has(key)) bookingsByMasterDate.set(key, []);
+        bookingsByMasterDate.get(key).push(b);
+      }
+      // date → { availableMin, bookedMin, count } суммарно по всем bookableMasters.
+      const byDate = new Map();
+      bookableMasters.forEach((m, i) => {
+        for (const day of schedulesByMaster[i]) {
+          const rec = byDate.get(day.date) ?? { availableMin: 0, bookedMin: 0, count: 0 };
+          if (!day.isDayOff) {
+            const breakMin = (day.breaks ?? []).reduce((s, b) => s + (toMinutes(b.endTime) - toMinutes(b.startTime)), 0);
+            rec.availableMin += Math.max(0, toMinutes(day.endTime) - toMinutes(day.startTime) - breakMin);
+          }
+          const dayBookings = bookingsByMasterDate.get(`${m.id}|${day.date}`) ?? [];
+          rec.bookedMin += dayBookings.reduce((s, b) => s + (toMinutes(b.endTime) - toMinutes(b.startTime)), 0);
+          rec.count += dayBookings.length;
+          byDate.set(day.date, rec);
+        }
+      });
+      let cells = leadingEmptyCells(firstOfMonth);
+      // Дни месяца берём из byDate.keys() (не из ответа одного мастера) - каждый
+      // bookableMaster запрошен на тот же диапазон firstOfMonth..lastOfMonth, значит
+      // объединение их дат покрывает весь месяц целиком (bookableMasters.length > 0
+      // здесь гарантировано - пустой случай отсечён ранним return выше).
+      const daysInRange = [...byDate.keys()].sort();
+      for (const date of daysInRange) {
+        const rec = byDate.get(date) ?? { availableMin: 0, bookedMin: 0, count: 0 };
+        const pct = rec.availableMin <= 0 ? 0 : Math.min(100, Math.max(0, Math.round((rec.bookedMin / rec.availableMin) * 100)));
+        const dayNum = Number(date.slice(8, 10));
+        const holidayName = holidayNameOf(holidayMap, date);
+        cells += `<div class="month-day month-day--real${holidayName ? ' is-holiday' : ''}" data-date="${date}">
+          <span class="num">${dayNum} <span class="month-load-pct">${pct}%</span></span>
+          ${holidayName ? `<span class="holiday-label" data-holiday-for="${date}">🎉 ${escapeHtml(holidayName)}</span>` : ''}
+          <span class="appt-count">${rec.count ? `${rec.count} ${ruPluralBooking(rec.count)}` : 'Нет записей'}</span>
+        </div>`;
+      }
+      grid.innerHTML = cells;
+      grid.querySelectorAll('.month-day--real').forEach((cellEl) => {
+        cellEl.addEventListener('click', () => setView('day', cellEl.dataset.date));
+      });
+    } catch (err) {
+      grid.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+    }
+  }
+
+  async function loadMonth() {
+    if (monthMode === 'all') await loadMonthAggregate();
+    else await loadMonthSingle();
+  }
+
   const grid = document.getElementById('monthGrid');
   if (grid) {
     const switchRow = document.getElementById('monthMasterSwitch');
@@ -248,6 +355,26 @@ export function wireMonthView(ctx) {
       buildMasterSwitch(switchRow, masters, monthMasterId, (masterId) => {
         monthMasterId = masterId;
         loadMonth();
+      });
+      switchRow.hidden = monthMode === 'all';
+    }
+    if (hasTeamToggle) {
+      const modeRow = document.createElement('div');
+      modeRow.className = 'master-switch-row';
+      modeRow.id = 'monthModeToggle';
+      modeRow.innerHTML = `<div class="seg-bar master-pill-row">
+        <button type="button" class="master-pill${monthMode === 'all' ? ' active' : ''}" data-mode="all">Все мастера</button>
+        <button type="button" class="master-pill${monthMode === 'single' ? ' active' : ''}" data-mode="single">По одному</button>
+      </div>`;
+      switchRow?.insertAdjacentElement('beforebegin', modeRow);
+      modeRow.querySelectorAll('[data-mode]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (btn.classList.contains('active')) return;
+          monthMode = btn.dataset.mode;
+          modeRow.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b === btn));
+          if (switchRow) switchRow.hidden = monthMode === 'all';
+          loadMonth();
+        });
       });
     }
     // Листание месяца ставит якорь на первое число соседнего месяца (addMonths) -

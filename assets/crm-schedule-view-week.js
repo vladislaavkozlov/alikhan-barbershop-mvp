@@ -1,8 +1,20 @@
 // Декомпозиция crm-schedule-views.js (07.08.2026) - вид "Неделя". Код перенесён 1:1,
 // зависимости - через ctx (см. crm-schedule-view-day.js про приём).
+//
+// Окно 44 (07.08.2026, ПРОМПТ-ОКНО-44-РАСПИСАНИЕ-НЕДЕЛЯ-МЕСЯЦ.md) - вид остаётся ЗА
+// одного мастера (переключатель сужает список, не меняет общий вид - буквально из
+// ТЗ), добавлены % загрузки в заголовке колонки и сами записи дня, сгруппированные
+// по времени (раньше - только число "N записей", ни одной реальной записи не было
+// видно без перехода в День).
 import {
-  WEEKDAY_SHORT, isoWeekdayOf, mondayOf, addDays, ruPluralBooking, holidayNameOf, buildMasterSwitch,
+  WEEKDAY_SHORT, isoWeekdayOf, mondayOf, addDays, holidayNameOf, buildMasterSwitch, loadPercent, escapeHtml,
 } from './crm-schedule-shared.js';
+
+// Компактный список - Неделя показывает 7 узких колонок одновременно, не резиновую
+// высоту на весь экран (это была бы уже замена Дня, не своя плотность). Дальше
+// "+N ещё" текстом - клик по любому месту ячейки всё равно ведёт в День со всеми
+// записями (data-open-day на самой кнопке-ячейке, тот же приём, что и раньше).
+const MAX_VISIBLE_APPTS = 4;
 
 export function wireWeekView(ctx) {
   const { masters, fetchJson, holidayMapForRange, scheduleViewState, setView } = ctx;
@@ -10,16 +22,26 @@ export function wireWeekView(ctx) {
 
   // Праздник и рабочий статус - две независимые метки одной ячейки: бейдж
   // добавляется РЯДОМ с "Выходной"/часами смены, а не вместо них (Окно 24).
-  function weekDayCellHtml(day, count, holidayName) {
+  function weekDayCellHtml(day, dayBookings, holidayName) {
     const dayNum = Number(day.date.slice(8, 10));
     const monthNum = Number(day.date.slice(5, 7));
     const wd = WEEKDAY_SHORT[isoWeekdayOf(day.date) - 1];
     const hours = day.isDayOff ? 'Выходной' : `${day.startTime}–${day.endTime}`;
+    const pct = loadPercent(day, dayBookings);
+    const visible = dayBookings.slice(0, MAX_VISIBLE_APPTS);
+    const overflow = dayBookings.length - visible.length;
+    const apptsHtml = day.isDayOff
+      ? ''
+      : dayBookings.length === 0
+        ? '<span class="week-appt-empty">Нет записей</span>'
+        : `<span class="week-appt-list">${visible
+            .map((b) => `<span class="week-appt-chip">${escapeHtml(b.startTime)} ${escapeHtml(b.clientName || 'Без имени')}</span>`)
+            .join('')}${overflow > 0 ? `<span class="week-appt-more">+${overflow} ещё</span>` : ''}</span>`;
     return `<button type="button" class="month-day week-day-cell${day.isDayOff ? ' is-dayoff' : ''}${holidayName ? ' is-holiday' : ''}" data-open-day="${day.date}">
       <span class="num">${wd} ${dayNum}.${monthNum}</span>
-      <span class="week-hours">${hours}</span>
+      <span class="week-hours">${hours}${!day.isDayOff ? ` · <span class="week-load-pct">${pct}%</span>` : ''}</span>
       ${holidayName ? `<span class="holiday-label" data-holiday-for="${day.date}">🎉 ${holidayName}</span>` : ''}
-      ${count ? `<span class="appt-count">${count} ${ruPluralBooking(count)}</span>` : ''}
+      ${apptsHtml}
     </button>`;
   }
 
@@ -39,13 +61,14 @@ export function wireWeekView(ctx) {
         fetchJson(`/bookings?masterId=${weekMasterId}&from=${from}&to=${to}`),
         holidayMapForRange(from, to),
       ]);
-      const countByDate = new Map();
+      const bookingsByDate = new Map();
       for (const b of bookingsRes.bookings ?? []) {
         if (b.status === 'cancelled') continue;
-        countByDate.set(b.date, (countByDate.get(b.date) || 0) + 1);
+        if (!bookingsByDate.has(b.date)) bookingsByDate.set(b.date, []);
+        bookingsByDate.get(b.date).push(b);
       }
       grid.innerHTML = rangeDays
-        .map((day) => weekDayCellHtml(day, countByDate.get(day.date) || 0, holidayNameOf(holidayMap, day.date)))
+        .map((day) => weekDayCellHtml(day, bookingsByDate.get(day.date) ?? [], holidayNameOf(holidayMap, day.date)))
         .join('');
       grid.querySelectorAll('[data-open-day]').forEach((cellBtn) => {
         cellBtn.addEventListener('click', () => setView('day', cellBtn.dataset.openDay));

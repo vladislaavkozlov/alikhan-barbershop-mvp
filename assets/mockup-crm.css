@@ -774,6 +774,10 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .month-day.is-holiday { background: rgba(185,139,84,0.14); border-color: var(--wood); }
 .month-day .holiday-label { display: block; color: var(--wood); font-size: 0.64rem; margin-top: 2px; line-height: 1.3; }
 .month-day .appt-count { display: block; color: var(--text-muted); font-size: 0.64rem; margin-top: 2px; }
+/* Окно 44 (07.08.2026) - % загрузки дня рядом с числом дня, и в агрегате "Все
+   мастера" (crm-schedule-view-month.js loadMonthAggregate), и в "По одному"
+   (loadMonthSingle, рядом с dot-статусом work/edit/off). */
+.month-load-pct { color: var(--accent); font-weight: 700; font-size: 0.72rem; }
 
 .year-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px,1fr)); gap: 12px; }
 .year-month { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: var(--surface-2); }
@@ -830,6 +834,18 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .week-day-cell:hover { border-color: var(--accent); }
 .week-day-cell .week-hours { display: block; color: var(--text-muted); font-size: 0.68rem; margin-top: 4px; line-height: 1.3; }
 .week-day-cell.is-dayoff { background: rgba(193,85,74,0.08); }
+/* Окно 44 (07.08.2026) - % загрузки в заголовке колонки + записи дня, сгруппированные
+   по времени (раньше ячейка показывала только число). Список растёт вниз - ячейка
+   больше не фиксированной высоты (min-height, не height), но остаётся компактной
+   (MAX_VISIBLE_APPTS=4 в crm-schedule-view-week.js, дальше "+N ещё"). */
+.week-load-pct { color: var(--accent); font-weight: 700; }
+.week-appt-list { display: block; margin-top: 6px; }
+.week-appt-chip {
+  display: block; font-size: 0.66rem; color: var(--text); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; padding: 1px 0;
+}
+.week-appt-more { display: block; font-size: 0.64rem; color: var(--text-muted); font-style: italic; margin-top: 2px; }
+.week-appt-empty { display: block; margin-top: 6px; font-size: 0.66rem; color: var(--text-muted); font-style: italic; }
 
 .month-day--real { cursor: pointer; }
 .month-day--real:hover { border-color: var(--accent); }
