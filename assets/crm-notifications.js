@@ -5,6 +5,8 @@
 // Отдельный колокольчик (id="msgBell") - НЕ тот же, что уже занят под "клиенты давно
 // не приходили" (id="notif-bell"/notifRetentionPanel в crm-owner.html) - разная
 // разметка/обработчики, чтобы не столкнуться.
+import { goToSection } from './crm-app-shell.js';
+
 const TOKEN_KEY = 'alikhan-crm:token';
 const API = window.ALIKHAN_API_URL;
 const TYPE_ICON = {
@@ -17,14 +19,14 @@ const TYPE_ICON = {
 };
 
 // Окно 35 (06.08.2026) - клик по уведомлению "у мастера пропал график" ведёт прямым
-// действием к его карточке в разделе "Сотрудники" (вкладка pt-b, переключатель на
-// чистом CSS radio - см. crm-owner.html), не просто показывает текст. Карточки
+// действием к его карточке в разделе "Команда" (Окно 41 - переведено с прямого
+// radio pt-b.checked=true на общий роутер goToSection('team'), на страницах без shell
+// (admin/master) goToSection() безопасно ничего не делает, как и раньше). Карточки
 // мастеров сейчас статичный HTML с id="staffCard-<masterId>" (id мастера в БД
 // буквально совпадает с мокап-разметкой - master-1/master-2/master-3, см.
 // api/migrations/002_schema.sql) - открываем <details> и скроллим к ней.
 function openMasterCard(masterId) {
-  const tab = document.getElementById('pt-b');
-  if (tab) tab.checked = true;
+  goToSection('team');
   const card = document.getElementById(`staffCard-${masterId}`);
   if (!card) return;
   card.open = true;

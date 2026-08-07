@@ -5,6 +5,7 @@
 // (renderLiveProof заполняет #revenueTodayAmount, assets/crm-clients.js заполняет
 // #raList) - этот файл их не трогает и не дублирует запрос.
 import { fetchJson } from './crm-auth.js';
+import { goToSection } from './crm-app-shell.js';
 
 function el(id) {
   return document.getElementById(id);
@@ -24,12 +25,12 @@ function periodOf(r) {
   return `${r.dateFrom} ${r.startTime}–${r.endTime}`;
 }
 
-// Прямое действие каждой строки - переключить вкладку на то место, где эту
-// проблему реально решают (график - "Сотрудники", заявки - история в "Расписание"),
-// не просто показать текст.
-function goToTab(radioId) {
-  const tab = el(radioId);
-  if (tab) tab.checked = true;
+// Прямое действие каждой строки - переключить раздел на то место, где эту
+// проблему реально решают (график - "Команда", заявки - история в "Расписание"),
+// не просто показать текст. Окно 41 - переведено с прямого radio.checked=true на
+// общий роутер app shell (assets/crm-app-shell.js), сама панель не изменилась.
+function goToTab(sectionId) {
+  goToSection(sectionId);
 }
 
 async function renderOwnerAlerts() {
@@ -59,7 +60,7 @@ async function renderOwnerAlerts() {
         )
         .join('');
       scheduleEl.querySelectorAll('[data-open-schedule-tab]').forEach((btn) => {
-        btn.addEventListener('click', () => goToTab('pt-b'));
+        btn.addEventListener('click', () => goToTab('team'));
       });
     }
 
@@ -75,7 +76,7 @@ async function renderOwnerAlerts() {
         })
         .join('');
       requestsEl.querySelectorAll('[data-open-requests-tab]').forEach((btn) => {
-        btn.addEventListener('click', () => goToTab('pt-a'));
+        btn.addEventListener('click', () => goToTab('schedule'));
       });
     }
 

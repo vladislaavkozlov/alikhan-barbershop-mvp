@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Алихан — CRM · Владелец (макет)</title>
 <link rel="stylesheet" href="assets/mockup-crm.css" />
+<link rel="stylesheet" href="assets/crm-app-shell.css" />
 <style>
   /* теги радио-вкладок этой страницы: День/Неделя расписания + ЗП Алиовсад + Выручка */
   #sp-day:checked ~ .panel-sp-day, #sp-week:checked ~ .panel-sp-week,
@@ -101,7 +102,10 @@
 </header>
 
 <main class="wrap page" id="crmMain">
-  <h1>Владелец</h1>
+  <div class="shell-topbar-title">
+    <h1 id="shellSectionTitle">Сегодня</h1>
+    <input class="shell-search-stub" type="text" placeholder="Поиск (скоро)" disabled aria-label="Поиск (скоро)" />
+  </div>
 
   <!-- Вкладка "Акции" (pt-d) скрыта из навигации Окном 36 (06.08.2026) - весь блок
        "Скидки и акции" был бейджем "скоро" без содержимого, "+ Добавить повод"
@@ -129,7 +133,7 @@
          Окна 35/39 переиспользованы без пересчёта). Выручка - тот же #revenueTodayAmount,
          что уже заполняет renderLiveProof (assets/crm-auth.js) на crm-admin.html - здесь
          просто появляется элемент с тем же id, JS не менялся. Неделя/месяц - по клику
-         переключает на вкладку "Выручка" (pt-c), не дублирует расчёт на этом экране. -->
+         переключает на раздел "Финансы" (goToSection('finance'), Окно 41), не дублирует расчёт на этом экране. -->
     <div class="tab-panel panel-today">
       <section>
         <h2>Сегодня</h2>
@@ -140,7 +144,7 @@
             <div class="sc-value" id="revenueTodayAmount">— <span class="unsure">считаю…</span></div>
           </div>
         </div>
-        <button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('pt-c').checked=true">Выручка за неделю/месяц →</button>
+        <button id="revenueWeekMonthLink" class="btn btn-ghost btn-sm" type="button" onclick="window.crmGoToSection('finance')">Выручка за неделю/месяц →</button>
 
         <h3 style="margin-top:24px">Требует внимания</h3>
         <div class="breaks-list" id="ownerAlertsSchedule"><span class="note">Загрузка…</span></div>
@@ -925,10 +929,12 @@
   import { initOwnerScheduleRequests } from './assets/crm-schedule-requests.js';
   import { wireClientsRisk } from './assets/crm-clients.js';
   import { wireOwnerToday } from './assets/crm-owner-today.js';
+  import { initAppShell } from './assets/crm-app-shell.js';
   initCrmAuth('owner');
   initOwnerScheduleRequests();
   wireClientsRisk();
   wireOwnerToday();
+  initAppShell();
 </script>
 </body>
 </html>
