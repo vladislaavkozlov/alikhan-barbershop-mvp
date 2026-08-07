@@ -86,6 +86,22 @@ setSession/clearSession`, `buildLoginGate`, `apiLogin`, `fetchJson`, `apiSend`,
 живой CDP-прогон `tools/verify-refactor-crm-auth-decomposition.mjs` (пишется в
 фазе 1, дополняется по ходу, каждый раз гоняется целиком).
 
+## Пойманная регрессия (фаза 6, исправлена в том же коммите)
+
+`periodStartStr` вызывается не только внутри перенесённых в `crm-payroll.js`
+функций, но и напрямую в `renderLiveProof` (остаётся в `crm-auth.js` до фазы 10) -
+блок "Моя зарплата" мастера (День/Неделя/Месяц). Перенос без экспорта сломал
+`renderLiveProof` на crm-master.html (ReferenceError, пойман try/catch внутри
+функции - тихо проглатывался в console.error, не бросал явную ошибку), из-за
+чего всё, что вызывается ПОСЛЕ этого блока в той же функции (wireWalkIn,
+wireMasterSelfView, wireMasterSelfDataTab), переставало отрабатывать. Живой
+CDP-прогон поймал это сразу (4 упавших проверки на странице мастера), root cause
+найден инъекцией console.error-перехватчика через
+`Page.addScriptToEvaluateOnNewDocument`. Исправлено экспортом `periodStartStr`
+из `crm-payroll.js` и обратным импортом в `crm-auth.js`. Урок для оставшихся
+фаз: перед переносом грепать ВСЕ callsites функции по всему файлу, не только
+её определение - иначе легко унести функцию, которую снаружи ещё используют.
+
 ## Известные скрытые зависимости (не чиним, документируем)
 
 - Виджеты (`renderDateSelect`/`renderTimeSelect`) строят HTML с
