@@ -1,12 +1,13 @@
 // Окно 25 (05.08.2026) - единое состояние даты поперёк вкладок День/Неделя/Месяц/Год.
 // Юниты на чистые хелперы навигации, которые считают "какую неделю/месяц показать
 // для якорной даты" и подпись-якорь под вкладками. DOM здесь не нужен: модуль
-// assets/crm-schedule-views.js на верхнем уровне только объявляет функции/константы
-// (обращения к document живут внутри wireScheduleViews), поэтому импортируется в node
-// как обычный ES-модуль - тот же приём, что уже используется для api/server.mjs.
+// assets/crm-schedule-shared.js (декомпозиция 07.08.2026, было в crm-schedule-views.js)
+// только объявляет функции/константы (обращения к document живут в модулях видов),
+// поэтому импортируется в node как обычный ES-модуль - тот же приём, что уже
+// используется для api/server.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mondayOf, addMonths, viewAnchorLabel } from '../assets/crm-schedule-views.js';
+import { mondayOf, addMonths, viewAnchorLabel } from '../assets/crm-schedule-shared.js';
 
 test('mondayOf: любой день недели сводится к своему понедельнику', () => {
   // 2026-08-05 - среда

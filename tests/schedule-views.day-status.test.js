@@ -1,10 +1,10 @@
 // Окно 28 (05.08.2026) - мелкая полировка CRM владельца. Юниты на два чистых хелпера
-// из assets/crm-schedule-views.js: определение выходного дня для модалки дня и разметку
+// из assets/crm-schedule-shared.js (декомпозиция 07.08.2026): определение выходного дня для модалки дня и разметку
 // точки статуса в сетке Месяца. DOM не нужен - обе функции чистые (тот же приём, что в
 // schedule-views.navigation.test.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isDayOffShift, dayStatusDot } from '../assets/crm-schedule-views.js';
+import { isDayOffShift, dayStatusDot } from '../assets/crm-schedule-shared.js';
 
 test('isDayOffShift: перерыв во всю смену - выходной, при стандартной смене 10:00-20:00', () => {
   assert.equal(

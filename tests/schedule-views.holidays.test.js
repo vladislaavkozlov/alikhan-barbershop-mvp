@@ -5,7 +5,7 @@
 // tools/verify-2026-08-05-okno24-prazdniki.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupDatesToRanges, groupHolidaysByMonth, holidayNameOf, ruPluralDate } from '../assets/crm-schedule-views.js';
+import { groupDatesToRanges, groupHolidaysByMonth, holidayNameOf, ruPluralDate } from '../assets/crm-schedule-shared.js';
 
 // ── groupDatesToRanges ─────────────────────────────────────────────────────
 // POST /holidays/close принимает диапазон from-to, а владелец отмечает галочками
