@@ -13,41 +13,15 @@
 //   ALLOWED_ORIGIN - домен фронтенда, которому разрешено обращаться сюда (CORS)
 //   PORT - опционально, порт, на котором слушает сам сервер (по умолчанию 8080)
 import { createServer } from 'node:http';
-import { randomBytes } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { setCors, sendJson, readBody } from './lib/http.js';
-import { pool, casWrite } from './lib/db.js';
-import { hashPin, verifyPin, createSession, authenticate, requireRole } from './lib/auth.js';
-import {
-  getEffectiveSchedule,
-  filterStaffForViewer,
-  mastersWithWorkingSchedule,
-  hasAvailableSlot,
-  isScheduleDayOff,
-  SCHEDULE_RANGE_MAX_DAYS,
-  rangeDayCount,
-  computeScheduleRangeDays,
-  SCHEDULE_AVAILABILITY_MAX_DAYS,
-  computeAvailabilityRangeDays,
-  MASTER_NEXT_AVAILABILITY_WINDOW_DAYS,
-  computeMasterNextAvailability,
-  validateWeeklyChanges,
-  writeWeeklySchedule,
-  formatWeeklyChangesSummary,
-  findWeeklyScheduleConflicts,
-  findScheduleConflicts,
-  applyScheduleDay,
-  listHolidays,
-  holidayCloseTargets,
-  fullDayOffWindow,
-  dayOffWindowsForRequest,
-  planHolidayClose,
-  HOLIDAY_CLOSE_MAX_DAYS,
-} from './lib/schedule-core.js';
+import { setCors, sendJson } from './lib/http.js';
+import { pool } from './lib/db.js';
+import { authenticate, requireRole } from './lib/auth.js';
 // Ре-экспорт для tests/*.test.js, которые импортируют эти имена напрямую из
-// server.mjs (in-memory юниты без реального Postgres).
+// server.mjs (in-memory юниты без реального Postgres) - не используются в самом
+// server.mjs напрямую (все роуты, которые их вызывали, переехали в routes/*.js).
 export {
   getEffectiveSchedule,
   filterStaffForViewer,
@@ -70,19 +44,8 @@ export {
   planHolidayClose,
   HOLIDAY_CLOSE_MAX_DAYS,
 } from './lib/schedule-core.js';
-import { notifyStaff, findMastersMissingSchedule, notifyOwnerAboutMastersMissingSchedule } from './lib/notify-core.js';
+import { notifyStaff } from './lib/notify-core.js';
 export { findMastersMissingSchedule, notifyOwnerAboutMastersMissingSchedule } from './lib/notify-core.js';
-import {
-  toMinutes,
-  minutesToTime,
-  addMinutes,
-  addDaysIso,
-  intervalsOverlap,
-  shopNow,
-  isoWeekday,
-  enumerateDateRange,
-  dateColToStr,
-} from './lib/time.js';
 // Ре-экспорт для tests/*.test.js, которые импортируют эти имена напрямую из
 // server.mjs (in-memory юниты без реального Postgres) - см. правило 6 плана
 // декомпозиции, plans/2026-08-07-server-mjs-decomposition.md.
@@ -111,16 +74,8 @@ import {
   handleNotificationRead,
   handleNotificationsReadAll,
 } from './routes/notifications.js';
-import { computeMasterPayroll, computeRevenueToday, handlePayrollSettings, handlePayroll, handleRevenueToday } from './routes/payroll.js';
-import {
-  describeClientRisk,
-  getClientCard,
-  listClientsAtRisk,
-  computeOwnerAlerts,
-  handleOwnerAlerts,
-  handleClientsAtRisk,
-  handleClientCard,
-} from './routes/clients.js';
+import { handlePayrollSettings, handlePayroll, handleRevenueToday } from './routes/payroll.js';
+import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard } from './routes/clients.js';
 // Ре-экспорт для tests/*.test.js.
 export { describeClientRisk, getClientCard, listClientsAtRisk, computeOwnerAlerts } from './routes/clients.js';
 export { computeMasterPayroll, computeRevenueToday } from './routes/payroll.js';
