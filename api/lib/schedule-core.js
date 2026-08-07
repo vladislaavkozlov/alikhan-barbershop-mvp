@@ -91,7 +91,7 @@ export async function mastersWithWorkingSchedule(client, masterIds) {
 // findScheduleConflicts проверять пересечение брони с ЛЮБОЙ причиной блокировки
 // одной и той же функцией (intervalsOverlap), не дублируя отдельную проверку границ
 // рабочего окна.
-function blockedIntervalsFor(schedule) {
+export function blockedIntervalsFor(schedule) {
   return [
     { startTime: '00:00', endTime: schedule.startTime },
     { startTime: schedule.endTime, endTime: '23:59' },
