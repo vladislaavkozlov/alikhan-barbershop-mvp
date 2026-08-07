@@ -87,6 +87,9 @@ import {
 // server.mjs (in-memory юниты без реального Postgres) - см. правило 6 плана
 // декомпозиции, plans/2026-08-07-server-mjs-decomposition.md.
 export { isoWeekday, enumerateDateRange } from './lib/time.js';
+import { handleLogin, handleMe } from './routes/auth.js';
+import { handleStaffList, handleStaffPortfolio, handleStaffRole } from './routes/staff.js';
+import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
 
 const PORT = Number(process.env.PORT) || 8080;
 // Задача 2 промпта корректировки Окна 13 (01.08.2026, Блок 5 в.19, Алихан): "отмена не
@@ -688,88 +691,16 @@ const server = createServer(async (req, res) => {
 
     // ── Auth ────────────────────────────────────────────────────────────
     if (parts[0] === 'auth' && parts[1] === 'login' && req.method === 'POST') {
-      const body = await readBody(req);
-      if (!body.email || !body.pin) return sendJson(res, 400, { error: 'email_and_pin_required' });
-      const result = await pool.query(
-        `SELECT id, name, role, location_id, pin_hash FROM staff
-         WHERE email = $1 AND employed = true AND has_system_access = true`,
-        [String(body.email).toLowerCase()]
-      );
-      if (result.rows.length === 0) return sendJson(res, 401, { error: 'invalid_credentials' });
-      const staff = result.rows[0];
-      if (!verifyPin(String(body.pin), staff.pin_hash)) {
-        return sendJson(res, 401, { error: 'invalid_credentials' });
-      }
-      const { token, expiresAt } = await createSession(staff.id);
-      // Окно 35 - алерт "мастер без графика" считается при входе владельца, не
-      // фоновым кроном (по решению промпта - проверки при входе достаточно). Обёрнуто
-      // в try/catch: сбой этой проверки не должен ронять сам логин.
-      if (staff.role === 'owner') {
-        try {
-          await notifyOwnerAboutMastersMissingSchedule(pool, staff.id);
-        } catch (err) {
-          console.error('notifyOwnerAboutMastersMissingSchedule failed:', err);
-        }
-      }
-      return sendJson(res, 200, {
-        token,
-        expiresAt,
-        staff: { id: staff.id, name: staff.name, role: staff.role, locationId: staff.location_id },
-      });
+      return handleLogin(req, res);
     }
 
     if (parts[0] === 'auth' && parts[1] === 'me' && req.method === 'GET') {
-      const auth = await authenticate(req);
-      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-      return sendJson(res, 200, { staff: auth });
+      return handleMe(req, res);
     }
 
     // ── /staff - роль ограничивает выдачу на уровне SQL, не только в UI ──
     if (parts[0] === 'staff' && parts.length === 1 && req.method === 'GET') {
-      const auth = await authenticate(req);
-      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-      let query = `SELECT id, location_id, name, photo_url, phone, email, role, employed, provides_services, has_system_access,
-                          experience_text, strengths_text, certificates_text, before_after_urls
-                   FROM staff WHERE 1=1`;
-      const params = [];
-      if (auth.role === 'admin') {
-        params.push(auth.locationId);
-        query += ` AND location_id = $${params.length}`;
-      } else if (auth.role === 'master') {
-        params.push(auth.id);
-        query += ` AND id = $${params.length}`;
-      }
-      const result = await pool.query(query, params);
-      const mapped = result.rows.map((r) => ({
-        id: r.id,
-        locationId: r.location_id,
-        name: r.name,
-        photoUrl: r.photo_url,
-        phone: r.phone,
-        email: r.email,
-        role: r.role,
-        employed: r.employed,
-        providesServices: r.provides_services,
-        hasSystemAccess: r.has_system_access,
-        // Задача 4 (Окно 13, 01.08.2026, Блок 6 в.23-26) - портфолио мастера,
-        // самредактируемые владельцем поля, см. миграцию 009_staff_portfolio.sql
-        experienceText: r.experience_text,
-        strengthsText: r.strengths_text,
-        certificatesText: r.certificates_text,
-        beforeAfterUrls: r.before_after_urls,
-      }));
-      // Окно 22 (04.08.2026, Задача 1) - мастер без ни одной строки is_working=true в
-      // master_weekly_schedule фолбэчится в getEffectiveSchedule на GLOBAL_DEFAULT
-      // "10:00-20:00, без перерыва" (см. комментарий выше по файлу) - выглядит для
-      // не-владельца полностью свободным, хотя физически ещё не готов принимать
-      // (например только что нанят). Владелец (auth.role === 'owner') видит всех как
-      // раньше + hasWorkingSchedule, чтобы сам увидел, кому нужно донастроить график -
-      // остальные роли таких мастеров в ответе не получают вовсе.
-      const serviceMasterIds = mapped.filter((r) => r.providesServices).map((r) => r.id);
-      // Задача C промпта Окна 29 - вынесено в общую mastersWithWorkingSchedule
-      // (тот же SQL, теперь единственный источник, см. комментарий там же).
-      const scheduledIds = await mastersWithWorkingSchedule(pool, serviceMasterIds);
-      return sendJson(res, 200, filterStaffForViewer(mapped, auth.role, scheduledIds));
+      return handleStaffList(req, res);
     }
 
     // ── /staff/:id/portfolio - Задача 4 (Окно 13, 01.08.2026). Только владелец
@@ -777,17 +708,7 @@ const server = createServer(async (req, res) => {
     // ведёт карточки сотрудников). Данных для заполнения сейчас нет (Алихан заполнит
     // сам) - этот эндпоинт даёт саму возможность, не контент.
     if (parts[0] === 'staff' && parts[1] && parts[2] === 'portfolio' && parts.length === 3 && req.method === 'PUT') {
-      const auth = await authenticate(req);
-      if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
-      const staffId = decodeURIComponent(parts[1]);
-      const body = await readBody(req);
-      const result = await pool.query(
-        `UPDATE staff SET experience_text = $1, strengths_text = $2, certificates_text = $3, before_after_urls = $4
-         WHERE id = $5 RETURNING id`,
-        [body.experienceText ?? null, body.strengthsText ?? null, body.certificatesText ?? null, body.beforeAfterUrls ?? null, staffId]
-      );
-      if (result.rows.length === 0) return sendJson(res, 404, { error: 'staff_not_found' });
-      return sendJson(res, 200, { ok: true });
+      return handleStaffPortfolio(req, res, parts);
     }
 
     // ── /staff/:id/role - Задача 1 (Окно 14, 02.08.2026). Владелец меняет роль
@@ -795,34 +716,12 @@ const server = createServer(async (req, res) => {
     // crm-owner.html были кликабельны, но физически ничего не сохраняли, эндпоинта
     // не существовало вообще. Owner-only - роль решает исключительно Алихан.
     if (parts[0] === 'staff' && parts[1] && parts[2] === 'role' && parts.length === 3 && req.method === 'PUT') {
-      const auth = await authenticate(req);
-      if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
-      const staffId = decodeURIComponent(parts[1]);
-      const body = await readBody(req);
-      const role = body.role;
-      if (!['owner', 'admin', 'master'].includes(role)) return sendJson(res, 400, { error: 'invalid_role' });
-      const result = await pool.query('UPDATE staff SET role = $1 WHERE id = $2 RETURNING id, role', [role, staffId]);
-      if (result.rows.length === 0) return sendJson(res, 404, { error: 'staff_not_found' });
-      return sendJson(res, 200, { ok: true, id: result.rows[0].id, role: result.rows[0].role });
+      return handleStaffRole(req, res, parts);
     }
 
     // ── /services - каталог, доступен любой авторизованной роли ──────────
     if (parts[0] === 'services' && parts.length === 1 && req.method === 'GET') {
-      const auth = await authenticate(req);
-      if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-      const result = await pool.query('SELECT id, name, category, duration_min, price, composition FROM services');
-      return sendJson(
-        res,
-        200,
-        result.rows.map((r) => ({
-          id: r.id,
-          name: r.name,
-          category: r.category,
-          durationMin: r.duration_min,
-          price: r.price,
-          composition: r.composition,
-        }))
-      );
+      return handleServicesList(req, res);
     }
 
     // ── /master-services - цена и длительность ПО МАСТЕРУ (Окно 10, разд.17.2 ТЗ) ──
@@ -834,17 +733,7 @@ const server = createServer(async (req, res) => {
     // разрешён так же, как уже сделано для /schedule (Окно 15) - ничего чувствительнее
     // цены/длительности здесь нет, эти цифры и так были видны на сайте захардкоженными.
     if (parts[0] === 'master-services' && parts.length === 1 && req.method === 'GET') {
-      const result = await pool.query('SELECT master_id, service_id, price, duration_min FROM master_services');
-      return sendJson(
-        res,
-        200,
-        result.rows.map((r) => ({
-          masterId: r.master_id,
-          serviceId: r.service_id,
-          price: r.price,
-          durationMin: r.duration_min,
-        }))
-      );
+      return handleMasterServicesList(req, res);
     }
 
     // ── /master-services/:masterId/:serviceId - Правка 03.08.2026, только владелец.
@@ -862,26 +751,7 @@ const server = createServer(async (req, res) => {
       parts.length === 3 &&
       req.method === 'PUT'
     ) {
-      const auth = await authenticate(req);
-      if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
-      const masterId = decodeURIComponent(parts[1]);
-      const serviceId = decodeURIComponent(parts[2]);
-      const body = await readBody(req);
-      if (body.enabled === false) {
-        await pool.query('DELETE FROM master_services WHERE master_id = $1 AND service_id = $2', [masterId, serviceId]);
-        return sendJson(res, 200, { ok: true, enabled: false });
-      }
-      const serviceRes = await pool.query('SELECT price, duration_min FROM services WHERE id = $1', [serviceId]);
-      if (serviceRes.rows.length === 0) return sendJson(res, 404, { error: 'service_not_found' });
-      const price = Number.isFinite(body.price) ? body.price : serviceRes.rows[0].price;
-      const durationMin = Number.isFinite(body.durationMin) ? body.durationMin : serviceRes.rows[0].duration_min;
-      if (durationMin <= 0) return sendJson(res, 400, { error: 'invalid_duration' });
-      await pool.query(
-        `INSERT INTO master_services (master_id, service_id, price, duration_min) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (master_id, service_id) DO UPDATE SET price = $3, duration_min = $4`,
-        [masterId, serviceId, price, durationMin]
-      );
-      return sendJson(res, 200, { ok: true, enabled: true, price, durationMin });
+      return handleMasterServiceUpdate(req, res, parts);
     }
 
     // ── /bookings - GET публичный (без клиентских данных) + по роли, POST для записи ──
