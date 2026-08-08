@@ -18,3 +18,8 @@ export const ICON_FINANCE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://ww
 export const ICON_ANALYTICS = `<svg viewBox="0 0 20 20" fill="currentColor" stroke="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="11" width="3.2" height="6" rx="0.8"/><rect x="8.4" y="7" width="3.2" height="10" rx="0.8"/><rect x="13.8" y="3.5" width="3.2" height="13.5" rx="0.8"/></svg>`;
 
 export const ICON_BELL = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><path d="M10 2.5c-2.2 0-4 1.8-4 4v2.3c0 .5-.2 1-.5 1.4L4.3 12a1 1 0 0 0 .8 1.6h9.8a1 1 0 0 0 .8-1.6l-1.2-1.8a2.3 2.3 0 0 1-.5-1.4V6.5c0-2.2-1.8-4-4-4Z"/><path d="M8.2 15.5a1.9 1.9 0 0 0 3.6 0"/></svg>`;
+
+// Правка 08.08.2026 - сворачивание sidebar до одних иконок (assets/crm-app-shell.js,
+// toggleSidebar). Двойной шеврон "‹‹" - при свёрнутом меню CSS разворачивает его на
+// 180° в ту же иконку "»", без второй SVG под обратное состояние.
+export const ICON_SIDEBAR_TOGGLE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><path d="M12.5 4 7 10l5.5 6"/><path d="M7.5 4 2 10l5.5 6"/></svg>`;

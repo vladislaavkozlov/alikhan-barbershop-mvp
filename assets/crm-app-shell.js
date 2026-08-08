@@ -33,7 +33,7 @@
 // тот же принцип, что уже применён к Клиентам/Настройкам выше (пункт появляется
 // в момент, когда раздел реально наполнен). Эмодзи-иконки заменены на SVG
 // (assets/crm-icons.js) - разный рендер эмодзи по ОС/браузерам ломал премиум-вид.
-import { ICON_SCHEDULE, ICON_TEAM, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL } from './crm-icons.js';
+import { ICON_SCHEDULE, ICON_TEAM, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE } from './crm-icons.js';
 
 // Правка 07.08.2026 - добавлен пункт "Уведомления" (radio pt-e/panel-e, новый слот):
 // "Заявки мастеров на изменение графика" переехали сюда из "Расписания" целиком
@@ -71,10 +71,27 @@ function sidebarMarkup() {
       </button>`
   ).join('');
   return `
+    <button type="button" class="app-sidebar-toggle" id="appSidebarToggle" aria-label="Свернуть меню">
+      <span class="app-nav-icon" aria-hidden="true">${ICON_SIDEBAR_TOGGLE}</span>
+    </button>
     <nav class="app-nav">${items}</nav>
     <div class="app-sidebar-location">Алихан, Ставрополь</div>
     <div class="app-sidebar-profile" id="appShellProfile">Владелец</div>
   `;
+}
+
+// Правка 08.08.2026 - свернуть sidebar до одних иконок (просьба Влада). Класс живёт
+// на body (не на самой .app-sidebar) - тем же классом управляется и padding-left
+// контента (см. assets/crm-app-shell.css), одна точка истины на оба эффекта.
+// localStorage не заводим - в рамках SPA-сессии переключение между разделами не
+// перезагружает страницу (goToSection ниже - тот же документ), состояние и так
+// не сбрасывается, пока владелец не выйдет/не обновит страницу вручную.
+const SIDEBAR_COLLAPSED_CLASS = 'app-shell-sidebar-collapsed';
+
+function toggleSidebar() {
+  const collapsed = document.body.classList.toggle(SIDEBAR_COLLAPSED_CLASS);
+  const btn = el('appSidebarToggle');
+  if (btn) btn.setAttribute('aria-label', collapsed ? 'Развернуть меню' : 'Свернуть меню');
 }
 
 function insertSidebar() {
@@ -87,6 +104,7 @@ function insertSidebar() {
   aside.querySelectorAll('[data-section]').forEach((btn) => {
     btn.addEventListener('click', () => goToSection(btn.dataset.section));
   });
+  el('appSidebarToggle')?.addEventListener('click', toggleSidebar);
 }
 
 function updateActiveNav() {

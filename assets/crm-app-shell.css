@@ -11,6 +11,7 @@
 @media (min-width: 1024px) {
   body.app-shell-active {
     padding-left: var(--sidebar-w-expanded);
+    transition: padding-left 180ms var(--ease-out);
   }
 
   body.app-shell-active .app-sidebar {
@@ -28,7 +29,52 @@
     box-shadow: var(--shadow-md);
     z-index: 35;
     overflow-y: auto;
+    transition: width 180ms var(--ease-out), padding 180ms var(--ease-out);
   }
+
+  /* Правка 08.08.2026 (просьба Влада) - свёрнутое состояние: сайдбар сужается до
+     --sidebar-w-collapsed (токен уже существовал с Окна 41, но никогда не
+     использовался), видны только круглые иконки, подписи/имя точки/роль скрыты.
+     Класс на body - одной точкой переключаются и ширина сайдбара, и отступ
+     контента (.app-shell-active выше), они физически не могут разъехаться. */
+  body.app-shell-active.app-shell-sidebar-collapsed {
+    padding-left: var(--sidebar-w-collapsed);
+  }
+  body.app-shell-active.app-shell-sidebar-collapsed .app-sidebar {
+    width: var(--sidebar-w-collapsed);
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+  body.app-shell-sidebar-collapsed .app-nav-item {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  body.app-shell-sidebar-collapsed .app-nav-label,
+  body.app-shell-sidebar-collapsed .app-sidebar-location,
+  body.app-shell-sidebar-collapsed .app-sidebar-profile {
+    display: none;
+  }
+
+  /* Кнопка сворачивания - над списком разделов, всегда видна (в т.ч. свёрнутой),
+     чтобы меню можно было развернуть обратно тем же нажатием. */
+  .app-sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    margin-bottom: var(--space-1);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
+  }
+  .app-sidebar-toggle:hover { background: var(--surface-2); color: var(--text); }
+  .app-sidebar-toggle .app-nav-icon svg { width: 18px; height: 18px; transition: transform 180ms var(--ease-out); }
+  body.app-shell-sidebar-collapsed .app-sidebar-toggle .app-nav-icon svg { transform: rotate(180deg); }
 
   .app-nav { display: flex; flex-direction: column; gap: var(--space-1); }
   .app-nav-item {
