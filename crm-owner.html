@@ -189,7 +189,7 @@
              дата и так видна в day-nav). -->
 
         <div class="staff-list schedule-view-cards">
-          <details class="staff-card schedule-view-card" id="scheduleCard-day" open>
+          <details class="staff-card schedule-view-card" id="scheduleCard-day">
             <summary>
               <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><text x="12" y="17.3" font-size="7.2" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Georgia, serif">1</text></svg></div>
               <div class="summary-meta"><div class="name">День</div></div>
@@ -277,7 +277,7 @@
                flex-gap 12px, а не отдельным блоком со своим margin-top:18px (см.
                КОНВЕНЦИЯ-КАРТОЧКИ-РАЗДЕЛОВ.md). #bd-1/#bd-now id не менялись - их
                читает/пишет openBooking()/updateNoShowUi() (assets/mockup-crm.js). -->
-          <details class="staff-card" id="bd-1" open>
+          <details class="staff-card" id="bd-1">
             <summary>
               <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
               <div class="summary-meta"><div class="name" id="bd-now">Запись</div></div>
@@ -997,7 +997,7 @@
     <div class="tab-panel panel-e">
       <section>
         <div class="staff-list">
-          <details class="staff-card" open>
+          <details class="staff-card">
             <summary>
               <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><path d="M14.5 19l0.6-2.4 3.4-3.4a1 1 0 0 1 1.4 0l0.9 0.9a1 1 0 0 1 0 1.4l-3.4 3.4-2.4 0.6z" fill="var(--accent)" stroke="none"/></svg></div>
               <div class="summary-meta"><div class="name">Заявки на изменение графика</div></div>
