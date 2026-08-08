@@ -89,11 +89,6 @@ function insertSidebar() {
   });
 }
 
-function updateTitle() {
-  const title = el('shellSectionTitle');
-  if (title) title.textContent = SECTION_LABEL[currentSection] ?? '';
-}
-
 function updateActiveNav() {
   document.querySelectorAll('.app-nav-item').forEach((btn) => {
     const active = btn.dataset.section === currentSection;
@@ -117,7 +112,6 @@ export function goToSection(sectionId) {
     if (radio && !radio.checked) radio.checked = true;
   }
 
-  updateTitle();
   updateActiveNav();
 }
 

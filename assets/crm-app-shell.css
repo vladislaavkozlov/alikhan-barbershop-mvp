@@ -8,8 +8,6 @@
 
 .app-sidebar { display: none; }
 
-.shell-topbar-title { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
-
 @media (min-width: 1024px) {
   body.app-shell-active {
     padding-left: var(--sidebar-w-expanded);
