@@ -30,17 +30,20 @@ function goToTab(sectionId) {
   goToSection(sectionId);
 }
 
-async function renderOwnerAlerts() {
+// Окно 45 (08.08.2026) - экспортирован для кнопки мягкого обновления (вызывать
+// именно эту функцию, не wireScheduleAlerts() заново - та завела бы второй
+// MutationObserver на #crmMain).
+export async function renderOwnerAlerts() {
   const scheduleEl = el('ownerAlertsSchedule');
   if (!scheduleEl) return;
 
   try {
     const { mastersWithoutSchedule } = await fetchJson('/owner/alerts');
 
-    // Пустое состояние ("всё в порядке") - DoD промпта: не показывать декоративный
-    // пустой блок.
+    // Пустое состояние - правка Влада 08.08.2026: убрана декоративная реассюрирующая
+    // строка ("Всё в порядке..."), блок просто пуст, когда алертов нет.
     if (mastersWithoutSchedule.length === 0) {
-      scheduleEl.innerHTML = '<p class="payroll-note">Всё в порядке - открытых алертов нет</p>';
+      scheduleEl.innerHTML = '';
       window.updateNotifBadge?.();
       return;
     }

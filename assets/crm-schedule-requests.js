@@ -177,4 +177,9 @@ export function initOwnerScheduleRequests() {
   }
   new MutationObserver(startOnce).observe(main, { attributes: true, attributeFilter: ['hidden'] });
   startOnce();
+
+  // Окно 45 (08.08.2026) - кнопка мягкого обновления рядом с колокольчиком дёргает
+  // ЭТУ же функцию напрямую (не initOwnerScheduleRequests() заново - это заново
+  // навесило бы обработчик на #ownerReqReload и удвоило клики).
+  return { refresh: load };
 }

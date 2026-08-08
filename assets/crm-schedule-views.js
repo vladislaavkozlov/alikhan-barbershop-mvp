@@ -49,6 +49,13 @@ export function wireScheduleViews(ctx) {
   const scheduleViewState = { date: todayStr(), view: 'day' };
   const RADIO_ID_BY_VIEW = { day: 'sp-day', week: 'sp-week', month: 'sp-month', year: 'sp-year' };
   const PANEL_SELECTOR_BY_VIEW = { day: '.panel-sp-day', week: '.panel-sp-week', month: '.panel-sp-month', year: '.panel-sp-year' };
+  // Окно 45 (08.08.2026) - День/Неделя/Месяц теперь сворачиваемые карточки
+  // (details.schedule-view-card), а не radio-пилюли. Карточек можно раскрыть сразу
+  // несколько (решение Влада) - sp-* radio остались как внутреннее состояние "какой
+  // вид активен для якоря/загрузки", setView теперь ещё и раскрывает нужную карточку.
+  // Год (crm-owner.html такой карточки не заводит - вкладка "Год" отдельная,
+  // DETAILS_ID_BY_VIEW.year намеренно не задан).
+  const DETAILS_ID_BY_VIEW = { day: 'scheduleCard-day', week: 'scheduleCard-week', month: 'scheduleCard-month' };
 
   function renderViewAnchor() {
     const anchorEl = el('scheduleViewAnchor');
@@ -82,6 +89,8 @@ export function wireScheduleViews(ctx) {
     scheduleViewState.view = v;
     const radio = el(RADIO_ID_BY_VIEW[v]);
     if (radio && !radio.checked) radio.checked = true; // программная установка .checked события change не даёт - обновляем всё сами
+    const details = el(DETAILS_ID_BY_VIEW[v]);
+    if (details && !details.open) details.open = true; // напр. клик по дню в Месяце должен раскрыть карточку "День"
     renderViewAnchor();
     crossfadeActivePanel();
     if (v === 'day') await view.loadDay(scheduleViewState.date);
@@ -124,6 +133,17 @@ export function wireScheduleViews(ctx) {
         if (e.target.checked) setView(v);
       });
     });
+    // Окно 45 (08.08.2026) - ручное раскрытие карточки (клик по summary) тоже должно
+    // запускать setView (загрузка данных вида + якорь), не только программные переходы
+    // через radio. Guard на scheduleViewState.view защищает от двойного вызова, когда
+    // setView САМ программно раскрывает карточку (см. правку setView выше) - к этому
+    // моменту view уже равен v, повторный вызов не нужен.
+    Object.entries(DETAILS_ID_BY_VIEW).forEach(([v, detailsId]) => {
+      const details = el(detailsId);
+      details?.addEventListener('toggle', () => {
+        if (details.open && scheduleViewState.view !== v) setView(v);
+      });
+    });
     renderViewAnchor();
   }
 
@@ -147,4 +167,26 @@ export function wireScheduleViews(ctx) {
   });
 
   wireViewTabs();
+
+  // Окно 45 (08.08.2026) - кнопка мягкого обновления рядом с колокольчиком дёргает
+  // это, а не wireScheduleViews(...) заново (та навесила бы весь набор обработчиков
+  // повторно). Перечитывает только карточки, которые СЕЙЧАС раскрыты - можно
+  // раскрыть несколько (День+Неделя+Месяц) одновременно, обновляем все открытые,
+  // закрытые не трогаем (нет смысла тянуть данные для того, что не видно).
+  async function refresh() {
+    const jobs = [];
+    if (el(DETAILS_ID_BY_VIEW.day)?.open) jobs.push(view.loadDay(scheduleViewState.date));
+    if (el(DETAILS_ID_BY_VIEW.week)?.open) jobs.push(view.loadWeek());
+    if (el(DETAILS_ID_BY_VIEW.month)?.open) jobs.push(view.loadMonth());
+    await Promise.all(jobs);
+  }
+
+  // crm-dashboard.js вызывает wireScheduleViews() как часть более длинной цепочки
+  // инициализации (assets/crm-dashboard.js) и не прокидывает возврат наружу к
+  // crm-owner.html - тот же приём window-хука, что уже применяют window.updateNotifBadge/
+  // window.openRebookBooking в этом проекте для похожей задачи "дотянуться из другого
+  // модуля без циклического импорта".
+  window.__refreshScheduleViews = refresh;
+
+  return { refresh };
 }

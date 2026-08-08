@@ -158,6 +158,14 @@ h1 { margin: 0 0 4px; color: var(--accent); font-size: clamp(1.5rem, 1.4vw + 1.0
    размера и фактически не была видна в кнопке 38x38 - тот же приём, что уже применён
    к иконкам sidebar (.app-nav-icon svg, assets/crm-app-shell.css). */
 .notif-bell svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+/* Окно 45 (08.08.2026) - кнопка мягкого обновления, короткая индикация процесса
+   (чтобы клик ощущался как реакция, не проверялся на глаз без обратной связи). */
+#refreshBtn.is-refreshing svg { animation: refreshSpin 500ms var(--ease-out); }
+@keyframes refreshSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  #refreshBtn.is-refreshing svg { animation: none; }
+}
 .notif-badge {
   position: absolute; top: -6px; right: -6px; background: var(--danger); color: #fff;
   font-size: 0.66rem; font-weight: 700; min-width: 17px; height: 17px; border-radius: 999px;
@@ -333,6 +341,17 @@ button:active, .btn:active { transform: scale(0.96); }
   color: var(--accent); font-size: 0.95rem; flex-shrink: 0;
 }
 .avatar.lg { width: 64px; height: 64px; font-size: 1.2rem; }
+
+/* Окно 45 (08.08.2026) - иконка вместо аватара-инициалов в заголовке карточки блока
+   (не человек, а раздел/метрика - День/Неделя/Выручка/Заявки и т.п.). Конвенция -
+   КОНВЕНЦИЯ-КАРТОЧКИ-РАЗДЕЛОВ.md. Тот же размер/фон/рамка, что у .avatar, чтобы
+   ряд карточек не скакал по высоте вперемешку с карточками мастеров. */
+.avatar-icon {
+  width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0;
+  background: var(--surface-3); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.avatar-icon svg { width: 22px; height: 22px; color: var(--accent); }
 
 /* ---------- masters row (Расписание) ---------- */
 .masters-row { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 4px; }

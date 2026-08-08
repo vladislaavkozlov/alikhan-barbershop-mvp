@@ -7,12 +7,15 @@
 <link rel="stylesheet" href="assets/mockup-crm.css" />
 <link rel="stylesheet" href="assets/crm-app-shell.css" />
 <style>
-  /* теги радио-вкладок этой страницы: День/Неделя расписания + ЗП Алиовсад + Выручка */
-  #sp-day:checked ~ .panel-sp-day, #sp-week:checked ~ .panel-sp-week,
-  #sp-month:checked ~ .panel-sp-month { display: block; }
-  #sp-day:checked ~ .seg-bar label[for="sp-day"],
-  #sp-week:checked ~ .seg-bar label[for="sp-week"],
-  #sp-month:checked ~ .seg-bar label[for="sp-month"] { background: var(--accent); color: var(--leather); }
+  /* Окно 45 (08.08.2026) - День/Неделя/Месяц Расписания больше не radio-пилюли, а
+     сворачиваемые карточки (.schedule-view-card) - видимость содержимого решает сам
+     <details>, а не :checked, поэтому .seg-panel внутри такой карточки должен быть
+     видим всегда (родитель сам скрывает всё, когда закрыт). sp-day/sp-week/sp-month
+     остались как скрытые radio для внутренней state-машины навигации, визуальных
+     пилюль для них больше нет. */
+  .schedule-view-card .seg-panel { display: block; }
+
+  /* остальные radio-вкладки этой страницы: ЗП Алиовсад + Выручка */
 
   #zp1-calc:checked ~ .panel-zp1-calc { display: block; }
   #zp1-calc:checked ~ .seg-bar label[for="zp1-calc"] { background: var(--accent); color: var(--leather); }
@@ -99,6 +102,10 @@
            реально рабочую выпадашку (#msgPanel) - риск-сигнал не теряется (входит в
            сумму), полноценный список риск-клиентов появится там же, когда будет готов
            раздел "Клиенты" (Окно 48). -->
+      <!-- Окно 45 (08.08.2026) - мягкое обновление (перечитать данные без
+           location.reload(), чтобы не терять текущую вкладку/раскрытые карточки/дату
+           в календаре - решение Влада 08.08.2026). -->
+      <button class="notif-bell" type="button" id="refreshBtn" aria-label="Обновить данные"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17,1.5 21,5.5 17,9.5"/><path d="M3,12.5v-2a4,4 0 0 1 4,-4h14"/><polyline points="7,22.5 3,18.5 7,14.5"/><path d="M21,11.5v2a4,4 0 0 1 -4,4H3"/></svg></button>
       <div class="msg-bell-wrap" style="position:relative">
         <button class="notif-bell" type="button" id="msgBell" aria-label="Уведомления и клиенты, которым стоит позвонить"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
         <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
@@ -159,70 +166,100 @@
              счётчике колокольчика (assets/crm-clients.js), см. правку в шапке ниже. -->
         <div class="breaks-list" id="ownerAlertsSchedule"><span class="note">Загрузка…</span></div>
 
-        <div class="seg-tabs">
-          <input type="radio" name="sched-period" id="sp-day" checked>
-          <input type="radio" name="sched-period" id="sp-week">
-          <input type="radio" name="sched-period" id="sp-month">
-          <div class="seg-bar">
-            <label for="sp-day">День</label>
-            <label for="sp-week">Неделя</label>
-            <label for="sp-month">Месяц</label>
-          </div>
-          <!-- Окно 25 - подпись-якорь: какая именно дата сейчас показана в выбранной
-               плотности ("Неделя · 3-9 августа"). Заполняет wireScheduleViews
-               (assets/crm-schedule-views.js), одна общая на все четыре вкладки. -->
-          <div class="view-anchor" id="scheduleViewAnchor"></div>
+        <!-- Окно 45 (08.08.2026) - переключатель-пилюли День/Неделя/Месяц заменён на 4
+             независимые сворачиваемые карточки (можно раскрыть любое число одновременно -
+             прямое решение Влада, не эксклюзивный аккордеон). Radio sp-day/sp-week/sp-month
+             ОСТАВЛЕНЫ скрытыми - на них по-прежнему завязана state-машина навигации
+             (assets/crm-schedule-views.js RADIO_ID_BY_VIEW/setView), просто больше не рисуют
+             видимые вкладки. Видимость контента внутри карточек больше не завязана на
+             :checked (см. .schedule-view-card .seg-panel в <style> шапки) - её теперь решает
+             сам <details>. -->
+        <input type="radio" name="sched-period" id="sp-day" checked hidden>
+        <input type="radio" name="sched-period" id="sp-week" hidden>
+        <input type="radio" name="sched-period" id="sp-month" hidden>
 
-          <div class="seg-panel panel-sp-day">
-            <div class="day-nav" id="dayNav">
-              <button type="button" class="day-nav-btn" id="dayNavPrev" aria-label="Предыдущий день">‹</button>
-              <div id="dayNavDate-slot"></div>
-              <button type="button" class="day-nav-btn" id="dayNavNext" aria-label="Следующий день">›</button>
-            </div>
-            <!-- Бейдж праздника на выбранный день (Окно 24). Признак независимый: он не
-                 говорит, работает ли кто-то из мастеров, только что день праздничный. -->
-            <p class="day-holiday-note" id="dayHolidayNote" hidden></p>
+        <!-- Подпись-якорь: какая именно дата сейчас показана в выбранной плотности
+             ("Неделя · 3-9 августа"). Все три вида делят одну дату (Окно 25), поэтому один
+             общий якорь остаётся корректным даже когда открыто несколько карточек сразу. -->
+        <div class="view-anchor" id="scheduleViewAnchor"></div>
 
-            <div class="schedule-scroll">
-              <div class="schedule-row-with-gutter">
-                <div class="hour-gutter">
-                  <div class="schedule-col-head"><div class="avatar">--</div><span class="name">--</span></div>
-                  <div class="hour-marks">
-                    <span style="top:0">10:00</span><span style="top:64px">11:00</span><span style="top:128px">12:00</span>
-                    <span style="top:192px">13:00</span><span style="top:256px">14:00</span><span style="top:320px">15:00</span>
-                    <span style="top:384px">16:00</span><span style="top:448px">17:00</span><span style="top:512px">18:00</span>
-                    <span style="top:576px">19:00</span><span style="top:640px">20:00</span>
+        <div class="staff-list schedule-view-cards">
+          <details class="staff-card schedule-view-card" id="scheduleCard-day" open>
+            <summary>
+              <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><text x="12" y="17.3" font-size="7.2" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Georgia, serif">1</text></svg></div>
+              <div class="summary-meta"><div class="name">День</div></div>
+              <span class="chevron">▸</span>
+            </summary>
+            <div class="staff-card-body">
+              <div class="seg-panel panel-sp-day">
+                <div class="day-nav" id="dayNav">
+                  <button type="button" class="day-nav-btn" id="dayNavPrev" aria-label="Предыдущий день">‹</button>
+                  <div id="dayNavDate-slot"></div>
+                  <button type="button" class="day-nav-btn" id="dayNavNext" aria-label="Следующий день">›</button>
+                </div>
+                <!-- Бейдж праздника на выбранный день (Окно 24). Признак независимый: он не
+                     говорит, работает ли кто-то из мастеров, только что день праздничный. -->
+                <p class="day-holiday-note" id="dayHolidayNote" hidden></p>
+
+                <div class="schedule-scroll">
+                  <div class="schedule-row-with-gutter">
+                    <div class="hour-gutter">
+                      <div class="schedule-col-head"><div class="avatar">--</div><span class="name">--</span></div>
+                      <div class="hour-marks">
+                        <span style="top:0">10:00</span><span style="top:64px">11:00</span><span style="top:128px">12:00</span>
+                        <span style="top:192px">13:00</span><span style="top:256px">14:00</span><span style="top:320px">15:00</span>
+                        <span style="top:384px">16:00</span><span style="top:448px">17:00</span><span style="top:512px">18:00</span>
+                        <span style="top:576px">19:00</span><span style="top:640px">20:00</span>
+                      </div>
+                    </div>
+                    <!-- Заполняется renderDayCalendar (assets/crm-calendar.js) реальными колонками
+                         мастеров/бронями за выбранную дату - число колонок по факту ответа /staff,
+                         не жёстко 3 (Окно 15/18) -->
+                    <div class="schedule-grid"></div>
                   </div>
                 </div>
-                <!-- Заполняется renderDayCalendar (assets/crm-calendar.js) реальными колонками
-                     мастеров/бронями за выбранную дату - число колонок по факту ответа /staff,
-                     не жёстко 3 (Окно 15/18) -->
-                <div class="schedule-grid"></div>
               </div>
             </div>
-          </div>
+          </details>
 
-          <div class="seg-panel panel-sp-week">
-            <div class="day-nav" id="weekNav">
-              <button type="button" class="day-nav-btn" id="weekNavPrev" aria-label="Предыдущая неделя">‹</button>
-              <button type="button" class="day-nav-btn" id="weekNavNext" aria-label="Следующая неделя">›</button>
+          <details class="staff-card schedule-view-card" id="scheduleCard-week">
+            <summary>
+              <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><circle cx="5" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="7.33" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="9.66" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="12" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="14.33" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="16.66" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="19" cy="15.5" r="0.9" fill="currentColor" stroke="none"/></svg></div>
+              <div class="summary-meta"><div class="name">Неделя</div></div>
+              <span class="chevron">▸</span>
+            </summary>
+            <div class="staff-card-body">
+              <div class="seg-panel panel-sp-week">
+                <div class="day-nav" id="weekNav">
+                  <button type="button" class="day-nav-btn" id="weekNavPrev" aria-label="Предыдущая неделя">‹</button>
+                  <button type="button" class="day-nav-btn" id="weekNavNext" aria-label="Следующая неделя">›</button>
+                </div>
+                <div class="master-switch-row" id="weekMasterSwitch"></div>
+                <!-- Заполняется wireScheduleViews (assets/crm-schedule-views.js) - 7 компактных
+                     ячеек (часы или Выходной + число записей), не часовая сетка с карточками -->
+                <div class="week-grid" id="weekGrid"></div>
+              </div>
             </div>
-            <div class="master-switch-row" id="weekMasterSwitch"></div>
-            <!-- Заполняется wireScheduleViews (assets/crm-schedule-views.js) - 7 компактных
-                 ячеек (часы или Выходной + число записей), не часовая сетка с карточками -->
-            <div class="week-grid" id="weekGrid"></div>
-          </div>
+          </details>
 
-          <div class="seg-panel panel-sp-month">
-            <div class="day-nav" id="monthNav">
-              <button type="button" class="day-nav-btn" id="monthNavPrev" aria-label="Предыдущий месяц">‹</button>
-              <button type="button" class="day-nav-btn" id="monthNavNext" aria-label="Следующий месяц">›</button>
+          <details class="staff-card schedule-view-card" id="scheduleCard-month">
+            <summary>
+              <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><circle cx="7" cy="12" r="0.85" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="0.85" fill="currentColor" stroke="none"/><circle cx="17" cy="12" r="0.85" fill="currentColor" stroke="none"/><circle cx="7" cy="15.2" r="0.85" fill="currentColor" stroke="none"/><circle cx="12" cy="15.2" r="0.85" fill="currentColor" stroke="none"/><circle cx="17" cy="15.2" r="0.85" fill="currentColor" stroke="none"/><circle cx="7" cy="18.4" r="0.85" fill="currentColor" stroke="none"/><circle cx="12" cy="18.4" r="0.85" fill="currentColor" stroke="none"/><circle cx="17" cy="18.4" r="0.85" fill="currentColor" stroke="none"/></svg></div>
+              <div class="summary-meta"><div class="name">Месяц</div></div>
+              <span class="chevron">▸</span>
+            </summary>
+            <div class="staff-card-body">
+              <div class="seg-panel panel-sp-month">
+                <div class="day-nav" id="monthNav">
+                  <button type="button" class="day-nav-btn" id="monthNavPrev" aria-label="Предыдущий месяц">‹</button>
+                  <button type="button" class="day-nav-btn" id="monthNavNext" aria-label="Следующий месяц">›</button>
+                </div>
+                <p class="section-hint day-legend"><span class="day-dot day-dot--work"></span>Рабочий&nbsp; <span class="day-dot day-dot--edit"></span>Правка&nbsp; <span class="day-dot day-dot--off"></span>Выходной</p>
+                <div class="master-switch-row" id="monthMasterSwitch"></div>
+                <div class="month-grid" id="monthGrid"></div>
+              </div>
             </div>
-            <p class="section-hint day-legend"><span class="day-dot day-dot--work"></span>Рабочий&nbsp; <span class="day-dot day-dot--edit"></span>Правка&nbsp; <span class="day-dot day-dot--off"></span>Выходной</p>
-            <div class="master-switch-row" id="monthMasterSwitch"></div>
-            <div class="month-grid" id="monthGrid"></div>
-          </div>
-
+          </details>
         </div>
 
         <!-- Правка 07.08.2026 - форма walk-in/новой записи перенесена СЮДА, под календарь
@@ -321,7 +358,7 @@
         </div>
 
         <details class="booking-detail" id="bd-1" open>
-          <summary><strong id="bd-now">Запись клиента</strong></summary>
+          <summary><div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div><strong id="bd-now">Запись</strong></summary>
           <div class="booking-detail-body">
             <div class="walkin-banner" id="bk-walkin-banner" hidden>
               <span class="ico">★</span>
@@ -391,8 +428,7 @@
             </div>
 
             <details class="service-edit">
-              <summary>Изменить или добавить услугу этой записи</summary>
-              <p class="section-hint">Если клиент пришёл не за той услугой - отметьте нужные пункты</p>
+              <summary>Корректировка услуги</summary>
               <div class="service-picker">
                 <label class="service-check"><input type="checkbox" checked onclick="pickServiceForBooking(this)"><span><span class="sc-name">Стрижка</span><span class="sc-price">2000₽</span></span></label>
                 <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Борода</span><span class="sc-price">1600₽</span></span></label>
@@ -441,10 +477,6 @@
                 <div class="name">Алиовсад</div>
                 <div class="role" id="roleLabel-master-1">Владелец</div>
               </div>
-              <div class="summary-badges">
-                <span class="badge badge-on">Оказывает услуги</span>
-                <span class="badge badge-on">Доступ к сервису</span>
-              </div>
               <span class="chevron">▸</span>
             </summary>
             <div class="staff-card-body">
@@ -490,13 +522,11 @@
                 <div><div class="tr-label">Оказывает услуги</div></div>
                 <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label>
               </div>
-              <p class="section-hint" style="margin:10px 0">Отметьте галочками, что умеет оказывать этот мастер - менять список может только владелец</p>
               <!-- Правка 03.08.2026: раньше статичные чекбоксы (ни один не сохранял ничего) -
                    теперь реальный редактор, рисует assets/crm-auth.js (wireMasterServiceEditors)
                    из живой master_services, владелец реально включает/выключает услугу и
                    меняет длительность (PUT /master-services/:masterId/:serviceId). -->
               <div class="service-picker" data-master-id="master-1"></div>
-              <p class="section-hint" style="margin:6px 0 0">Можно задать своё число для этого мастера, если он работает быстрее или медленнее среднего</p>
 
               <h4>График работы</h4>
               <p class="section-hint" style="margin:6px 0 10px">Мастер видит тот же график у себя - менять может только владелец</p>
@@ -530,7 +560,6 @@
             <summary>
               <div class="avatar lg">МА</div>
               <div class="summary-meta"><div class="name">Мамедхан</div><div class="role" id="roleLabel-master-2">Администратор</div></div>
-              <div class="summary-badges"><span class="badge badge-on">Оказывает услуги</span><span class="badge badge-on">Доступ к сервису</span></div>
               <span class="chevron">▸</span>
             </summary>
             <div class="staff-card-body">
@@ -589,7 +618,6 @@
             <summary>
               <div class="avatar lg">ЕЛ</div>
               <div class="summary-meta"><div class="name">Елизавета</div><div class="role" id="roleLabel-master-3">Мастер</div></div>
-              <div class="summary-badges"><span class="badge badge-on">Оказывает услуги</span><span class="badge badge-off">Доступ к сервису выкл.</span></div>
               <span class="chevron">▸</span>
             </summary>
             <div class="staff-card-body">
@@ -656,6 +684,7 @@
       <div class="staff-list">
       <details class="staff-card">
         <summary>
+          <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,10.5 13,13.5 21,4.5"/><polyline points="15,4.5 21,4.5 21,10.5"/></svg></div>
           <div class="summary-meta"><div class="name">Выручка</div></div>
           <span class="chevron">▸</span>
         </summary>
@@ -716,6 +745,7 @@
            вместе с ней (вела на теперь несуществующий #nastroika-zp). -->
       <details class="staff-card">
         <summary>
+          <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="18" height="13" rx="2.2"/><line x1="3" y1="11" x2="21" y2="11"/><circle cx="17" cy="14.5" r="1.2" fill="currentColor" stroke="none"/></svg></div>
           <div class="summary-meta"><div class="name">Зарплаты мастеров</div></div>
           <span class="chevron">▸</span>
         </summary>
@@ -871,11 +901,11 @@
       <div class="staff-list">
       <details class="staff-card">
         <summary>
+          <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M20 12a8 8 0 1 1 -2.7 -6"/><polyline points="20,4 20,9 15,9" stroke-linejoin="round"/></svg></div>
           <div class="summary-meta"><div class="name">Возвращаемость клиентов</div></div>
           <span class="chevron">▸</span>
         </summary>
         <div class="staff-card-body">
-        <p class="section-hint">Появится после первых визитов</p>
         <div class="seg-tabs">
           <input type="radio" name="rt1-period" id="rt1-3" checked>
           <input type="radio" name="rt1-period" id="rt1-6">
@@ -889,7 +919,7 @@
             <label for="rt1-24">2 года</label>
             <label for="rt1-36">3 года</label>
           </div>
-          <div class="seg-panel panel-rt1-3"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 3 месяца</div></div></div></div>
+          <div class="seg-panel panel-rt1-3"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div></div>
           <div class="seg-panel panel-rt1-6"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 6 месяцев</div></div></div></div>
           <div class="seg-panel panel-rt1-12"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 1 год</div></div></div></div>
           <div class="seg-panel panel-rt1-24"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 2 года</div></div></div></div>
@@ -900,11 +930,11 @@
 
       <details class="staff-card">
         <summary>
+          <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="1"/><circle cx="14.3" cy="12" r="0.7" fill="currentColor" stroke="none"/><line x1="1" y1="12" x2="5" y2="12"/><polyline points="3,9.5 1,12 3,14.5"/></svg></div>
           <div class="summary-meta"><div class="name">Как приходят клиенты</div></div>
           <span class="chevron">▸</span>
         </summary>
         <div class="staff-card-body">
-        <p class="section-hint">Появится после первых записей</p>
         <div class="seg-tabs">
           <input type="radio" name="wi1-period" id="wi1-month" checked>
           <input type="radio" name="wi1-period" id="wi1-3m">
@@ -946,9 +976,20 @@
          «Отменить» убрана по прямой правке Влада 07.08.2026. -->
     <div class="tab-panel panel-e">
       <section>
-        <div id="ownerReqList" class="req-cards"><span class="note">Загрузка…</span></div>
-        <div class="break-row" style="margin-top:10px">
-          <button class="btn btn-ghost btn-sm" type="button" id="ownerReqReload">Обновить список</button>
+        <div class="staff-list">
+          <details class="staff-card" open>
+            <summary>
+              <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><path d="M14.5 19l0.6-2.4 3.4-3.4a1 1 0 0 1 1.4 0l0.9 0.9a1 1 0 0 1 0 1.4l-3.4 3.4-2.4 0.6z" fill="var(--accent)" stroke="none"/></svg></div>
+              <div class="summary-meta"><div class="name">Заявки на изменение графика</div></div>
+              <span class="chevron">▸</span>
+            </summary>
+            <div class="staff-card-body">
+              <div id="ownerReqList" class="req-cards"><span class="note">Загрузка…</span></div>
+              <div class="break-row" style="margin-top:10px">
+                <button class="btn btn-ghost btn-sm" type="button" id="ownerReqReload">Обновить список</button>
+              </div>
+            </div>
+          </details>
         </div>
       </section>
     </div>
@@ -961,14 +1002,39 @@
 <script type="module">
   import { initCrmAuth } from './assets/crm-auth.js';
   import { initOwnerScheduleRequests } from './assets/crm-schedule-requests.js';
-  import { wireClientsRisk } from './assets/crm-clients.js';
-  import { wireScheduleAlerts } from './assets/crm-schedule-alerts.js';
+  import { wireClientsRisk, renderRiskList } from './assets/crm-clients.js';
+  import { wireScheduleAlerts, renderOwnerAlerts } from './assets/crm-schedule-alerts.js';
   import { initAppShell } from './assets/crm-app-shell.js';
   initCrmAuth('owner');
-  initOwnerScheduleRequests();
+  const scheduleRequestsApi = initOwnerScheduleRequests();
   wireClientsRisk();
   wireScheduleAlerts();
   initAppShell();
+
+  // Окно 45 (08.08.2026) - мягкое обновление: перечитывает данные всех уже
+  // проинициализированных блоков БЕЗ location.reload(), поэтому текущая вкладка/
+  // раскрытые карточки/дата в календаре остаются как были (страница физически
+  // никуда не уходит). Каждая вызванная функция здесь - "чистый" рендер (fetch +
+  // innerHTML), не повторная регистрация обработчиков - безопасно вызывать сколько
+  // угодно раз подряд.
+  const refreshBtn = document.getElementById('refreshBtn');
+  refreshBtn?.addEventListener('click', async () => {
+    if (refreshBtn.disabled) return;
+    refreshBtn.disabled = true;
+    refreshBtn.classList.add('is-refreshing');
+    try {
+      await Promise.all([
+        renderOwnerAlerts(),
+        renderRiskList(),
+        scheduleRequestsApi?.refresh?.(),
+        window.__refreshScheduleViews?.(),
+        window.updateNotifBadge?.(),
+      ]);
+    } finally {
+      refreshBtn.disabled = false;
+      setTimeout(() => refreshBtn.classList.remove('is-refreshing'), 500);
+    }
+  });
 </script>
 </body>
 </html>

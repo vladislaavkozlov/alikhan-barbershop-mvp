@@ -32,7 +32,10 @@ function formatVisitDate(dateStr) {
 
 const STATUS_LABEL = { planned: 'ожидается', done: 'пришёл', cancelled: 'отменена', no_show: 'не пришёл' };
 
-async function renderRiskList() {
+// Окно 45 (08.08.2026) - экспортирован для кнопки мягкого обновления (вызывать
+// именно эту функцию, не wireClientsRisk() заново - та навесила бы обработчик
+// на #clientCardClose второй раз).
+export async function renderRiskList() {
   const list = el('raList');
   const badge = el('riskClientsBadge');
   // Ни списка (страница без раздела "Клиенты"), ни бейджа (страница без этого
