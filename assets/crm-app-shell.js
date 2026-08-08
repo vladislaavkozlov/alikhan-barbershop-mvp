@@ -71,9 +71,6 @@ function sidebarMarkup() {
       </button>`
   ).join('');
   return `
-    <button type="button" class="app-sidebar-toggle" id="appSidebarToggle" aria-label="Свернуть меню">
-      <span class="app-nav-icon" aria-hidden="true">${ICON_SIDEBAR_TOGGLE}</span>
-    </button>
     <nav class="app-nav">${items}</nav>
     <div class="app-sidebar-location">Алихан, Ставрополь</div>
     <div class="app-sidebar-profile" id="appShellProfile">Владелец</div>
@@ -94,6 +91,27 @@ function toggleSidebar() {
   if (btn) btn.setAttribute('aria-label', collapsed ? 'Развернуть меню' : 'Свернуть меню');
 }
 
+// Правка 08.08.2026 (Влад: "не по краю формы, а какого-то чёрта по середине" -
+// кнопка сначала центрировалась по ШИРИНЕ .app-sidebar) - кнопка вынесена из
+// .app-sidebar отдельным элементом-соседом body, а не потомком: сама панель
+// держит overflow-y:auto (нужен для скролла длинного списка разделов), из-за
+// чего браузер по спеке CSS2.1 вычисляет overflow-x тоже как auto - кнопка,
+// торчащая наполовину ЗА границу панели (классический паттерн VS Code/Notion/
+// Linear - кружок ровно на линии раздела сайдбар/контент), обрезалась бы этим
+// скроллом, будучи потомком. position:fixed в CSS привязывает её к той же
+// координате (left: переменная ширины сайдбара), что и граница панели.
+function insertToggleButton() {
+  if (el('appSidebarToggle')) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'app-sidebar-toggle';
+  btn.id = 'appSidebarToggle';
+  btn.setAttribute('aria-label', 'Свернуть меню');
+  btn.innerHTML = `<span class="app-nav-icon" aria-hidden="true">${ICON_SIDEBAR_TOGGLE}</span>`;
+  btn.addEventListener('click', toggleSidebar);
+  document.body.appendChild(btn);
+}
+
 function insertSidebar() {
   if (el('appSidebar')) return;
   const aside = document.createElement('aside');
@@ -104,7 +122,7 @@ function insertSidebar() {
   aside.querySelectorAll('[data-section]').forEach((btn) => {
     btn.addEventListener('click', () => goToSection(btn.dataset.section));
   });
-  el('appSidebarToggle')?.addEventListener('click', toggleSidebar);
+  insertToggleButton();
 }
 
 function updateActiveNav() {

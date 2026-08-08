@@ -7,6 +7,7 @@
    .tab-bar остаётся как есть, ничего не меняется. */
 
 .app-sidebar { display: none; }
+.app-sidebar-toggle { display: none; }
 
 @media (min-width: 1024px) {
   body.app-shell-active {
@@ -56,36 +57,44 @@
     display: none;
   }
 
-  /* Правка 08.08.2026 (просьба Влада, по скриншоту со стрелкой) - кнопка
-     сворачивания перенесена с верха панели на вертикальную середину: не в
-     потоке .app-nav (position:absolute внутри .app-sidebar, которая сама
-     position:fixed на всю высоту экрана - top:50% от неё = середина экрана
-     всегда, даже если список разделов проскроллен). Всегда видна (в т.ч.
-     свёрнутой), чтобы меню можно было развернуть обратно тем же нажатием.
-     left:50% в процентах от ширины .app-sidebar - сама пересчитывается при
-     смене её ширины (240px развёрнуто / 76px свёрнуто), отдельного правила
-     под свёрнутое состояние не нужно. */
+  /* Правка 08.08.2026, второй заход (Влад: "не по краю формы, а какого-то чёрта
+     по середине" + "сделай удобно нажимать, посмотри как в других приложениях") -
+     кнопка сворачивания вынесена ИЗ .app-sidebar отдельным элементом-соседом
+     body (assets/crm-app-shell.js, insertToggleButton) и сидит ровно НА границе
+     сайдбар/контент - тот же паттерн, что у VS Code/Notion/Linear: кружок
+     наполовину на панели, наполовину на контенте, а не внутри одной из них.
+     position:fixed, left = переменная ширины сайдбара (240/76px) - та же
+     координата, что и правая граница .app-sidebar, transform центрирует кружок
+     ровно на этой линии. top:50% от viewport - вертикальная середина экрана.
+     z-index выше и сайдбара (35), и контента - кнопка не может оказаться под
+     чем-то при скролле. Тень (--shadow-md) - визуальная "ручка", как в
+     референсных приложениях, чтобы кнопка читалась кликабельной, а не частью
+     фона. 34px круг - комфортная область клика (не мельче кнопок topbar). */
   .app-sidebar-toggle {
-    position: absolute;
+    position: fixed;
     top: 50%;
-    left: 50%;
+    left: var(--sidebar-w-expanded);
     transform: translate(-50%, -50%);
-    display: flex;
     align-items: center;
     justify-content: center;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 50%;
-    width: 32px;
-    height: 32px;
+    box-shadow: var(--shadow-md);
+    width: 34px;
+    height: 34px;
     padding: 0;
     color: var(--text-muted);
     cursor: pointer;
-    z-index: 1;
-    transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
+    z-index: 36;
+    transition: background 140ms var(--ease-out), color 140ms var(--ease-out), left 180ms var(--ease-out), transform 140ms var(--ease-out);
   }
-  .app-sidebar-toggle:hover { background: var(--surface-2); color: var(--text); }
+  /* Видна только после входа - до логина .app-sidebar тоже скрыт (display:none
+     базовое правило выше), кнопка не должна висеть на экране логина сиротой. */
+  body.app-shell-active .app-sidebar-toggle { display: flex; }
+  .app-sidebar-toggle:hover { background: var(--surface-2); color: var(--text); transform: translate(-50%, -50%) scale(1.08); }
   .app-sidebar-toggle .app-nav-icon svg { width: 18px; height: 18px; transition: transform 180ms var(--ease-out); }
+  body.app-shell-sidebar-collapsed .app-sidebar-toggle { left: var(--sidebar-w-collapsed); }
   body.app-shell-sidebar-collapsed .app-sidebar-toggle .app-nav-icon svg { transform: rotate(180deg); }
 
   .app-nav { display: flex; flex-direction: column; gap: var(--space-1); }
