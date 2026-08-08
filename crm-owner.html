@@ -1025,6 +1025,7 @@
   import { wireClientsRisk, renderRiskList } from './assets/crm-clients.js';
   import { wireScheduleAlerts, renderOwnerAlerts } from './assets/crm-schedule-alerts.js';
   import { initAppShell } from './assets/crm-app-shell.js';
+  import { refreshFinance } from './assets/crm-dashboard.js';
   initCrmAuth('owner');
   const scheduleRequestsApi = initOwnerScheduleRequests();
   wireClientsRisk();
@@ -1037,6 +1038,19 @@
   // никуда не уходит). Каждая вызванная функция здесь - "чистый" рендер (fetch +
   // innerHTML), не повторная регистрация обработчиков - безопасно вызывать сколько
   // угодно раз подряд.
+  //
+  // Окно 46 (08.08.2026) - Окно 45 покрывало только "Расписание"/риск-список/
+  // заявки/бейдж, разделы "Команда" (карточки мастеров - разовые перерывы + недельный
+  // график) и "Финансы" (выручка/ЗП дня и периодов) кнопка не трогала вообще - их
+  // рисовала renderLiveProof только один раз при заходе на страницу. Повторно звать
+  // renderLiveProof() нельзя (внутри неё живут wireScheduleEditor/wireWeeklyScheduleEditor
+  // и другие wire*-функции, которые вешают обработчики на статичные DOM-узлы один
+  // раз - повторный вызов задвоил бы клики). refreshFinance (crm-dashboard.js) и
+  // window.__refreshTeamSchedules (crm-schedule-editor.js) - отдельные идемпотентные
+  // функции, которые только перечитывают и перерисовывают данные, тот же приём, что
+  // уже применён для window.__refreshScheduleViews. "Аналитика" (panel-d) не входит
+  // в список - там нет ни одного реального запроса к серверу (только "00% пример"),
+  // обновлять нечего.
   const refreshBtn = document.getElementById('refreshBtn');
   refreshBtn?.addEventListener('click', async () => {
     if (refreshBtn.disabled) return;
@@ -1048,6 +1062,8 @@
         renderRiskList(),
         scheduleRequestsApi?.refresh?.(),
         window.__refreshScheduleViews?.(),
+        window.__refreshTeamSchedules?.(),
+        refreshFinance(),
         window.updateNotifBadge?.(),
       ]);
     } finally {

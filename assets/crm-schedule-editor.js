@@ -10,6 +10,22 @@ import { API, getToken, apiSend, fetchJson } from './crm-auth.js';
 
 export const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
+// Окно 46 (08.08.2026) - кнопка "Обновить данные" (crm-owner.html) должна обновлять
+// и карточки "Разовое изменение на дату"/"График работы" в "Команде", но
+// wireScheduleEditor/wireWeeklyScheduleEditor ниже гейтят СЕБЯ целиком через
+// dataset.wired (иначе saveBtn/container поймали бы повторный addEventListener на
+// каждый клик кнопки) - это значит, что их собственный первый fetch (loadCurrent/
+// load) тоже выполняется только один раз и не подхватит повторно. Тот же приём, что
+// уже применён для "Расписания" (window.__refreshScheduleViews, crm-schedule-views.js) -
+// каждый мастер регистрирует здесь СВОИ уже существующие loadCurrent/load закрытия
+// (не новые обработчики, просто повторный fetch+innerHTML), кнопка вызывает всех
+// разом.
+const teamScheduleRefreshers = [];
+function registerTeamScheduleRefresher(fn) {
+  teamScheduleRefreshers.push(fn);
+  window.__refreshTeamSchedules = () => Promise.all(teamScheduleRefreshers.map((f) => f()));
+}
+
 // Влад (03.08.2026): "+ Добавить перерыв"/"+ Добавить отпуск" в карточке
 // сотрудника (Окно 9) были рисунком - только дописывали DOM, ничего не сохраняли,
 // поэтому перерыв "числился" в интерфейсе, но не блокировал онлайн-запись клиента
@@ -33,23 +49,26 @@ export function wireScheduleEditor(masterId, fetchJson) {
   if (!dateFromSlot || !saveBtn) {
     if (currentEl.dataset.wired) return;
     currentEl.dataset.wired = '1';
-    fetchJson(`/schedule?masterId=${masterId}&date=${todayStr()}`)
-      .then((shifts) => {
-        const shift = shifts.find((s) => s.date === todayStr());
-        const isFullDayOff = shift?.breaks?.some((b) => b.startTime <= '10:00' && b.endTime >= '20:00');
-        if (!shift || !shift.breaks?.length) {
-          currentEl.innerHTML = '<span class="note">Сегодня перерывов/выходного не задано (стандартные часы 10:00-20:00)</span>';
-        } else if (isFullDayOff) {
-          currentEl.innerHTML = '<div class="break-row"><span class="note" style="flex:1">Выходной весь день</span></div>';
-        } else {
-          currentEl.innerHTML = shift.breaks
-            .map((b) => `<div class="break-row"><span class="note" style="flex:1">Перерыв ${b.startTime}–${b.endTime}</span></div>`)
-            .join('');
-        }
-      })
-      .catch((err) => {
-        currentEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
-      });
+    const loadReadOnlyToday = () =>
+      fetchJson(`/schedule?masterId=${masterId}&date=${todayStr()}`)
+        .then((shifts) => {
+          const shift = shifts.find((s) => s.date === todayStr());
+          const isFullDayOff = shift?.breaks?.some((b) => b.startTime <= '10:00' && b.endTime >= '20:00');
+          if (!shift || !shift.breaks?.length) {
+            currentEl.innerHTML = '<span class="note">Сегодня перерывов/выходного не задано (стандартные часы 10:00-20:00)</span>';
+          } else if (isFullDayOff) {
+            currentEl.innerHTML = '<div class="break-row"><span class="note" style="flex:1">Выходной весь день</span></div>';
+          } else {
+            currentEl.innerHTML = shift.breaks
+              .map((b) => `<div class="break-row"><span class="note" style="flex:1">Перерыв ${b.startTime}–${b.endTime}</span></div>`)
+              .join('');
+          }
+        })
+        .catch((err) => {
+          currentEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+        });
+    loadReadOnlyToday();
+    registerTeamScheduleRefresher(loadReadOnlyToday);
     return;
   }
 
@@ -106,6 +125,7 @@ export function wireScheduleEditor(masterId, fetchJson) {
     }
   }
   loadCurrent();
+  registerTeamScheduleRefresher(loadCurrent);
   dateFromEl.addEventListener('customdate:change', loadCurrent);
 
   const syncTimeFields = () => {
@@ -417,6 +437,7 @@ export function wireWeeklyScheduleEditor(masterId, canEdit, fetchJson) {
   }
 
   load();
+  registerTeamScheduleRefresher(load);
 }
 
 // Окно 16 (03.08.2026) отдавало мастеру форму со своей кнопкой "Отправить запрос

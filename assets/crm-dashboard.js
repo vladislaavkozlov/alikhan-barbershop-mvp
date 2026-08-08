@@ -34,6 +34,120 @@ import { wireWalkIn } from './crm-walkin.js';
 // Елизавета дешевле Алиовсада/Мамедхана), ставка тоже по мастеру (/payroll-settings,
 // master_payroll_settings: 100% у Алиовсада и Мамедхана, 40% по умолчанию у Елизаветы,
 // редактируется владельцем) - обе таблицы уже фильтруют выдачу по роли на сервере.
+// Цена конкретного мастера на конкретную услугу - master-services покрывает все
+// пары (сид миграции 002/004), общий прайс /services - только страховка на случай
+// пары, которую почему-то не завели. Ставка мастера (100/100/40, редактируется
+// владельцем) - сервер уже выдал только те строки, которые видны текущей роли
+// (себя/свою точку/всех). Вынесено из renderLiveProof (Окно 46, 08.08.2026) -
+// теми же тремя функциями пользуется и refreshFinance ниже, без дублирования формул.
+function computePricing(staffList, services, masterServices, payrollRows) {
+  const priceOf = (masterId, serviceId) =>
+    masterServices.find((r) => r.masterId === masterId && r.serviceId === serviceId)?.price ??
+    services.find((s) => s.id === serviceId)?.price ??
+    0;
+  const pctByMaster = new Map(payrollRows.map((r) => [r.masterId, r.pct]));
+  const pctOf = (masterId) => pctByMaster.get(masterId) ?? 0;
+  const ownerIds = new Set(staffList.filter((s) => s.role === 'owner').map((s) => s.id));
+  return { priceOf, pctOf, ownerIds };
+}
+
+// Владелец: "Выручка по точке → Все точки → День" (сумма по всем броням сегодня,
+// зарплата - по ставке КАЖДОГО мастера, без брони владельца самому себе) + карточка
+// КАЖДОГО мастера в "Сотрудники" → "Расчёт ЗП → За день" + ставка Елизаветы. Вынесено
+// из renderLiveProof в отдельную функцию (Окно 46, 08.08.2026) - чистый рендер
+// (fetch уже сделан снаружи, здесь только innerHTML/value), безопасно вызывать
+// повторно из кнопки "Обновить данные" (см. refreshFinance ниже). Клик по
+// elizavetaPctSave уже сам себя гейтит через saveBtn.dataset.wired - повторный
+// вызов не задвоит обработчик.
+function renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds) {
+  const revenueEl = el('rvAllDayRevenue');
+  const payrollEl = el('rvAllDayPayroll');
+  const netEl = el('rvAllDayNet');
+  if (revenueEl && payrollEl && netEl) {
+    const revenue = bookings.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
+    const payrollBookings = bookings.filter((b) => !ownerIds.has(b.masterId));
+    const payroll = payrollBookings.reduce(
+      (sum, b) => sum + (bookingPrice(b, priceOf) * pctOf(b.masterId)) / 100,
+      0
+    );
+    revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
+    payrollEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
+    netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;
+  }
+
+  // master-1/2/3 = порядок мастеров в /staff (Алиовсад/Мамедхан/Елизавета в макете -
+  // косметические имена поверх этих id).
+  ['master-1', 'master-2', 'master-3'].forEach((masterId, idx) => {
+    const cardEl = el(`payrollMaster${idx + 1}Day`);
+    if (!cardEl) return;
+    const theirs = bookings.filter((b) => b.masterId === masterId);
+    const theirRevenue = theirs.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
+    cardEl.innerHTML = `${formatMoney((theirRevenue * pctOf(masterId)) / 100)} <span class="unsure">реально</span>`;
+  });
+
+  // Владелец: поле "Ставка от выручки, %" в карточке Елизаветы (Окно 10, разд.17.3
+  // ТЗ) - реальное, читает и пишет master_payroll_settings. Не автоматический порог
+  // 40→50%, владелец меняет число сам, когда сочтёт нужным.
+  const pctInput = el('elizavetaPctInput');
+  if (pctInput) {
+    pctInput.value = pctOf('master-3');
+    const saveBtn = el('elizavetaPctSave');
+    const pctNote = el('elizavetaPctNote');
+    if (saveBtn && !saveBtn.dataset.wired) {
+      saveBtn.dataset.wired = '1';
+      saveBtn.addEventListener('click', async () => {
+        const pct = Number(pctInput.value);
+        if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+          if (pctNote) pctNote.textContent = 'Ставка должна быть числом от 0 до 100';
+          return;
+        }
+        try {
+          const res = await fetch(`${API}/payroll-settings`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+            body: JSON.stringify({ masterId: 'master-3', pct }),
+          });
+          if (!res.ok) throw new Error(`payroll-settings → ${res.status}`);
+          if (pctNote) pctNote.textContent = `Сохранено: ${pct}%. Обновите страницу, чтобы увидеть новую сумму в "Расчёт ЗП"`;
+        } catch (err) {
+          if (pctNote) pctNote.textContent = `Не удалось сохранить: ${err.message}`;
+        }
+      });
+    }
+  }
+}
+
+// Окно 46 (08.08.2026) - кнопка "Обновить данные" (crm-owner.html) должна обновлять
+// весь раздел "Финансы", а не только "Расписание"/"Уведомления"/риск-список, как
+// было в Окне 45. renderLiveProof вызывать повторно нельзя (см. её комментарий ниже -
+// внутри неё wireScheduleEditor/wireWeeklyScheduleEditor и другие wire*-функции
+// вешают обработчики на статичные DOM-узлы один раз, повторный вызов задвоил бы
+// клики) - поэтому отдельная независимая функция: свой fetch того же контракта
+// (/staff, /services, /bookings, /master-services, /payroll-settings) + переиспользует
+// computePricing/renderFinanceDaySnapshot/renderRevenuePeriods/renderStaffPayrollPeriods,
+// ни один из которых не регистрирует новых обработчиков на persistent-узлах (только
+// value/innerHTML, либо уже самогейтящиеся клики). Elements-guard (el('rvAllDayRevenue'))
+// - страница не владельца эту функцию no-op.
+export async function refreshFinance() {
+  if (!el('rvAllDayRevenue')) return;
+  try {
+    const [staffList, services, bookingsRes, masterServices, payrollRows] = await Promise.all([
+      fetchJson('/staff'),
+      fetchJson('/services'),
+      fetchJson(`/bookings?date=${todayStr()}`),
+      fetchJson('/master-services'),
+      fetchJson('/payroll-settings'),
+    ]);
+    const bookings = bookingsRes.bookings || [];
+    const { priceOf, pctOf, ownerIds } = computePricing(staffList, services, masterServices, payrollRows);
+    renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds);
+    await renderRevenuePeriods(priceOf, pctOf, ownerIds);
+    await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds);
+  } catch (err) {
+    console.error('Не удалось обновить "Финансы":', err);
+  }
+}
+
 export async function renderLiveProof(staff) {
   try {
     const [staffList, services, bookingsRes, masterServices, payrollRows] = await Promise.all([
@@ -44,49 +158,8 @@ export async function renderLiveProof(staff) {
       fetchJson('/payroll-settings'),
     ]);
     const bookings = bookingsRes.bookings || [];
-
-    // Цена конкретного мастера на конкретную услугу - master-services покрывает все
-    // пары (сид миграции 002/004), общий прайс /services - только страховка на
-    // случай пары, которую почему-то не завели.
-    const priceOf = (masterId, serviceId) =>
-      masterServices.find((r) => r.masterId === masterId && r.serviceId === serviceId)?.price ??
-      services.find((s) => s.id === serviceId)?.price ??
-      0;
-    // Ставка мастера (100/100/40, редактируется владельцем) - сервер уже выдал
-    // только те строки, которые видны текущей роли (себя/свою точку/всех).
-    const pctByMaster = new Map(payrollRows.map((r) => [r.masterId, r.pct]));
-    const pctOf = (masterId) => pctByMaster.get(masterId) ?? 0;
-    const ownerIds = new Set(staffList.filter((s) => s.role === 'owner').map((s) => s.id));
-
-    // Владелец: "Выручка по точке → Все точки → День" - реальная сумма по всем
-    // бронькам сегодня, зарплата - по ставке КАЖДОГО мастера (не общий %), без брони
-    // владельца самому себе (он комиссию не получает).
-    const revenueEl = el('rvAllDayRevenue');
-    const payrollEl = el('rvAllDayPayroll');
-    const netEl = el('rvAllDayNet');
-    if (revenueEl && payrollEl && netEl) {
-      const revenue = bookings.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
-      const payrollBookings = bookings.filter((b) => !ownerIds.has(b.masterId));
-      const payroll = payrollBookings.reduce(
-        (sum, b) => sum + (bookingPrice(b, priceOf) * pctOf(b.masterId)) / 100,
-        0
-      );
-      revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
-      payrollEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
-      netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;
-    }
-
-    // Владелец/админ: карточка КАЖДОГО мастера в "Сотрудники" → "Расчёт ЗП → За
-    // день" - реальная сумма по его же броням сегодня, своя цена и своя ставка.
-    // master-1/2/3 = порядок мастеров в /staff (Алиовсад/Мамедхан/Елизавета в макете -
-    // косметические имена поверх этих id).
-    ['master-1', 'master-2', 'master-3'].forEach((masterId, idx) => {
-      const cardEl = el(`payrollMaster${idx + 1}Day`);
-      if (!cardEl) return;
-      const theirs = bookings.filter((b) => b.masterId === masterId);
-      const theirRevenue = theirs.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
-      cardEl.innerHTML = `${formatMoney((theirRevenue * pctOf(masterId)) / 100)} <span class="unsure">реально</span>`;
-    });
+    const { priceOf, pctOf, ownerIds } = computePricing(staffList, services, masterServices, payrollRows);
+    renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds);
 
     // Мастер: "Моя зарплата" (День/Неделя/Месяц) - Окно 37 (06.08.2026, Задача 2).
     // Раньше День считался локально (bookingPrice×pctOf по уже загруженным bookings
@@ -129,37 +202,6 @@ export async function renderLiveProof(staff) {
         revenueTodayEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
       } catch {
         // "считаю…" останется как было - основная ошибка уже видна в панели выше
-      }
-    }
-
-    // Владелец: поле "Ставка от выручки, %" в карточке Елизаветы (Окно 10,
-    // разд.17.3 ТЗ) - реальное, читает и пишет master_payroll_settings. Не
-    // автоматический порог 40→50%, владелец меняет число сам, когда сочтёт нужным.
-    const pctInput = el('elizavetaPctInput');
-    if (pctInput) {
-      pctInput.value = pctOf('master-3');
-      const saveBtn = el('elizavetaPctSave');
-      const pctNote = el('elizavetaPctNote');
-      if (saveBtn && !saveBtn.dataset.wired) {
-        saveBtn.dataset.wired = '1';
-        saveBtn.addEventListener('click', async () => {
-          const pct = Number(pctInput.value);
-          if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-            if (pctNote) pctNote.textContent = 'Ставка должна быть числом от 0 до 100';
-            return;
-          }
-          try {
-            const res = await fetch(`${API}/payroll-settings`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-              body: JSON.stringify({ masterId: 'master-3', pct }),
-            });
-            if (!res.ok) throw new Error(`payroll-settings → ${res.status}`);
-            if (pctNote) pctNote.textContent = `Сохранено: ${pct}%. Обновите страницу, чтобы увидеть новую сумму в "Расчёт ЗП"`;
-          } catch (err) {
-            if (pctNote) pctNote.textContent = `Не удалось сохранить: ${err.message}`;
-          }
-        });
       }
     }
 
