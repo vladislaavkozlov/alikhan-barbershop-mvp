@@ -58,9 +58,23 @@ export function wireScheduleViews(ctx) {
   const DETAILS_ID_BY_VIEW = { day: 'scheduleCard-day', week: 'scheduleCard-week', month: 'scheduleCard-month' };
 
   function renderViewAnchor() {
+    // crm-admin.html/crm-master.html - старый общий якорь над .seg-tabs, актуален,
+    // потому что там виден только ОДИН активный вид за раз.
     const anchorEl = el('scheduleViewAnchor');
-    if (!anchorEl) return; // страница без подписи-якоря - навигация всё равно работает
-    anchorEl.textContent = viewAnchorLabel(scheduleViewState.view, scheduleViewState.date);
+    if (anchorEl) {
+      anchorEl.textContent = viewAnchorLabel(scheduleViewState.view, scheduleViewState.date);
+      return;
+    }
+    // crm-owner.html (Окно 45+) - День/Неделя/Месяц независимые карточки, общий якорь
+    // визуально "убегал" от своей карточки, когда открыта не она (правка 08.08.2026).
+    // Подпись живёт внутри каждой карточки (см. КОНВЕНЦИЯ-КАРТОЧКИ-РАЗДЕЛОВ.md) и
+    // обновляется всегда, не только для активного вида - у Недели/Месяца общая дата
+    // с Днём (Окно 25), так что обе подписи корректны независимо от того, какая
+    // карточка сейчас открыта.
+    const weekEl = el('scheduleAnchor-week');
+    if (weekEl) weekEl.textContent = viewAnchorLabel('week', scheduleViewState.date);
+    const monthEl = el('scheduleAnchor-month');
+    if (monthEl) monthEl.textContent = viewAnchorLabel('month', scheduleViewState.date);
   }
 
   // Crossfade содержимого при смене вкладки (150ms, ease-out). Класс сначала

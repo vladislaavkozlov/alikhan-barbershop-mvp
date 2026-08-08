@@ -178,10 +178,14 @@
         <input type="radio" name="sched-period" id="sp-week" hidden>
         <input type="radio" name="sched-period" id="sp-month" hidden>
 
-        <!-- Подпись-якорь: какая именно дата сейчас показана в выбранной плотности
-             ("Неделя · 3-9 августа"). Все три вида делят одну дату (Окно 25), поэтому один
-             общий якорь остаётся корректным даже когда открыто несколько карточек сразу. -->
-        <div class="view-anchor" id="scheduleViewAnchor"></div>
+        <!-- Правка 08.08.2026 - общий якорь над списком карточек убран (жалоба Влада: подпись
+             "Месяц · Август 2026" визуально "убегала" от своей карточки, когда открыта не она -
+             с общим якорем 1 текст был правилен только для ОДНОЙ активной вкладки старого дизайна
+             .seg-tabs, а Окно 45 сделало карточки независимыми). Подпись теперь живёт ВНУТРИ
+             каждой карточки (Неделя/Месяц) как обычная .role-строка под именем, тем же
+             компонентом, что и роль мастера в "Команде" - см. renderViewAnchor(),
+             assets/crm-schedule-views.js. День подписи не имеет (решение Влада 07.08.2026,
+             дата и так видна в day-nav). -->
 
         <div class="staff-list schedule-view-cards">
           <details class="staff-card schedule-view-card" id="scheduleCard-day" open>
@@ -225,7 +229,7 @@
           <details class="staff-card schedule-view-card" id="scheduleCard-week">
             <summary>
               <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><circle cx="5" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="7.33" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="9.66" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="12" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="14.33" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="16.66" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="19" cy="15.5" r="0.9" fill="currentColor" stroke="none"/></svg></div>
-              <div class="summary-meta"><div class="name">Неделя</div></div>
+              <div class="summary-meta"><div class="name">Неделя</div><div class="role" id="scheduleAnchor-week"></div></div>
               <span class="chevron">▸</span>
             </summary>
             <div class="staff-card-body">
@@ -245,7 +249,7 @@
           <details class="staff-card schedule-view-card" id="scheduleCard-month">
             <summary>
               <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><circle cx="7" cy="12" r="0.85" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="0.85" fill="currentColor" stroke="none"/><circle cx="17" cy="12" r="0.85" fill="currentColor" stroke="none"/><circle cx="7" cy="15.2" r="0.85" fill="currentColor" stroke="none"/><circle cx="12" cy="15.2" r="0.85" fill="currentColor" stroke="none"/><circle cx="17" cy="15.2" r="0.85" fill="currentColor" stroke="none"/><circle cx="7" cy="18.4" r="0.85" fill="currentColor" stroke="none"/><circle cx="12" cy="18.4" r="0.85" fill="currentColor" stroke="none"/><circle cx="17" cy="18.4" r="0.85" fill="currentColor" stroke="none"/></svg></div>
-              <div class="summary-meta"><div class="name">Месяц</div></div>
+              <div class="summary-meta"><div class="name">Месяц</div><div class="role" id="scheduleAnchor-month"></div></div>
               <span class="chevron">▸</span>
             </summary>
             <div class="staff-card-body">
@@ -258,6 +262,115 @@
                 <div class="master-switch-row" id="monthMasterSwitch"></div>
                 <div class="month-grid" id="monthGrid"></div>
               </div>
+            </div>
+          </details>
+
+          <!-- Окно 45 упустил эту карточку при переводе Расписания на details.staff-card -
+               "Запись" оставалась на старом details.booking-detail (легаси-компонент
+               crm-admin.html/crm-master.html - .seg-tabs с ОДНОЙ видимой панелью, где
+               chevron-псевдоэлемент слева и золотой акцентный заголовок были уместны).
+               Внутри новой независимой карточной сетки это читалось как чужеродный
+               элемент (другой шрифт, чеврон слева вместо справа) - правка 08.08.2026
+               переводит карточку на тот же .staff-card, что у День/Неделя/Месяц, и
+               перемещает её сюда, в общий .staff-list - четвёртым элементом с тем же
+               flex-gap 12px, а не отдельным блоком со своим margin-top:18px (см.
+               КОНВЕНЦИЯ-КАРТОЧКИ-РАЗДЕЛОВ.md). #bd-1/#bd-now id не менялись - их
+               читает/пишет openBooking()/updateNoShowUi() (assets/mockup-crm.js). -->
+          <details class="staff-card" id="bd-1" open>
+            <summary>
+              <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
+              <div class="summary-meta"><div class="name" id="bd-now">Запись</div></div>
+              <span class="chevron">▸</span>
+            </summary>
+            <div class="staff-card-body">
+              <div class="walkin-banner" id="bk-walkin-banner" hidden>
+                <span class="ico">★</span>
+                <span>Клиент без предварительной записи - поля ниже очищены, впишите имя, телефон и услугу вручную. Время прихода и статус уже проставлены автоматически</span>
+              </div>
+              <!-- Правка Окна 36 (06.08.2026) - раньше радио и toggleNoShow-кнопка ниже
+                   (в field-grid) делали одно и то же (PATCH /bookings/:id/status), но
+                   выглядели как два разных элемента - владелец не мог отличить рабочий от
+                   декоративного (аудит, PRODUCT_AUDIT_REPORT.md, разд. "Владелец"). Радио
+                   реально отражало РЕАЛЬНЫЙ статус и раньше (assets/crm-calendar.js,
+                   STATUS_TO_DATA: planned/done/no_show → wait/came/no) - просто клик по нему
+                   никуда не отправлялся. Теперь это единственный, самый полный (3 из 3
+                   состояний, кнопка ниже знала только 2) контрол статуса визита. -->
+              <div class="status-row">
+                <input type="radio" name="bstatus" id="st-wait">
+                <input type="radio" name="bstatus" id="st-came" checked>
+                <input type="radio" name="bstatus" id="st-no">
+                <label for="st-wait">Ожидание</label>
+                <label for="st-came">Пришёл</label>
+                <label for="st-no">Не пришёл</label>
+              </div>
+              <p class="commission-note" id="bk-status-note" hidden></p>
+              <!-- Чекбокс "Клиент подтвердил запись" убран Окном 36 (06.08.2026):
+                   bookings.client_confirmed реально существует в схеме и приходит в GET
+                   /bookings (clientConfirmed), но роута на ЗАПИСЬ в это поле нет нигде в
+                   server.mjs (grep - 0 совпадений) - клик по чекбоксу ничего не сохранял бы.
+                   Открытый вопрос Владу: нужен ли этот флаг вообще, и кто его должен
+                   проставлять - клиент сам через публичный виджет записи, или
+                   администратор вручную звонком? До ответа честнее не показывать элемент,
+                   чем изображать рабочий. -->
+              <div class="noshow-banner" id="bk-noshow-banner" hidden>
+                <span class="ico">⚠</span>
+                <span></span>
+              </div>
+              <!-- Баннер "Пример: день рождения клиента..." убран Окном 36 (06.08.2026) -
+                   был статичным hardcoded текстом на любой брони (не читал реальную дату
+                   рождения этого клиента, хотя она есть рядом, поле "Дата рождения
+                   клиента" ниже) и ссылался на раздел "Акции", который этим же окном
+                   скрыт из навигации как нерабочий - оставлять ссылку на недостижимый
+                   раздел было бы хуже исходной проблемы. -->
+              <div class="field-grid">
+                <div class="field"><label>Клиент</label><input id="bk-client" value="Клиент А" readonly></div>
+                <div class="field"><label>Телефон</label><input id="bk-phone" value="+7 900 000-00-01" readonly></div>
+                <div class="field"><label>Мастер записи</label><input id="bk-master" value="Алиовсад" readonly></div>
+                <div class="field field--wide">
+                  <label>Закреплён за мастером</label>
+                  <div class="custom-select" data-value="Алиовсад">
+                    <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">Алиовсад</button>
+                    <div class="custom-select-list" hidden>
+                      <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Не закреплён</div>
+                      <div class="custom-select-option selected" onclick="pickCustomSelectOption(this)">Алиовсад</div>
+                      <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Мамедхан</div>
+                      <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Елизавета</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field"><label>Услуга</label><input id="bk-service" value="Стрижка · 2000₽" readonly></div>
+                <div class="field"><label>Дата рождения клиента</label><input value="15.08" readonly></div>
+                <div class="field"><label>Клиент с нами с</label><input value="03.02.2025" readonly></div>
+                <div class="field"><label>Плановое время</label><input id="bk-planned" value="10:00–10:40" readonly></div>
+                <div class="field"><label>Длительность услуги у этого мастера</label><input id="bk-duration" value="40 мин" readonly></div>
+                <div class="field">
+                  <label>Комиссия мастера за запись</label>
+                  <input id="bk-commission" value="Не начисляется" readonly>
+                  <p class="commission-note" id="bk-commission-note"></p>
+                </div>
+              </div>
+
+              <details class="service-edit">
+                <summary>Корректировка услуги</summary>
+                <div class="service-picker">
+                  <label class="service-check"><input type="checkbox" checked onclick="pickServiceForBooking(this)"><span><span class="sc-name">Стрижка</span><span class="sc-price">2000₽</span></span></label>
+                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Борода</span><span class="sc-price">1600₽</span></span></label>
+                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-price">3500₽</span></span></label>
+                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Бритьё</span><span class="sc-price">1500₽</span></span></label>
+                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Фирменная окантовка</span><span class="sc-price">1400₽</span></span></label>
+                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Тонировка седых волос</span><span class="sc-price">от 1500₽</span></span></label>
+                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Воск</span><span class="sc-price">от 500₽</span></span></label>
+                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">СПА уход</span><span class="sc-price">3000₽</span></span></label>
+                </div>
+              </details>
+
+              <!-- Поле "Комментарии по клиенту" скрыто Окном 36 (06.08.2026) - не
+                   сохранялось вообще (addComment в mockup-crm.js только дописывал DOM,
+                   без fetch, под это ни одной таблицы в схеме нет), а срок хранения
+                   персональных данных клиента (аллергии, привычки) не решён Владом
+                   (PRODUCT_ARCHITECTURE_PLAN.md, Decision C). Функция addComment оставлена
+                   в mockup-crm.js - её так же вызывают crm-admin.html/crm-master.html, это
+                   окно их не касается (см. промпт окна, "только crm-owner.html"). -->
             </div>
           </details>
         </div>
@@ -356,100 +469,6 @@
             <div class="breaks-list" id="clientCardVisits"><span class="note">Загрузка…</span></div>
           </div>
         </div>
-
-        <details class="booking-detail" id="bd-1" open>
-          <summary><div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div><strong id="bd-now">Запись</strong></summary>
-          <div class="booking-detail-body">
-            <div class="walkin-banner" id="bk-walkin-banner" hidden>
-              <span class="ico">★</span>
-              <span>Клиент без предварительной записи - поля ниже очищены, впишите имя, телефон и услугу вручную. Время прихода и статус уже проставлены автоматически</span>
-            </div>
-            <!-- Правка Окна 36 (06.08.2026) - раньше радио и toggleNoShow-кнопка ниже
-                 (в field-grid) делали одно и то же (PATCH /bookings/:id/status), но
-                 выглядели как два разных элемента - владелец не мог отличить рабочий от
-                 декоративного (аудит, PRODUCT_AUDIT_REPORT.md, разд. "Владелец"). Радио
-                 реально отражало РЕАЛЬНЫЙ статус и раньше (assets/crm-calendar.js,
-                 STATUS_TO_DATA: planned/done/no_show → wait/came/no) - просто клик по нему
-                 никуда не отправлялся. Теперь это единственный, самый полный (3 из 3
-                 состояний, кнопка ниже знала только 2) контрол статуса визита. -->
-            <div class="status-row">
-              <input type="radio" name="bstatus" id="st-wait">
-              <input type="radio" name="bstatus" id="st-came" checked>
-              <input type="radio" name="bstatus" id="st-no">
-              <label for="st-wait">Ожидание</label>
-              <label for="st-came">Пришёл</label>
-              <label for="st-no">Не пришёл</label>
-            </div>
-            <p class="commission-note" id="bk-status-note" hidden></p>
-            <!-- Чекбокс "Клиент подтвердил запись" убран Окном 36 (06.08.2026):
-                 bookings.client_confirmed реально существует в схеме и приходит в GET
-                 /bookings (clientConfirmed), но роута на ЗАПИСЬ в это поле нет нигде в
-                 server.mjs (grep - 0 совпадений) - клик по чекбоксу ничего не сохранял бы.
-                 Открытый вопрос Владу: нужен ли этот флаг вообще, и кто его должен
-                 проставлять - клиент сам через публичный виджет записи, или
-                 администратор вручную звонком? До ответа честнее не показывать элемент,
-                 чем изображать рабочий. -->
-            <div class="noshow-banner" id="bk-noshow-banner" hidden>
-              <span class="ico">⚠</span>
-              <span></span>
-            </div>
-            <!-- Баннер "Пример: день рождения клиента..." убран Окном 36 (06.08.2026) -
-                 был статичным hardcoded текстом на любой брони (не читал реальную дату
-                 рождения этого клиента, хотя она есть рядом, поле "Дата рождения
-                 клиента" ниже) и ссылался на раздел "Акции", который этим же окном
-                 скрыт из навигации как нерабочий - оставлять ссылку на недостижимый
-                 раздел было бы хуже исходной проблемы. -->
-            <div class="field-grid">
-              <div class="field"><label>Клиент</label><input id="bk-client" value="Клиент А" readonly></div>
-              <div class="field"><label>Телефон</label><input id="bk-phone" value="+7 900 000-00-01" readonly></div>
-              <div class="field"><label>Мастер записи</label><input id="bk-master" value="Алиовсад" readonly></div>
-              <div class="field field--wide">
-                <label>Закреплён за мастером</label>
-                <div class="custom-select" data-value="Алиовсад">
-                  <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">Алиовсад</button>
-                  <div class="custom-select-list" hidden>
-                    <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Не закреплён</div>
-                    <div class="custom-select-option selected" onclick="pickCustomSelectOption(this)">Алиовсад</div>
-                    <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Мамедхан</div>
-                    <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Елизавета</div>
-                  </div>
-                </div>
-              </div>
-              <div class="field"><label>Услуга</label><input id="bk-service" value="Стрижка · 2000₽" readonly></div>
-              <div class="field"><label>Дата рождения клиента</label><input value="15.08" readonly></div>
-              <div class="field"><label>Клиент с нами с</label><input value="03.02.2025" readonly></div>
-              <div class="field"><label>Плановое время</label><input id="bk-planned" value="10:00–10:40" readonly></div>
-              <div class="field"><label>Длительность услуги у этого мастера</label><input id="bk-duration" value="40 мин" readonly></div>
-              <div class="field">
-                <label>Комиссия мастера за запись</label>
-                <input id="bk-commission" value="Не начисляется" readonly>
-                <p class="commission-note" id="bk-commission-note"></p>
-              </div>
-            </div>
-
-            <details class="service-edit">
-              <summary>Корректировка услуги</summary>
-              <div class="service-picker">
-                <label class="service-check"><input type="checkbox" checked onclick="pickServiceForBooking(this)"><span><span class="sc-name">Стрижка</span><span class="sc-price">2000₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Борода</span><span class="sc-price">1600₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-price">3500₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Бритьё</span><span class="sc-price">1500₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Фирменная окантовка</span><span class="sc-price">1400₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Тонировка седых волос</span><span class="sc-price">от 1500₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Воск</span><span class="sc-price">от 500₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">СПА уход</span><span class="sc-price">3000₽</span></span></label>
-              </div>
-            </details>
-
-            <!-- Поле "Комментарии по клиенту" скрыто Окном 36 (06.08.2026) - не
-                 сохранялось вообще (addComment в mockup-crm.js только дописывал DOM,
-                 без fetch, под это ни одной таблицы в схеме нет), а срок хранения
-                 персональных данных клиента (аллергии, привычки) не решён Владом
-                 (PRODUCT_ARCHITECTURE_PLAN.md, Decision C). Функция addComment оставлена
-                 в mockup-crm.js - её так же вызывают crm-admin.html/crm-master.html, это
-                 окно их не касается (см. промпт окна, "только crm-owner.html"). -->
-          </div>
-        </details>
       </section>
     </div>
 
