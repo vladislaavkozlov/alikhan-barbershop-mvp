@@ -1,8 +1,15 @@
 // Живая проверка правки 08.08.2026 (Влад отметил стрелкой на скриншоте линию
 // границы шапки - пункты меню начинались ВЫШЕ неё, "наезжая" на topbar; плюс
-// попросил сделать панель немного у́же) - .app-sidebar теперь начинается СРАЗУ
-// под header.site (top: var(--topbar-h)), а не top:0 с internal padding, и
-// --sidebar-w-expanded сужен 240px → 220px.
+// попросил сделать панель немного у́же).
+//
+// Разворот той же правки (следующее сообщение Влада: "ты как будто всю меню
+// просто ниже опустил - надо было не блок меню опускать, а только кнопки, а
+// саму панель не трогать") - первая версия сдвигала весь .app-sidebar под шапку
+// (top: var(--topbar-h)), меняя саму панель (позицию/высоту фона и рамки), а не
+// только кнопки внутри. Итоговая версия - .app-sidebar снова top:0/bottom:0 (во
+// всю высоту экрана, как было исходно с Окна 41), опущен только padding-top её
+// содержимого. --sidebar-w-expanded остаётся суженным 240px → 220px (эта часть
+// не оспаривалась).
 import { withBrowser } from './cdp.mjs';
 import { withEphemeralServer, withStaticServer, makeChecker, hashPin, randomPin } from './verify-lib.mjs';
 
@@ -40,24 +47,25 @@ try {
               headerBottom: Math.round(hRect.bottom),
               firstNavItemTop: Math.round(nRect.top),
               sidebarTop: Math.round(sRect.top),
+              sidebarHeight: Math.round(sRect.height),
+              viewportHeight: window.innerHeight,
               sidebarWidth: Math.round(sRect.width),
             };
           })()
         `);
 
         check('Первый пункт меню начинается НИЖЕ линии шапки, не над ней', m.firstNavItemTop > m.headerBottom, JSON.stringify(m));
-        check('Сама панель (.app-sidebar) начинается сразу под шапкой (не перекрывает её)', Math.abs(m.sidebarTop - m.headerBottom) <= 1, JSON.stringify(m));
+        check('Сама панель (.app-sidebar) НЕ сдвинута - как и раньше, top:0 и во всю высоту экрана', m.sidebarTop === 0 && m.sidebarHeight === m.viewportHeight, JSON.stringify(m));
         check('Панель сужена до 220px (было 240px)', m.sidebarWidth === 220, JSON.stringify(m));
 
-        // Кнопка сворачивания по-прежнему в вертикальном центре именно ПАНЕЛИ, а не всего экрана
+        // Кнопка сворачивания - в вертикальном центре ЦЕЛОГО экрана (панель снова во весь экран)
         const centering = await s.eval(`
           (() => {
-            const sRect = document.getElementById('appSidebar').getBoundingClientRect();
             const tRect = document.getElementById('appSidebarToggle').getBoundingClientRect();
-            return { sidebarCenterY: Math.round(sRect.top + sRect.height / 2), toggleCenterY: Math.round(tRect.top + tRect.height / 2) };
+            return { toggleCenterY: Math.round(tRect.top + tRect.height / 2), viewportCenterY: Math.round(window.innerHeight / 2) };
           })()
         `);
-        check('Кнопка сворачивания осталась в вертикальном центре именно панели (не экрана)', Math.abs(centering.sidebarCenterY - centering.toggleCenterY) <= 1, JSON.stringify(centering));
+        check('Кнопка сворачивания в вертикальном центре экрана (панель снова во весь экран)', Math.abs(centering.toggleCenterY - centering.viewportCenterY) <= 1, JSON.stringify(centering));
 
         await s.screenshot('/tmp/verify-menu-nizhe-shapki.png');
       });

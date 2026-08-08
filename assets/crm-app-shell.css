@@ -14,14 +14,15 @@
      пункты меню начинались ВЫШЕ неё, "наезжая" на topbar) - высота header.site на
      desktop стабильна (title + иконки в один ряд, не переносится, mockup-crm.css
      .nav padding:14px + высота строки + border-bottom:1px ≈ 68px, замерено живьём
-     getBoundingClientRect()). Раньше .app-sidebar стоял top:0 (перекрывал шапку по
-     z-index, просто её было не видно за ним) и получал отступ сверху только через
-     свой internal padding-top (var(--space-5) = 24px от верха ЭКРАНА, а не от
-     низа шапки) - если бы отступ увеличили без переноса top, при желании
-     "чуть ниже линии" пришлось бы держать два числа в синхроне. Вместо этого сам
-     .app-sidebar теперь начинается СРАЗУ под шапкой (top: var(--topbar-h)) - её
-     обычный internal padding-top (var(--space-5)) даёт ровно те же 24px отступа,
-     но уже от реальной границы, а не от верха экрана. */
+     getBoundingClientRect()).
+     Разворот той же правки (следующее сообщение Влада: "не блок меню опускать, а
+     только кнопки, саму панель не трогать") - первая версия сдвигала весь
+     .app-sidebar под шапку (top: var(--topbar-h)), это меняло саму панель
+     (высоту/позицию фона и рамки), а не только кнопки внутри неё. .app-sidebar
+     остаётся top:0/bottom:0 (панель как была, во всю высоту экрана, за шапкой -
+     так и было изначально с Окна 41), а ниже опускается ТОЛЬКО содержимое -
+     padding-top увеличен до высоты шапки + обычный отступ (var(--space-5)),
+     вместо одного только var(--space-5) от верха экрана. */
   :root { --topbar-h: 68px; }
 
   body.app-shell-active {
@@ -34,11 +35,14 @@
     flex-direction: column;
     gap: var(--space-5);
     position: fixed;
-    top: var(--topbar-h);
+    top: 0;
     left: 0;
     bottom: 0;
     width: var(--sidebar-w-expanded);
-    padding: var(--space-5) var(--space-4);
+    padding-top: calc(var(--topbar-h) + var(--space-5));
+    padding-right: var(--space-4);
+    padding-bottom: var(--space-5);
+    padding-left: var(--space-4);
     background: var(--surface);
     border-right: 1px solid var(--border);
     box-shadow: var(--shadow-md);
@@ -84,13 +88,11 @@
      чем-то при скролле. Тень (--shadow-md) - визуальная "ручка", как в
      референсных приложениях, чтобы кнопка читалась кликабельной, а не частью
      фона. 34px круг - комфортная область клика (не мельче кнопок topbar).
-     top: calc(...) - правка того же дня, когда .app-sidebar стал начинаться под
-     шапкой (top: var(--topbar-h), не 0) - середина ПАНЕЛИ (от низа шапки до низа
-     экрана) больше не совпадает с серединой viewport, обычные 50% чуть промахнулись
-     бы вверх. */
+     top:50% от viewport - панель снова во всю высоту экрана (top:0/bottom:0,
+     см. правку .app-sidebar выше), середина панели = середина экрана. */
   .app-sidebar-toggle {
     position: fixed;
-    top: calc(var(--topbar-h) + (100vh - var(--topbar-h)) / 2);
+    top: 50%;
     left: var(--sidebar-w-expanded);
     transform: translate(-50%, -50%);
     align-items: center;
