@@ -10,6 +10,20 @@
 .app-sidebar-toggle { display: none; }
 
 @media (min-width: 1024px) {
+  /* Правка 08.08.2026 (Влад отметил стрелкой на скриншоте линию границы шапки -
+     пункты меню начинались ВЫШЕ неё, "наезжая" на topbar) - высота header.site на
+     desktop стабильна (title + иконки в один ряд, не переносится, mockup-crm.css
+     .nav padding:14px + высота строки + border-bottom:1px ≈ 68px, замерено живьём
+     getBoundingClientRect()). Раньше .app-sidebar стоял top:0 (перекрывал шапку по
+     z-index, просто её было не видно за ним) и получал отступ сверху только через
+     свой internal padding-top (var(--space-5) = 24px от верха ЭКРАНА, а не от
+     низа шапки) - если бы отступ увеличили без переноса top, при желании
+     "чуть ниже линии" пришлось бы держать два числа в синхроне. Вместо этого сам
+     .app-sidebar теперь начинается СРАЗУ под шапкой (top: var(--topbar-h)) - её
+     обычный internal padding-top (var(--space-5)) даёт ровно те же 24px отступа,
+     но уже от реальной границы, а не от верха экрана. */
+  :root { --topbar-h: 68px; }
+
   body.app-shell-active {
     padding-left: var(--sidebar-w-expanded);
     transition: padding-left 180ms var(--ease-out);
@@ -20,7 +34,7 @@
     flex-direction: column;
     gap: var(--space-5);
     position: fixed;
-    top: 0;
+    top: var(--topbar-h);
     left: 0;
     bottom: 0;
     width: var(--sidebar-w-expanded);
@@ -69,10 +83,14 @@
      z-index выше и сайдбара (35), и контента - кнопка не может оказаться под
      чем-то при скролле. Тень (--shadow-md) - визуальная "ручка", как в
      референсных приложениях, чтобы кнопка читалась кликабельной, а не частью
-     фона. 34px круг - комфортная область клика (не мельче кнопок topbar). */
+     фона. 34px круг - комфортная область клика (не мельче кнопок topbar).
+     top: calc(...) - правка того же дня, когда .app-sidebar стал начинаться под
+     шапкой (top: var(--topbar-h), не 0) - середина ПАНЕЛИ (от низа шапки до низа
+     экрана) больше не совпадает с серединой viewport, обычные 50% чуть промахнулись
+     бы вверх. */
   .app-sidebar-toggle {
     position: fixed;
-    top: 50%;
+    top: calc(var(--topbar-h) + (100vh - var(--topbar-h)) / 2);
     left: var(--sidebar-w-expanded);
     transform: translate(-50%, -50%);
     align-items: center;
