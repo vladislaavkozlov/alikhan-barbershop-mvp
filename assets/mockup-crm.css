@@ -735,6 +735,13 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 
 /* ---------- график (grafik) ---------- */
 .breaks-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+/* Правка 08.08.2026 (владелец сравнил "Расписание" с "Командой"/"Финансами" -
+   первые карточки начинались на разной высоте от рамки блока) - #ownerAlertsSchedule
+   (crm-owner.html) использует этот же класс. Пустой (нет алертов - реальные графики
+   у мастеров настроены) он всё равно держал margin-bottom:12px, потому что margin -
+   свойство самого блока, не зависит от того, есть ли внутри дети. Тот же приём, что
+   уже применён к .view-anchor:empty выше по файлу. */
+.breaks-list:empty { margin-bottom: 0; }
 .break-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .break-row .field { flex-direction: row; align-items: center; gap: 8px; }
 .break-row .field input { width: 100px; }

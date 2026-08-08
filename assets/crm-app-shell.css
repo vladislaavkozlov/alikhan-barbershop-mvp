@@ -98,6 +98,19 @@
   body.app-shell-sidebar-collapsed .app-sidebar-toggle .app-nav-icon svg { transform: rotate(180deg); }
 
   .app-nav { display: flex; flex-direction: column; gap: var(--space-1); }
+  /* Правка 08.08.2026 (Влад: "кнопки панели меню пляшут вверх-вниз при открытии и
+     закрытии") - при развороте sidebar body.app-shell-sidebar-collapsed снимается
+     СРАЗУ (клик), .app-nav-label мгновенно становится видимым (снимается его
+     display:none), а сама ширина .app-sidebar только начинает анимироваться
+     76px→240px (180ms). Пару кадров подпись физически не помещалась в ещё узкую
+     панель и переносилась на вторую строку - высота каждой кнопки на миг росла,
+     все кнопки ниже сдвигались вниз и обратно, это и читалось как "пляшут".
+     white-space:nowrap запрещает перенос в принципе (лишний текст просто
+     обрезается overflow:hidden, а не переносится) - высота кнопки больше не может
+     измениться независимо от того, сколько от подписи сейчас помещается по
+     ширине. Сама подпись по-прежнему появляется/исчезает без анимации (просто
+     дисплей), но теперь это горизонтальный "реveal" по мере роста ширины
+     панели, а не вертикальный скачок. */
   .app-nav-item {
     display: flex;
     align-items: center;
@@ -111,9 +124,12 @@
     font-size: 0.9rem;
     font-weight: 600;
     text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
     cursor: pointer;
     transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
   }
+  .app-nav-label { overflow: hidden; text-overflow: clip; }
   .app-nav-item:hover { background: var(--surface-2); color: var(--text); }
   .app-nav-item.is-active { background: var(--accent); color: var(--leather); }
   .app-nav-icon { width: 1.4em; display: inline-flex; align-items: center; justify-content: center; }
@@ -125,9 +141,13 @@
     color: var(--text-muted);
     border-top: 1px solid var(--border);
     padding-top: var(--space-3);
+    white-space: nowrap;
+    overflow: hidden;
   }
 
   .app-sidebar-profile {
+    white-space: nowrap;
+    overflow: hidden;
     font-size: 0.82rem;
     font-weight: 600;
     color: var(--text);
