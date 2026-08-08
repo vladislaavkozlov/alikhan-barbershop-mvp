@@ -128,8 +128,33 @@ function renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds) {
 // ни один из которых не регистрирует новых обработчиков на persistent-узлах (только
 // value/innerHTML, либо уже самогейтящиеся клики). Elements-guard (el('rvAllDayRevenue'))
 // - страница не владельца эту функцию no-op.
+// Правка (по вопросу Влада 08.08.2026 - "почему видно обновление только в
+// Уведомлениях") - "Финансы" молча подменяли значения без единого визуального
+// сигнала, пока шёл fetch, поэтому обновление было незаметно на глаз. Тот же
+// приём "считаю…", что уже стоит в статичной разметке crm-owner.html для ПЕРВОЙ
+// загрузки страницы (например id="rvAllDayRevenue">000 ₽ <span class="unsure">
+// считаю…</span>) - переиспользован здесь для ПОВТОРНОЙ загрузки по кнопке.
+const FINANCE_LOADING_IDS = [
+  'rvAllDayRevenue', 'rvAllDayPayroll', 'rvAllDayNet',
+  'payrollMaster1Day', 'payrollMaster2Day', 'payrollMaster3Day',
+  'rvAllWeekRevenue', 'rvAllWeekPayroll', 'rvAllWeekNet',
+  'rvAllMonthRevenue', 'rvAllMonthPayroll', 'rvAllMonthNet',
+  'rvAllQuarterRevenue', 'rvAllQuarterPayroll', 'rvAllQuarterNet',
+  'rvAllYearRevenue', 'rvAllYearPayroll', 'rvAllYearNet',
+  'payrollMaster1Week', 'payrollMaster1Month',
+  'payrollMaster2Week', 'payrollMaster2Month',
+  'payrollMaster3Week', 'payrollMaster3Month',
+];
+function showFinanceLoading() {
+  for (const id of FINANCE_LOADING_IDS) {
+    const target = el(id);
+    if (target) target.innerHTML = '000 ₽ <span class="unsure">считаю…</span>';
+  }
+}
+
 export async function refreshFinance() {
   if (!el('rvAllDayRevenue')) return;
+  showFinanceLoading();
   try {
     const [staffList, services, bookingsRes, masterServices, payrollRows] = await Promise.all([
       fetchJson('/staff'),

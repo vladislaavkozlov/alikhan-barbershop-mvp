@@ -49,8 +49,9 @@ export function wireScheduleEditor(masterId, fetchJson) {
   if (!dateFromSlot || !saveBtn) {
     if (currentEl.dataset.wired) return;
     currentEl.dataset.wired = '1';
-    const loadReadOnlyToday = () =>
-      fetchJson(`/schedule?masterId=${masterId}&date=${todayStr()}`)
+    const loadReadOnlyToday = () => {
+      currentEl.innerHTML = '<span class="note">загружаю…</span>';
+      return fetchJson(`/schedule?masterId=${masterId}&date=${todayStr()}`)
         .then((shifts) => {
           const shift = shifts.find((s) => s.date === todayStr());
           const isFullDayOff = shift?.breaks?.some((b) => b.startTime <= '10:00' && b.endTime >= '20:00');
@@ -67,6 +68,7 @@ export function wireScheduleEditor(masterId, fetchJson) {
         .catch((err) => {
           currentEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
         });
+    };
     loadReadOnlyToday();
     registerTeamScheduleRefresher(loadReadOnlyToday);
     return;
@@ -374,6 +376,12 @@ export function wireWeeklyScheduleEditor(masterId, canEdit, fetchJson) {
   const prefix = `weekly-${masterId}`;
 
   async function load() {
+    // Правка (по вопросу Влада 08.08.2026 - "почему видно обновление только в
+    // Уведомлениях") - тот же приём "загружаю…", что уже стоял у loadCurrent выше
+    // в этом файле, чтобы кнопка "Обновить данные" (crm-owner.html) давала видимый
+    // сигнал и здесь, не только в "Заявках на изменение графика". На первой загрузке
+    // страницы container и так пуст - показать здесь текст вместо пустоты не хуже.
+    container.innerHTML = '<span class="note">загружаю…</span>';
     let rows;
     try {
       rows = await fetchJson(`/master-weekly-schedule?masterId=${masterId}`);

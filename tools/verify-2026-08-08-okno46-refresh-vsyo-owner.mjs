@@ -103,7 +103,29 @@ try {
         );
 
         // ── Жмём "Обновить данные" (без перезагрузки страницы) ──────────────
+        // Правка по вопросу Влада 08.08.2026 ("почему видно обновление только в
+        // Уведомлениях") - "Финансы"/"Команда" получили тот же плейсхолдер
+        // "считаю…"/"загружаю…", что уже был у "Заявок". Синхронная часть клика
+        // (Promise.all внутри refreshBtn-обработчика запускает каждую async-функцию
+        // до её первого await синхронно) успевает выставить плейсхолдер ДО того,
+        // как s.click() вернёт управление - читаем DOM сразу после клика, без sleep,
+        // чтобы поймать именно этот момент, не гадать по таймингу сети.
         await s.click('#refreshBtn');
+        const duringRefresh = await s.eval(`({
+          revenue: document.getElementById('rvAllDayRevenue')?.textContent.trim(),
+          weekly: document.getElementById('weeklyEditor-master-1')?.textContent.trim(),
+        })`);
+        check(
+          '"Выручка" (день) мелькает плейсхолдером "считаю…" сразу после клика "Обновить" (видимый сигнал обновления, не тихая подмена)',
+          /считаю/.test(duringRefresh.revenue || ''),
+          duringRefresh.revenue
+        );
+        check(
+          '"График работы" мастера-1 мелькает плейсхолдером "загружаю…" сразу после клика "Обновить"',
+          /загружаю/.test(duringRefresh.weekly || ''),
+          duringRefresh.weekly
+        );
+
         await sleep(1200);
 
         const after = await s.eval(`({
