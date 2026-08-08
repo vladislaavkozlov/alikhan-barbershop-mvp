@@ -56,20 +56,32 @@
     display: none;
   }
 
-  /* Кнопка сворачивания - над списком разделов, всегда видна (в т.ч. свёрнутой),
-     чтобы меню можно было развернуть обратно тем же нажатием. */
+  /* Правка 08.08.2026 (просьба Влада, по скриншоту со стрелкой) - кнопка
+     сворачивания перенесена с верха панели на вертикальную середину: не в
+     потоке .app-nav (position:absolute внутри .app-sidebar, которая сама
+     position:fixed на всю высоту экрана - top:50% от неё = середина экрана
+     всегда, даже если список разделов проскроллен). Всегда видна (в т.ч.
+     свёрнутой), чтобы меню можно было развернуть обратно тем же нажатием.
+     left:50% в процентах от ширины .app-sidebar - сама пересчитывается при
+     смене её ширины (240px развёрнуто / 76px свёрнуто), отдельного правила
+     под свёрнутое состояние не нужно. */
   .app-sidebar-toggle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    background: transparent;
-    border: none;
-    border-radius: var(--radius-md);
-    padding: var(--space-2);
-    margin-bottom: var(--space-1);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    padding: 0;
     color: var(--text-muted);
     cursor: pointer;
+    z-index: 1;
     transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
   }
   .app-sidebar-toggle:hover { background: var(--surface-2); color: var(--text); }
