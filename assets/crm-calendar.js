@@ -230,7 +230,18 @@ function renderNowLine(date) {
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
   const inRange = isToday && nowMin >= DAY_START_MIN && nowMin <= DAY_END_MIN;
   line.hidden = !inRange;
-  if (inRange) line.style.top = `${Math.round((nowMin - DAY_START_MIN) * PX_PER_MIN)}px`;
+  if (inRange) {
+    // Правка 08.08.2026 (жалоба Влада - красная линия перечёркивала имена мастеров):
+    // top считался от верхнего края .schedule-row-with-gutter, а этот родитель
+    // включает и шапку колонки (аватар+имя), не только сам часовой трек - top:0
+    // физически попадал на шапку, а не на отметку 10:00. Трек начинается ниже шапки
+    // на её реальную высоту - меряем её живьём через тот же приём, что уже использует
+    // minutesFromClientY(trackEl, clientY) выше для клика по треку, не хардкодим px
+    // (высота шапки зависит от .avatar/.name, трогать которые могут другие правки).
+    const track = row.querySelector('.schedule-track');
+    const headerOffset = track ? Math.round(track.getBoundingClientRect().top - row.getBoundingClientRect().top) : 0;
+    line.style.top = `${headerOffset + Math.round((nowMin - DAY_START_MIN) * PX_PER_MIN)}px`;
+  }
 
   // Пересчёт раз в минуту, пока открыт вид "День" - без этого линия застывает на
   // времени первого рендера, если владелец просто оставил вкладку открытой. Один
