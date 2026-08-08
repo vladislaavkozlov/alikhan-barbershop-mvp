@@ -149,7 +149,15 @@
     cursor: pointer;
     transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
   }
-  .app-nav-label { overflow: hidden; text-overflow: clip; }
+  /* Правка 08.08.2026, третий заход (Влад: "при сворачивании-разворачивании пункты
+     смещаются по высоте") - в развёрнутом виде .app-nav-label добавлял себя как flex-
+     child с высотой строки текста (~22px по метрикам Manrope 0.9rem), в свёрнутом виде
+     label снят из потока (display:none выше), высоту кнопки задаёт только .app-nav-icon
+     (18px). Разная высота кнопки в двух состояниях копится по списку (gap между кнопками
+     не менялся, но каждая кнопка ниже - каждая следующая точка съезжает сильнее). line-
+     height, равный высоте иконки, убирает лишнюю высоту строки текста - кнопка теперь
+     одной высоты в обоих состояниях, свёрнутость/развёрнутость меняет только ширину. */
+  .app-nav-label { overflow: hidden; text-overflow: clip; line-height: 18px; }
   .app-nav-item:hover { background: var(--surface-2); color: var(--text); }
   .app-nav-item.is-active { background: var(--accent); color: var(--leather); }
   .app-nav-icon { width: 1.4em; display: inline-flex; align-items: center; justify-content: center; }
