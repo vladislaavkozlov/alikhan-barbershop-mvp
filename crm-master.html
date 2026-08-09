@@ -6,6 +6,7 @@
 <title>Алихан — CRM · Мастер (макет)</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/mockup-crm.css" />
+<link rel="stylesheet" href="assets/crm-app-shell.css" />
 <style>
   #sp-day:checked ~ .panel-sp-day, #sp-week:checked ~ .panel-sp-week,
   #sp-month:checked ~ .panel-sp-month, #sp-year:checked ~ .panel-sp-year { display: block; }
@@ -52,7 +53,6 @@
 </header>
 
 <main class="wrap page" id="crmMain">
-  <h1>Мастер</h1>
 
   <div class="retention-alert" id="retention-panel">
     <div class="ra-head"><span class="ico">⚠</span><strong>2 моих клиента не приходили 2+ месяца</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
@@ -426,7 +426,9 @@
 <script src="assets/mockup-crm.js"></script>
 <script type="module">
   import { initCrmAuth } from './assets/crm-auth.js';
+  import { initAppShell } from './assets/crm-app-shell.js';
   initCrmAuth('master');
+  initAppShell('master');
 </script>
 </body>
 </html>
