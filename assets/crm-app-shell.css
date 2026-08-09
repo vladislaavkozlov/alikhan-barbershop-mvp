@@ -101,12 +101,35 @@
      стандартная техника центрирования, работает везде - но раз мой же тест-инструмент
      путается в этой комбинации, не полагаемся на неё, чтобы не подсунуть себе ложную
      уверенность в будущих проверках). auto-margin даёт тот же визуальный центр без
-     transform - координата раскладки и отрисовки теперь буквально одно число. */
+     transform - координата раскладки и отрисовки теперь буквально одно число.
+     Четвёртый заход, тем же вечером (Влад: "должна быть по правому краю") - НЕ через
+     right:Npx (это координата ОТ правого края контейнера, а он и есть та самая грань,
+     что физически едет все 180ms анимации ширины - вернули бы ровно тот баг, который
+     чинили весь вечер). Вместо этого - два ГОТОВЫХ, заранее посчитанных значения left
+     (по одному на состояние, calc от тех же токенов ширины, что использует сама
+     .app-sidebar), кнопка прыгает между ними МГНОВЕННО по клику (left не в списке
+     transition ни здесь, ни в .app-sidebar-toggle:hover) - у клика никогда нет
+     "промежуточного" кадра между двумя состояниями, есть только точка А до клика и
+     точка Б сразу после.
+     НО первый прогон с этими значениями всё равно поймал 2-3 промаха из 30 - причина
+     ДРУГАЯ: кнопка сейчас ПОТОМОК .app-sidebar, а у него overflow-y:auto, что по спеке
+     CSS2.1 заставляет браузер трактовать overflow-x тоже как auto (та же причина, по
+     которой кнопку вообще выносили из панели 08.08.2026, см. ниже) - в момент когда
+     клик приходится на середину 180ms-анимации САМОЙ ШИРИНЫ панели, актуальная (ещё не
+     доросшая/не сжавшаяся) ширина панели физически меньше, чем left-координата кнопки
+     (уже стоящей на ФИНАЛЬНОМ, не анимированном значении) - кнопка на этот момент
+     формально "торчит" за пределы текущей узкой рамки и обрезается тем же скроллом,
+     хотя элемент существует и getBoundingClientRect() его честно находит. Левый край
+     этой проблемы не касался (12px помещается даже в САМУЮ узкую, 76px, ширину), а
+     правый - касается всегда, при любом anchor справа.
+     Фикс - кнопка снова НЕ потомок .app-sidebar (вставляется в document.body,
+     assets/crm-app-shell.js), position:fixed от viewport - overflow панели на неё
+     вообще не действует, ей физически нечем обрезаться. */
   .app-sidebar-toggle {
-    position: absolute;
+    position: fixed;
     top: 0;
     bottom: 0;
-    left: var(--space-3);
+    left: calc(var(--sidebar-w-expanded) - 36px);
     margin: auto 0;
     align-items: center;
     justify-content: center;
@@ -118,7 +141,7 @@
     padding: 0;
     color: var(--text-muted);
     cursor: pointer;
-    z-index: 1;
+    z-index: 36;
     transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
   }
   /* Видна только после входа - до логина .app-sidebar тоже скрыт (display:none
@@ -126,6 +149,7 @@
   body.app-shell-active .app-sidebar-toggle { display: flex; }
   .app-sidebar-toggle:hover { background: var(--surface-2); color: var(--text); }
   .app-sidebar-toggle .app-nav-icon svg { width: 16px; height: 16px; transition: transform 140ms var(--ease-out); }
+  body.app-shell-sidebar-collapsed .app-sidebar-toggle { left: calc(var(--sidebar-w-collapsed) - 36px); }
   body.app-shell-sidebar-collapsed .app-sidebar-toggle .app-nav-icon svg { transform: rotate(180deg); }
 
   .app-nav { display: flex; flex-direction: column; gap: var(--space-1); }

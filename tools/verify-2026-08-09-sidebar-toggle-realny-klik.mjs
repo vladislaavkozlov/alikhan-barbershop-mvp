@@ -6,10 +6,13 @@
 // s.clickAt(x, y) - настоящий Input.dispatchMouseEvent по координатам вьюпорта,
 // вычисленным из getBoundingClientRect() кнопки, как реальный клик пользователя.
 //
-// Плюс структурная правка: кнопка перестала быть отдельным position:fixed
-// элементом-соседом body (гонка координат с анимацией ширины панели, см.
-// assets/crm-app-shell.css) и стала обычным дочерним элементом .app-sidebar -
-// проверяем это явно (parentElement.id === 'appSidebar').
+// Кнопка - снова position:fixed сосед body (НЕ потомок .app-sidebar - у панели
+// overflow-y:auto, что по CSS2.1 форсит overflow-x:auto, и потомок обрезался бы
+// этим scroll-overflow в момент, когда клик попадает на середину 180ms-анимации
+// ширины панели, а его left-координата уже стоит на финальном, не анимированном
+// значении). Left-координата кнопки МЕНЯЕТСЯ между состояниями (кнопка у правого
+// края, Влад: "должна быть по правому краю") - но прыгает МГНОВЕННО по классу, без
+// собственной CSS-анимации, так что промежуточного кадра для промаха нет.
 import { withBrowser } from './cdp.mjs';
 import { withEphemeralServer, withStaticServer, makeChecker, hashPin, randomPin } from './verify-lib.mjs';
 
@@ -49,22 +52,17 @@ try {
         await s.click('#loginForm button[type="submit"]');
         await sleep(1400);
 
-        // ── Кнопка - настоящий ребёнок .app-sidebar, не сосед body ──
-        const parentId = await s.eval(`document.getElementById('appSidebarToggle').parentElement.id`);
-        check('Кнопка - дочерний элемент #appSidebar (не отдельный position:fixed сосед body)', parentId === 'appSidebar', `parent=${parentId}`);
+        // ── Кнопка - сосед body (не потомок #appSidebar, не обрезается overflow панели) ──
+        const parentId = await s.eval(`document.getElementById('appSidebarToggle').parentElement.tagName`);
+        check('Кнопка - прямой потомок body (не .app-sidebar, не обрезается его overflow)', parentId === 'BODY', `parent=${parentId}`);
 
         const positioning = await s.eval(`getComputedStyle(document.getElementById('appSidebarToggle')).position`);
-        check('Кнопка не на position:fixed (закреплена от угла своей же панели, не от viewport)', positioning !== 'fixed', `position=${positioning}`);
+        check('Кнопка на position:fixed (от viewport, вне зоны overflow панели)', positioning === 'fixed', `position=${positioning}`);
 
-        // ── Координата кнопки не меняется НИ на пиксель между развёрнутым и
-        //    свёрнутым состоянием - корень прошлого промаха был именно в этом ──
-        const rectBefore = await s.eval(`(() => { const r = document.getElementById('appSidebarToggle').getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top) }; })()`);
-        await s.click('#appSidebarToggle');
-        await sleep(250);
-        const rectAfterCollapse = await s.eval(`(() => { const r = document.getElementById('appSidebarToggle').getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top) }; })()`);
-        check('Координата кнопки идентична в развёрнутом и свёрнутом состоянии (не едет вообще)', rectBefore.x === rectAfterCollapse.x && rectBefore.y === rectAfterCollapse.y, `${JSON.stringify(rectBefore)} vs ${JSON.stringify(rectAfterCollapse)}`);
-        await s.click('#appSidebarToggle');
-        await sleep(250);
+        // ── Координата кнопки меняется между состояниями (у правого края - разная
+        //    ширина панели), но БЕЗ CSS-анимации на left/top у самой кнопки ──
+        const leftTransition = await s.eval(`getComputedStyle(document.getElementById('appSidebarToggle')).transitionProperty`);
+        check('left/top кнопки не в списке CSS transition (мгновенный прыжок, не анимация)', !leftTransition.includes('left') && !leftTransition.includes('top'), `transitionProperty=${leftTransition}`);
 
         // ── Реальный координатный клик (Input.dispatchMouseEvent) по 6 точкам круга,
         //    туда-обратно, 30 раз подряд - должен ни разу не промахнуться ──
