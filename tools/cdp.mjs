@@ -100,6 +100,16 @@ export async function withBrowser(fn) {
       async click(selector) {
         return this.eval(`(function(){ const el = document.querySelector(${JSON.stringify(selector)}); if(!el) return 'NOT_FOUND'; el.click(); return 'OK'; })()`);
       },
+      // Добавлено 09.08.2026 - вся история с "кнопка сворачивания не реагирует у
+      // Влада, хотя все мои тесты зелёные" объясняется тем, что click() выше вызывает
+      // el.click() программно, в обход хит-теста браузера - он не может поймать баг,
+      // где реальный курсор в реальной точке экрана промахивается мимо элемента.
+      // clickAt шлёт настоящее Input.dispatchMouseEvent по координатам вьюпорта -
+      // ровно то, что делает браузер при живом клике пользователя.
+      async clickAt(x, y) {
+        await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+        await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+      },
       async type(selector, text) {
         return this.eval(`(function(){
           const el = document.querySelector(${JSON.stringify(selector)});

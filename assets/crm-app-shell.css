@@ -75,46 +75,42 @@
     display: none;
   }
 
-  /* Правка 08.08.2026, второй заход (Влад: "не по краю формы, а какого-то чёрта
-     по середине" + "сделай удобно нажимать, посмотри как в других приложениях") -
-     кнопка сворачивания вынесена ИЗ .app-sidebar отдельным элементом-соседом
-     body (assets/crm-app-shell.js, insertToggleButton) и сидит ровно НА границе
-     сайдбар/контент - тот же паттерн, что у VS Code/Notion/Linear: кружок
-     наполовину на панели, наполовину на контенте, а не внутри одной из них.
-     position:fixed, left = переменная ширины сайдбара (240/76px) - та же
-     координата, что и правая граница .app-sidebar, transform центрирует кружок
-     ровно на этой линии. top:50% от viewport - вертикальная середина экрана.
-     z-index выше и сайдбара (35), и контента - кнопка не может оказаться под
-     чем-то при скролле. Тень (--shadow-md) - визуальная "ручка", как в
-     референсных приложениях, чтобы кнопка читалась кликабельной, а не частью
-     фона. 34px круг - комфортная область клика (не мельче кнопок topbar).
-     top:50% от viewport - панель снова во всю высоту экрана (top:0/bottom:0,
-     см. правку .app-sidebar выше), середина панели = середина экрана. */
+  /* Разворот 09.08.2026, второй заход (живой координатный клик Input.dispatchMouseEvent,
+     tools/cdp.mjs clickAt, поймал 1 промах на 30 - первая версия правки этого дня
+     выравнивала кнопку через align-self:flex-end/center, а это горизонтальная позиция
+     ВНУТРИ .app-sidebar, которая продолжает физически ехать все 180ms, пока сама панель
+     анимирует свою ширину (align-self меняется мгновенно по классу, но флекс каждый кадр
+     пересчитывает позицию child'а от текущей, ещё анимирующейся, ширины родителя) - клик,
+     попавший в это окно, целится в координату, актуальную на момент вычисления, а не на
+     момент фактического события. Убираем последнюю переменную координату: кнопка
+     закреплена position:absolute от ЛЕВОГО верхнего угла .app-sidebar (сам .app-sidebar -
+     position:fixed, готовый containing block) - left:0 у панели не меняется НИ в одном
+     состоянии (меняется только right-край через width), так что top/left кнопки отсюда
+     физически не сдвигаются ни на пиксель ни в развёрнутом, ни в свёрнутом состоянии, ни
+     во время перехода между ними. Помещается в уже пустую зону panel-top (padding-top
+     панели - высота topbar + отступ, там и так ничего не рисуется). */
   .app-sidebar-toggle {
-    position: fixed;
-    top: 50%;
-    left: var(--sidebar-w-expanded);
-    transform: translate(-50%, -50%);
+    position: absolute;
+    top: var(--space-3);
+    left: var(--space-3);
     align-items: center;
     justify-content: center;
-    background: var(--surface);
+    background: transparent;
     border: 1px solid var(--border);
     border-radius: 50%;
-    box-shadow: var(--shadow-md);
-    width: 34px;
-    height: 34px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     color: var(--text-muted);
     cursor: pointer;
-    z-index: 36;
-    transition: background 140ms var(--ease-out), color 140ms var(--ease-out), left 180ms var(--ease-out), transform 140ms var(--ease-out);
+    z-index: 1;
+    transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
   }
   /* Видна только после входа - до логина .app-sidebar тоже скрыт (display:none
      базовое правило выше), кнопка не должна висеть на экране логина сиротой. */
   body.app-shell-active .app-sidebar-toggle { display: flex; }
-  .app-sidebar-toggle:hover { background: var(--surface-2); color: var(--text); transform: translate(-50%, -50%) scale(1.08); }
-  .app-sidebar-toggle .app-nav-icon svg { width: 18px; height: 18px; transition: transform 180ms var(--ease-out); }
-  body.app-shell-sidebar-collapsed .app-sidebar-toggle { left: var(--sidebar-w-collapsed); }
+  .app-sidebar-toggle:hover { background: var(--surface-2); color: var(--text); }
+  .app-sidebar-toggle .app-nav-icon svg { width: 16px; height: 16px; transition: transform 140ms var(--ease-out); }
   body.app-shell-sidebar-collapsed .app-sidebar-toggle .app-nav-icon svg { transform: rotate(180deg); }
 
   .app-nav { display: flex; flex-direction: column; gap: var(--space-1); }
