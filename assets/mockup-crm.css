@@ -468,8 +468,18 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .schedule-row-with-gutter { display: flex; gap: 8px; }
 
+/* Задача G (Окно 53) - min-height:34px раньше побеждал инлайновый height (JS,
+   positionStyle) на любой брони короче ~32 мин, карточка рисовалась физически
+   длиннее своего слота и перекрывала следующую запись в том же столбце. Реальный
+   минимум длительности - "Воск" 15 мин (api/migrations/002_schema.sql, самая
+   короткая активная услуга в прайсе Алихана) → 15 × 64/60 ≈ 16px - на это значение
+   и снижен min-height, карточка больше никогда не рисуется длиннее своего слота
+   вне зависимости от длительности услуги. Ниже порога читаемости 2 строк (.t + .c,
+   тот же расчёт, которым раньше было выбрано 34px) контент сокращается через
+   .appt--compact (JS-условие - crm-calendar.js, buildApptCard) - только время,
+   имя+услуга видны на hover (тот же приём z-index:5, что уже есть у обычного hover). */
 .appt {
-  position: absolute; left: 4px; right: 4px; min-height: 34px; border-radius: 7px;
+  position: absolute; left: 4px; right: 4px; min-height: 16px; border-radius: 7px;
   padding: 4px 8px; font-size: 0.68rem; line-height: 1.22; overflow: hidden;
   border: 1px solid transparent; cursor: pointer;
   transition: transform 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
@@ -478,6 +488,12 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .appt .t { font-weight: 700; display: block; }
 .appt .c { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .appt .s { display: block; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* .c скрыта всегда, не только по умолчанию - раскрытие высоты на hover (min-height:34px)
+   пробовали, но оно возвращает ровно тот же визуальный дефект (наезд текста на соседнюю
+   карточку), который и чинит эта задача, просто по требованию hover вместо всегда. Полная
+   информация (клиент/услуга/телефон) остаётся доступна кликом - openBooking() читает
+   data-client/data-service с самого элемента, не видимый текст, ничего не потеряно. */
+.appt--compact .c { display: none; }
 .appt--done { background: rgba(111,174,124,0.24); border-color: var(--success); color: #DDEFE0; }
 .appt--new { background: rgba(198,161,91,0.28); border-color: var(--accent); color: var(--text); }
 .appt--selected { background: rgba(124,147,184,0.28); border-color: var(--info); color: #E4EAF3; }

@@ -16,7 +16,14 @@ function toMinutes(hhmm) {
 
 function positionStyle(startTime, endTime) {
   const top = Math.round((toMinutes(startTime) - DAY_START_MIN) * PX_PER_MIN);
-  const height = Math.max(24, Math.round((toMinutes(endTime) - toMinutes(startTime)) * PX_PER_MIN));
+  // Задача G (Окно 53) - старый пол Math.max(24, ...) был произвольным числом без
+  // расчёта (не привязан к реальным длительностям услуг) и сам вызывал наложение:
+  // "Воск" 15 мин физически занимает 16px (15×64/60), но рисовался ВЫСОТОЙ 24px -
+  // вплотную к следующей записи это те же лишние 8px наезда, что и у min-height в
+  // mockup-crm.css (тот же баг, два независимых источника). 16px - тот же расчёт от
+  // самой короткой активной услуги в прайсе Алихана (services, migration 002),
+  // что и в CSS - карточка никогда не рисуется длиннее своего реального слота.
+  const height = Math.max(16, Math.round((toMinutes(endTime) - toMinutes(startTime)) * PX_PER_MIN));
   return `top:${top}px;height:${height}px`;
 }
 
@@ -91,6 +98,13 @@ function buildApptCard(booking, { masterName, services, priceOf }) {
   const stripeClass = STATUS_STRIPE_CLASS[booking.status] ?? '';
   const isNoShow = booking.status === 'no_show';
   const warn = isNoShow ? '<span class="appt-warn">⚠</span>' : '';
+  // Задача G (Окно 53) - ниже этого порога 2 строки (.t + .c) физически не влезают
+  // в min-height 34px (тот расчёт, которым это число и было выбрано) - на коротких
+  // услугах (напр. "Воск" 15 мин) карточка теперь честно занимает свою реальную
+  // высоту (min-height снижен в mockup-crm.css), .c скрывается, чтобы не обрезаться
+  // криво, полная строка "клиент · услуга" возвращается на hover (.appt--compact:hover).
+  const durationMin = toMinutes(booking.endTime) - toMinutes(booking.startTime);
+  const compactClass = durationMin < 32 ? ' appt--compact' : '';
 
   // Правка 03.08.2026: data-id раньше не передавался вообще - openBooking() не
   // имела способа узнать РЕАЛЬНЫЙ id брони, чтобы что-то сохранить обратно (кнопка
@@ -102,7 +116,7 @@ function buildApptCard(booking, { masterName, services, priceOf }) {
   // список booking.serviceIds уже приходят с /bookings (listBookingsForRequest),
   // кладём их прямо на карточку тем же приёмом, что уже есть у data-id - без этого
   // openBooking() пришлось бы делать отдельный fetch за той же самой брони.
-  return `<div class="appt ${cssClass} ${stripeClass}" style="${positionStyle(booking.startTime, booking.endTime)}" tabindex="0" onclick="openBooking(this)"
+  return `<div class="appt ${cssClass} ${stripeClass}${compactClass}" style="${positionStyle(booking.startTime, booking.endTime)}" tabindex="0" onclick="openBooking(this)"
        data-id="${escapeHtml(booking.id)}" data-client="${escapeHtml(clientName)}" data-phone="${escapeHtml(booking.clientPhone || '')}" data-master="${escapeHtml(masterName)}"
        data-master-id="${escapeHtml(booking.masterId || '')}" data-service-ids="${escapeHtml((booking.serviceIds || []).join(','))}"
        data-service="${escapeHtml(priceLabel)}" data-planned="${escapeHtml(planned)}"
