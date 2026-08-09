@@ -34,6 +34,31 @@ function el(id) {
 // (api/server.mjs, GET /schedule-range) - masters=[staff] здесь дополнительная
 // защита на уровне UI, чтобы переключатель физически не могло появиться.
 export function wireScheduleViews(ctx) {
+  // Задача J (Окно 53) - живая репродукция нашла РЕАЛЬНЫЙ триггер повторного запуска
+  // (план его не находил чтением статики): crm-walkin.js зовёт renderLiveProof(staff)
+  // ПОСЛЕ КАЖДОЙ успешной записи walk-in (не только при заходе на страницу), а
+  // renderLiveProof (crm-dashboard.js) внутри зовёт wireScheduleViews(...) заново.
+  // Сам crm-dashboard.js уже честно предупреждал об этом классе бага (комментарий у
+  // window.__refreshScheduleViews ниже, Окно 45/46): "renderLiveProof вызывать
+  // повторно нельзя... wire*-функции вешают обработчики на статичные DOM-узлы один
+  // раз, повторный вызов задвоил бы клики" - crm-walkin.js не следует этому
+  // собственному правилу проекта. wireMonthView создавал #monthModeToggle без
+  // проверки существования (буквальная причина из промпта) - но это лишь ВИДИМЫЙ
+  // симптом: второй проход wireScheduleViews() пересоздаёт ВЕСЬ scheduleViewState
+  // (новый объект) и вешает ВТОРОЙ комплект обработчиков (day-nav/week-nav/
+  // month-nav/wireViewTabs) поверх статичных узлов, которые никуда не делись после
+  // первого прохода - отсюда и "путаница со статусами" (два независимых состояния
+  // конкурируют за одну и ту же разметку), не только задвоенный переключатель.
+  // Идемпотентный guard здесь чинит ОБА симптома одним и тем же корнем, а не только
+  // видимый DOM-узел: повторный вызов не перевешивает ничего, а просто перечитывает
+  // данные открытых карточек - тем же путём, что уже безопасно делает кнопка
+  // "Обновить данные" (window.__refreshScheduleViews, см. ниже).
+  if (window.__scheduleViewsWired) {
+    window.__refreshScheduleViews?.();
+    return { refresh: window.__refreshScheduleViews };
+  }
+  window.__scheduleViewsWired = true;
+
   const { staff, staffList, services, priceOf, fetchJson, apiSend, renderDateSelect, renderTimeSelect, timeSelectValue, todayStr, renderDayCalendar } = ctx;
   const isSolo = !!document.getElementById('walkinSoloTrigger');
   const masters = isSolo ? [staff] : mastersOf(staffList);
