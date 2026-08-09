@@ -114,7 +114,6 @@
   body.app-shell-active .app-sidebar-toggle { display: flex; }
   .app-sidebar-toggle:hover { background: var(--surface-2); color: var(--text); transform: translate(-50%, -50%) scale(1.08); }
   .app-sidebar-toggle .app-nav-icon svg { width: 18px; height: 18px; transition: transform 180ms var(--ease-out); }
-  body.app-shell-sidebar-collapsed .app-sidebar-toggle { left: var(--sidebar-w-collapsed); }
   body.app-shell-sidebar-collapsed .app-sidebar-toggle .app-nav-icon svg { transform: rotate(180deg); }
 
   .app-nav { display: flex; flex-direction: column; gap: var(--space-1); }

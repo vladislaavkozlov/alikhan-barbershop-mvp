@@ -79,6 +79,34 @@ try {
         check('Кнопка сворачивания sidebar работает после рефакторинга', collapsed === true, `collapsed=${collapsed}`);
         await s.click('#appSidebarToggle');
         await sleep(220);
+
+        // ── Регресс-тест реального бага (жалоба Влада 09.08.2026): кнопка
+        // раньше физически переезжала по X при смене состояния (left: var(--
+        // sidebar-w-expanded) → var(--sidebar-w-collapsed)), поэтому клик в ТУ ЖЕ
+        // точку экрана второй раз попадал уже не в кнопку, а в контент рядом -
+        // "сворачивает, но не разворачивает обратно". Фикс - left больше не
+        // зависит от состояния (assets/crm-app-shell.css). Проверяем НАСТОЯЩИМ
+        // click мышью по фиксированным экранным координатам (не el.click(), тот
+        // синтетический вызов не воспроизводил баг - см. Challenge Log сессии).
+        const toggleRect = JSON.parse(
+          await s.eval(`JSON.stringify(document.getElementById('appSidebarToggle').getBoundingClientRect())`)
+        );
+        const tx = toggleRect.x + toggleRect.width / 2;
+        const ty = toggleRect.y + toggleRect.height / 2;
+        const realClick = async () => {
+          await s.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: tx, y: ty, button: 'left', clickCount: 1 });
+          await s.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: tx, y: ty, button: 'left', clickCount: 1 });
+          await sleep(250);
+        };
+        await realClick();
+        const collapsedAfterFirstRealClick = await s.eval(`document.body.classList.contains('app-shell-sidebar-collapsed')`);
+        await realClick(); // та же самая точка экрана x/ty, кнопка не должна была переехать
+        const collapsedAfterSecondRealClick = await s.eval(`document.body.classList.contains('app-shell-sidebar-collapsed')`);
+        check(
+          'Регресс: два реальных клика подряд в ОДНУ И ТУ ЖЕ точку экрана сворачивают и разворачивают (кнопка не переезжает)',
+          collapsedAfterFirstRealClick === true && collapsedAfterSecondRealClick === false,
+          `после 1-го клика collapsed=${collapsedAfterFirstRealClick}, после 2-го collapsed=${collapsedAfterSecondRealClick}`
+        );
       });
     });
   });
