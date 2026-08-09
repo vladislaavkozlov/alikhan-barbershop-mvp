@@ -23,3 +23,7 @@ export const ICON_BELL = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w
 // toggleSidebar). Двойной шеврон "‹‹" - при свёрнутом меню CSS разворачивает его на
 // 180° в ту же иконку "»", без второй SVG под обратное состояние.
 export const ICON_SIDEBAR_TOGGLE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><path d="M12.5 4 7 10l5.5 6"/><path d="M7.5 4 2 10l5.5 6"/></svg>`;
+
+// Окно 47 (09.08.2026) - раздел "Личные данные" мастера в sidebar. Профиль/анкета,
+// тот же line-art стиль (STROKE), не эмодзи - см. остальные иконки этого файла.
+export const ICON_PROFILE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="6.8" r="3"/><path d="M4 17c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg>`;

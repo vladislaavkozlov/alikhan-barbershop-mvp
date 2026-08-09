@@ -33,47 +33,79 @@
 // тот же принцип, что уже применён к Клиентам/Настройкам выше (пункт появляется
 // в момент, когда раздел реально наполнен). Эмодзи-иконки заменены на SVG
 // (assets/crm-icons.js) - разный рендер эмодзи по ОС/браузерам ломал премиум-вид.
-import { ICON_SCHEDULE, ICON_TEAM, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE } from './crm-icons.js';
+import { ICON_SCHEDULE, ICON_TEAM, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE } from './crm-icons.js';
 
 // Правка 07.08.2026 - добавлен пункт "Уведомления" (radio pt-e/panel-e, новый слот):
 // "Заявки мастеров на изменение графика" переехали сюда из "Расписания" целиком
 // (crm-owner.html). Иконка переиспользует ICON_BELL (тот же SVG, что уже стоит в
 // колокольчике topbar) - "в стиле новых иконок" в буквальном смысле, без новой SVG.
-const SECTION_RADIO = { schedule: 'pt-a', team: 'pt-b', finance: 'pt-c', analytics: 'pt-d', notifications: 'pt-e' };
-const SECTION_LABEL = {
-  schedule: 'Расписание',
-  team: 'Команда',
-  finance: 'Финансы',
-  analytics: 'Аналитика',
-  notifications: 'Уведомления',
+//
+// Окно 47 (09.08.2026) - механизм был захардкожен под Owner (5 разделов). Вынесен в
+// ROLE_CONFIG, чтобы тот же shell (та же анимация/сворачивание/роутинг) переиспользовали
+// crm-admin.html/crm-master.html (Окна 49/50) без копирования файла - см. план
+// plans/2026-08-09-admin-master-app-shell.md, Challenge Log (альтернатива "3 копии
+// файла" отклонена - уже был прецедент рассинхрона копий логики, Окно 46).
+// ROLE_CONFIG.owner ниже - буквально те же значения, что были захардкожены раньше
+// (SECTION_RADIO/LABEL/ICON/ORDER + дефолтный раздел 'schedule'), нулевое изменение
+// поведения для Owner.
+const ROLE_CONFIG = {
+  owner: {
+    profileLabel: 'Владелец',
+    defaultSection: 'schedule',
+    order: ['schedule', 'team', 'finance', 'analytics', 'notifications'],
+    radio: { schedule: 'pt-a', team: 'pt-b', finance: 'pt-c', analytics: 'pt-d', notifications: 'pt-e' },
+    label: {
+      schedule: 'Расписание',
+      team: 'Команда',
+      finance: 'Финансы',
+      analytics: 'Аналитика',
+      notifications: 'Уведомления',
+    },
+    icon: {
+      schedule: ICON_SCHEDULE,
+      team: ICON_TEAM,
+      finance: ICON_FINANCE,
+      analytics: ICON_ANALYTICS,
+      notifications: ICON_BELL,
+    },
+  },
+  admin: {
+    profileLabel: 'Администратор',
+    defaultSection: 'schedule',
+    order: ['schedule', 'team'],
+    radio: { schedule: 'pt-a', team: 'pt-b' },
+    label: { schedule: 'Расписание', team: 'Сотрудники' },
+    icon: { schedule: ICON_SCHEDULE, team: ICON_TEAM },
+  },
+  master: {
+    profileLabel: 'Мастер',
+    defaultSection: 'today',
+    order: ['today', 'payroll', 'profile'],
+    radio: { today: 'pt-a', payroll: 'pt-b', profile: 'pt-c' },
+    label: { today: 'Мой день', payroll: 'Моя зарплата', profile: 'Личные данные' },
+    icon: { today: ICON_SCHEDULE, payroll: ICON_FINANCE, profile: ICON_PROFILE },
+  },
 };
-const SECTION_ICON = {
-  schedule: ICON_SCHEDULE,
-  team: ICON_TEAM,
-  finance: ICON_FINANCE,
-  analytics: ICON_ANALYTICS,
-  notifications: ICON_BELL,
-};
-const SECTION_ORDER = ['schedule', 'team', 'finance', 'analytics', 'notifications'];
 
-let currentSection = 'schedule';
+let activeConfig = ROLE_CONFIG.owner;
+let currentSection = activeConfig.defaultSection;
 
 function el(id) {
   return document.getElementById(id);
 }
 
 function sidebarMarkup() {
-  const items = SECTION_ORDER.map(
+  const items = activeConfig.order.map(
     (id) =>
       `<button type="button" class="app-nav-item" data-section="${id}" aria-current="false">
-        <span class="app-nav-icon" aria-hidden="true">${SECTION_ICON[id]}</span>
-        <span class="app-nav-label">${SECTION_LABEL[id]}</span>
+        <span class="app-nav-icon" aria-hidden="true">${activeConfig.icon[id]}</span>
+        <span class="app-nav-label">${activeConfig.label[id]}</span>
       </button>`
   ).join('');
   return `
     <nav class="app-nav">${items}</nav>
     <div class="app-sidebar-location">Алихан, Ставрополь</div>
-    <div class="app-sidebar-profile" id="appShellProfile">Владелец</div>
+    <div class="app-sidebar-profile" id="appShellProfile">${activeConfig.profileLabel}</div>
   `;
 }
 
@@ -138,11 +170,11 @@ export function getCurrentSection() {
 }
 
 export function goToSection(sectionId) {
-  if (!SECTION_LABEL[sectionId]) return;
+  if (!activeConfig.label[sectionId]) return;
   currentSection = sectionId;
   document.body.dataset.shellSection = sectionId;
 
-  const radioId = SECTION_RADIO[sectionId];
+  const radioId = activeConfig.radio[sectionId];
   if (radioId) {
     const radio = el(radioId);
     if (radio && !radio.checked) radio.checked = true;
@@ -151,9 +183,12 @@ export function goToSection(sectionId) {
   updateActiveNav();
 }
 
-export function initAppShell() {
+export function initAppShell(role = 'owner') {
   const main = el('crmMain');
   if (!main) return;
+
+  activeConfig = ROLE_CONFIG[role] || ROLE_CONFIG.owner;
+  currentSection = activeConfig.defaultSection;
 
   insertSidebar();
 
@@ -165,7 +200,7 @@ export function initAppShell() {
   new MutationObserver(sync).observe(main, { attributes: true, attributeFilter: ['hidden'] });
   sync();
 
-  goToSection('schedule');
+  goToSection(activeConfig.defaultSection);
 }
 
 // Мост для инлайн-обработчиков в HTML (тот же установившийся в проекте паттерн,
