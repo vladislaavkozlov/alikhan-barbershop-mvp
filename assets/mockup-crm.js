@@ -382,19 +382,15 @@ function closeCustomDate(wrap) {
   const panel = wrap.querySelector('.custom-date-panel');
   if (panel) panel.hidden = true;
 }
-function renderCustomDateCalendar(wrap) {
-  const panel = wrap.querySelector('.custom-date-panel');
-  if (!panel) return;
-  const year = Number(wrap.dataset.viewYear);
-  const month = Number(wrap.dataset.viewMonth); // 1-12
+// Задача D (Окно 53) - "подсветка сегодня" для вида "День": своей сетки дней у
+// Дня нет (одна выбранная дата, не грид), поэтому маркер идёт сюда - в календарь-
+// попап date-picker'а, через который День (и любая другая форма с датой) выбирает
+// число. Локальная дата, не UTC (тот же приём, что todayStr() в crm-calendar.js) -
+// new Date().toISOString() съезжает на день не в UTC-поясе (см. api/lib/db.js).
+function customDateCellsHtml(wrap, year, month) {
   const selected = wrap.dataset.value;
   const minDate = wrap.dataset.minDate || null; // "YYYY-MM-DD" - см. buildDateWidgetHtml
   const pad2 = (n) => String(n).padStart(2, '0');
-  // Задача D (Окно 53) - "подсветка сегодня" для вида "День": своей сетки дней у
-  // Дня нет (одна выбранная дата, не грид), поэтому маркер идёт сюда - в календарь-
-  // попап date-picker'а, через который День (и любая другая форма с датой) выбирает
-  // число. Локальная дата, не UTC (тот же приём, что todayStr() в crm-calendar.js) -
-  // new Date().toISOString() съезжает на день не в UTC-поясе (см. api/lib/db.js).
   const now = new Date();
   const todayLocal = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
   const firstWeekday = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7; // 0=Пн
@@ -411,6 +407,13 @@ function renderCustomDateCalendar(wrap) {
       cells += `<button type="button" class="custom-date-cell${selectedCls}${todayCls}" onclick="pickCustomDateDay(this)" data-date="${dateStr}">${day}</button>`;
     }
   }
+  return cells;
+}
+function renderCustomDateCalendar(wrap) {
+  const panel = wrap.querySelector('.custom-date-panel');
+  if (!panel) return;
+  const year = Number(wrap.dataset.viewYear);
+  const month = Number(wrap.dataset.viewMonth); // 1-12
   panel.innerHTML = `
     <div class="custom-date-nav">
       <button type="button" class="custom-date-nav-btn" onclick="shiftCustomDateMonth(this, -1)" aria-label="Предыдущий месяц">‹</button>
@@ -418,8 +421,25 @@ function renderCustomDateCalendar(wrap) {
       <button type="button" class="custom-date-nav-btn" onclick="shiftCustomDateMonth(this, 1)" aria-label="Следующий месяц">›</button>
     </div>
     <div class="custom-date-weekdays">${DATE_WEEKDAY_SHORT.map((d) => `<span>${d}</span>`).join('')}</div>
-    <div class="custom-date-grid">${cells}</div>`;
+    <div class="custom-date-grid">${customDateCellsHtml(wrap, year, month)}</div>`;
   panel.dataset.rendered = '1';
+}
+// Задача E (Окно 53) - листание месяца точечно обновляет ТОЛЬКО подпись месяца и
+// сетку дней, кнопки навигации (‹/›) остаются теми же узлами DOM. Раньше
+// shiftCustomDateMonth звал renderCustomDateCalendar целиком - panel.innerHTML
+// пересобирал ВСЕ узлы, включая нажатую кнопку "›"/"‹", отсоединяя её от документа.
+// Глобальный обработчик "клик вне попапа - закрыть" (ниже, document.addEventListener
+// 'click') проверяет wrap.contains(e.target) - у отсоединённого e.target это всегда
+// false, попап закрывался сразу после каждого клика по стрелке.
+function updateCustomDateGrid(wrap) {
+  const panel = wrap.querySelector('.custom-date-panel');
+  if (!panel) return;
+  const year = Number(wrap.dataset.viewYear);
+  const month = Number(wrap.dataset.viewMonth);
+  const label = panel.querySelector('.custom-date-month-label');
+  if (label) label.textContent = `${DATE_MONTH_LABEL[month - 1]} ${year}`;
+  const grid = panel.querySelector('.custom-date-grid');
+  if (grid) grid.innerHTML = customDateCellsHtml(wrap, year, month);
 }
 function shiftCustomDateMonth(navBtn, delta) {
   const wrap = navBtn.closest('.custom-date');
@@ -430,7 +450,7 @@ function shiftCustomDateMonth(navBtn, delta) {
   if (month > 12) { month = 1; year += 1; }
   wrap.dataset.viewYear = String(year);
   wrap.dataset.viewMonth = String(month);
-  renderCustomDateCalendar(wrap);
+  updateCustomDateGrid(wrap);
 }
 function pickCustomDateDay(dayBtn) {
   const wrap = dayBtn.closest('.custom-date');
