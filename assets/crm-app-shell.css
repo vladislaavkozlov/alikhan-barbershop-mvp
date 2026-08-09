@@ -124,12 +124,19 @@
      правый - касается всегда, при любом anchor справа.
      Фикс - кнопка снова НЕ потомок .app-sidebar (вставляется в document.body,
      assets/crm-app-shell.js), position:fixed от viewport - overflow панели на неё
-     вообще не действует, ей физически нечем обрезаться. */
+     вообще не действует, ей физически нечем обрезаться.
+     Пятый заход, тем же вечером (Влад: "хочу центр кнопки ровно на линии панели, как
+     было раньше") - раньше (08.08.2026) кнопка стояла ровно на границе, наполовину
+     высовываясь в контент, и это ломало её на потомке панели (overflow обрезал бы
+     торчащую половину). Сейчас кнопка уже НЕ потомок панели (см. правку выше) - того
+     ограничения больше нет, класть центр ровно на линию снова безопасно.
+     -14px = минус половина ширины кнопки (28px), а не -36px (28+8 отступа) - центр
+     кнопки совпадает с правым краем панели, не отступает внутрь. */
   .app-sidebar-toggle {
     position: fixed;
     top: 0;
     bottom: 0;
-    left: calc(var(--sidebar-w-expanded) - 36px);
+    left: calc(var(--sidebar-w-expanded) - 14px);
     margin: auto 0;
     align-items: center;
     justify-content: center;
@@ -149,7 +156,7 @@
   body.app-shell-active .app-sidebar-toggle { display: flex; }
   .app-sidebar-toggle:hover { background: var(--surface-2); color: var(--text); }
   .app-sidebar-toggle .app-nav-icon svg { width: 16px; height: 16px; transition: transform 140ms var(--ease-out); }
-  body.app-shell-sidebar-collapsed .app-sidebar-toggle { left: calc(var(--sidebar-w-collapsed) - 36px); }
+  body.app-shell-sidebar-collapsed .app-sidebar-toggle { left: calc(var(--sidebar-w-collapsed) - 14px); }
   body.app-shell-sidebar-collapsed .app-sidebar-toggle .app-nav-icon svg { transform: rotate(180deg); }
 
   .app-nav { display: flex; flex-direction: column; gap: var(--space-1); }
