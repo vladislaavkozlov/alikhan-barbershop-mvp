@@ -6,6 +6,7 @@
 <title>Алихан — CRM · Администратор (макет)</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/mockup-crm.css" />
+<link rel="stylesheet" href="assets/crm-app-shell.css" />
 <style>
   #sp-day:checked ~ .panel-sp-day, #sp-week:checked ~ .panel-sp-week,
   #sp-month:checked ~ .panel-sp-month, #sp-year:checked ~ .panel-sp-year { display: block; }
@@ -78,7 +79,6 @@
 </header>
 
 <main class="wrap page" id="crmMain">
-  <h1>Администратор</h1>
 
   <!-- Окно 38 (06.08.2026) - единственная цифра дневной выручки: администратор
        раньше физически не мог ответить на "сколько мы заработали сегодня" без
@@ -603,7 +603,9 @@
 <script src="assets/mockup-crm.js"></script>
 <script type="module">
   import { initCrmAuth } from './assets/crm-auth.js';
+  import { initAppShell } from './assets/crm-app-shell.js';
   initCrmAuth('admin');
+  initAppShell('admin');
 </script>
 </body>
 </html>
