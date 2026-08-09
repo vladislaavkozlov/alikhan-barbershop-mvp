@@ -19,7 +19,9 @@ const MAX_VISIBLE_APPTS = 4;
 
 export function wireWeekView(ctx) {
   const { masters, fetchJson, holidayMapForRange, scheduleViewState, setView } = ctx;
-  let weekMasterId = masters[0]?.id ?? null;
+  // Задача I (Окно 53) - выбор мастера читается/пишется через ОБЩИЙ scheduleViewState,
+  // не свою локальную переменную (тем же принципом, что и дата, Окно 25) - см. полный
+  // разбор причины в crm-schedule-views.js, у объявления scheduleViewState.
 
   // Праздник и рабочий статус - две независимые метки одной ячейки: бейдж
   // добавляется РЯДОМ с "Выходной"/часами смены, а не вместо них (Окно 24).
@@ -46,9 +48,29 @@ export function wireWeekView(ctx) {
     </button>`;
   }
 
+  // Задача I (продолжение) - переключатель-пилюли не перерисовывается сам по себе
+  // при кросс-обновлении из Месяца (buildMasterSwitch раньше звался ровно один раз,
+  // при открытии карточки) - без этого % загрузки уже совпадали бы (общий masterId),
+  // но активная пилюля в Неделе визуально отставала бы от реального выбора, пока
+  // владелец не кликнет по ней сам. Перерисовываем на каждую загрузку - и локальную,
+  // и вызванную кросс-обновлением с соседнего вида.
+  function renderWeekMasterSwitch() {
+    const switchRow = document.getElementById('weekMasterSwitch');
+    if (!switchRow) return;
+    buildMasterSwitch(switchRow, masters, scheduleViewState.masterId, (masterId) => {
+      scheduleViewState.masterId = masterId;
+      loadWeek();
+      // Месяц может быть открыт одновременно (Окно 45 - несколько карточек сразу) -
+      // если так, обновляем его тоже, чтобы не показывал устаревшего мастера, пока
+      // сам не перерисуется по другому поводу.
+      if (document.getElementById('scheduleCard-month')?.open) ctx.getMonthApi?.()?.loadMonth();
+    });
+  }
+
   async function loadWeek() {
     const grid = document.getElementById('weekGrid');
-    if (!grid || !weekMasterId) return;
+    if (!grid || !scheduleViewState.masterId) return;
+    renderWeekMasterSwitch();
     // Показываем НЕ "текущую календарную неделю", а ту, что содержит общий якорь -
     // поэтому weekStart здесь производная от scheduleViewState.date, не своя переменная.
     const from = mondayOf(scheduleViewState.date);
@@ -58,8 +80,8 @@ export function wireWeekView(ctx) {
     grid.innerHTML = '<p class="section-hint">Загружаю…</p>';
     try {
       const [rangeDays, bookingsRes, holidayMap] = await Promise.all([
-        fetchJson(`/schedule-range?masterId=${weekMasterId}&from=${from}&to=${to}`),
-        fetchJson(`/bookings?masterId=${weekMasterId}&from=${from}&to=${to}`),
+        fetchJson(`/schedule-range?masterId=${scheduleViewState.masterId}&from=${from}&to=${to}`),
+        fetchJson(`/bookings?masterId=${scheduleViewState.masterId}&from=${from}&to=${to}`),
         holidayMapForRange(from, to),
       ]);
       const bookingsByDate = new Map();
@@ -81,13 +103,6 @@ export function wireWeekView(ctx) {
 
   const grid = document.getElementById('weekGrid');
   if (grid) {
-    const switchRow = document.getElementById('weekMasterSwitch');
-    if (switchRow) {
-      buildMasterSwitch(switchRow, masters, weekMasterId, (masterId) => {
-        weekMasterId = masterId;
-        loadWeek();
-      });
-    }
     // Листание недели двигает общий якорь на понедельник соседней недели - иначе
     // возврат в Месяц/День показал бы дату из той недели, которую уже пролистали.
     document.getElementById('weekNavPrev')?.addEventListener('click', () => setView('week', addDays(mondayOf(scheduleViewState.date), -7)));

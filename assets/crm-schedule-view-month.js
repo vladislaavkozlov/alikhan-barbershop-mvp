@@ -22,7 +22,9 @@ export function wireMonthView(ctx) {
     scheduleViewState, setView,
   } = ctx;
 
-  let monthMasterId = masters[0]?.id ?? null;
+  // Задача I (Окно 53) - выбор мастера читается/пишется через ОБЩИЙ scheduleViewState,
+  // не свою локальную переменную (тем же принципом, что и дата, Окно 25) - см. полный
+  // разбор причины в crm-schedule-views.js, у объявления scheduleViewState.
   let editingDate = null;
   // Переключатель только имеет смысл, когда реально есть команда (не solo-мастер на
   // crm-master.html и не единственный мастер в системе) - иначе "Все/по одному" были
@@ -89,7 +91,7 @@ export function wireMonthView(ctx) {
     conflictsEl.innerHTML = '';
     modal.hidden = false;
 
-    fetchJson(`/schedule?masterId=${monthMasterId}&date=${date}`)
+    fetchJson(`/schedule?masterId=${scheduleViewState.masterId}&date=${date}`)
       .then((shifts) => {
         const shift = shifts.find((s) => s.date === date);
         // Окно 28: границы берутся из смены самого дня (isDayOffShift), а не из
@@ -130,7 +132,7 @@ export function wireMonthView(ctx) {
     note.textContent = '';
     conflictsEl.hidden = true;
     try {
-      const { ok, status, data } = await apiSend('/schedule', 'POST', { masterId: monthMasterId, date: editingDate, startTime, endTime, breaks });
+      const { ok, status, data } = await apiSend('/schedule', 'POST', { masterId: scheduleViewState.masterId, date: editingDate, startTime, endTime, breaks });
       if (status === 409 && data?.error === 'schedule_conflict') {
         note.textContent = 'Нельзя сохранить, пока не разберётесь с этими записями:';
         conflictsEl.innerHTML = conflictListWithOpenButton(data.conflicts);
@@ -154,7 +156,7 @@ export function wireMonthView(ctx) {
     btn.disabled = true;
     note.textContent = '';
     try {
-      const { ok, status } = await apiSend(`/schedule?masterId=${monthMasterId}&date=${editingDate}`, 'DELETE');
+      const { ok, status } = await apiSend(`/schedule?masterId=${scheduleViewState.masterId}&date=${editingDate}`, 'DELETE');
       if (!ok && status !== 404) throw new Error(`HTTP ${status}`);
       closeDayEditModal();
       await loadMonth();
@@ -210,16 +212,35 @@ export function wireMonthView(ctx) {
     return cells;
   }
 
+  // Задача I (продолжение, Окно 53) - см. полное объяснение у renderWeekMasterSwitch
+  // (crm-schedule-view-week.js) - тот же приём здесь: переключатель перерисовывается
+  // на каждую загрузку "По одному", а не один раз при открытии карточки, иначе
+  // активная пилюля отставала бы от реального scheduleViewState.masterId при
+  // кросс-обновлении с Недели.
+  function renderMonthMasterSwitch() {
+    const switchRow = document.getElementById('monthMasterSwitch');
+    if (!switchRow) return;
+    buildMasterSwitch(switchRow, masters, scheduleViewState.masterId, (masterId) => {
+      scheduleViewState.masterId = masterId;
+      loadMonth();
+      // Неделя может быть открыта одновременно (Окно 45) - обновляем и её, чтобы не
+      // показывала устаревшего мастера, пока сама не перерисуется по другому поводу.
+      if (document.getElementById('scheduleCard-week')?.open) ctx.getWeekApi?.()?.loadWeek();
+    });
+    switchRow.hidden = monthMode === 'all';
+  }
+
   async function loadMonthSingle() {
     const grid = document.getElementById('monthGrid');
-    if (!grid || !monthMasterId) return;
+    if (!grid || !scheduleViewState.masterId) return;
+    renderMonthMasterSwitch();
     const { firstOfMonth, lastOfMonth } = monthRange();
     grid.innerHTML = '<p class="section-hint">Загружаю…</p>';
     try {
       const [rangeDays, weeklyRows, bookingsRes, holidayMap] = await Promise.all([
-        fetchJson(`/schedule-range?masterId=${monthMasterId}&from=${firstOfMonth}&to=${lastOfMonth}`),
-        fetchJson(`/master-weekly-schedule?masterId=${monthMasterId}`),
-        fetchJson(`/bookings?masterId=${monthMasterId}&from=${firstOfMonth}&to=${lastOfMonth}`),
+        fetchJson(`/schedule-range?masterId=${scheduleViewState.masterId}&from=${firstOfMonth}&to=${lastOfMonth}`),
+        fetchJson(`/master-weekly-schedule?masterId=${scheduleViewState.masterId}`),
+        fetchJson(`/bookings?masterId=${scheduleViewState.masterId}&from=${firstOfMonth}&to=${lastOfMonth}`),
         holidayMapForRange(firstOfMonth, lastOfMonth),
       ]);
       const weeklyByWeekday = new Map(weeklyRows.map((r) => [r.weekday, r]));
@@ -351,14 +372,12 @@ export function wireMonthView(ctx) {
 
   const grid = document.getElementById('monthGrid');
   if (grid) {
+    // Само построение/показ переключателя теперь внутри renderMonthMasterSwitch(),
+    // вызывается из loadMonthSingle() - здесь только начальная видимость ДО первой
+    // загрузки (дефолт 'all' - loadMonthAggregate() не заходит в loadMonthSingle()
+    // вообще, buildMasterSwitch не позвался бы ни разу без этой строки).
     const switchRow = document.getElementById('monthMasterSwitch');
-    if (switchRow) {
-      buildMasterSwitch(switchRow, masters, monthMasterId, (masterId) => {
-        monthMasterId = masterId;
-        loadMonth();
-      });
-      switchRow.hidden = monthMode === 'all';
-    }
+    if (switchRow) switchRow.hidden = monthMode === 'all';
     if (hasTeamToggle) {
       const modeRow = document.createElement('div');
       modeRow.className = 'master-switch-row';

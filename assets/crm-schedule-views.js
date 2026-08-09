@@ -46,7 +46,13 @@ export function wireScheduleViews(ctx) {
   // показывал текущую календарную неделю/месяц, а не ту, откуда пришли. Теперь дата -
   // общая, вид - способ её показать (день/неделя/месяц), поэтому переключение вкладки
   // это смена ПЛОТНОСТИ той же даты, а не переход на новую страницу.
-  const scheduleViewState = { date: todayStr(), view: 'day' };
+  // Задача I (Окно 53) - masterId добавлен в тот же общий объект, тем же принципом,
+  // что и date (Окно 25 выше): без этого weekMasterId/monthMasterId были НЕЗАВИСИМЫМИ
+  // переменными внутри каждого вида (независимо инициализировались одним и тем же
+  // дефолтом masters[0], но расходились после первого же переключения мастера в
+  // ОДНОМ виде) - живой прогон подтвердил, что "расхождение % загрузки" (46% vs 24%
+  // на тот же день) было сравнением % ДВУХ РАЗНЫХ мастеров, не багом формулы.
+  const scheduleViewState = { date: todayStr(), view: 'day', masterId: masters[0]?.id ?? null };
   const RADIO_ID_BY_VIEW = { day: 'sp-day', week: 'sp-week', month: 'sp-month', year: 'sp-year' };
   const PANEL_SELECTOR_BY_VIEW = { day: '.panel-sp-day', week: '.panel-sp-week', month: '.panel-sp-month', year: '.panel-sp-year' };
   // Окно 45 (08.08.2026) - День/Неделя/Месяц теперь сворачиваемые карточки
@@ -165,12 +171,19 @@ export function wireScheduleViews(ctx) {
     staff, staffList, services, priceOf, fetchJson, renderDateSelect, renderDayCalendar,
     scheduleViewState, holidaysOfYear, setView,
   });
-  const weekApi = wireWeekView({
-    masters, fetchJson, holidayMapForRange, scheduleViewState, setView,
+  // Задача I (Окно 53) - getWeekApi/getMonthApi: ленивые геттеры, не сами объекты
+  // напрямую - week/monthApi ещё не существуют в момент wireWeekView/wireMonthView
+  // (взаимная ссылка друг на друга при создании), но к моменту РЕАЛЬНОГО клика по
+  // переключателю мастера (событие пользователя, всегда позже обеих строк ниже) оба
+  // уже точно присвоены - замыкание видит актуальное значение переменной, не то, что
+  // было на момент создания геттера.
+  let weekApi, monthApi;
+  weekApi = wireWeekView({
+    masters, fetchJson, holidayMapForRange, scheduleViewState, setView, getMonthApi: () => monthApi,
   });
-  const monthApi = wireMonthView({
+  monthApi = wireMonthView({
     masters, isSolo, fetchJson, apiSend, holidayMapForRange, renderTimeSelect, timeSelectValue,
-    scheduleViewState, setView,
+    scheduleViewState, setView, getWeekApi: () => weekApi,
   });
   const yearApi = wireYearView({
     apiSend, holidaysOfYear, holidayCacheByYear, scheduleViewState, yearPanelYear: YEAR_PANEL_YEAR,
