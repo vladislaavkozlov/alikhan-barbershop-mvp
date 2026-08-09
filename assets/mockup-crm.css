@@ -494,6 +494,16 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
    информация (клиент/услуга/телефон) остаётся доступна кликом - openBooking() читает
    data-client/data-service с самого элемента, не видимый текст, ничего не потеряно. */
 .appt--compact .c { display: none; }
+/* Замечание Влада 09.08.2026 (скриншот "День", запись "Воск" 11:45-12:00) - время
+   внутри компактной карточки визуально прижато к нижней границе блока. Общий padding
+   4px 8px (выше) при min-height:16px почти не оставляет места под строку текста -
+   высоту саму трогать нельзя (см. Задачу G выше, вплотную к соседним записям).
+   Внутри неизменных 16px - уменьшенный вертикальный padding + line-height:1 у .t
+   (вместо унаследованных 1.22) высвобождают на карточке ~1px запаса, flex-центрирование
+   вместо блочного потока делит этот запас поровну сверху/снизу, а не отдаёт его целиком
+   в обрезание снизу. */
+.appt--compact { display: flex; align-items: center; padding-top: 1px; padding-bottom: 1px; }
+.appt--compact .t { line-height: 1; }
 .appt--done { background: rgba(111,174,124,0.24); border-color: var(--success); color: #DDEFE0; }
 .appt--new { background: rgba(198,161,91,0.28); border-color: var(--accent); color: var(--text); }
 .appt--selected { background: rgba(124,147,184,0.28); border-color: var(--info); color: #E4EAF3; }

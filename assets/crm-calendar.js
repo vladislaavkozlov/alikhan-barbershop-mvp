@@ -139,6 +139,14 @@ function minutesToHHMM(min) {
 // (assets/crm-widgets.js) для ручного выбора времени - клик по календарю не должен
 // предлагать время, которого нет в самом виджете времени формы записи.
 const SLOT_STEP_MIN = 15;
+// Замечание Влада 09.08.2026 - пунктирный превью-слот на скриншоте показался слишком
+// маленьким. Внутри превью нет текста (см. комментарий .appt--slot-preview в CSS) и
+// клик по нему открывает обычную форму записи, где время/длительность выбираются
+// заново виджетами - высота превью НЕ обязана буквально совпадать с 15-минутным шагом
+// снаппинга (это только шаг привязки стартовой позиции по Y), можно сделать чисто
+// декоративно крупнее без риска наложения на соседние реальные записи (в отличие от
+// .appt, где высота = реальная длительность брони, см. Задачу G).
+const SLOT_PREVIEW_HEIGHT_PX = 28;
 
 function snapToSlot(min) {
   const snapped = Math.round(min / SLOT_STEP_MIN) * SLOT_STEP_MIN;
@@ -186,7 +194,8 @@ function wireEmptySlotInteraction(trackEl, master, date) {
       return;
     }
     const startMin = slotAt(e.clientY);
-    preview.style.cssText = positionStyle(minutesToHHMM(startMin), minutesToHHMM(startMin + SLOT_STEP_MIN));
+    const top = Math.round((startMin - DAY_START_MIN) * PX_PER_MIN);
+    preview.style.cssText = `top:${top}px;height:${SLOT_PREVIEW_HEIGHT_PX}px`;
     preview.hidden = false;
   });
   trackEl.addEventListener('mouseleave', () => {
