@@ -148,12 +148,14 @@ function minutesFromClientY(trackEl, clientY) {
 // crm-master.html пока без wfDateTimeRow, см. assets/crm-walkin.js) - optional chaining
 // как и у остальных cross-module мостов проекта (window.updateNotifBadge?.() и т.п.).
 function wireEmptySlotInteraction(trackEl, master, date) {
-  // Правка 08.08.2026 (баг Влада) - день в прошлом не даёт кликом по пустому месту
-  // открыть форму записи вообще: раньше клик по колонке мастера в прошедшем дне
-  // молча открывал "Новая запись на выбранное время" с прошедшей датой, сервер её
-  // всё равно отклонял (past_time), но пользователь об этом узнавал только после
-  // клика по (визуально нерабочей, см. .btn-primary:disabled) кнопке "Сохранить".
-  if (date < todayStr()) return;
+  // Задача F (Окно 53, 09.08.2026) - правка 08.08.2026 ниже (`if (date < todayStr())
+  // return`) блокировала именно то, что Влад в тот же вечер разворачивал в другом
+  // месте (crm-walkin.js: убран minDate у date-picker'а, "зачем тумблер, если можно
+  // просто дать записать как обычно") - эта строка осталась незамеченным хвостом
+  // того же запрета, найдена живым grep'ом по todayStr()/"date <" при работе над
+  // Задачей F. Убрана: бэкенд уже разрешает прошедшее время для персонала
+  // (createBookingTx - `if (isPast && !isStaff)`, api/routes/bookings.js) - клиент
+  // не должен запрещать то, что сервер уже пропускает.
   const preview = document.createElement('div');
   preview.className = 'appt appt--slot-preview';
   preview.hidden = true;
