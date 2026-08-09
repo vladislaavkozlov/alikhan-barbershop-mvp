@@ -9,6 +9,7 @@
 import {
   WEEKDAY_SHORT, isoWeekdayOf, mondayOf, addDays, holidayNameOf, buildMasterSwitch, loadPercent, escapeHtml,
 } from './crm-schedule-shared.js';
+import { todayStr } from './crm-calendar.js';
 
 // Компактный список - Неделя показывает 7 узких колонок одновременно, не резиновую
 // высоту на весь экран (это была бы уже замена Дня, не своя плотность). Дальше
@@ -23,8 +24,8 @@ export function wireWeekView(ctx) {
   // Праздник и рабочий статус - две независимые метки одной ячейки: бейдж
   // добавляется РЯДОМ с "Выходной"/часами смены, а не вместо них (Окно 24).
   function weekDayCellHtml(day, dayBookings, holidayName) {
-    const dayNum = Number(day.date.slice(8, 10));
-    const monthNum = Number(day.date.slice(5, 7));
+    const dayNum = day.date.slice(8, 10);
+    const monthNum = day.date.slice(5, 7);
     const wd = WEEKDAY_SHORT[isoWeekdayOf(day.date) - 1];
     const hours = day.isDayOff ? 'Выходной' : `${day.startTime}–${day.endTime}`;
     const pct = loadPercent(day, dayBookings);
@@ -37,7 +38,7 @@ export function wireWeekView(ctx) {
         : `<span class="week-appt-list">${visible
             .map((b) => `<span class="week-appt-chip">${escapeHtml(b.startTime)} ${escapeHtml(b.clientName || 'Без имени')}</span>`)
             .join('')}${overflow > 0 ? `<span class="week-appt-more">+${overflow} ещё</span>` : ''}</span>`;
-    return `<button type="button" class="month-day week-day-cell${day.isDayOff ? ' is-dayoff' : ''}${holidayName ? ' is-holiday' : ''}" data-open-day="${day.date}">
+    return `<button type="button" class="month-day week-day-cell${day.isDayOff ? ' is-dayoff' : ''}${holidayName ? ' is-holiday' : ''}${day.date === todayStr() ? ' is-today' : ''}" data-open-day="${day.date}">
       <span class="num">${wd} ${dayNum}.${monthNum}</span>
       <span class="week-hours">${hours}${!day.isDayOff ? ` · <span class="week-load-pct">${pct}%</span>` : ''}</span>
       ${holidayName ? `<span class="holiday-label" data-holiday-for="${day.date}">🎉 ${holidayName}</span>` : ''}
