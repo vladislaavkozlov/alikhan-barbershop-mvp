@@ -55,18 +55,25 @@ export function timeSelectValue(id) {
 // тот же паттерн разделения, что уже есть у time-select выше. Формат value -
 // "YYYY-MM-DD", как у нативного input, чтобы не менять остальной код, который его
 // использует (сравнения дат строками уже работают в этом формате).
-function buildDateWidgetHtml(id, value) {
+// minDate (опционально, "YYYY-MM-DD") - дни раньше него рисуются некликабельными
+// (см. renderCustomDateCalendar, assets/mockup-crm.js). Только для формы записи
+// (assets/crm-walkin.js передаёт todayStr() - в прошлое не записать) - остальные
+// вызовы этого виджета (расчёт ЗП за прошлый период, график/отгул мастера, навигация
+// по календарю на прошедший день) законно работают и с прошлыми датами, минимум
+// им не передаём, поведение не меняется.
+function buildDateWidgetHtml(id, value, minDate) {
   const v = value || todayStr();
   const [y, m, d] = v.split('-');
-  return `<div class="custom-date" id="${id}" data-value="${v}" data-view-year="${y}" data-view-month="${m}">
+  const minAttr = minDate ? ` data-min-date="${minDate}"` : '';
+  return `<div class="custom-date" id="${id}" data-value="${v}" data-view-year="${y}" data-view-month="${m}"${minAttr}>
     <button type="button" class="custom-date-trigger" onclick="toggleCustomDate(this)">${d}.${m}.${y}</button>
     <div class="custom-date-panel" hidden></div>
   </div>`;
 }
-export function renderDateSelect(slotOrId, valueId, value) {
+export function renderDateSelect(slotOrId, valueId, value, minDate) {
   const container = typeof slotOrId === 'string' ? el(slotOrId) : slotOrId;
   if (!container) return;
-  container.innerHTML = buildDateWidgetHtml(valueId, value);
+  container.innerHTML = buildDateWidgetHtml(valueId, value, minDate);
 }
 export function dateSelectValue(id) {
   return el(id)?.dataset.value || null;

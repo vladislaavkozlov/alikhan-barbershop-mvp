@@ -19,6 +19,28 @@ import { mergeServiceCombos, isServiceBlockedByCombo } from '../storage.js';
 // что и на публичном сайте). Сохранение - тот же POST /bookings, что использует
 // сайт, статус сразу "пришёл" (PATCH /bookings/:id/status) - клиент физически уже
 // в кресле, ждать подтверждения не у кого.
+// Состояние формы walk-in - на уровне МОДУЛЯ, не внутри wireWalkIn() (найдено
+// 08.08.2026, изначально при добавлении тумблера "Запись задним числом" - сам
+// тумблер тем же вечером убран по прямой правке Влада ("зачем тумблер, если можно
+// просто дать выбрать дату как обычно") в пользу простого снятия minDate у
+// date-picker насовсем, но сама находка и фикс ниже остаются актуальны независимо
+// от тумблера). wireWalkIn() вызывается заново
+// на каждый renderLiveProof() - не только при заходе на страницу, а и ПОСЛЕ КАЖДОЙ
+// успешной записи (см. её же вызов в конце submit-обработчика ниже). window.
+// openSlotBooking/window.openRebookBooking переопределяются на каждый такой вызов,
+// но submitBtn/cancelBtn/soloBtn привязываются ОДИН раз (dataset.wired) и навсегда
+// остаются на ПЕРВОЙ версии openForWalkin(). Если currentMasterId/selected/rebookMode
+// жили бы внутри wireWalkIn() (было так до этой правки) - после первой же успешной
+// записи повторный клик по слоту календаря молча переставал бы сохраняться: чекбоксы
+// обновляли бы Set ВТОРОГО вызова, а Submit (привязан к ПЕРВОМУ) читал бы Set
+// первого, к тому моменту уже пустой - `if (selected.size === 0) return` без единой
+// ошибки в интерфейсе. Тот же паттерн уже пойман и задокументирован для
+// crm-booking-status.js - reference_barbershop-dataset-wired-refresh-konventsiya.md.
+let currentMasterId = null;
+let selected = new Set();
+const checkboxByService = new Map();
+let rebookMode = false;
+
 export function wireWalkIn(staff, services, masterServices) {
   const form = el('walkinForm');
   const picker = el('wfServicePicker');
@@ -41,7 +63,13 @@ export function wireWalkIn(staff, services, masterServices) {
   const modeLabelEl = el('wfModeLabel');
   const dateTimeRow = el('wfDateTimeRow');
   const hasRebookUi = !!(modeLabelEl && dateTimeRow);
-  let rebookMode = false;
+
+  // Разворот 08.08.2026 (тот же вечер) - Влад прямо спросил "зачем тумблер, если
+  // можно просто дать записать как обычно": отдельный "Запись задним числом" убран,
+  // date-picker в CRM теперь ПРОСТО не ограничен снизу вообще (ни в rebookMode/slot,
+  // ни в обычном walk-in) - см. renderDateSelect ниже без 4-го аргумента minDate.
+  // Публичный сайт (index.html/app.js, анонимные запросы) по-прежнему ограничен -
+  // это держит бэкенд (createBookingTx, isStaff), не фронт, см. api/routes/bookings.js.
 
   // Блок В (ТЗ-готовность-к-продакшену, 01.08.2026) - "Добавить продажу", POST /sales
   // уже готов и рабочий на бэкенде (owner/admin-only), просто не вызывался ни разу с
@@ -57,10 +85,6 @@ export function wireWalkIn(staff, services, masterServices) {
   const saleSubmitBtn = el('wfSaleSubmit');
   const saleResultEl = el('wfSaleResult');
   const hasSaleForm = saleForm && saleItemEl && saleAmountEl && saleSubmitBtn && saleResultEl;
-
-  let currentMasterId = null;
-  let selected = new Set();
-  const checkboxByService = new Map();
 
   const servicesFor = (masterId) =>
     masterServices
@@ -173,6 +197,9 @@ export function wireWalkIn(staff, services, masterServices) {
         const now = new Date();
         const roundedMin = Math.min(20 * 60, Math.max(10 * 60, Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15));
         const defaultTime = `${String(Math.floor(roundedMin / 60)).padStart(2, '0')}:${String(roundedMin % 60).padStart(2, '0')}`;
+        // Без 4-го аргумента (minDate) - убран по правке 08.08.2026, прошлые даты
+        // в CRM теперь выбираются как обычные, без отдельного тумблера-подтверждения
+        // (см. комментарий у объявления hasRebookUi выше).
         renderDateSelect('wfDate-slot', 'wfDateValue', options.date || todayStr());
         renderTimeSelect('wfTime-slot', 'wfTimeValue', options.startTime || defaultTime);
       }

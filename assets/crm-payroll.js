@@ -2,9 +2,9 @@
 // plans/2026-08-07-crm-auth-decomposition.md). Периоды ЗП/выручки (Неделя/Месяц/
 // Квартал/Год, "Задать период" по произвольному диапазону) + рендер виджетов дат в
 // payroll-панелях. Код перенесён 1в1, поведение не менялось.
-import { el, todayStr, formatMoney, bookingPrice, pad2 } from './crm-shared.js';
+import { el, todayStr, formatMoney, bookingPrice, payrollBookingAmount, pad2 } from './crm-shared.js';
 import { renderDateSelect } from './crm-widgets.js';
-import { fetchJson } from './crm-auth.js';
+import { fetchJson, apiSend } from './crm-auth.js';
 
 // Правка 03.08.2026 (Окно 16): "Задать период" в карточках ЗП (владелец/админ - по
 // мастеру, свой "Моя зарплата" у мастера) раньше был <input type="date"> без id,
@@ -52,6 +52,48 @@ export function wireMasterPayrollPeriod(staff) {
   });
 }
 
+// "Управление скидками" (08.08.2026, вечер, Влад: "Али иногда говорит администратору
+// 'пробей по старой цене'" - скидка клиенту). Владелец сам решает - политику держит
+// discount_settings (миграция 040), не жёстко зашитое решение в коде. Элемента нет
+// на crm-admin.html/crm-master.html (только в "Финансы" владельца, тот же уровень
+// доступа, что и сама возможность её менять) - no-op там, как и у остальных
+// опциональных блоков этой страницы.
+export async function wireDiscountSettings() {
+  const toggle = el('discountPayrollToggle');
+  const note = el('discountSettingsNote');
+  if (!toggle || !note) return;
+
+  const ON_TEXT = 'Включено - зарплата мастера считается от фактически взятой суммы, если она вписана в записи';
+  const OFF_TEXT = 'Выключено - зарплата всегда от полной цены услуг, скидки её не уменьшают';
+
+  try {
+    const { payrollFromActualPrice } = await fetchJson('/discount-settings');
+    toggle.checked = !!payrollFromActualPrice;
+    note.textContent = payrollFromActualPrice ? ON_TEXT : OFF_TEXT;
+  } catch {
+    note.textContent = 'Не удалось загрузить текущую настройку';
+  }
+
+  if (toggle.dataset.wired) return;
+  toggle.dataset.wired = '1';
+  toggle.addEventListener('change', async () => {
+    const next = toggle.checked;
+    toggle.disabled = true;
+    const prevText = note.textContent;
+    note.textContent = 'Сохраняю…';
+    try {
+      const { ok, data } = await apiSend('/discount-settings', 'PUT', { payrollFromActualPrice: next });
+      if (!ok) throw new Error(data?.error || 'не удалось сохранить');
+      note.textContent = next ? ON_TEXT : OFF_TEXT;
+    } catch (err) {
+      toggle.checked = !next; // откат визуального состояния - сохранить не удалось
+      note.textContent = `Не удалось сохранить: ${err.message} (было: ${prevText})`;
+    } finally {
+      toggle.disabled = false;
+    }
+  });
+}
+
 function dateToStr(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
@@ -83,7 +125,7 @@ export function periodStartStr(period) {
 // Алихана одна точка, не две (уточнено самим Алиханом 01.08.2026), инфраструктура
 // location_id в базе остаётся нетронутой на будущее (франшиза по городам, см.
 // ТЗ-разработчику-корректировка).
-export async function renderRevenuePeriods(priceOf, pctOf, ownerIds) {
+export async function renderRevenuePeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice) {
   if (!el('rvAllWeekRevenue')) return; // элементов нет вне страницы владельца
 
   const today = todayStr();
@@ -100,10 +142,13 @@ export async function renderRevenuePeriods(priceOf, pctOf, ownerIds) {
     const payrollEl = el(`${prefix}Payroll`);
     const netEl = el(`${prefix}Net`);
     if (!revenueEl && !payrollEl && !netEl) return;
+    // revenue - честная выручка бизнеса по прайсу, скидка её не трогает. payroll -
+    // отдельная база (08.08.2026, вечер): от фактической суммы, если владелец
+    // включил "Управление скидками" и она вписана конкретной записи.
     const revenue = rows.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
     const payroll = rows
       .filter((b) => !ownerIds.has(b.masterId))
-      .reduce((sum, b) => sum + (bookingPrice(b, priceOf) * pctOf(b.masterId)) / 100, 0);
+      .reduce((sum, b) => sum + (payrollBookingAmount(b, priceOf, payrollFromActualPrice) * pctOf(b.masterId)) / 100, 0);
     if (revenueEl) revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
     if (payrollEl) payrollEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
     if (netEl) netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;
@@ -125,7 +170,7 @@ export async function renderRevenuePeriods(priceOf, pctOf, ownerIds) {
 // fetch годовых броней (не переиспользует renderRevenuePeriods) - та функция рано
 // выходит на crm-admin.html (там нет вкладки "Выручка" вообще), а карточки
 // сотрудников с ЗП есть и у owner, и у admin.
-export async function renderStaffPayrollPeriods(priceOf, pctOf, ownerIds) {
+export async function renderStaffPayrollPeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice) {
   const masterIds = ['master-1', 'master-2', 'master-3'];
   const hasAnyTarget = masterIds.some((id, idx) => el(`payrollMaster${idx + 1}Week`) || el(`payrollMaster${idx + 1}Month`));
   if (!hasAnyTarget) return;
@@ -139,10 +184,14 @@ export async function renderStaffPayrollPeriods(priceOf, pctOf, ownerIds) {
     return; // "считаю…" останется как было - основная ошибка уже показана в панели выше
   }
 
+  // amountFor - используется и сразу ниже (Неделя/Месяц), и в обработчике "Задать
+  // период" дальше по файлу (замыкание держит payrollFromActualPrice). Правка
+  // 08.08.2026 (вечер): payrollBookingAmount вместо чистой bookingPrice - от
+  // фактической суммы, если владелец включил "Управление скидками".
   const amountFor = (masterId, rows) => {
     if (ownerIds.has(masterId)) return null; // владелец комиссию себе не начисляет
-    const revenue = rows.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
-    return (revenue * pctOf(masterId)) / 100;
+    const payrollBase = rows.reduce((sum, b) => sum + payrollBookingAmount(b, priceOf, payrollFromActualPrice), 0);
+    return (payrollBase * pctOf(masterId)) / 100;
   };
   const renderInto = (targetEl, masterId, rows) => {
     if (!targetEl) return;

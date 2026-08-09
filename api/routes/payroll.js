@@ -15,12 +15,23 @@ import { authenticate, requireRole } from '../lib/auth.js';
 // период через один вызов, не три реализации. Статус брони намеренно НЕ
 // фильтруется - сохраняет 1:1 поведение уже работающих Недели/Месяца (регрессия
 // 0), фильтрация по статусу вне скоупа этого окна.
+// Правка 08.08.2026 (вечер, Влад: "Али иногда говорит администратору 'пробей по
+// старой цене' - скидка клиенту") - bookings.actual_price (миграция 040) хранит
+// фактически взятую сумму, если она отличается от списочной цены услуг. Влияет ли
+// это на ЗП мастера - решает САМ владелец через discount_settings.
+// payroll_from_actual_price (переключатель "Финансы" → "Управление скидками" на
+// фронте), не жёстко зашито здесь. По умолчанию выключено - до этой правки ни у
+// одной брони actual_price не было (NULL), значит без явного включения настройки
+// и без явно вписанной фактической суммы расчёт byte-for-byte совпадает со старым.
 export async function computeMasterPayroll(client, masterId, from, to) {
   const pctRes = await client.query('SELECT pct FROM master_payroll_settings WHERE master_id = $1', [masterId]);
   const pct = pctRes.rows[0]?.pct ?? 0;
 
+  const settingsRes = await client.query('SELECT payroll_from_actual_price AS "payrollFromActualPrice" FROM discount_settings LIMIT 1');
+  const payrollFromActualPrice = settingsRes.rows[0]?.payrollFromActualPrice ?? false;
+
   const bookingsRes = await client.query(
-    'SELECT id, service_id AS "serviceId" FROM bookings WHERE master_id = $1 AND date >= $2 AND date <= $3',
+    'SELECT id, service_id AS "serviceId", actual_price AS "actualPrice" FROM bookings WHERE master_id = $1 AND date >= $2 AND date <= $3',
     [masterId, from, to]
   );
   const bookingIds = bookingsRes.rows.map((r) => r.id);
@@ -47,12 +58,20 @@ export async function computeMasterPayroll(client, masterId, from, to) {
   const basePriceByService = new Map(basePriceRes.rows.map((r) => [r.id, r.price]));
   const priceOf = (serviceId) => priceByService.get(serviceId) ?? basePriceByService.get(serviceId) ?? 0;
 
+  // revenue - как и раньше, всегда по списочной цене услуг (выручка бизнеса не
+  // трогается этой правкой, вне её скоупа). payrollBase - отдельная база для ЗП:
+  // если владелец включил "считать от факта" И для этой ЗАПИСИ реально вписана
+  // фактическая сумма - идёт она, иначе (выключено, или факт не вписан) - тот же
+  // список, что и revenue, поведение не отличается от исходного.
   let revenue = 0;
+  let payrollBase = 0;
   for (const b of bookingsRes.rows) {
     const serviceIds = serviceIdsByBooking.get(b.id)?.length ? serviceIdsByBooking.get(b.id) : b.serviceId ? [b.serviceId] : [];
-    revenue += serviceIds.reduce((sum, id) => sum + priceOf(id), 0);
+    const listPrice = serviceIds.reduce((sum, id) => sum + priceOf(id), 0);
+    revenue += listPrice;
+    payrollBase += payrollFromActualPrice && b.actualPrice != null ? b.actualPrice : listPrice;
   }
-  const payroll = (revenue * pct) / 100;
+  const payroll = (payrollBase * pct) / 100;
   return { revenue, payroll };
 }
 
@@ -130,6 +149,31 @@ export async function handlePayrollSettings(req, res, url) {
        ON CONFLICT (master_id) DO UPDATE SET pct = EXCLUDED.pct`,
       [body.masterId, body.pct]
     );
+    return sendJson(res, 200, { ok: true });
+  }
+}
+
+// ── /discount-settings - "Управление скидками" (08.08.2026, вечер). Читать может
+// любая роль (админ/мастер должны видеть текущую политику, чтобы понимать, откуда
+// цифра ЗП), менять - только владелец (та же логика доступа, что у /payroll-settings
+// PUT: "Изменение прайса/политики расчёта - я"). Singleton-таблица discount_settings
+// (миграция 040) - ровно одна строка, UPDATE без WHERE её не размножает.
+export async function handleDiscountSettings(req, res) {
+  const auth = await authenticate(req);
+  if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
+
+  if (req.method === 'GET') {
+    const result = await pool.query('SELECT payroll_from_actual_price AS "payrollFromActualPrice" FROM discount_settings LIMIT 1');
+    return sendJson(res, 200, { payrollFromActualPrice: result.rows[0]?.payrollFromActualPrice ?? false });
+  }
+
+  if (req.method === 'PUT') {
+    if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+    const body = await readBody(req);
+    if (typeof body.payrollFromActualPrice !== 'boolean') {
+      return sendJson(res, 400, { error: 'missing_fields' });
+    }
+    await pool.query('UPDATE discount_settings SET payroll_from_actual_price = $1', [body.payrollFromActualPrice]);
     return sendJson(res, 200, { ok: true });
   }
 }

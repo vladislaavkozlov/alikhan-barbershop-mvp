@@ -21,7 +21,16 @@ const CANCEL_FULL_REFUND_HOURS = 2;
 // один визит, не одну - serviceIds теперь массив (минимум 1 элемент). Длительность
 // слота = сумма duration_min всех выбранных услуг ПО ЭТОМУ МАСТЕРУ (master_services,
 // Окно 10 - у Екатерины другая цена/длительность на части услуг), не общий прайс.
-async function createBookingTx({ masterId, serviceIds, date, startTime, clientName, clientPhone, channel }) {
+// isStaff (08.08.2026, жалоба Влада: "интернет отключили / администратор отвлёкся,
+// клиента обслужили, а внести в систему нечем - должна быть возможность занести
+// визит задним числом из CRM") - ИСКЛЮЧИТЕЛЬНО из authenticate(req) (см. handleBookings
+// ниже), НЕ из тела запроса. Публичный виджет записи (index.html/app.js) шлёт этот же
+// POST /bookings анонимно (auth===null) - past_time для него остаётся строгим, как и
+// было: клиенту самому в прошлое не записаться. Разграничение по channel (строке из
+// body) было бы небезопасным - анонимный запрос мог бы просто прислать
+// channel:'admin' и обойти проверку, isStaff подделать нельзя, потому что это флаг с
+// сервера, не эхо входных данных.
+async function createBookingTx({ masterId, serviceIds, date, startTime, clientName, clientPhone, channel, isStaff }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -53,7 +62,8 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     }
 
     const { date: today, time: nowTime } = shopNow();
-    if (date < today || (date === today && startTime < nowTime)) {
+    const isPast = date < today || (date === today && startTime < nowTime);
+    if (isPast && !isStaff) {
       await client.query('ROLLBACK');
       return { status: 409, body: { ok: false, reason: 'past_time' } };
     }
@@ -178,6 +188,7 @@ async function listBookingsForRequest(url, auth) {
 
   let query = `SELECT b.id, b.master_id, b.service_id, b.date, b.start_time, b.end_time, b.status,
                       b.client_confirmed, b.location_id, b.requires_prepayment, b.review_request_pending,
+                      b.actual_price,
                       c.name AS client_name, c.phone AS client_phone, c.birthday AS client_birthday,
                       c.no_show_streak AS client_no_show_streak
                FROM bookings b LEFT JOIN clients c ON c.id = b.client_id WHERE 1=1`;
@@ -261,6 +272,10 @@ async function listBookingsForRequest(url, auth) {
         requiresPrepayment: r.requires_prepayment,
         reviewRequestPending: r.review_request_pending,
         clientNoShowStreak: r.client_no_show_streak ?? 0,
+        // actualPrice (08.08.2026, вечер) - видно только owner/admin, тем же
+        // уровнем доступа, что и сама возможность её редактировать
+        // (handleBookingActualPrice) - мастеру эта цифра не нужна для работы.
+        actualPrice: r.actual_price,
       };
     }
     return { ...base, clientName: r.client_name, clientBirthday }; // master: имя и ДР видно, телефон - нет
@@ -276,6 +291,14 @@ export async function handleBookings(req, res, url) {
   }
   if (req.method === 'POST') {
     const auth = await authenticate(req);
+    // Правка 08.08.2026 (Влад: реальный процесс работы точки - мастер обслуживает
+    // клиента и называет услуги/сумму администратору, ЗАПИСЬ и оплату проводит
+    // администратор, не мастер сам себе: "нужно, чтобы только у администратора
+    // была возможность записывать клиентов"). Анонимный запрос (auth===null, клиент
+    // с публичного сайта) этой проверки не касается вообще - остаётся как был.
+    if (auth && auth.role === 'master') {
+      return sendJson(res, 403, { error: 'forbidden', reason: 'master_cannot_create_bookings' });
+    }
     const body = await readBody(req);
     // Окно 11: контракт принимает serviceIds (массив, 1+) - serviceId (единичное
     // значение) остаётся принят для обратной совместимости со старыми клиентами,
@@ -292,9 +315,66 @@ export async function handleBookings(req, res, url) {
       clientName: body.clientName ?? null,
       clientPhone: body.clientPhone ?? null,
       channel: body.channel ?? (auth ? 'admin' : 'client'),
+      isStaff: !!auth,
     });
     return sendJson(res, result.status, result.body);
   }
+}
+
+// ── /bookings/:id - НАСТОЯЩЕЕ удаление (08.08.2026, Влад: "мастер зашёл случайно,
+// сохранил не на ту дату - её же можно спокойно удалить?"). /cancel ниже только
+// меняет статус на 'cancelled' - но computeMasterPayroll (api/routes/payroll.js) не
+// фильтрует брони по статусу вообще, значит отменённая запись всё равно продолжила
+// бы считаться в выручке/зарплате мастера. Для "случайно не туда нажал" это не
+// годится - нужно, чтобы записи как будто не было. owner - любая запись, admin -
+// только своя точка (та же матрица, что у /cancel), master сюда не допущен вовсе
+// (см. отдельную правку в этом же окне - "только администратор записывает клиентов",
+// тем же принципом и удаляет). booking_services/notifications подчищаются сами (ON
+// DELETE CASCADE, миграции 013/015) - ручной DELETE по ним не нужен.
+//
+// force (08.08.2026, вторая правка того же вечера) - sales.booking_id БЕЗ каскада
+// (002_schema.sql): к записи может быть привязана РЕАЛЬНАЯ продажа, которая уже
+// участвует в расчёте зарплаты. Первый заход без force=true - явная 409 has_sale, не
+// сырая FK-ошибка (тот же урок, что и инцидент с schedule_change_requests, см. память
+// reference_barbershop-crm-tech.md). Если сотрудник ПОДТВЕРДИЛ (force=true из
+// повторного запроса после предупреждения на фронте) - продажи по этой записи
+// удаляются вместе с ней, одной транзакцией.
+export async function handleBookingDelete(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+  const bookingId = decodeURIComponent(parts[1]);
+  const bookingRes = await pool.query('SELECT id, location_id FROM bookings WHERE id = $1', [bookingId]);
+  if (bookingRes.rows.length === 0) return sendJson(res, 404, { error: 'booking_not_found' });
+  const booking = bookingRes.rows[0];
+  if (auth.role === 'admin' && booking.location_id !== auth.locationId) {
+    return sendJson(res, 403, { error: 'forbidden' });
+  }
+  const body = await readBody(req);
+  const force = body?.force === true;
+  const saleRes = await pool.query('SELECT id, amount FROM sales WHERE booking_id = $1', [bookingId]);
+  if (saleRes.rows.length > 0 && !force) {
+    return sendJson(res, 409, {
+      ok: false,
+      reason: 'has_sale',
+      saleCount: saleRes.rows.length,
+      saleTotal: saleRes.rows.reduce((sum, r) => sum + r.amount, 0),
+    });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (saleRes.rows.length > 0) {
+      await client.query('DELETE FROM sales WHERE booking_id = $1', [bookingId]);
+    }
+    await client.query('DELETE FROM bookings WHERE id = $1', [bookingId]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+  return sendJson(res, 200, { ok: true });
 }
 
 // ── /bookings/:id/cancel - Задача 2 (Окно 13, 01.08.2026, Блок 5 в.19). Отмена
@@ -403,6 +483,104 @@ export async function handleBookingStatus(req, res, parts) {
     client.release();
   }
   return sendJson(res, 200, { ok: true, status: body.status });
+}
+
+// ── /bookings/:id/services - добавление услуги(й) К УЖЕ СУЩЕСТВУЮЩЕЙ записи
+// (08.08.2026, жалоба Влада: мастер во время/после визита обнаруживает, что клиенту
+// нужна ещё услуга - например, подстригли и уже потом попросили бритьё - а внести
+// это было физически некуда, "Корректировка услуги" в карточке записи с 03.08.2026
+// была статичным макетом без сохранения, см. assets/mockup-crm.js pickServiceForBooking).
+// Намеренно ТОЛЬКО добавление, не полная замена списка - убрать уже оказанную услугу
+// этой ручкой нельзя, только дописать новую, поэтому past_time-проверки из
+// createBookingTx здесь нет вообще: это не бронирование нового времени, а честная
+// фиксация уже случившегося визита, время может быть каким угодно в прошлом.
+// revenue/payroll (computeMasterPayroll, api/routes/payroll.js) считают сумму по
+// booking_services на лету при каждом запросе - простой INSERT сюда автоматически
+// даёт верную статистику без отдельного пересчёта.
+export async function handleBookingAddServices(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, ['owner', 'admin', 'master'])) return sendJson(res, 401, { error: 'unauthorized' });
+  const body = await readBody(req);
+  const newServiceIds = Array.isArray(body.serviceIds) ? [...new Set(body.serviceIds)] : [];
+  if (newServiceIds.length === 0) return sendJson(res, 400, { error: 'missing_fields' });
+
+  const bookingId = decodeURIComponent(parts[1]);
+  const bookingRes = await pool.query(
+    'SELECT id, master_id, location_id, date, start_time, end_time, status FROM bookings WHERE id = $1',
+    [bookingId]
+  );
+  if (bookingRes.rows.length === 0) return sendJson(res, 404, { error: 'booking_not_found' });
+  const booking = bookingRes.rows[0];
+  if (auth.role === 'admin' && booking.location_id !== auth.locationId) {
+    return sendJson(res, 403, { error: 'forbidden' });
+  }
+  if (auth.role === 'master' && booking.master_id !== auth.id) {
+    return sendJson(res, 403, { error: 'forbidden' });
+  }
+  if (booking.status === 'cancelled') return sendJson(res, 409, { error: 'booking_cancelled' });
+
+  const msRes = await pool.query(
+    'SELECT service_id, duration_min, price FROM master_services WHERE master_id = $1 AND service_id = ANY($2)',
+    [booking.master_id, newServiceIds]
+  );
+  if (msRes.rows.length !== newServiceIds.length) {
+    return sendJson(res, 400, { error: 'unknown_master_service' });
+  }
+  const addedDuration = msRes.rows.reduce((sum, r) => sum + r.duration_min, 0);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const serviceId of newServiceIds) {
+      await client.query(
+        'INSERT INTO booking_services (booking_id, service_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [bookingId, serviceId]
+      );
+    }
+    // Длительность карточки в календаре растягиваем на реально добавленное время -
+    // без этого визуальный слот молчаливо расходился бы с фактическим списком услуг
+    // (см. bk-duration в карточке записи). Пересечения с чужими бронями НЕ проверяем -
+    // сознательно (это правка уже случившегося визита, не новое бронирование).
+    const newEndTime = addMinutes(booking.end_time, addedDuration);
+    await client.query('UPDATE bookings SET end_time = $1 WHERE id = $2', [newEndTime, bookingId]);
+    await client.query('COMMIT');
+    const allServicesRes = await client.query('SELECT service_id FROM booking_services WHERE booking_id = $1', [bookingId]);
+    return sendJson(res, 200, {
+      ok: true,
+      booking: { id: bookingId, serviceIds: allServicesRes.rows.map((r) => r.service_id), endTime: newEndTime },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ── /bookings/:id/actual-price - фактически взятая с клиента сумма (08.08.2026,
+// вечер, Влад: "Али иногда говорит администратору 'пробей по старой цене'" -
+// скидка клиенту). owner/admin - та же матрица, что у handleBookingAddServices
+// (master сюда не допущен - тем же принципом "только администратор" из этой же
+// сессии). actualPrice: null - явный сброс "фактическая = списочная" (например,
+// скидку отменили/ошиблись при вводе), не только положительное число. Влияет ли
+// это на зарплату мастера - решает discount_settings (handleDiscountSettings),
+// не эта ручка - здесь только фиксация факта, не расчёт.
+export async function handleBookingActualPrice(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+  const bookingId = decodeURIComponent(parts[1]);
+  const bookingRes = await pool.query('SELECT id, location_id FROM bookings WHERE id = $1', [bookingId]);
+  if (bookingRes.rows.length === 0) return sendJson(res, 404, { error: 'booking_not_found' });
+  const booking = bookingRes.rows[0];
+  if (auth.role === 'admin' && booking.location_id !== auth.locationId) {
+    return sendJson(res, 403, { error: 'forbidden' });
+  }
+  const body = await readBody(req);
+  if (body.actualPrice !== null && (typeof body.actualPrice !== 'number' || body.actualPrice < 0)) {
+    return sendJson(res, 400, { error: 'invalid_actual_price' });
+  }
+  await pool.query('UPDATE bookings SET actual_price = $1 WHERE id = $2', [body.actualPrice, bookingId]);
+  return sendJson(res, 200, { ok: true, actualPrice: body.actualPrice });
 }
 
 // ── /sales - продажа (косметика и т.п.), привязана к визиту (разд.14.3 п.2) ──

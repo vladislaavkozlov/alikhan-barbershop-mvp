@@ -88,25 +88,15 @@
         <!-- Правка 07.08.2026 - убран дублирующий <h2>Мой день</h2>: название вкладки
              уже видно в active-состоянии таб-бара выше. -->
 
-        <button class="btn btn-primary btn-sm" type="button" style="margin-bottom:18px" id="walkinSoloTrigger">+ Новая запись (клиент без предварительной записи)</button>
-
-        <div class="walkin-form" id="walkinForm" hidden>
-          <h3>Новая запись без предзаписи · <span id="wfMasterName" class="wf-master-name"></span></h3>
-          <div class="field-grid">
-            <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
-            <div class="field"><label>Телефон</label><input id="wfClientPhone" type="tel" placeholder="+7 900 000-00-00"></div>
-          </div>
-          <details class="service-edit" open>
-            <summary>Услуги (можно выбрать несколько)</summary>
-            <div class="service-picker" id="wfServicePicker"></div>
-          </details>
-          <p class="wf-summary" id="wfSummary">Выберите хотя бы одну услугу</p>
-          <div class="wf-actions">
-            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить запись</button>
-            <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Отмена</button>
-          </div>
-          <p class="wf-result" id="wfResult" hidden></p>
-        </div>
+        <!-- Правка 08.08.2026 (Влад: реальный процесс - мастер обслужил клиента, называет
+             услуги и сумму администратору/кассиру, ЗАПИСЬ и оплату проводит администратор,
+             не мастер: "нужно, чтобы только у администратора была возможность записывать
+             клиентов"). Кнопка "+ Новая запись" и вся форма walk-in убраны с этой страницы
+             целиком - у мастера больше нет способа самостоятельно создать запись. Тот же
+             принцип теперь у crm-admin.html (там, наоборот, впервые появился рабочий способ
+             это сделать - см. комментарий у wfModeLabel там же). assets/crm-walkin.js
+             (wireWalkIn) написан устойчиво к отсутствию этого блока - без form/submitBtn/... в
+             DOM просто выходит по раннему return, второй раз это не трогаем. -->
 
         <div class="seg-tabs">
           <input type="radio" name="sched-period" id="sp-day" checked>
@@ -268,18 +258,17 @@
             </div>
 
             <details class="service-edit">
-              <summary>Изменить или добавить услугу этой записи</summary>
-              <p class="section-hint">Если клиент пришёл не за той услугой - отметьте нужные пункты</p>
-              <div class="service-picker">
-                <label class="service-check"><input type="checkbox" checked onclick="pickServiceForBooking(this)"><span><span class="sc-name">Стрижка</span><span class="sc-price">2000₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Борода</span><span class="sc-price">1600₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-price">3500₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Бритьё</span><span class="sc-price">1500₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Фирменная окантовка</span><span class="sc-price">1400₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Тонировка седых волос</span><span class="sc-price">от 1500₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Воск</span><span class="sc-price">от 500₽</span></span></label>
-                <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">СПА уход</span><span class="sc-price">3000₽</span></span></label>
-              </div>
+              <summary>Добавить услугу к записи</summary>
+              <!-- Правка 08.08.2026 (жалоба Влада) - раньше статичный макет без
+                   сохранения (см. историю в assets/mockup-crm.js pickServiceForBooking).
+                   Реальные данные - window.renderBookingServiceEdit/
+                   assets/crm-booking-status.js (wireBookingServiceEdit), вызывается из
+                   openBooking(). Уже оказанные услуги отмечены и заблокированы - это
+                   ДОБАВЛЕНИЕ к визиту, не редактирование задним числом. -->
+              <p class="section-hint">Уже отмеченные услуги оказаны и зафиксированы - отметьте новую, если клиенту сделали что-то ещё</p>
+              <div class="service-picker" id="bkServiceEditPicker"></div>
+              <button type="button" class="btn btn-primary btn-sm" id="bkServiceEditSave" disabled>Сохранить услугу</button>
+              <p class="wf-result" id="bkServiceEditResult" hidden></p>
             </details>
 
             <div class="field">

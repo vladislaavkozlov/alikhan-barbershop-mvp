@@ -26,6 +26,20 @@ export function bookingPrice(booking, priceOf) {
   return serviceIds.reduce((sum, id) => sum + priceOf(booking.masterId, id), 0);
 }
 
+// Правка 08.08.2026 (вечер, Влад: "ЗП мастеров должны считаться корректно от
+// фактически полученных сумм") - тот же принцип, что уже применён на бэкенде
+// (computeMasterPayroll, api/routes/payroll.js): для РАСЧЁТА ЗП берём booking.
+// actualPrice, если владелец включил discount_settings.payrollFromActualPrice И
+// для ЭТОЙ КОНКРЕТНОЙ записи фактическая сумма реально вписана - иначе (выключено,
+// или не вписано) обычная bookingPrice по списку услуг, поведение не отличается от
+// исходного. Для ВЫРУЧКИ бизнеса (не ЗП) везде по-прежнему используется чистая
+// bookingPrice - это сознательное разделение с самого начала фичи (владелец решает
+// политику именно для ЗП, выручка остаётся честной цифрой по прайсу).
+export function payrollBookingAmount(booking, priceOf, payrollFromActualPrice) {
+  if (payrollFromActualPrice && booking.actualPrice != null) return booking.actualPrice;
+  return bookingPrice(booking, priceOf);
+}
+
 export function pad2(n) {
   return String(n).padStart(2, '0');
 }

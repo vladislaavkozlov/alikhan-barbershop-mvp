@@ -9,7 +9,7 @@
 // некоторые из них (например блок "Моя зарплата" мастера) используют локальные
 // переменные priceOf/pctOf/ownerIds из этого же Promise.all и не могут быть подняты
 // выше (в initCrmAuth/reveal()) без изменения поведения. Код перенесён 1в1.
-import { el, todayStr, formatMoney, bookingPrice } from './crm-shared.js';
+import { el, todayStr, formatMoney, bookingPrice, payrollBookingAmount } from './crm-shared.js';
 import { renderDateSelect, renderTimeSelect, timeSelectValue } from './crm-widgets.js';
 import { API, getToken, fetchJson, apiSend } from './crm-auth.js';
 import { renderDayCalendar } from './crm-calendar.js';
@@ -17,9 +17,9 @@ import { wireScheduleViews } from './crm-schedule-views.js';
 import { wirePortfolioEditors, wireRoleEditors } from './crm-staff-admin.js';
 import { wireScheduleEditor, wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 import { wireMasterServiceEditors } from './crm-master-services.js';
-import { wirePayrollDateSlots, wireMasterPayrollPeriod, renderRevenuePeriods, renderStaffPayrollPeriods, periodStartStr } from './crm-payroll.js';
+import { wirePayrollDateSlots, wireMasterPayrollPeriod, renderRevenuePeriods, renderStaffPayrollPeriods, periodStartStr, wireDiscountSettings } from './crm-payroll.js';
 import { wireMasterSelfView, wireMasterSelfDataTab } from './crm-master-self.js';
-import { wireBookingStatusRadios } from './crm-booking-status.js';
+import { wireBookingStatusRadios, wireBookingServiceEdit, wireBookingDelete, wireBookingActualPrice } from './crm-booking-status.js';
 import { wireWalkIn } from './crm-walkin.js';
 
 // Живое доказательство, что это не рисунок - реальный запрос к Postgres на Amvera
@@ -51,6 +51,19 @@ function computePricing(staffList, services, masterServices, payrollRows) {
   return { priceOf, pctOf, ownerIds };
 }
 
+// Правка 08.08.2026 (вечер) - discount-settings читается тем же Promise.all, что и
+// staff/services/bookings/master-services/payroll-settings ниже (refreshFinance,
+// renderLiveProof), но не имеет отношения к priceOf/pctOf/ownerIds - отдельный
+// маленький helper вместо раздувания computePricing лишним несвязанным параметром.
+async function fetchPayrollFromActualPrice(fetchJsonFn) {
+  try {
+    const { payrollFromActualPrice } = await fetchJsonFn('/discount-settings');
+    return !!payrollFromActualPrice;
+  } catch {
+    return false; // недоступно/ошибка сети - безопасный дефолт "как раньше", не блокирует остальную "Финансы"
+  }
+}
+
 // Владелец: "Выручка по точке → Все точки → День" (сумма по всем броням сегодня,
 // зарплата - по ставке КАЖДОГО мастера, без брони владельца самому себе) + карточка
 // КАЖДОГО мастера в "Сотрудники" → "Расчёт ЗП → За день" + ставка Елизаветы. Вынесено
@@ -59,7 +72,7 @@ function computePricing(staffList, services, masterServices, payrollRows) {
 // повторно из кнопки "Обновить данные" (см. refreshFinance ниже). Клик по
 // elizavetaPctSave уже сам себя гейтит через saveBtn.dataset.wired - повторный
 // вызов не задвоит обработчик.
-function renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds) {
+function renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds, payrollFromActualPrice) {
   const revenueEl = el('rvAllDayRevenue');
   const payrollEl = el('rvAllDayPayroll');
   const netEl = el('rvAllDayNet');
@@ -67,7 +80,7 @@ function renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds) {
     const revenue = bookings.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
     const payrollBookings = bookings.filter((b) => !ownerIds.has(b.masterId));
     const payroll = payrollBookings.reduce(
-      (sum, b) => sum + (bookingPrice(b, priceOf) * pctOf(b.masterId)) / 100,
+      (sum, b) => sum + (payrollBookingAmount(b, priceOf, payrollFromActualPrice) * pctOf(b.masterId)) / 100,
       0
     );
     revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
@@ -81,8 +94,8 @@ function renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds) {
     const cardEl = el(`payrollMaster${idx + 1}Day`);
     if (!cardEl) return;
     const theirs = bookings.filter((b) => b.masterId === masterId);
-    const theirRevenue = theirs.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
-    cardEl.innerHTML = `${formatMoney((theirRevenue * pctOf(masterId)) / 100)} <span class="unsure">реально</span>`;
+    const theirPayrollBase = theirs.reduce((sum, b) => sum + payrollBookingAmount(b, priceOf, payrollFromActualPrice), 0);
+    cardEl.innerHTML = `${formatMoney((theirPayrollBase * pctOf(masterId)) / 100)} <span class="unsure">реально</span>`;
   });
 
   // Владелец: поле "Ставка от выручки, %" в карточке Елизаветы (Окно 10, разд.17.3
@@ -156,18 +169,19 @@ export async function refreshFinance() {
   if (!el('rvAllDayRevenue')) return;
   showFinanceLoading();
   try {
-    const [staffList, services, bookingsRes, masterServices, payrollRows] = await Promise.all([
+    const [staffList, services, bookingsRes, masterServices, payrollRows, payrollFromActualPrice] = await Promise.all([
       fetchJson('/staff'),
       fetchJson('/services'),
       fetchJson(`/bookings?date=${todayStr()}`),
       fetchJson('/master-services'),
       fetchJson('/payroll-settings'),
+      fetchPayrollFromActualPrice(fetchJson),
     ]);
     const bookings = bookingsRes.bookings || [];
     const { priceOf, pctOf, ownerIds } = computePricing(staffList, services, masterServices, payrollRows);
-    renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds);
-    await renderRevenuePeriods(priceOf, pctOf, ownerIds);
-    await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds);
+    renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds, payrollFromActualPrice);
+    await renderRevenuePeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice);
+    await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice);
   } catch (err) {
     console.error('Не удалось обновить "Финансы":', err);
   }
@@ -175,16 +189,17 @@ export async function refreshFinance() {
 
 export async function renderLiveProof(staff) {
   try {
-    const [staffList, services, bookingsRes, masterServices, payrollRows] = await Promise.all([
+    const [staffList, services, bookingsRes, masterServices, payrollRows, payrollFromActualPrice] = await Promise.all([
       fetchJson('/staff'),
       fetchJson('/services'),
       fetchJson(`/bookings?date=${todayStr()}`),
       fetchJson('/master-services'),
       fetchJson('/payroll-settings'),
+      fetchPayrollFromActualPrice(fetchJson),
     ]);
     const bookings = bookingsRes.bookings || [];
     const { priceOf, pctOf, ownerIds } = computePricing(staffList, services, masterServices, payrollRows);
-    renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds);
+    renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds, payrollFromActualPrice);
 
     // Мастер: "Моя зарплата" (День/Неделя/Месяц) - Окно 37 (06.08.2026, Задача 2).
     // Раньше День считался локально (bookingPrice×pctOf по уже загруженным bookings
@@ -256,6 +271,9 @@ export async function renderLiveProof(staff) {
     wirePortfolioEditors(staffList);
     wireRoleEditors(staffList);
     wireBookingStatusRadios();
+    wireBookingServiceEdit(services, masterServices);
+    wireBookingDelete();
+    wireBookingActualPrice();
     ['master-1', 'master-2', 'master-3'].forEach((masterId) => {
       wireScheduleEditor(masterId, fetchJson);
       wireWeeklyScheduleEditor(masterId, staff.role === 'owner', fetchJson);
@@ -265,10 +283,11 @@ export async function renderLiveProof(staff) {
     wireMasterSelfDataTab(staff, services, masterServices, pctOf);
     wireMasterServiceEditors(staff.role, services, masterServices);
     wirePayrollDateSlots();
+    wireDiscountSettings();
     wireMasterPayrollPeriod(staff);
 
-    await renderRevenuePeriods(priceOf, pctOf, ownerIds);
-    await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds);
+    await renderRevenuePeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice);
+    await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice);
   } catch (err) {
     console.error('Не удалось загрузить данные CRM:', err);
   }

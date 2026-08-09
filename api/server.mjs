@@ -53,7 +53,7 @@ export { isoWeekday, enumerateDateRange } from './lib/time.js';
 import { handleLogin, handleMe } from './routes/auth.js';
 import { handleStaffList, handleStaffPortfolio, handleStaffRole } from './routes/staff.js';
 import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
-import { handleBookings, handleBookingCancel, handleBookingStatus, handleSales } from './routes/bookings.js';
+import { handleBookings, handleBookingCancel, handleBookingStatus, handleBookingAddServices, handleBookingActualPrice, handleBookingDelete, handleSales } from './routes/bookings.js';
 import {
   handleSchedule,
   handleScheduleRange,
@@ -74,7 +74,7 @@ import {
   handleNotificationRead,
   handleNotificationsReadAll,
 } from './routes/notifications.js';
-import { handlePayrollSettings, handlePayroll, handleRevenueToday } from './routes/payroll.js';
+import { handlePayrollSettings, handlePayroll, handleRevenueToday, handleDiscountSettings } from './routes/payroll.js';
 import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard } from './routes/clients.js';
 // Ре-экспорт для tests/*.test.js.
 export { describeClientRisk, getClientCard, listClientsAtRisk, computeOwnerAlerts } from './routes/clients.js';
@@ -109,6 +109,9 @@ const ROUTES = [
   { method: 'POST', path: 'bookings', auth: 'public' },
   { method: 'POST', path: 'bookings/:id/cancel', auth: 'any-staff' },
   { method: 'PATCH', path: 'bookings/:id/status', auth: 'any-staff' },
+  { method: 'PATCH', path: 'bookings/:id/services', auth: 'any-staff' },
+  { method: 'DELETE', path: 'bookings/:id', auth: 'any-staff' },
+  { method: 'PATCH', path: 'bookings/:id/actual-price', auth: 'any-staff' },
   { method: 'GET', path: 'sales', auth: 'any-staff' },
   { method: 'POST', path: 'sales', auth: 'any-staff' },
   { method: 'GET', path: 'schedule', auth: 'public' },
@@ -131,6 +134,8 @@ const ROUTES = [
   { method: 'POST', path: 'notifications/read-all', auth: 'any-staff' },
   { method: 'GET', path: 'payroll-settings', auth: 'any-staff' },
   { method: 'PUT', path: 'payroll-settings', auth: 'owner' },
+  { method: 'GET', path: 'discount-settings', auth: 'any-staff' },
+  { method: 'PUT', path: 'discount-settings', auth: 'owner' },
   { method: 'GET', path: 'payroll', auth: 'any-staff' },
   { method: 'GET', path: 'revenue/today', auth: 'any-staff' },
   { method: 'GET', path: 'clients', auth: 'any-staff' },
@@ -248,6 +253,13 @@ const server = createServer(async (req, res) => {
       return handleBookings(req, res, url);
     }
 
+    // ── /bookings/:id - НАСТОЯЩЕЕ удаление (08.08.2026) - см. подробный комментарий
+    // у handleBookingDelete, api/routes/bookings.js. parts.length===2 отличает этот
+    // роут от /bookings/:id/cancel|status|services ниже (length===3).
+    if (parts[0] === 'bookings' && parts[1] && parts.length === 2 && req.method === 'DELETE') {
+      return handleBookingDelete(req, res, parts);
+    }
+
     // ── /bookings/:id/cancel - Задача 2 (Окно 13, 01.08.2026, Блок 5 в.19). Отмена
     // сама по себе ничем не ограничена по времени - ограничено только право на полный
     // возврат. Онлайн-оплаты в MVP нет (см. Ограничения промпта), поэтому "возврат"
@@ -266,6 +278,19 @@ const server = createServer(async (req, res) => {
     // проверку.
     if (parts[0] === 'bookings' && parts[1] && parts[2] === 'status' && parts.length === 3 && req.method === 'PATCH') {
       return handleBookingStatus(req, res, parts);
+    }
+
+    // ── /bookings/:id/services - добавление услуги к уже существующей записи
+    // (08.08.2026) - см. подробный комментарий у handleBookingAddServices,
+    // api/routes/bookings.js.
+    if (parts[0] === 'bookings' && parts[1] && parts[2] === 'services' && parts.length === 3 && req.method === 'PATCH') {
+      return handleBookingAddServices(req, res, parts);
+    }
+
+    // ── /bookings/:id/actual-price - фактически взятая сумма (08.08.2026, вечер) -
+    // см. подробный комментарий у handleBookingActualPrice, api/routes/bookings.js.
+    if (parts[0] === 'bookings' && parts[1] && parts[2] === 'actual-price' && parts.length === 3 && req.method === 'PATCH') {
+      return handleBookingActualPrice(req, res, parts);
     }
 
     // ── /sales - продажа (косметика и т.п.), привязана к визиту (разд.14.3 п.2) ──
@@ -400,6 +425,12 @@ const server = createServer(async (req, res) => {
     // ставку может только владелец (разд.7 ТЗ: "Изменение прайса - я").
     if (parts[0] === 'payroll-settings' && parts.length === 1) {
       return handlePayrollSettings(req, res, url);
+    }
+
+    // ── /discount-settings - "Управление скидками" (08.08.2026, вечер) - см.
+    // подробный комментарий у handleDiscountSettings, api/routes/payroll.js.
+    if (parts[0] === 'discount-settings' && parts.length === 1) {
+      return handleDiscountSettings(req, res);
     }
 
     // ── /payroll - Окно 37 (06.08.2026, Задача 1). ЗП мастера за произвольный

@@ -308,10 +308,12 @@ button, .btn {
   display: inline-block; text-decoration: none;
   transition: background 160ms var(--ease-out), color 160ms var(--ease-out), transform 160ms var(--ease-out);
 }
-button:hover, .btn:hover { background: var(--accent); color: var(--leather); }
-button:active, .btn:active { transform: scale(0.96); }
+button:hover:not(:disabled), .btn:hover:not(:disabled) { background: var(--accent); color: var(--leather); }
+button:active:not(:disabled), .btn:active:not(:disabled) { transform: scale(0.96); }
+button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-primary { background: var(--accent); color: var(--leather); }
-.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-primary:disabled { background: var(--surface-3); color: var(--text-muted); border-color: var(--border); }
 .btn-danger { border-color: var(--danger); color: var(--danger); }
 .btn-danger:hover { background: var(--danger); color: var(--text); }
 .btn-ghost { border-color: var(--border); color: var(--text-muted); }
@@ -644,6 +646,7 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
 .custom-date-cell:hover { background: var(--surface-3); }
 .custom-date-cell.selected { background: var(--accent); color: var(--leather); font-weight: 600; }
 .custom-date-cell--empty { cursor: default; }
+.custom-date-cell--disabled { color: var(--text-muted); opacity: 0.35; cursor: not-allowed; }
 
 /* ---------- единый блок "График работы" (Окно 16, 03.08.2026) - одна строка на
    день недели вместо разрозненных "Рабочее время"/"Перерыв стандартный". ---------- */
@@ -1004,6 +1007,11 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .wf-result[hidden] { display: none; }
 .wf-result--ok { background: rgba(111,174,124,0.14); border: 1px solid var(--success); color: var(--text); }
 .wf-result--err { background: rgba(193,85,74,0.14); border: 1px solid var(--danger); color: var(--text); }
+
+/* "Удалить запись" (08.08.2026) - отделена от остальной карточки верхней линией,
+   тот же приём отступа-границы, что уже держит .toggle-row между строками. */
+.bk-delete-row { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.bk-delete-row .note { color: var(--text-muted); font-size: 0.82rem; }
 
 .birthday-banner {
   display: flex; align-items: flex-start; gap: 10px; background: rgba(111,174,124,0.12);

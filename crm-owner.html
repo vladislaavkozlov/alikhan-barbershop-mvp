@@ -352,18 +352,48 @@
               </div>
 
               <details class="service-edit">
-                <summary>Корректировка услуги</summary>
-                <div class="service-picker">
-                  <label class="service-check"><input type="checkbox" checked onclick="pickServiceForBooking(this)"><span><span class="sc-name">Стрижка</span><span class="sc-price">2000₽</span></span></label>
-                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Борода</span><span class="sc-price">1600₽</span></span></label>
-                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Комплекс стрижка+борода</span><span class="sc-price">3500₽</span></span></label>
-                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Бритьё</span><span class="sc-price">1500₽</span></span></label>
-                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Фирменная окантовка</span><span class="sc-price">1400₽</span></span></label>
-                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Тонировка седых волос</span><span class="sc-price">от 1500₽</span></span></label>
-                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">Воск</span><span class="sc-price">от 500₽</span></span></label>
-                  <label class="service-check"><input type="checkbox" onclick="pickServiceForBooking(this)"><span><span class="sc-name">СПА уход</span><span class="sc-price">3000₽</span></span></label>
-                </div>
+                <summary>Добавить услугу к записи</summary>
+                <!-- Правка 08.08.2026 (жалоба Влада) - раньше этот блок был статичным
+                     макетом с 03.08.2026 (только пересчёт bk-duration/bk-commission на
+                     экране, PATCH никуда не уходил, см. историю в assets/mockup-crm.js
+                     pickServiceForBooking). Реальные данные и сохранение теперь -
+                     window.renderBookingServiceEdit/assets/crm-booking-status.js
+                     (wireBookingServiceEdit), вызывается из openBooking(). Уже оказанные
+                     услуги отмечены и заблокированы - это ДОБАВЛЕНИЕ к визиту, не
+                     редактирование задним числом с возможностью что-то убрать. -->
+                <p class="section-hint">Уже отмеченные услуги оказаны и зафиксированы - отметьте новую, если клиенту сделали что-то ещё</p>
+                <div class="service-picker" id="bkServiceEditPicker"></div>
+                <button type="button" class="btn btn-primary btn-sm" id="bkServiceEditSave" disabled>Сохранить услугу</button>
+                <p class="wf-result" id="bkServiceEditResult" hidden></p>
               </details>
+
+              <!-- "Фактическая сумма" (08.08.2026, вечер, Влад: "Али иногда говорит
+                   администратору 'пробей по старой цене'" - скидка клиенту). Пусто =
+                   как по списку услуг выше (ничего не меняется, пока явно не вписали).
+                   Влияет на зарплату мастера только если владелец включил это во
+                   "Финансы" → "Управление скидками" - здесь только сама цифра визита,
+                   не решение о политике. PATCH /bookings/:id/actual-price
+                   (assets/crm-booking-status.js wireBookingActualPrice). -->
+              <div class="field-grid">
+                <div class="field">
+                  <label>Фактическая сумма <span class="badge badge-example">если отличается от суммы услуг выше</span></label>
+                  <input id="bkActualPrice" type="number" min="0" placeholder="как по услугам">
+                </div>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" id="bkActualPriceSave">Сохранить фактическую сумму</button>
+              <p class="wf-result" id="bkActualPriceResult" hidden></p>
+
+              <!-- Правка 08.08.2026 (Влад: "мастер зашёл случайно, сохранил не на ту дату -
+                   её же можно спокойно удалить?") - до этой правки нельзя было: /cancel на
+                   бэкенде существовал, но не был подключён ни к одной кнопке, а главное -
+                   даже отменённая запись всё ещё считалась в выручке/зарплате мастера
+                   (computeMasterPayroll не фильтрует по статусу). Здесь - НАСТОЯЩЕЕ удаление
+                   (DELETE /bookings/:id, handleBookingDelete) - запись и её услуги пропадают
+                   из базы и из статистики полностью, без следа. Подтверждение - двухшаговая
+                   замена кнопки прямо в карточке (window.confirm() в проекте не используется,
+                   см. assets/crm-schedule-requests.js). owner/admin-only - у мастера этой
+                   кнопки нет (см. assets/crm-booking-status.js wireBookingDelete). -->
+              <div class="bk-delete-row" id="bkDeleteRow"></div>
 
               <!-- Поле "Комментарии по клиенту" скрыто Окном 36 (06.08.2026) - не
                    сохранялось вообще (addComment в mockup-crm.js только дописывал DOM,
@@ -395,6 +425,15 @@
                createBookingTx, server.mjs) - тот же контракт, что и у обычной записи,
                отдельного пред-фильтра слотов не заводим. Скрыто по умолчанию - обычный
                walk-in "прямо сейчас" эти поля не показывает. -->
+          <!-- Правка 08.08.2026 (Влад: "интернет отключили / администратор отвлёкся, клиента
+               обслужили, а внести в систему нечем" → "зачем тумблер, если можно просто дать
+               выбрать дату как обычно") - отдельный тумблер-подтверждение рассматривался и
+               убран в тот же вечер. date-picker ниже (см. assets/crm-widgets.js
+               renderDateSelect) просто не ограничен снизу - прошлая дата выбирается как
+               обычная, без лишнего шага. Публичный сайт (index.html/app.js, анонимные
+               запросы) прошлую дату по-прежнему не даёт выбрать вообще - разграничение
+               держит бэкенд (createBookingTx, isStaff по РЕАЛЬНОЙ аутентификации, не по
+               полю из тела запроса), не фронт. -->
           <div class="field-grid" id="wfDateTimeRow" hidden>
             <div class="field"><label>Дата</label><div id="wfDate-slot"></div></div>
             <div class="field"><label>Время</label><div id="wfTime-slot"></div></div>
@@ -770,7 +809,6 @@
           <span class="chevron">▸</span>
         </summary>
         <div class="staff-card-body">
-        <p class="section-hint">Расчёт по каждому мастеру - День/Неделя/Месяц/свой период, тот же резолвер, что и «Зарплаты мастеров» в карточках выручки выше</p>
 
         <h3>Алиовсад</h3>
         <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
@@ -794,7 +832,6 @@
               </div>
               <div class="seg-panel panel-zp1p-day">
                 <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                <p class="payroll-note">100% от выручки по своим услугам - сумма по броням этого мастера за сегодня</p>
               </div>
               <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster1Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
               <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
@@ -832,7 +869,6 @@
               </div>
               <div class="seg-panel panel-zp2p-day">
                 <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                <p class="payroll-note">100% от выручки по своим услугам - сумма по броням этого мастера</p>
               </div>
               <div class="seg-panel panel-zp2p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster2Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
               <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
@@ -853,12 +889,12 @@
         <h4>Зарплата <span class="badge badge-example">40% по умолчанию, редактируется</span></h4>
         <div class="field-grid">
           <div class="field">
-            <label>Ставка от выручки, % (40 или 50 - зависит от клиентской базы)</label>
+            <label>Ставка от выручки, %</label>
             <input type="number" min="0" max="100" id="elizavetaPctInput" value="40">
           </div>
         </div>
         <button class="btn btn-ghost btn-sm" type="button" id="elizavetaPctSave">Сохранить ставку</button>
-        <p class="payroll-note" id="elizavetaPctNote">Порог перехода 40→50% владелец меняет здесь вручную</p>
+        <p class="payroll-note" id="elizavetaPctNote"></p>
         <div class="seg-tabs" style="margin-top:14px">
           <input type="radio" name="zp3-sub" id="zp3-calc" checked>
           <div class="seg-bar">
@@ -894,6 +930,31 @@
             </div>
           </div>
         </div>
+        </div>
+      </details>
+
+      <!-- "Управление скидками" (08.08.2026, вечер, Влад: "Али иногда говорит
+           администратору 'пробей по старой цене' - скидка клиенту"). Сама
+           фактическая сумма вписывается прямо в карточке конкретной записи (поле
+           "Фактическая сумма", bd-1) - здесь только ПОЛИТИКА: должна ли она влиять
+           на зарплату мастера, или зарплата всегда считается от полной списочной
+           цены услуг независимо от скидок (владелец решает сам, не жёстко зашито в
+           коде). По умолчанию выключено - ничего не меняется, пока Али явно не
+           включит. GET /discount-settings читает любая роль (админ/мастер должны
+           понимать, откуда цифра ЗП), PUT - только владелец (assets/crm-payroll.js
+           wireDiscountSettings). -->
+      <details class="staff-card">
+        <summary>
+          <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg></div>
+          <div class="summary-meta"><div class="name">Управление скидками</div></div>
+          <span class="chevron">▸</span>
+        </summary>
+        <div class="staff-card-body">
+          <p class="section-hint">Фактическую сумму (со скидкой) вписывает владелец или администратор прямо в карточке записи - здесь только решение, влияет ли она на зарплату мастера</p>
+          <div class="toggle-row">
+            <div class="tr-label">Считать зарплату мастера от фактической суммы<div class="tr-sub" id="discountSettingsNote">Выключено - зарплата всегда от полной цены услуг, скидки её не уменьшают</div></div>
+            <label class="switch"><input type="checkbox" id="discountPayrollToggle"><span class="track"></span><span class="knob"></span></label>
+          </div>
         </div>
       </details>
       </div>

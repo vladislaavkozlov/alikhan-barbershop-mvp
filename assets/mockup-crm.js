@@ -91,11 +91,26 @@ function openBooking(el) {
   // wait/came/no) кладём на сам bd-1, чтобы обработчик знал, что сохранять.
   if (panel) {
     panel.dataset.bookingId = d.id || '';
+    panel.dataset.bookingMasterId = d.masterId || '';
     panel.dataset.realStatus = d.realStatus || 'planned';
     panel.dataset.noshowStreak = d.noshowStreak || '0';
     panel.dataset.requiresPrepayment = d.requiresPrepayment || 'false';
   }
   updateNoShowUi();
+  // "Добавить услугу к записи" (08.08.2026, assets/crm-booking-status.js
+  // wireBookingServiceEdit) - опционально: crm-master.html/crm-admin.html/
+  // crm-owner.html все получили этот блок в одном окне, но optional chaining на
+  // случай примера-заглушки без реального d.id (d.serviceIds тогда undefined).
+  window.renderBookingServiceEdit?.(d.masterId, (d.serviceIds || '').split(',').filter(Boolean));
+  // "Удалить запись" (08.08.2026, assets/crm-booking-status.js wireBookingDelete) -
+  // тот же приём optional chaining, что и у renderBookingServiceEdit строкой выше:
+  // на crm-master.html блока нет (мастер записи не удаляет), тихий no-op.
+  window.renderBookingDeleteRow?.();
+  // "Фактическая сумма" (08.08.2026, assets/crm-booking-status.js
+  // wireBookingActualPrice) - тот же приём optional chaining, d.actualPrice пустой
+  // на "" (data-атрибут без значения), а не null/undefined - renderBookingActualPrice
+  // сам приводит к input.value = '' в обоих случаях.
+  window.renderBookingActualPrice?.(d.actualPrice || null);
 
   updateCommission(d.master, d.service);
   updateDuration(d.master, d.service);
@@ -373,6 +388,7 @@ function renderCustomDateCalendar(wrap) {
   const year = Number(wrap.dataset.viewYear);
   const month = Number(wrap.dataset.viewMonth); // 1-12
   const selected = wrap.dataset.value;
+  const minDate = wrap.dataset.minDate || null; // "YYYY-MM-DD" - см. buildDateWidgetHtml
   const pad2 = (n) => String(n).padStart(2, '0');
   const firstWeekday = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7; // 0=Пн
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -381,7 +397,11 @@ function renderCustomDateCalendar(wrap) {
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${pad2(month)}-${pad2(day)}`;
     const selectedCls = dateStr === selected ? ' selected' : '';
-    cells += `<button type="button" class="custom-date-cell${selectedCls}" onclick="pickCustomDateDay(this)" data-date="${dateStr}">${day}</button>`;
+    if (minDate && dateStr < minDate) {
+      cells += `<span class="custom-date-cell custom-date-cell--disabled" data-date="${dateStr}">${day}</span>`;
+    } else {
+      cells += `<button type="button" class="custom-date-cell${selectedCls}" onclick="pickCustomDateDay(this)" data-date="${dateStr}">${day}</button>`;
+    }
   }
   panel.innerHTML = `
     <div class="custom-date-nav">

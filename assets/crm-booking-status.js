@@ -4,6 +4,7 @@
 // (crm-admin.html/crm-master.html, старее Окна 36 и им не заменённая). Код
 // перенесён 1в1, поведение не менялось.
 import { API, getToken } from './crm-auth.js';
+import { formatMoney } from './crm-shared.js';
 
 // mockup-crm.js - классический (не module) скрипт, но браузер делит один и тот же
 // глобальный объект между ним и этим модулем, поэтому updateNoShowUi() (объявлена
@@ -126,3 +127,254 @@ window.toggleNoShow = async function toggleNoShow(btn) {
     btn.disabled = false;
   }
 };
+
+// "Добавить услугу к записи" (08.08.2026, жалоба Влада: мастер во время/после визита
+// обнаруживает доп. услугу - например, подстригли и уже потом попросили бритьё - а
+// внести это было физически некуда, чтобы верно попало в статистику/зарплату). Блок
+// "Корректировка услуги" в bd-1 был статичным макетом с 03.08.2026 (см. историю
+// pickServiceForBooking выше в mockup-crm.js) - здесь он подключается к реальным
+// данным и реальному сохранению (PATCH /bookings/:id/services, api/routes/bookings.js
+// handleBookingAddServices). ТОЛЬКО добавление - уже оказанные услуги отмечены и
+// заблокированы (не снимаются здесь), это фиксация уже случившегося визита, не
+// редактирование задним числом с возможностью что-то убрать.
+// Состояние на уровне модуля, не внутри wireBookingServiceEdit() - в DOM всегда
+// ровно одна карточка записи (bd-1), а сама функция вызывается заново при каждом
+// renderLiveProof() (после сохранения walk-in и т.п., см. crm-dashboard.js). Если
+// бы bookingServiceEditSelected жил внутри функции, повторный вызов создавал бы НОВОЕ замыкание
+// с новым Set, а обработчик клика на saveBtn (не перепривязывается повторно из-за
+// dataset.wired) остался бы читать СТАРЫЙ Set первого вызова - отметка чекбокса
+// обновляла бы один Set, кнопка "Сохранить" проверяла бы другой, всегда пустой.
+let bookingServiceEditSelected = new Set();
+
+export function wireBookingServiceEdit(services, masterServices) {
+  const picker = document.getElementById('bkServiceEditPicker');
+  const saveBtn = document.getElementById('bkServiceEditSave');
+  const resultEl = document.getElementById('bkServiceEditResult');
+  if (!picker || !saveBtn || !resultEl) return; // страница без этого блока - no-op
+
+  const servicesFor = (masterId) =>
+    masterServices
+      .filter((r) => r.masterId === masterId)
+      .map((r) => ({ ...r, name: services.find((s) => s.id === r.serviceId)?.name ?? r.serviceId }));
+
+  window.renderBookingServiceEdit = function renderBookingServiceEdit(masterId, existingServiceIds) {
+    bookingServiceEditSelected = new Set();
+    resultEl.hidden = true;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Сохранить услугу';
+    picker.innerHTML = '';
+    const existing = new Set(existingServiceIds || []);
+    const rows = servicesFor(masterId);
+    if (rows.length === 0) {
+      const hint = document.createElement('p');
+      hint.className = 'section-hint';
+      hint.textContent = 'У этого мастера пока не назначено ни одной услуги в прайсе';
+      picker.appendChild(hint);
+      return;
+    }
+    for (const row of rows) {
+      const isExisting = existing.has(row.serviceId);
+      const label = document.createElement('label');
+      label.className = 'service-check' + (isExisting ? ' service-check--blocked' : '');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = row.serviceId;
+      input.checked = isExisting;
+      input.disabled = isExisting;
+      const span = document.createElement('span');
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'sc-name';
+      nameSpan.textContent = row.name;
+      const priceSpan = document.createElement('span');
+      priceSpan.className = 'sc-price';
+      priceSpan.textContent = formatMoney(row.price);
+      span.append(nameSpan, priceSpan);
+      label.append(input, span);
+      input.addEventListener('change', () => {
+        if (input.checked) bookingServiceEditSelected.add(row.serviceId);
+        else bookingServiceEditSelected.delete(row.serviceId);
+        saveBtn.disabled = bookingServiceEditSelected.size === 0;
+      });
+      picker.appendChild(label);
+    }
+  };
+
+  if (!saveBtn.dataset.wired) {
+    saveBtn.dataset.wired = '1';
+    saveBtn.addEventListener('click', async () => {
+      const panel = document.getElementById('bd-1');
+      const bookingId = panel?.dataset.bookingId;
+      const masterId = panel?.dataset.bookingMasterId;
+      if (!bookingId || bookingServiceEditSelected.size === 0) return;
+      const originalLabel = saveBtn.textContent;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Сохраняю…';
+      resultEl.hidden = true;
+      try {
+        const res = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/services`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ serviceIds: [...bookingServiceEditSelected] }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+        // renderBookingServiceEdit() САМА сбрасывает resultEl.hidden=true в начале
+        // (обычный сценарий - открыли новую запись, старое сообщение не нужно) -
+        // поэтому перерисовываем чекбоксы СНАЧАЛА, а текст подтверждения ставим
+        // ПОСЛЕ, иначе успешное сохранение молча гасило бы собственное сообщение.
+        window.renderBookingServiceEdit(masterId, data.booking.serviceIds);
+        resultEl.hidden = false;
+        resultEl.className = 'wf-result wf-result--ok';
+        resultEl.textContent = 'Услуга добавлена к записи';
+      } catch (err) {
+        resultEl.hidden = false;
+        resultEl.className = 'wf-result wf-result--err';
+        resultEl.textContent = `Не удалось сохранить: ${err.message}`;
+        saveBtn.textContent = originalLabel;
+        saveBtn.disabled = false;
+      }
+    });
+  }
+}
+
+// "Удалить запись" (08.08.2026, Влад: "мастер зашёл случайно, сохранил не на ту
+// дату - её же можно спокойно удалить?") - НАСТОЯЩЕЕ удаление (DELETE /bookings/:id,
+// handleBookingDelete), не отмена статуса: отменённая бронь всё равно считалась бы в
+// выручке/зарплате мастера (computeMasterPayroll не смотрит на статус). owner/admin-
+// only - #bkDeleteRow есть только в crm-owner.html/crm-admin.html, на crm-master.html
+// его нет вообще (мастер записи больше не создаёт и не удаляет, см. правку в этом же
+// окне про POST /bookings). Подтверждение - двухшаговая замена кнопки прямо в строке
+// (не нативный window.confirm() - конвенция проекта, см. assets/crm-schedule-requests.js
+// wireCancelButtons).
+export function wireBookingDelete() {
+  const row = document.getElementById('bkDeleteRow');
+  if (!row) return; // страница без этого блока (crm-master.html) - no-op
+
+  function renderIdle() {
+    row.innerHTML = '<button type="button" class="btn btn-danger btn-sm" id="bkDeleteBtn">Удалить запись</button>';
+    row.querySelector('#bkDeleteBtn').addEventListener('click', renderConfirm);
+  }
+
+  function renderConfirm() {
+    row.innerHTML = `<span class="note" style="margin-right:8px">Удалить запись безвозвратно? Из статистики и зарплаты тоже пропадёт</span>
+      <button class="btn btn-danger btn-sm" type="button" id="bkDeleteYes">Да, удалить</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="bkDeleteNo">Нет</button>`;
+    row.querySelector('#bkDeleteYes').addEventListener('click', () => doDelete(false));
+    row.querySelector('#bkDeleteNo').addEventListener('click', renderIdle);
+  }
+
+  // Правка 08.08.2026 (тот же вечер, явное ТЗ Влада) - отдельный экран именно для
+  // случая "к записи привязана продажа", а не общая ошибка "не удалось удалить":
+  // сотрудник должен явно увидеть ПОЧЕМУ система переспрашивает (продажа участвует в
+  // расчёте ЗП) и осознанно решить, прежде чем подтвердить. saleTotal - сколько денег
+  // затронет удаление, не абстрактное "есть какая-то продажа".
+  function renderSaleWarning(saleCount, saleTotal) {
+    const sumText = Number.isFinite(saleTotal) ? `${formatMoney(saleTotal)}` : `${saleCount} шт.`;
+    row.innerHTML = `<span class="note" style="margin-right:8px">К данной записи привязана продажа (${sumText}), которая участвует в расчёте ЗП. Подтверждаете удаление?</span>
+      <button class="btn btn-danger btn-sm" type="button" id="bkDeleteForceYes">Подтверждаю</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="bkDeleteForceNo">Отмена</button>`;
+    row.querySelector('#bkDeleteForceYes').addEventListener('click', () => doDelete(true));
+    row.querySelector('#bkDeleteForceNo').addEventListener('click', renderIdle);
+  }
+
+  async function doDelete(force) {
+    const panel = document.getElementById('bd-1');
+    const bookingId = panel?.dataset.bookingId;
+    if (!bookingId) return;
+    row.innerHTML = '<span class="note">Удаляю…</span>';
+    try {
+      const res = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ force }),
+      });
+      const data = res.status === 204 ? { ok: true } : await res.json();
+      if (res.status === 409 && data.reason === 'has_sale' && !force) {
+        renderSaleWarning(data.saleCount, data.saleTotal);
+        return;
+      }
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      // Карточка в календаре помечена .appt--selected самим openBooking() (mockup-
+      // crm.js) при открытии - убираем её из DOM напрямую, без полной перезагрузки
+      // текущего вида Дня/Недели/Месяца (тот же уровень "не обновляем календарь
+      // визуально", что уже есть у смены статуса выше - остаётся так же честно).
+      document.querySelector('.appt--selected')?.remove();
+      if (panel) panel.open = false;
+      row.innerHTML = '<span class="note">Запись удалена</span>';
+    } catch (err) {
+      row.innerHTML = `<span class="note" style="color:var(--danger)">Не удалось удалить: ${err.message}</span>`;
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'btn btn-ghost btn-sm';
+      retry.textContent = 'Ок';
+      retry.style.marginLeft = '8px';
+      retry.addEventListener('click', renderIdle);
+      row.appendChild(retry);
+    }
+  }
+
+  window.renderBookingDeleteRow = renderIdle;
+}
+
+// "Фактическая сумма" (08.08.2026, вечер, Влад: "Али иногда говорит администратору
+// 'пробей по старой цене' - скидка клиенту"). Пусто = как по списку услуг (ничего не
+// меняется по умолчанию). Влияет на зарплату мастера только если владелец включил
+// это отдельной политикой ("Финансы" → "Управление скидками", assets/crm-payroll.js
+// wireDiscountSettings) - здесь только сама цифра визита, PATCH
+// /bookings/:id/actual-price (handleBookingActualPrice, owner/admin).
+export function wireBookingActualPrice() {
+  const input = document.getElementById('bkActualPrice');
+  const saveBtn = document.getElementById('bkActualPriceSave');
+  const resultEl = document.getElementById('bkActualPriceResult');
+  if (!input || !saveBtn || !resultEl) return; // страница без этого блока (crm-master.html) - no-op
+
+  window.renderBookingActualPrice = function renderBookingActualPrice(actualPrice) {
+    input.value = actualPrice ?? '';
+    resultEl.hidden = true;
+  };
+
+  if (!saveBtn.dataset.wired) {
+    saveBtn.dataset.wired = '1';
+    saveBtn.addEventListener('click', async () => {
+      const panel = document.getElementById('bd-1');
+      const bookingId = panel?.dataset.bookingId;
+      if (!bookingId) return;
+      // Пустое поле - явный сброс на null ("фактическая = как по услугам"), а не 0
+      // (0 ₽ - это тоже валидный кейс, "постригли бесплатно", отличается от "не
+      // указано вообще").
+      const raw = input.value.trim();
+      const actualPrice = raw === '' ? null : Number(raw);
+      if (actualPrice !== null && (!Number.isFinite(actualPrice) || actualPrice < 0)) {
+        resultEl.hidden = false;
+        resultEl.className = 'wf-result wf-result--err';
+        resultEl.textContent = 'Сумма должна быть числом от 0';
+        return;
+      }
+      const originalLabel = saveBtn.textContent;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Сохраняю…';
+      resultEl.hidden = true;
+      try {
+        const res = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/actual-price`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ actualPrice }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+        resultEl.hidden = false;
+        resultEl.className = 'wf-result wf-result--ok';
+        resultEl.textContent = actualPrice === null ? 'Сброшено - считается по услугам' : 'Сохранено';
+      } catch (err) {
+        resultEl.hidden = false;
+        resultEl.className = 'wf-result wf-result--err';
+        resultEl.textContent = `Не удалось сохранить: ${err.message}`;
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = originalLabel;
+      }
+    });
+  }
+}

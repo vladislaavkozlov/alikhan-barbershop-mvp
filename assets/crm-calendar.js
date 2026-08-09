@@ -97,11 +97,18 @@ function buildApptCard(booking, { masterName, services, priceOf }) {
   // "Клиент пришёл" была декорацией именно из-за этого пробела, не только из-за
   // отсутствия fetch). data-noshow-streak/data-requires-prepayment - тот же уровень
   // видимости, что уже есть у остальных client-полей (owner/admin, не master).
+  // data-master-id/data-service-ids (08.08.2026, "Добавить услугу к записи",
+  // assets/crm-booking-status.js wireBookingServiceEdit) - booking.masterId и полный
+  // список booking.serviceIds уже приходят с /bookings (listBookingsForRequest),
+  // кладём их прямо на карточку тем же приёмом, что уже есть у data-id - без этого
+  // openBooking() пришлось бы делать отдельный fetch за той же самой брони.
   return `<div class="appt ${cssClass} ${stripeClass}" style="${positionStyle(booking.startTime, booking.endTime)}" tabindex="0" onclick="openBooking(this)"
        data-id="${escapeHtml(booking.id)}" data-client="${escapeHtml(clientName)}" data-phone="${escapeHtml(booking.clientPhone || '')}" data-master="${escapeHtml(masterName)}"
+       data-master-id="${escapeHtml(booking.masterId || '')}" data-service-ids="${escapeHtml((booking.serviceIds || []).join(','))}"
        data-service="${escapeHtml(priceLabel)}" data-planned="${escapeHtml(planned)}"
        data-status="${dataStatus}" data-real-status="${escapeHtml(booking.status)}" data-confirmed="${booking.clientConfirmed ? 'true' : 'false'}" data-noshow="${isNoShow ? 'true' : 'false'}"
-       data-noshow-streak="${booking.clientNoShowStreak ?? 0}" data-requires-prepayment="${booking.requiresPrepayment ? 'true' : 'false'}">
+       data-noshow-streak="${booking.clientNoShowStreak ?? 0}" data-requires-prepayment="${booking.requiresPrepayment ? 'true' : 'false'}"
+       data-actual-price="${booking.actualPrice ?? ''}">
     <span class="t">${escapeHtml(planned)}</span><span class="c">${warn}${escapeHtml(clientName)} · ${escapeHtml(nameLabel)}</span>
   </div>`;
 }
@@ -141,6 +148,12 @@ function minutesFromClientY(trackEl, clientY) {
 // crm-master.html пока без wfDateTimeRow, см. assets/crm-walkin.js) - optional chaining
 // как и у остальных cross-module мостов проекта (window.updateNotifBadge?.() и т.п.).
 function wireEmptySlotInteraction(trackEl, master, date) {
+  // Правка 08.08.2026 (баг Влада) - день в прошлом не даёт кликом по пустому месту
+  // открыть форму записи вообще: раньше клик по колонке мастера в прошедшем дне
+  // молча открывал "Новая запись на выбранное время" с прошедшей датой, сервер её
+  // всё равно отклонял (past_time), но пользователь об этом узнавал только после
+  // клика по (визуально нерабочей, см. .btn-primary:disabled) кнопке "Сохранить".
+  if (date < todayStr()) return;
   const preview = document.createElement('div');
   preview.className = 'appt appt--slot-preview';
   preview.hidden = true;
