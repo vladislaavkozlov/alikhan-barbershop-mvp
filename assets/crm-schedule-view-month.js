@@ -14,6 +14,7 @@ import {
   conflictListWithOpenButton, buildMasterSwitch, isDayOffShift, GLOBAL_DEFAULT_START, GLOBAL_DEFAULT_END,
   fmtRu, loadPercent, toMinutes,
 } from './crm-schedule-shared.js';
+import { todayStr } from './crm-calendar.js';
 
 export function wireMonthView(ctx) {
   const {
@@ -237,12 +238,12 @@ export function wireMonthView(ctx) {
         const dayBookings = bookingsByDate.get(day.date) ?? [];
         const count = dayBookings.length;
         const pct = loadPercent(day, dayBookings);
-        const dayNum = Number(day.date.slice(8, 10));
+        const dayNum = day.date.slice(8, 10);
         // Праздничная метка - ВТОРОЙ независимый признак ячейки: статус (выходной/
         // правка/обычный) продолжает отвечать за рабочий день, бейдж - за красный
         // день календаря.
         const holidayName = holidayNameOf(holidayMap, day.date);
-        cells += `<div class="month-day month-day--real${holidayName ? ' is-holiday' : ''}" data-date="${day.date}" data-status="${status}">
+        cells += `<div class="month-day month-day--real${holidayName ? ' is-holiday' : ''}${day.date === todayStr() ? ' is-today' : ''}" data-date="${day.date}" data-status="${status}">
           <span class="num">${dayStatusDot(status)}${dayNum}${!day.isDayOff ? ` <span class="month-load-pct">${pct}%</span>` : ''}</span>
           ${holidayName ? `<span class="holiday-label" data-holiday-for="${day.date}">🎉 ${escapeHtml(holidayName)}</span>` : ''}
           ${count ? `<span class="appt-count">${count} ${ruPluralBooking(count)}</span>` : ''}
@@ -326,9 +327,9 @@ export function wireMonthView(ctx) {
       for (const date of daysInRange) {
         const rec = byDate.get(date) ?? { availableMin: 0, bookedMin: 0, count: 0 };
         const pct = rec.availableMin <= 0 ? 0 : Math.min(100, Math.max(0, Math.round((rec.bookedMin / rec.availableMin) * 100)));
-        const dayNum = Number(date.slice(8, 10));
+        const dayNum = date.slice(8, 10);
         const holidayName = holidayNameOf(holidayMap, date);
-        cells += `<div class="month-day month-day--real${holidayName ? ' is-holiday' : ''}" data-date="${date}">
+        cells += `<div class="month-day month-day--real${holidayName ? ' is-holiday' : ''}${date === todayStr() ? ' is-today' : ''}" data-date="${date}">
           <span class="num">${dayNum} <span class="month-load-pct">${pct}%</span></span>
           ${holidayName ? `<span class="holiday-label" data-holiday-for="${date}">🎉 ${escapeHtml(holidayName)}</span>` : ''}
           <span class="appt-count">${rec.count ? `${rec.count} ${ruPluralBooking(rec.count)}` : 'Нет записей'}</span>
