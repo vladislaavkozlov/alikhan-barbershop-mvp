@@ -376,6 +376,36 @@ function openCustomDate(wrap) {
   if (!panel) return;
   panel.hidden = false;
   if (!panel.dataset.rendered) renderCustomDateCalendar(wrap);
+  // Задача H (Окно 53) - живой репро на узком вьюпорте (390px, конвенция проекта -
+  // баги особенно заметны на телефоне) подтвердил: панель.left:0 якорится от левого
+  // края ТРИГГЕРА, не от края карточки/вьюпорта - на узких экранах, где триггер сидит
+  // ближе к правому краю (day-nav: ‹ [дата] ›), фиксированные 260px панели упирались
+  // в правый край и вылезали за бордер карточки (Сб/Вс визуально снаружи). Меряем
+  // ПОСЛЕ показа (hidden управляет display:none - до этого getBoundingClientRect
+  // вернул бы нули) - если правый край панели выходит за экран, переключаем якорь
+  // на правый край триггера вместо левого (align-right), обычный приём флипа для
+  // dropdown/popover.
+  // window.innerWidth НЕ подходит для этого сравнения - найдено живым CDP-прогоном
+  // в этой же сессии: как только содержимое реально переполняет экран (сам баг),
+  // мобильный браузер расширяет layout viewport под контент, и innerWidth раздувается
+  // ВМЕСТЕ с переполнением - сравнение с ним никогда не сработает (переполняющий
+  // элемент всегда "помещается" в уже раздутый viewport). window.visualViewport.width
+  // (с фолбэком на innerWidth там, где API нет) остаётся РЕАЛЬНОЙ шириной экрана
+  // независимо от переполнения контента - подтверждено замером до/после.
+  //
+  // Второй живой замер (тот же прогон) показал: панель может остаться внутри реального
+  // экрана (390px) и всё равно вылезти за бордер СВОЕЙ карточки (было 362 vs 352px) -
+  // ровно то, что видел Влад на скриншоте ("вылезают из рамки" - рамка карточки, не
+  // край телефона). Берём МЕНЬШУЮ из двух границ - реальный экран и ближайший видимый
+  // контейнер (карточка/форма записи), если он есть.
+  panel.classList.remove('align-right');
+  const visibleWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+  const container = wrap.closest('.staff-card, .walkin-form, .day-edit-modal');
+  const containerRight = container ? container.getBoundingClientRect().right : visibleWidth;
+  const limit = Math.min(visibleWidth, containerRight);
+  if (panel.getBoundingClientRect().right > limit) {
+    panel.classList.add('align-right');
+  }
 }
 function closeCustomDate(wrap) {
   wrap.classList.remove('open');

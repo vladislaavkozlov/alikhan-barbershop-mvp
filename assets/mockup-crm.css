@@ -645,6 +645,8 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
   background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
   box-shadow: 0 24px 48px -12px rgba(0,0,0,0.55); padding: 10px;
 }
+/* Задача H (Окно 53) - флип-якорь на узких экранах, см. openCustomDate (mockup-crm.js) */
+.custom-date-panel.align-right { left: auto; right: 0; }
 .custom-date-panel[hidden] { display: none; }
 .custom-date-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .custom-date-nav-btn {
