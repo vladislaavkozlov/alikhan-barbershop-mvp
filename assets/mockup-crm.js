@@ -390,6 +390,13 @@ function renderCustomDateCalendar(wrap) {
   const selected = wrap.dataset.value;
   const minDate = wrap.dataset.minDate || null; // "YYYY-MM-DD" - см. buildDateWidgetHtml
   const pad2 = (n) => String(n).padStart(2, '0');
+  // Задача D (Окно 53) - "подсветка сегодня" для вида "День": своей сетки дней у
+  // Дня нет (одна выбранная дата, не грид), поэтому маркер идёт сюда - в календарь-
+  // попап date-picker'а, через который День (и любая другая форма с датой) выбирает
+  // число. Локальная дата, не UTC (тот же приём, что todayStr() в crm-calendar.js) -
+  // new Date().toISOString() съезжает на день не в UTC-поясе (см. api/lib/db.js).
+  const now = new Date();
+  const todayLocal = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
   const firstWeekday = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7; // 0=Пн
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   let cells = '';
@@ -397,10 +404,11 @@ function renderCustomDateCalendar(wrap) {
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${pad2(month)}-${pad2(day)}`;
     const selectedCls = dateStr === selected ? ' selected' : '';
+    const todayCls = dateStr === todayLocal ? ' is-today' : '';
     if (minDate && dateStr < minDate) {
-      cells += `<span class="custom-date-cell custom-date-cell--disabled" data-date="${dateStr}">${day}</span>`;
+      cells += `<span class="custom-date-cell custom-date-cell--disabled${todayCls}" data-date="${dateStr}">${day}</span>`;
     } else {
-      cells += `<button type="button" class="custom-date-cell${selectedCls}" onclick="pickCustomDateDay(this)" data-date="${dateStr}">${day}</button>`;
+      cells += `<button type="button" class="custom-date-cell${selectedCls}${todayCls}" onclick="pickCustomDateDay(this)" data-date="${dateStr}">${day}</button>`;
     }
   }
   panel.innerHTML = `

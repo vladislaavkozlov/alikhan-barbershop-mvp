@@ -647,6 +647,11 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
 .custom-date-cell.selected { background: var(--accent); color: var(--leather); font-weight: 600; }
 .custom-date-cell--empty { cursor: default; }
 .custom-date-cell--disabled { color: var(--text-muted); opacity: 0.35; cursor: not-allowed; }
+/* Задача D (Окно 53) - подсветка "сегодня" в календаре date-picker'а (единственная
+   "ячейка" дня, которая реально есть у вида "День" - см. crm-schedule-view-day.js,
+   своей сетки дней там нет). Кольцо поверх заливки .selected, если сегодня и выбрана
+   одновременно - оба состояния остаются читаемыми, не конкурируют. */
+.custom-date-cell.is-today { box-shadow: inset 0 0 0 1.5px var(--accent); font-weight: 600; }
 
 /* ---------- единый блок "График работы" (Окно 16, 03.08.2026) - одна строка на
    день недели вместо разрозненных "Рабочее время"/"Перерыв стандартный". ---------- */
@@ -828,6 +833,11 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 }
 .month-day.is-empty { background: transparent; border-color: transparent; }
 .month-day .num { font-weight: 600; display: block; }
+/* Задача D (Окно 53) - подсветка "сегодня". .month-day - общий базовый класс и у
+   ячейки Месяца (.month-day--real), и у ячейки Недели (.week-day-cell) - одно
+   правило покрывает оба вида без дублирования. Кольцо, не заливка - не должно
+   конкурировать с существующими цветовыми статусами (work/edit/off/is-holiday). */
+.month-day.is-today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 
 /* Окно 28 (05.08.2026) - точка статуса дня вместо эмодзи 🟢/🟡/🔴. Эмодзи рисовал
    шрифт системы (на маке - глянцевые объёмные шарики), они выбивались из приглушённой
