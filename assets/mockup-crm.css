@@ -924,6 +924,7 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
    больше не фиксированной высоты (min-height, не height), но остаётся компактной
    (MAX_VISIBLE_APPTS=4 в crm-schedule-view-week.js, дальше "+N ещё"). */
 .week-load-pct { color: var(--accent); font-weight: 700; }
+.week-day-cell:hover .week-load-pct { color: var(--leather); }
 .week-appt-list { display: block; margin-top: 6px; }
 .week-appt-chip {
   display: block; font-size: 0.66rem; color: var(--text); white-space: nowrap;
