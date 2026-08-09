@@ -655,7 +655,13 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
 }
 .custom-date-nav-btn:hover { background: var(--surface-3); }
 .custom-date-month-label { font-size: 0.84rem; font-weight: 600; color: var(--text); }
-.custom-date-weekdays, .custom-date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+/* minmax(0,1fr), не голый 1fr - .custom-date-cell это <button>, глобальный сброс
+   `button, .btn { padding: 8px 16px }` (строка 298) даёт ему min-content шире трека,
+   голый 1fr (= minmax(auto,1fr)) не даёт треку сжаться ниже этого min-content - сетка
+   раздувается за рамку .custom-date-panel (overflow:visible по умолчанию), Сб/Вс
+   визуально утекают вправо поверх соседнего UI. Тот же приём уже применён в .month-grid
+   и .week-grid ниже - здесь его не хватало. Живой репро подтвердил на desktop 1728px. */
+.custom-date-weekdays, .custom-date-grid { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 2px; }
 .custom-date-weekdays span { text-align: center; font-size: 0.7rem; color: var(--text-muted); padding: 4px 0; }
 .custom-date-cell {
   aspect-ratio: 1; border: none; border-radius: 6px; background: transparent; color: var(--text);
