@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
-import { addMinutes, intervalsOverlap, shopNow } from '../lib/time.js';
+import { addMinutes, intervalsOverlap, shopNow, toMinutes } from '../lib/time.js';
 import { mastersWithWorkingSchedule, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
 import { notifyStaff } from '../lib/notify-core.js';
 
@@ -30,6 +30,69 @@ const CANCEL_FULL_REFUND_HOURS = 2;
 // body) было бы небезопасным - анонимный запрос мог бы просто прислать
 // channel:'admin' и обойти проверку, isStaff подделать нельзя, потому что это флаг с
 // сервера, не эхо входных данных.
+// ── Единая проверка доступности слота (Окно 54, 10.08.2026, Задача B) ─────────
+// Вынесено из createBookingTx БЕЗ изменения поведения и порядка рубежей: те же
+// четыре проверки, те же коды ответа, та же последовательность (мастер вообще
+// принимает записи → прошлое время → пересечение с чужими бронями → рабочий
+// график/перерыв/выходной). Причина выноса - требование ТЗ Окна 54: перенос записи
+// обязан пропускать слот по ТЕМ ЖЕ правилам, что создание, иначе перенос стал бы
+// дырой в правилах, которые соблюдает POST /bookings. Одна функция вместо двух
+// копий - тот же принцип единого источника истины, что уже применён к
+// mastersWithWorkingSchedule (Окно 29) и getEffectiveSchedule (Окно 16).
+//
+// excludeBookingId - ЕДИНСТВЕННОЕ отличие переноса от создания: переносимая запись
+// не должна конфликтовать сама с собой (сохранение "без изменений" или смена только
+// услуги). При создании передаётся null и условие самонейтрализуется в SQL, отдельной
+// версии запроса нет.
+//
+// Возвращает null (препятствий нет) либо готовый { status, body } - вызывающая
+// транзакция делает ROLLBACK и отдаёт это наружу как есть.
+export async function checkSlotAvailability(client, { masterId, date, startTime, endTime, isStaff, excludeBookingId = null }) {
+  // Задача C промпта Окна 29 (05.08.2026) - финальный рубеж: мастер без единого
+  // рабочего дня в стандартном графике физически ещё не готов принимать записи
+  // (только что нанят, график не выставлен). До этой правки getEffectiveSchedule
+  // молча фолбэчился на GLOBAL_DEFAULT "10:00-20:00, без перерыва" - день выглядел
+  // полностью свободным. Проверка тем же критерием, что уже видит владелец в CRM
+  // (hasWorkingSchedule, Окно 22) - защищает и от прямого вызова API в обход
+  // фронта, по тому же принципу, что и существующая защита от гонки (schedule_blocked).
+  const workingSet = await mastersWithWorkingSchedule(client, [masterId]);
+  if (!workingSet.has(masterId)) {
+    return { status: 409, body: { ok: false, reason: 'master_not_bookable' } };
+  }
+
+  const { date: today, time: nowTime } = shopNow();
+  const isPast = date < today || (date === today && startTime < nowTime);
+  if (isPast && !isStaff) {
+    return { status: 409, body: { ok: false, reason: 'past_time' } };
+  }
+
+  const existingRes = await client.query(
+    `SELECT start_time, end_time FROM bookings
+     WHERE master_id = $1 AND date = $2 AND status != 'cancelled'
+       AND ($3::text IS NULL OR id != $3)`,
+    [masterId, date, excludeBookingId]
+  );
+  const hasOverlap = existingRes.rows.some((b) =>
+    intervalsOverlap(startTime, endTime, b.start_time, b.end_time)
+  );
+  if (hasOverlap) {
+    return { status: 409, body: { ok: false, reason: 'overlap' } };
+  }
+
+  // Задача 3 (Окно 14, 02.08.2026) - одобренный перерыв/выходной реально блокирует
+  // онлайн-запись, не только показывается в интерфейсе. Правка 03.08.2026 (Окно 16):
+  // getEffectiveSchedule() отдаёт ПОЛНУЮ картину дня (рабочее окно + перерывы) - до
+  // этой правки бронь никак не проверялась на попадание в рамки смены, только на
+  // перерывы, теперь запись за пределами рабочего окна тоже blocked.
+  const effectiveSchedule = await getEffectiveSchedule(client, masterId, date);
+  const hitsBlocked = blockedIntervalsFor(effectiveSchedule).some((b) => intervalsOverlap(startTime, endTime, b.startTime, b.endTime));
+  if (hitsBlocked) {
+    return { status: 409, body: { ok: false, reason: 'schedule_blocked' } };
+  }
+
+  return null;
+}
+
 async function createBookingTx({ masterId, serviceIds, date, startTime, clientName, clientPhone, channel, isStaff }) {
   const client = await pool.connect();
   try {
@@ -48,48 +111,10 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     const totalPrice = msRes.rows.reduce((sum, r) => sum + r.price, 0);
     const endTime = addMinutes(startTime, totalDuration);
 
-    // Задача C промпта Окна 29 (05.08.2026) - финальный рубеж: мастер без единого
-    // рабочего дня в стандартном графике физически ещё не готов принимать записи
-    // (только что нанят, график не выставлен). До этой правки getEffectiveSchedule
-    // молча фолбэчился на GLOBAL_DEFAULT "10:00-20:00, без перерыва" - день выглядел
-    // полностью свободным. Проверка тем же критерием, что уже видит владелец в CRM
-    // (hasWorkingSchedule, Окно 22) - защищает и от прямого вызова API в обход
-    // фронта, по тому же принципу, что и существующая защита от гонки (schedule_blocked).
-    const workingSet = await mastersWithWorkingSchedule(client, [masterId]);
-    if (!workingSet.has(masterId)) {
+    const blocked = await checkSlotAvailability(client, { masterId, date, startTime, endTime, isStaff });
+    if (blocked) {
       await client.query('ROLLBACK');
-      return { status: 409, body: { ok: false, reason: 'master_not_bookable' } };
-    }
-
-    const { date: today, time: nowTime } = shopNow();
-    const isPast = date < today || (date === today && startTime < nowTime);
-    if (isPast && !isStaff) {
-      await client.query('ROLLBACK');
-      return { status: 409, body: { ok: false, reason: 'past_time' } };
-    }
-
-    const existingRes = await client.query(
-      `SELECT start_time, end_time FROM bookings WHERE master_id = $1 AND date = $2 AND status != 'cancelled'`,
-      [masterId, date]
-    );
-    const hasOverlap = existingRes.rows.some((b) =>
-      intervalsOverlap(startTime, endTime, b.start_time, b.end_time)
-    );
-    if (hasOverlap) {
-      await client.query('ROLLBACK');
-      return { status: 409, body: { ok: false, reason: 'overlap' } };
-    }
-
-    // Задача 3 (Окно 14, 02.08.2026) - одобренный перерыв/выходной реально блокирует
-    // онлайн-запись, не только показывается в интерфейсе. Правка 03.08.2026 (Окно 16):
-    // getEffectiveSchedule() отдаёт ПОЛНУЮ картину дня (рабочее окно + перерывы) - до
-    // этой правки бронь никак не проверялась на попадание в рамки смены, только на
-    // перерывы, теперь запись за пределами рабочего окна тоже blocked.
-    const effectiveSchedule = await getEffectiveSchedule(client, masterId, date);
-    const hitsBlocked = blockedIntervalsFor(effectiveSchedule).some((b) => intervalsOverlap(startTime, endTime, b.startTime, b.endTime));
-    if (hitsBlocked) {
-      await client.query('ROLLBACK');
-      return { status: 409, body: { ok: false, reason: 'schedule_blocked' } };
+      return blocked;
     }
 
     const staffRes = await client.query('SELECT location_id FROM staff WHERE id = $1', [masterId]);
@@ -99,6 +124,15 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     }
     const locationId = staffRes.rows[0].location_id;
 
+    // Решение Алихана 09.08.2026 (найдено живьём, Окно 53, Задача J): клиента с
+    // телефоном - в общую базу clients как раньше, без изменений. Клиента БЕЗ
+    // телефона (постоянный walk-in, который просто не называет номер) - НЕ
+    // пытаться опознавать/связывать с прошлыми визитами по одному имени (не
+    // масштабируется - "который из сотни Сергеев", память
+    // feedback_ne-predlagat-matching-bez-unikalnogo-klyucha), но и не терять имя
+    // молча, как было до этой правки. clientId остаётся null (эти визиты и есть
+    // "неидентифицированные", см. countUnidentifiedToday в payroll.js), имя
+    // сохраняется отдельно на самой брони - walkin_name (миграция 041).
     let clientId = null;
     let requiresPrepayment = false;
     if (clientPhone) {
@@ -120,10 +154,13 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     // service_id (единичное поле) намеренно оставляем NULL для новых броней - список
     // услуг живёт только в booking_services, чтобы не было двух источников правды
     // (см. миграцию 013_booking_services.sql, там же бэкфилл старых броней).
+    // walkin_name (миграция 041) - сырое имя прямо на брони, независимо от clientId.
+    // Заполняется всегда, когда указано имя - раньше терялось молча, если
+    // администратор не указал телефон (clientId оставался null).
     await client.query(
-      `INSERT INTO bookings (id, location_id, master_id, service_id, client_id, date, start_time, end_time, status, channel, requires_prepayment)
-       VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, 'planned', $8, $9)`,
-      [bookingId, locationId, masterId, clientId, date, startTime, endTime, channel ?? 'client', requiresPrepayment]
+      `INSERT INTO bookings (id, location_id, master_id, service_id, client_id, date, start_time, end_time, status, channel, requires_prepayment, walkin_name)
+       VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, 'planned', $8, $9, $10)`,
+      [bookingId, locationId, masterId, clientId, date, startTime, endTime, channel ?? 'client', requiresPrepayment, clientName ?? null]
     );
     for (const serviceId of serviceIds) {
       await client.query('INSERT INTO booking_services (booking_id, service_id) VALUES ($1, $2)', [bookingId, serviceId]);
@@ -186,11 +223,14 @@ async function listBookingsForRequest(url, auth) {
   const dateFrom = url.searchParams.get('from');
   const dateTo = url.searchParams.get('to');
 
+  // COALESCE(c.name, b.walkin_name) - клиент с телефоном берёт имя из общей базы
+  // clients (как раньше), клиент без телефона (walkin_name, миграция 041) - имя
+  // прямо с брони, вместо молчаливой потери (найдено 09.08.2026, Окно 53).
   let query = `SELECT b.id, b.master_id, b.service_id, b.date, b.start_time, b.end_time, b.status,
                       b.client_confirmed, b.location_id, b.requires_prepayment, b.review_request_pending,
                       b.actual_price,
-                      c.name AS client_name, c.phone AS client_phone, c.birthday AS client_birthday,
-                      c.no_show_streak AS client_no_show_streak
+                      COALESCE(c.name, b.walkin_name) AS client_name, c.phone AS client_phone,
+                      c.birthday AS client_birthday, c.no_show_streak AS client_no_show_streak
                FROM bookings b LEFT JOIN clients c ON c.id = b.client_id WHERE 1=1`;
   const params = [];
   if (masterId) {
@@ -557,7 +597,190 @@ export async function handleBookingAddServices(req, res, parts) {
   }
 }
 
+// ── /bookings/:id/reschedule - ПЕРЕНОС записи: другой мастер и/или другая дата/
+// время (Окно 54, 10.08.2026, Задача B). Честная находка, из-за которой окно
+// существует: услугу у существующей записи менять уже было можно (PATCH
+// /bookings/:id/services, Окно 51), а мастера и время - нельзя вообще, только
+// удалить и создать заново. При этом удаление теряет id брони, а с ним actual_price
+// (скидку, Окно 51) и привязанные продажи - для "перенеси Сергея на завтра к другому
+// мастеру" это негодный путь. Здесь обновляется ТА ЖЕ строка, поэтому
+// booking_services/actual_price/sales/статус остаются на своём id.
+//
+// Имя пути: /reschedule рядом с уже существующими /cancel, /status, /services,
+// /actual-price - то же соглашение "существительное действия после :id", отдельного
+// стиля не заводим.
+//
+// Длительность нового слота считается по прайсу НОВОГО мастера, не переносится
+// старой длиной: у разных мастеров разные duration_min на одну услугу
+// (master_services, Окно 10 - у Екатерины своя длительность и цена). Тот же расчёт,
+// что у createBookingTx, вынесен в чистую функцию ради офлайн-теста.
+export function resolveRescheduleDuration({ serviceIds, masterServiceRows, currentStartTime, currentEndTime }) {
+  // Длительность считается по прайсу НОВОГО мастера, не по старой длине слота: у
+  // разных мастеров разные duration_min на одну услугу (master_services, Окно 10 -
+  // у Екатерины своя длительность и цена). Тот же расчёт, что у createBookingTx.
+  if (serviceIds.length === 0) {
+    // Брони без строк в booking_services штатно быть не должно (миграция 013
+    // забэкфилила старые), но 0 минут дали бы вырожденный слот 12:00-12:00 -
+    // сохраняем фактическую длину текущего слота.
+    return { durationMin: toMinutes(currentEndTime) - toMinutes(currentStartTime) };
+  }
+  if (masterServiceRows.length !== serviceIds.length) {
+    // Новый мастер не оказывает часть услуг этой брони - переносить некуда, тот же
+    // код ошибки, что у создания брони с чужой услугой.
+    return { error: 'unknown_master_service' };
+  }
+  return { durationMin: masterServiceRows.reduce((sum, r) => sum + r.duration_min, 0) };
+}
+
+async function rescheduleBookingTx({ bookingId, masterId, date, startTime, isStaff }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Тот же ключ блокировки, что у createBookingTx - поэтому перенос и создание на
+    // один слот сериализуются между собой, а не только переносы между переносами
+    // (сценарий 6 промпта: два одновременных переноса на один слот - проходит один).
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booking:${masterId}:${date}`]);
+
+    // FOR UPDATE - два параллельных переноса ОДНОЙ брони (два устройства
+    // администратора) не должны оба увидеть её исходное состояние.
+    const bookingRes = await client.query(
+      `SELECT id, master_id, location_id, date, start_time, end_time, status
+       FROM bookings WHERE id = $1 FOR UPDATE`,
+      [bookingId]
+    );
+    if (bookingRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { status: 404, body: { error: 'booking_not_found' } };
+    }
+    const booking = bookingRes.rows[0];
+    // Отменённую запись переносить нельзя - тот же явный код, что уже отдаёт
+    // handleBookingAddServices на отменённой брони.
+    if (booking.status === 'cancelled') {
+      await client.query('ROLLBACK');
+      return { status: 409, body: { error: 'booking_cancelled' } };
+    }
+
+    const bsRes = await client.query('SELECT service_id FROM booking_services WHERE booking_id = $1', [bookingId]);
+    const serviceIds = bsRes.rows.map((r) => r.service_id);
+    const msRes = serviceIds.length
+      ? await client.query(
+          'SELECT service_id, duration_min FROM master_services WHERE master_id = $1 AND service_id = ANY($2)',
+          [masterId, serviceIds]
+        )
+      : { rows: [] };
+    const duration = resolveRescheduleDuration({
+      serviceIds,
+      masterServiceRows: msRes.rows,
+      currentStartTime: booking.start_time,
+      currentEndTime: booking.end_time,
+    });
+    if (duration.error) {
+      await client.query('ROLLBACK');
+      return { status: 400, body: { error: duration.error } };
+    }
+    const endTime = addMinutes(startTime, duration.durationMin);
+
+    // Ровно те же рубежи, что при создании (checkSlotAvailability), с одним
+    // отличием - сама переносимая запись исключена из проверки пересечений, иначе
+    // сохранение "без изменений" конфликтовало бы само с собой (сценарий 4 промпта).
+    const blocked = await checkSlotAvailability(client, {
+      masterId, date, startTime, endTime, isStaff, excludeBookingId: bookingId,
+    });
+    if (blocked) {
+      await client.query('ROLLBACK');
+      return blocked;
+    }
+
+    const staffRes = await client.query('SELECT location_id FROM staff WHERE id = $1', [masterId]);
+    if (staffRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { status: 400, body: { error: 'unknown_master' } };
+    }
+    // location_id едет за мастером: две точки барбершопа, перенос на мастера другой
+    // точки означает и смену точки визита - иначе бронь осталась бы висеть в
+    // выручке/списках прежней точки (listBookingsForRequest фильтрует по location_id).
+    const locationId = staffRes.rows[0].location_id;
+
+    await client.query(
+      `UPDATE bookings SET master_id = $1, location_id = $2, date = $3, start_time = $4, end_time = $5
+       WHERE id = $6`,
+      [masterId, locationId, date, startTime, endTime, bookingId]
+    );
+    await client.query('COMMIT');
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        booking: {
+          id: bookingId,
+          masterId,
+          locationId,
+          date,
+          startTime,
+          endTime,
+          serviceIds,
+          totalDurationMin: duration.durationMin,
+          previous: {
+            masterId: booking.master_id,
+            date: booking.date instanceof Date ? booking.date.toISOString().slice(0, 10) : booking.date,
+            startTime: booking.start_time,
+            endTime: booking.end_time,
+          },
+        },
+      },
+    };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Роли - owner+admin, master не допущен: та же матрица, что у handleBookingDelete и
+// handleBookingActualPrice, и то же решение Влада от 08.08.2026 ("только у
+// администратора должна быть возможность записывать клиентов" - перенос это
+// пересадка клиента на другое время, то же самое действие по смыслу). Админ - только
+// своя точка, причём с ДВУХ сторон: и текущая бронь, и новый мастер должны быть его
+// (иначе админ одной точки перекинул бы клиента на чужую).
+//
+// НЕ входит сюда сознательно: уведомления. При создании брони createBookingTx
+// уведомляет мастера и админов точки (Окно 14) - при переносе аналога нет, потому
+// что ТЗ окна об этом не говорит, а "старому мастеру пришло, что запись ушла" -
+// отдельное продуктовое решение (кому и что писать), не побочный эффект контракта.
+// Вынесено Владу в отчёт как открытый вопрос Окна 55.
+export async function handleBookingReschedule(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+  const body = await readBody(req);
+  if (!body.masterId || !body.date || !body.startTime) {
+    return sendJson(res, 400, { error: 'missing_fields' });
+  }
+  const bookingId = decodeURIComponent(parts[1]);
+  // Scope-проверка админа до транзакции - тот же приём, что у handleBookingAddServices:
+  // 403 не должен зависеть от исхода бизнес-проверок внутри. Авторитетные 404/409
+  // (запись исчезла/отменена между этими двумя чтениями) всё равно перепроверяются
+  // внутри транзакции под FOR UPDATE.
+  const bookingRes = await pool.query('SELECT id, location_id FROM bookings WHERE id = $1', [bookingId]);
+  if (bookingRes.rows.length === 0) return sendJson(res, 404, { error: 'booking_not_found' });
+  if (auth.role === 'admin') {
+    if (bookingRes.rows[0].location_id !== auth.locationId) return sendJson(res, 403, { error: 'forbidden' });
+    const targetRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [body.masterId]);
+    if (targetRes.rows.length === 0) return sendJson(res, 400, { error: 'unknown_master' });
+    if (targetRes.rows[0].location_id !== auth.locationId) return sendJson(res, 403, { error: 'forbidden' });
+  }
+  const result = await rescheduleBookingTx({
+    bookingId,
+    masterId: body.masterId,
+    date: body.date,
+    startTime: body.startTime,
+    isStaff: true, // сюда допущены только owner/admin (requireRole выше) - визит задним числом разрешён, как и при создании из CRM
+  });
+  return sendJson(res, result.status, result.body);
+}
+
 // ── /bookings/:id/actual-price - фактически взятая с клиента сумма (08.08.2026,
+
 // вечер, Влад: "Али иногда говорит администратору 'пробей по старой цене'" -
 // скидка клиенту). owner/admin - та же матрица, что у handleBookingAddServices
 // (master сюда не допущен - тем же принципом "только администратор" из этой же

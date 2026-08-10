@@ -53,7 +53,9 @@ export { isoWeekday, enumerateDateRange } from './lib/time.js';
 import { handleLogin, handleMe } from './routes/auth.js';
 import { handleStaffList, handleStaffPortfolio, handleStaffRole } from './routes/staff.js';
 import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
-import { handleBookings, handleBookingCancel, handleBookingStatus, handleBookingAddServices, handleBookingActualPrice, handleBookingDelete, handleSales } from './routes/bookings.js';
+import { handleBookings, handleBookingCancel, handleBookingStatus, handleBookingAddServices, handleBookingReschedule, handleBookingActualPrice, handleBookingDelete, handleSales } from './routes/bookings.js';
+// Ре-экспорт для tests/api.booking-reschedule.test.js (Окно 54, Задача B).
+export { checkSlotAvailability, resolveRescheduleDuration } from './routes/bookings.js';
 import {
   handleSchedule,
   handleScheduleRange,
@@ -111,6 +113,7 @@ const ROUTES = [
   { method: 'POST', path: 'bookings/:id/cancel', auth: 'any-staff' },
   { method: 'PATCH', path: 'bookings/:id/status', auth: 'any-staff' },
   { method: 'PATCH', path: 'bookings/:id/services', auth: 'any-staff' },
+  { method: 'PATCH', path: 'bookings/:id/reschedule', auth: 'any-staff' },
   { method: 'DELETE', path: 'bookings/:id', auth: 'any-staff' },
   { method: 'PATCH', path: 'bookings/:id/actual-price', auth: 'any-staff' },
   { method: 'GET', path: 'sales', auth: 'any-staff' },
@@ -286,6 +289,13 @@ const server = createServer(async (req, res) => {
     // api/routes/bookings.js.
     if (parts[0] === 'bookings' && parts[1] && parts[2] === 'services' && parts.length === 3 && req.method === 'PATCH') {
       return handleBookingAddServices(req, res, parts);
+    }
+
+    // ── /bookings/:id/reschedule - перенос записи на другого мастера/дату/время
+    // (Окно 54, 10.08.2026, Задача B) - см. подробный комментарий у
+    // handleBookingReschedule, api/routes/bookings.js.
+    if (parts[0] === 'bookings' && parts[1] && parts[2] === 'reschedule' && parts.length === 3 && req.method === 'PATCH') {
+      return handleBookingReschedule(req, res, parts);
     }
 
     // ── /bookings/:id/actual-price - фактически взятая сумма (08.08.2026, вечер) -
