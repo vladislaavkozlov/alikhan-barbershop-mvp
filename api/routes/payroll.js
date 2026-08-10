@@ -107,6 +107,29 @@ export async function computeRevenueToday(client, locationId, nowMs = Date.now()
   return { revenue };
 }
 
+// Решение Алихана 09.08.2026 (найдено живьём, Окно 53, Задача J, детали - память
+// project_barbershop-owner-schedule-bugfixes-okno53-09-08): клиента без телефона
+// система не пытается опознать между визитами (нет уникального ключа - "который
+// из сотни Сергеев"), но должна честно посчитать, сколько таких визитов было -
+// это его прямая формулировка ("сохранять записи про неидентифицированных, потом
+// считать сколько приходило таких"). client_id IS NULL - ровно эти брони
+// (walkin-запись без телефона, миграция 041 добавляет только имя, не identity).
+// Те же границы суток МСК и тот же приём инъекции nowMs, что у computeRevenueToday
+// - единая "сегодняшняя" картина для дашборда admin/owner.
+export async function countUnidentifiedToday(client, locationId, nowMs = Date.now()) {
+  const todayStr = new Date(nowMs + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  let query = `SELECT count(*) FROM bookings b
+               WHERE b.date = $1 AND b.client_id IS NULL AND b.status != 'cancelled'`;
+  const params = [todayStr];
+  if (locationId) {
+    params.push(locationId);
+    query += ` AND b.location_id = $${params.length}`;
+  }
+  const result = await client.query(query, params);
+  return { unidentifiedCount: Number(result.rows[0].count) };
+}
+
 // ── /payroll-settings - ставка ПО МАСТЕРУ (Окно 10, разд.17.3 ТЗ). Заменяет
 // единую строку payroll_settings (% по категории услуги + бонус за нового
 // клиента - оба подтверждённо не соответствуют реальной формуле Алихана,
@@ -216,6 +239,13 @@ export async function handleRevenueToday(req, res, url) {
   const auth = await authenticate(req);
   if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
   const locationId = auth.role === 'admin' ? auth.locationId : url.searchParams.get('locationId');
-  const result = await computeRevenueToday(pool, locationId);
-  return sendJson(res, 200, result);
+  // unidentifiedCount (09.08.2026) - добавлен в тот же ответ, не отдельный роут:
+  // тот же контур доступа (owner/admin), та же "сегодняшняя" сводка дня, что уже
+  // читает crm-admin.html карточкой "Выручка сегодня" (Окно 38) - см.
+  // countUnidentifiedToday выше.
+  const [revenueResult, unidentifiedResult] = await Promise.all([
+    computeRevenueToday(pool, locationId),
+    countUnidentifiedToday(pool, locationId),
+  ]);
+  return sendJson(res, 200, { ...revenueResult, ...unidentifiedResult });
 }

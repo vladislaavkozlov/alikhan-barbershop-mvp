@@ -322,8 +322,11 @@ export async function findWeeklyScheduleConflicts(client, masterId, rows) {
 // 019 добавляет тип 'schedule_conflict').
 export async function findScheduleConflicts(client, masterId, date, breaks) {
   if (!breaks.length) return [];
+  // COALESCE - тот же приём, что в listBookingsForRequest (api/routes/bookings.js) -
+  // клиент без телефона (walkin_name, миграция 041) тоже виден в тексте уведомления
+  // о конфликте, не только клиенты с карточкой в clients.
   const bookingsRes = await client.query(
-    `SELECT b.start_time, b.end_time, c.name AS client_name, c.phone AS client_phone
+    `SELECT b.start_time, b.end_time, COALESCE(c.name, b.walkin_name) AS client_name, c.phone AS client_phone
      FROM bookings b LEFT JOIN clients c ON c.id = b.client_id
      WHERE b.master_id = $1 AND b.date = $2 AND b.status != 'cancelled'`,
     [masterId, date]
