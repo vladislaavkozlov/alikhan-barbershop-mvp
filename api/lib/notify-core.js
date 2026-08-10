@@ -9,17 +9,44 @@ import { mastersWithWorkingSchedule } from './schedule-core.js';
 // индексы notifications_booking_dedup/notifications_schedreq_dedup (миграция 015)
 // защищают от дублей при повторном вызове (например фоновый сканер + ручное
 // действие в одну минуту) - ON CONFLICT DO NOTHING, не считается ошибкой.
+//
+// refresh (Окно 54, 10.08.2026, Задача C) - для событий, которые могут ПОВТОРИТЬСЯ по
+// одной и той же брони с новым содержанием: перенос записи. Дедуп-индекс
+// notifications_booking_dedup включает (staff_id, type, booking_id), поэтому второй
+// перенос той же брони тому же мастеру молча гасился бы, а первое уведомление
+// осталось бы висеть с устаревшим временем - то есть врать. Ровно этой болезнью уже
+// болел 'schedule_request_cancelled' (см. миграцию 033, найдено живым прогоном Окна
+// 23), только там лечили отдельным типом - здесь тип не помогает, потому что
+// повторяется САМ тип. Обновляем текст, поднимаем наверх списка (created_at, сортировка
+// в handleNotificationsList) и снова помечаем непрочитанным: повторный перенос это
+// новая информация, а не дубль. Дефолт false - поведение всех существующих вызовов
+// (booking_new, напоминания, заявки на график) не меняется ни на байт.
 export async function notifyStaff(
   client,
   staffId,
   type,
-  { bookingId = null, scheduleRequestId = null, relatedMasterId = null, title, body = null }
+  { bookingId = null, scheduleRequestId = null, relatedMasterId = null, title, body = null, refresh = false }
 ) {
+  const params = [`ntf-${randomBytes(8).toString('hex')}`, staffId, type, bookingId, scheduleRequestId, relatedMasterId, title, body];
+  if (!refresh) {
+    await client.query(
+      `INSERT INTO notifications (id, staff_id, type, booking_id, schedule_request_id, related_master_id, title, body)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT DO NOTHING`,
+      params
+    );
+    return;
+  }
+  // Таргет конфликта назван явно (частичный индекс требует повторить его предикат) -
+  // DO UPDATE без таргета Postgres не принимает. refresh осмыслен только для событий
+  // по брони, поэтому bookingId обязателен.
+  if (!bookingId) throw new Error('notifyStaff: refresh требует bookingId');
   await client.query(
     `INSERT INTO notifications (id, staff_id, type, booking_id, schedule_request_id, related_master_id, title, body)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     ON CONFLICT DO NOTHING`,
-    [`ntf-${randomBytes(8).toString('hex')}`, staffId, type, bookingId, scheduleRequestId, relatedMasterId, title, body]
+     ON CONFLICT (staff_id, type, booking_id) WHERE booking_id IS NOT NULL
+     DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, created_at = now(), read_at = NULL`,
+    params
   );
 }
 

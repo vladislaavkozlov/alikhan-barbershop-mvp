@@ -192,6 +192,93 @@ await withEphemeralServer(async ({ apiUrl, db }) => {
     body: JSON.stringify({ masterId: 'w54-m2', date: dayNext, startTime: '15:00' }),
   });
   check('аноним переносить не может - 401 (реестр ROUTES, default-deny)', anonMove.status === 401);
+
+  // ══ ЗАДАЧА C - уведомления при переносе ════════════════════════════════════
+  // Решение Влада «да, сообщить». Здесь проверяется именно то, что офлайн-тест
+  // проверить не может: реальные уникальные индексы миграции 015 в паре с
+  // ON CONFLICT DO UPDATE (режим refresh) и новые типы из миграции 042 - то есть
+  // что CHECK-constraint пропускает 'booking_moved_out'/'booking_moved_in', и что
+  // повторный перенос обновляет уведомление вместо молчаливого проглатывания.
+  console.log('\n── Задача C: уведомления при переносе ──');
+
+  async function notifications(staffId, bookingId) {
+    const r = await db.query(
+      'SELECT type, title, body, read_at FROM notifications WHERE staff_id = $1 AND booking_id = $2 ORDER BY type',
+      [staffId, bookingId]
+    );
+    return r.rows;
+  }
+
+  const notifyMe = await book(owner, { masterId: 'w54-m1', date: dayNext, startTime: '16:00', clientName: 'Уведомлённый', clientPhone: '+79990000006' });
+  const notifyId = notifyMe.data.booking.id;
+  check('фикстура: бронь для проверки уведомлений создана', notifyMe.status === 200);
+
+  // Перенос №1: смена мастера внутри точки.
+  const move1 = await reschedule(owner, notifyId, { masterId: 'w54-m2', date: dayNext, startTime: '19:00' });
+  check('Задача C: перенос прошёл и вернул число адресатов', move1.status === 200 && typeof move1.data.booking.notified === 'number' && move1.data.booking.notified > 0, `notified=${move1.data.booking.notified}`);
+  const oldMaster1 = await notifications('w54-m1', notifyId);
+  const newMaster1 = await notifications('w54-m2', notifyId);
+  check('Задача C: СТАРЫЙ мастер получил booking_moved_out (новый тип прошёл CHECK миграции 042)', oldMaster1.some((n) => n.type === 'booking_moved_out'));
+  check('Задача C: в тексте старому мастеру есть куда ушла (имя нового мастера и новое время)', oldMaster1.find((n) => n.type === 'booking_moved_out')?.body?.includes('QA Мастер 2') && oldMaster1.find((n) => n.type === 'booking_moved_out')?.body?.includes('19:00'));
+  check('Задача C: НОВЫЙ мастер получил booking_moved_in', newMaster1.some((n) => n.type === 'booking_moved_in'));
+  const admin1 = await notifications('w54-admin', notifyId);
+  check('Задача C: админ точки получил booking_moved_in (одна строка, не две)', admin1.filter((n) => n.type === 'booking_moved_in').length === 1);
+  check('Задача C: перенос внутри одной точки НЕ порождает админу "ушла с точки"', !admin1.some((n) => n.type === 'booking_moved_out'));
+
+  // Перенос №2 той же брони - без него дедуп-индекс notifications_booking_dedup
+  // молча проглотил бы уведомление, и первое осталось бы врать про время.
+  // Сравниваем именно С ТЕКСТОМ ДО второго переноса: наличие/отсутствие конкретного
+  // времени в body ничего не доказывает - в формате "было → стало" старое время
+  // законно остаётся в строке как точка отсчёта.
+  const bodyBefore = newMaster1.find((n) => n.type === 'booking_moved_in')?.body;
+  await db.query('UPDATE notifications SET read_at = now() WHERE booking_id = $1', [notifyId]);
+  const move2 = await reschedule(owner, notifyId, { masterId: 'w54-m2', date: dayNext, startTime: '11:00' });
+  check('фикстура: второй перенос той же брони прошёл', move2.status === 200);
+  const newMaster2 = await notifications('w54-m2', notifyId);
+  const moveIn2 = newMaster2.find((n) => n.type === 'booking_moved_in');
+  check('Задача C: повторный перенос ОБНОВИЛ уведомление, а не был проглочен дедупом', !!moveIn2 && moveIn2.body !== bodyBefore && moveIn2.body.includes('11:00'), `было: ${bodyBefore} · стало: ${moveIn2?.body}`);
+  check('Задача C: обновлённое уведомление снова непрочитанное - повторный перенос это новая информация', moveIn2?.read_at === null);
+  check('Задача C: у нового мастера всё равно ОДНА строка на бронь, не две', newMaster2.filter((n) => n.type === 'booking_moved_in').length === 1);
+
+  // Перенос №3 - обратно к первому мастеру: у него не должно остаться двух
+  // взаимоисключающих утверждений об одной брони («ушла» и «у вас»). Смотрим только
+  // типы переноса: booking_new с момента создания брони - другое событие, живёт своей
+  // жизнью и сниматься не должно.
+  const move3 = await reschedule(owner, notifyId, { masterId: 'w54-m1', date: dayNext, startTime: '11:00' });
+  check('фикстура: перенос обратно к первому мастеру прошёл', move3.status === 200);
+  const oldMaster3 = await notifications('w54-m1', notifyId);
+  const moveTypes3 = oldMaster3.map((n) => n.type).filter((t) => t.startsWith('booking_moved_'));
+  check('Задача C: у вернувшегося мастера остался только booking_moved_in, "ушла" снята', moveTypes3.join(',') === 'booking_moved_in', oldMaster3.map((n) => n.type).join(','));
+  check('Задача C: уведомление о СОЗДАНИИ брони при этом не пострадало', oldMaster3.some((n) => n.type === 'booking_new'));
+
+  // Перенос «без изменений» - не должен добавить ни строки.
+  const beforeNoop = await db.query('SELECT count(*) FROM notifications WHERE booking_id = $1', [notifyId]);
+  await reschedule(owner, notifyId, { masterId: 'w54-m1', date: dayNext, startTime: '11:00' });
+  const afterNoopCount = await db.query('SELECT count(*) FROM notifications WHERE booking_id = $1', [notifyId]);
+  check('Задача C: перенос без изменений не добавил уведомлений', beforeNoop.rows[0].count === afterNoopCount.rows[0].count);
+
+  // Уведомления реально видны в личном кабинете, а не только лежат в таблице.
+  const bellRes = await fetch(`${apiUrl}/notifications`, { headers: master });
+  const bell = await bellRes.json();
+  check('Задача C: уведомление о переносе отдаётся через GET /notifications мастеру', bellRes.status === 200 && bell.some((n) => n.type === 'booking_moved_in' && n.bookingId === notifyId), JSON.stringify(bell.map((n) => n.type)));
+
+  // Ни одна из проверок выше не должна была создать уведомление тому, кто к брони
+  // отношения не имеет. Допустимый круг считается ИЗ БАЗЫ, а не списком QA-аккаунтов:
+  // на точке 1 сидит ещё и Мамедхан (master-2) из базовых миграций - он реальный
+  // админ этой точки и адресат законный. Хардкод "только w54-*" ловил бы его как
+  // постороннего и врал бы про утечку.
+  const allowed = await db.query(
+    `SELECT id FROM staff WHERE id IN ('w54-m1','w54-m2') OR (role = 'admin' AND location_id = 1)`
+  );
+  const allowedIds = allowed.rows.map((r) => r.id);
+  const strangers = await db.query(
+    `SELECT DISTINCT staff_id FROM notifications
+     WHERE booking_id = $1 AND type IN ('booking_moved_out','booking_moved_in')
+       AND staff_id <> ALL($2)`,
+    [notifyId, allowedIds]
+  );
+  check('Задача C: уведомления о переносе не ушли посторонним (владелец не адресат)', strangers.rows.length === 0, JSON.stringify(strangers.rows));
+  check('Задача C: владелец точно НЕ в числе адресатов переноса', (await notifications('w54-owner', notifyId)).length === 0);
 });
 
 if (!summary()) process.exit(1);

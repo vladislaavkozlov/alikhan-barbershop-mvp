@@ -20,7 +20,7 @@
 // на эфемерной локальной базе (QA-фикстуры внутри скрипта, не миграцией - CLAUDE.md).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkSlotAvailability, resolveRescheduleDuration } from '../api/server.mjs';
+import { checkSlotAvailability, resolveRescheduleDuration, planRescheduleNotifications, formatMoveSlot } from '../api/server.mjs';
 
 // Дата заведомо в будущем - past_time зависит от реального времени (shopNow), а не от
 // фикстуры, поэтому в юнитах на overlap/schedule она не должна мешать.
@@ -208,5 +208,141 @@ test('бронь без строк в booking_services - сохраняется 
     currentEndTime: '10:50',
   });
   assert.deepEqual(result, { durationMin: 50 });
+});
+
+// ── Задача C: уведомления при переносе ──────────────────────────────────────
+// Решение Влада «да, сообщить» по открытому вопросу Задачи B. Проверяется чистая
+// функция planRescheduleNotifications - кому и что уходит; сама запись в таблицу
+// (ON CONFLICT ... DO UPDATE, снятие противоположного типа) проверяется живым
+// прогоном, потому что зависит от реальных уникальных индексов миграции 015.
+const BASE = {
+  bookingId: 'bk-1',
+  clientName: 'Сергей',
+  masterNames: { 'master-1': 'Алиовсад', 'master-2': 'Мамедхан' },
+};
+
+test('перенос без изменений - НИ ОДНОГО уведомления, колокольчик не засоряется', () => {
+  // Сценарий 4 промпта: администратор открыл карточку и сохранил, ничего не подвинув.
+  const plan = planRescheduleNotifications({
+    ...BASE,
+    previous: { masterId: 'master-1', locationId: 1, date: '2026-08-12', startTime: '11:00' },
+    next: { masterId: 'master-1', locationId: 1, date: '2026-08-12', startTime: '11:00' },
+    previousLocationAdminIds: ['admin-1'],
+    nextLocationAdminIds: ['admin-1'],
+  });
+  assert.deepEqual(plan, []);
+});
+
+test('смена мастера - старому booking_moved_out, новому booking_moved_in', () => {
+  const plan = planRescheduleNotifications({
+    ...BASE,
+    previous: { masterId: 'master-1', locationId: 1, date: '2026-08-12', startTime: '11:00' },
+    next: { masterId: 'master-2', locationId: 1, date: '2026-08-13', startTime: '15:00' },
+    previousLocationAdminIds: ['admin-1'],
+    nextLocationAdminIds: ['admin-1'],
+  });
+  const out = plan.find((n) => n.staffId === 'master-1');
+  const inn = plan.find((n) => n.staffId === 'master-2');
+  assert.equal(out.type, 'booking_moved_out');
+  assert.equal(inn.type, 'booking_moved_in');
+  // Имя мастера в тексте, а не id - уведомление читает человек.
+  assert.equal(out.body, '12.08 11:00 → Мамедхан, 13.08 15:00 · Сергей');
+  assert.equal(inn.body, '13.08 15:00 · Сергей · было: Алиовсад, 12.08 11:00');
+  assert.ok(plan.every((n) => n.bookingId === 'bk-1'));
+});
+
+test('только время, мастер тот же - одно уведомление мастеру, без ложного "запись ушла"', () => {
+  const plan = planRescheduleNotifications({
+    ...BASE,
+    previous: { masterId: 'master-1', locationId: 1, date: '2026-08-12', startTime: '11:00' },
+    next: { masterId: 'master-1', locationId: 1, date: '2026-08-12', startTime: '16:30' },
+    previousLocationAdminIds: [],
+    nextLocationAdminIds: [],
+  });
+  assert.deepEqual(plan.map((n) => [n.staffId, n.type]), [['master-1', 'booking_moved_in']]);
+  assert.equal(plan[0].title, 'Запись перенесена');
+  assert.equal(plan[0].body, '12.08 11:00 → 12.08 16:30 · Сергей');
+});
+
+test('дата в тексте с обеих сторон, даже когда день не менялся', () => {
+  // «11:00 → 16:30» без даты в списке уведомлений через два дня не отвечает на
+  // вопрос «какого числа» - а перенос как раз про это.
+  assert.equal(formatMoveSlot('2026-08-12', '11:00'), '12.08 11:00');
+});
+
+test('перенос внутри одной точки - админ получает только "перенесена", не "ушла с точки"', () => {
+  const plan = planRescheduleNotifications({
+    ...BASE,
+    previous: { masterId: 'master-1', locationId: 1, date: '2026-08-12', startTime: '11:00' },
+    next: { masterId: 'master-2', locationId: 1, date: '2026-08-12', startTime: '15:00' },
+    previousLocationAdminIds: ['admin-1'],
+    nextLocationAdminIds: ['admin-1'],
+  });
+  const forAdmin = plan.filter((n) => n.staffId === 'admin-1');
+  assert.deepEqual(forAdmin.map((n) => n.type), ['booking_moved_in']);
+});
+
+test('перенос на мастера ДРУГОЙ точки - админ прежней точки узнаёт, что запись ушла', () => {
+  // location_id едет за мастером (см. rescheduleBookingTx), поэтому визит реально
+  // покидает точку - её админ не должен искать пропавшую запись вручную.
+  const plan = planRescheduleNotifications({
+    ...BASE,
+    previous: { masterId: 'master-1', locationId: 1, date: '2026-08-12', startTime: '11:00' },
+    next: { masterId: 'master-2', locationId: 2, date: '2026-08-12', startTime: '15:00' },
+    previousLocationAdminIds: ['admin-1'],
+    nextLocationAdminIds: ['admin-2'],
+  });
+  assert.deepEqual(
+    plan.map((n) => [n.staffId, n.type]),
+    [
+      ['master-1', 'booking_moved_out'],
+      ['master-2', 'booking_moved_in'],
+      ['admin-1', 'booking_moved_out'],
+      ['admin-2', 'booking_moved_in'],
+    ]
+  );
+});
+
+test('человек, попавший в план дважды, получает одну строку - ключ дедуп-индекса (staff_id, type, booking_id)', () => {
+  // Админ точки, который сам оказывает услуги, может оказаться и мастером назначения.
+  const plan = planRescheduleNotifications({
+    ...BASE,
+    previous: { masterId: 'master-1', locationId: 1, date: '2026-08-12', startTime: '11:00' },
+    next: { masterId: 'admin-1', locationId: 1, date: '2026-08-12', startTime: '15:00' },
+    previousLocationAdminIds: ['admin-1'],
+    nextLocationAdminIds: ['admin-1'],
+  });
+  const forAdmin = plan.filter((n) => n.staffId === 'admin-1');
+  assert.equal(forAdmin.length, 1);
+});
+
+test('клиент без имени - текст без хвоста " · undefined"', () => {
+  const plan = planRescheduleNotifications({
+    bookingId: 'bk-1',
+    clientName: null,
+    masterNames: { 'master-1': 'Алиовсад' },
+    previous: { masterId: 'master-1', locationId: 1, date: '2026-08-12', startTime: '11:00' },
+    next: { masterId: 'master-1', locationId: 1, date: '2026-08-12', startTime: '15:00' },
+  });
+  assert.equal(plan[0].body, '12.08 11:00 → 12.08 15:00');
+});
+
+test('имя мастера не нашлось - подставляется id, перенос не падает', () => {
+  const plan = planRescheduleNotifications({
+    bookingId: 'bk-1',
+    masterNames: {},
+    previous: { masterId: 'master-1', locationId: 1, date: '2026-08-12', startTime: '11:00' },
+    next: { masterId: 'master-2', locationId: 1, date: '2026-08-12', startTime: '15:00' },
+  });
+  assert.ok(plan.find((n) => n.staffId === 'master-1').body.includes('master-2'));
+});
+
+test('бронь без точки (location_id NULL) - только мастера, без падения на списке админов', () => {
+  const plan = planRescheduleNotifications({
+    ...BASE,
+    previous: { masterId: 'master-1', locationId: null, date: '2026-08-12', startTime: '11:00' },
+    next: { masterId: 'master-2', locationId: null, date: '2026-08-12', startTime: '15:00' },
+  });
+  assert.deepEqual(plan.map((n) => n.staffId), ['master-1', 'master-2']);
 });
 

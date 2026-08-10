@@ -5,9 +5,28 @@ import { randomBytes } from 'node:crypto';
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
-import { addMinutes, intervalsOverlap, shopNow, toMinutes } from '../lib/time.js';
+import { addMinutes, dateColToStr, intervalsOverlap, shopNow, toMinutes } from '../lib/time.js';
 import { mastersWithWorkingSchedule, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
 import { notifyStaff } from '../lib/notify-core.js';
+
+// Админы точки - адресаты уведомлений о её записях (Окно 14: Мамедхан управляет
+// точкой день в день). Один запрос на два вызова - createBookingTx и перенос
+// (Окно 54, Задача C) - чтобы условие отбора адресатов не разъехалось между
+// созданием и переносом одной и той же брони.
+async function locationAdminIds(client, locationId) {
+  if (locationId == null) return [];
+  const res = await client.query(`SELECT id FROM staff WHERE role = 'admin' AND location_id = $1`, [locationId]);
+  return res.rows.map((r) => r.id);
+}
+
+// Имена мастеров для текста уведомления о переносе (Окно 54, Задача C) - «ушла к
+// Мамедхану» вместо «ушла к staff-3».
+async function masterNamesByIds(client, ids) {
+  const unique = [...new Set(ids.filter((id) => id != null))];
+  if (unique.length === 0) return {};
+  const res = await client.query('SELECT id, name FROM staff WHERE id = ANY($1)', [unique]);
+  return Object.fromEntries(res.rows.map((r) => [r.id, r.name]));
+}
 
 // Задача 2 промпта корректировки Окна 13 (01.08.2026, Блок 5 в.19, Алихан): "отмена не
 // позже 2 часов" - до порога полный возврат/бесплатная отмена, после - без возврата.
@@ -175,15 +194,12 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     // Задача 5 (Окно 14) - Мамедхан (admin) управляет точкой день в день, тоже
     // получает уведомления о новых записях своей точки, только просмотр (Задача 3
     // approve/reject остаётся исключительно у owner, здесь этого и нет).
-    if (locationId != null) {
-      const admins = await client.query(`SELECT id FROM staff WHERE role = 'admin' AND location_id = $1`, [locationId]);
-      for (const admin of admins.rows) {
-        await notifyStaff(client, admin.id, 'booking_new', {
-          bookingId,
-          title: 'Новая запись на точке',
-          body: `${startTime}–${endTime}${clientName ? ' · ' + clientName : ''}`,
-        });
-      }
+    for (const adminId of await locationAdminIds(client, locationId)) {
+      await notifyStaff(client, adminId, 'booking_new', {
+        bookingId,
+        title: 'Новая запись на точке',
+        body: `${startTime}–${endTime}${clientName ? ' · ' + clientName : ''}`,
+      });
     }
     await client.query('COMMIT');
     return {
@@ -632,6 +648,98 @@ export function resolveRescheduleDuration({ serviceIds, masterServiceRows, curre
   return { durationMin: masterServiceRows.reduce((sum, r) => sum + r.duration_min, 0) };
 }
 
+// Окно 54, Задача C (10.08.2026) - решение Влада по открытому вопросу Задачи B:
+// «да, сообщить». Создание брони уведомляет мастера и админов точки с Окна 14, у
+// переноса аналога не было - мастер узнавал о пересадке клиента только заглянув в
+// календарь.
+//
+// Дата показывается ВСЕГДА с обеих сторон, даже когда день не менялся: «11:00 →
+// 15:00» в списке уведомлений через два дня не отвечает на вопрос «какого числа», а
+// перенос как раз про время. Шесть лишних символов дешевле догадки. Формат
+// «10.08 15:00» - без названий месяцев: русского форматтера дат на бэкенде нет и
+// заводить его ради двух строк не стоит, локализация это дело фронта (Окно 55).
+export function formatMoveSlot(date, time) {
+  return `${date.slice(8, 10)}.${date.slice(5, 7)} ${time}`;
+}
+
+// Чистая функция - кому и что показать при переносе. Отдельно от SQL ровно потому,
+// что решает продуктовый вопрос («старый мастер должен узнать, что запись ушла»), и
+// проверяется офлайн-тестом без базы.
+//
+// Пустой массив на «переносе без изменений» (сценарий 4 промпта: сохранили карточку,
+// ничего не подвинув) - это не забытая ветка, а требование: шум в колокольчике
+// обесценивает настоящие уведомления.
+export function planRescheduleNotifications({
+  bookingId,
+  clientName = null,
+  previous,
+  next,
+  masterNames = {},
+  previousLocationAdminIds = [],
+  nextLocationAdminIds = [],
+}) {
+  const masterChanged = previous.masterId !== next.masterId;
+  const slotChanged = previous.date !== next.date || previous.startTime !== next.startTime;
+  if (!masterChanged && !slotChanged) return [];
+
+  const from = formatMoveSlot(previous.date, previous.startTime);
+  const to = formatMoveSlot(next.date, next.startTime);
+  const who = clientName ? ` · ${clientName}` : '';
+  // Фолбэк на id вместо имени - уведомление с id читается плохо, но молча уронить
+  // перенос из-за отсутствующей строки staff было бы хуже.
+  const nameOf = (id) => masterNames[id] ?? id;
+  const outBody = `${from} → ${nameOf(next.masterId)}, ${to}${who}`;
+  const inBody = masterChanged ? `${to}${who} · было: ${nameOf(previous.masterId)}, ${from}` : `${from} → ${to}${who}`;
+
+  const planned = [];
+  if (masterChanged) {
+    planned.push({ staffId: previous.masterId, type: 'booking_moved_out', title: 'Запись ушла к другому мастеру', body: outBody });
+    planned.push({ staffId: next.masterId, type: 'booking_moved_in', title: 'Перенесена запись к вам', body: inBody });
+  } else {
+    planned.push({ staffId: next.masterId, type: 'booking_moved_in', title: 'Запись перенесена', body: inBody });
+  }
+  // Точка едет за мастером, поэтому перенос на мастера другой точки уводит визит с
+  // точки админа - он тоже должен узнать, симметрично мастеру. Если точка та же,
+  // «ушла с точки» не отправляем: это было бы враньём.
+  if (previous.locationId !== next.locationId) {
+    for (const staffId of previousLocationAdminIds) {
+      planned.push({ staffId, type: 'booking_moved_out', title: 'Запись ушла с точки', body: outBody });
+    }
+  }
+  for (const staffId of nextLocationAdminIds) {
+    planned.push({ staffId, type: 'booking_moved_in', title: 'Запись перенесена на точке', body: inBody });
+  }
+
+  // Схлопываем по (staff_id, type) - ровно ключ дедуп-индекса notifications_booking_dedup
+  // при фиксированном booking_id. Один и тот же человек не должен получить две строки
+  // об одном событии, даже если попал в план дважды.
+  const seen = new Set();
+  return planned
+    .filter((n) => n.staffId != null)
+    .filter((n) => {
+      const key = `${n.staffId}|${n.type}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((n) => ({ ...n, bookingId }));
+}
+
+const OPPOSITE_MOVE_TYPE = { booking_moved_out: 'booking_moved_in', booking_moved_in: 'booking_moved_out' };
+
+// Перенос туда-обратно (m1 → m2 → m1) оставил бы у m1 одновременно «запись ушла» и
+// «запись у вас» - два взаимоисключающих утверждения об одной брони в одном списке.
+// Противоположный тип удаляется, а свой обновляется (refresh, см. notify-core.js):
+// повторный перенос это новая информация, а не дубль.
+async function applyRescheduleNotifications(client, plan) {
+  for (const n of plan) {
+    await client.query('DELETE FROM notifications WHERE staff_id = $1 AND booking_id = $2 AND type = $3', [
+      n.staffId, n.bookingId, OPPOSITE_MOVE_TYPE[n.type],
+    ]);
+    await notifyStaff(client, n.staffId, n.type, { bookingId: n.bookingId, title: n.title, body: n.body, refresh: true });
+  }
+}
+
 async function rescheduleBookingTx({ bookingId, masterId, date, startTime, isStaff }) {
   const client = await pool.connect();
   try {
@@ -643,9 +751,14 @@ async function rescheduleBookingTx({ bookingId, masterId, date, startTime, isSta
 
     // FOR UPDATE - два параллельных переноса ОДНОЙ брони (два устройства
     // администратора) не должны оба увидеть её исходное состояние.
+    // client_name берётся тем же COALESCE(c.name, b.walkin_name), что и в
+    // listBookingsForRequest - клиент без телефона (walkin_name, миграция 041) не
+    // должен превращаться в безымянную строку в уведомлении.
     const bookingRes = await client.query(
-      `SELECT id, master_id, location_id, date, start_time, end_time, status
-       FROM bookings WHERE id = $1 FOR UPDATE`,
+      `SELECT b.id, b.master_id, b.location_id, b.date, b.start_time, b.end_time, b.status,
+              COALESCE(c.name, b.walkin_name) AS client_name
+       FROM bookings b LEFT JOIN clients c ON c.id = b.client_id
+       WHERE b.id = $1 FOR UPDATE OF b`,
       [bookingId]
     );
     if (bookingRes.rows.length === 0) {
@@ -706,6 +819,27 @@ async function rescheduleBookingTx({ bookingId, masterId, date, startTime, isSta
        WHERE id = $6`,
       [masterId, locationId, date, startTime, endTime, bookingId]
     );
+
+    const previousDate = dateColToStr(booking.date);
+    const previousSlot = {
+      masterId: booking.master_id,
+      locationId: booking.location_id,
+      date: previousDate,
+      startTime: booking.start_time,
+    };
+    const nextSlot = { masterId, locationId, date, startTime };
+    // Уведомления - Задача C. Внутри той же транзакции: перенос без уведомления
+    // допустим не больше, чем уведомление о переносе, которого не было.
+    const notifyPlan = planRescheduleNotifications({
+      bookingId,
+      clientName: booking.client_name,
+      previous: previousSlot,
+      next: nextSlot,
+      masterNames: await masterNamesByIds(client, [booking.master_id, masterId]),
+      previousLocationAdminIds: await locationAdminIds(client, booking.location_id),
+      nextLocationAdminIds: await locationAdminIds(client, locationId),
+    });
+    await applyRescheduleNotifications(client, notifyPlan);
     await client.query('COMMIT');
     return {
       status: 200,
@@ -720,9 +854,10 @@ async function rescheduleBookingTx({ bookingId, masterId, date, startTime, isSta
           endTime,
           serviceIds,
           totalDurationMin: duration.durationMin,
+          notified: notifyPlan.length,
           previous: {
             masterId: booking.master_id,
-            date: booking.date instanceof Date ? booking.date.toISOString().slice(0, 10) : booking.date,
+            date: previousDate,
             startTime: booking.start_time,
             endTime: booking.end_time,
           },
@@ -744,11 +879,9 @@ async function rescheduleBookingTx({ bookingId, masterId, date, startTime, isSta
 // своя точка, причём с ДВУХ сторон: и текущая бронь, и новый мастер должны быть его
 // (иначе админ одной точки перекинул бы клиента на чужую).
 //
-// НЕ входит сюда сознательно: уведомления. При создании брони createBookingTx
-// уведомляет мастера и админов точки (Окно 14) - при переносе аналога нет, потому
-// что ТЗ окна об этом не говорит, а "старому мастеру пришло, что запись ушла" -
-// отдельное продуктовое решение (кому и что писать), не побочный эффект контракта.
-// Вынесено Владу в отчёт как открытый вопрос Окна 55.
+// Уведомления при переносе - Задача C того же окна (решение Влада «да, сообщить» по
+// открытому вопросу Задачи B): старый мастер узнаёт, что запись ушла, новый - что
+// пришла, админы точки - симметрично. Логика адресатов в planRescheduleNotifications.
 export async function handleBookingReschedule(req, res, parts) {
   const auth = await authenticate(req);
   if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
