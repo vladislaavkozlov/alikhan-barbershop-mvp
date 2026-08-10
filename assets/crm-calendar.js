@@ -116,10 +116,22 @@ function buildApptCard(booking, { masterName, services, priceOf }) {
   // список booking.serviceIds уже приходят с /bookings (listBookingsForRequest),
   // кладём их прямо на карточку тем же приёмом, что уже есть у data-id - без этого
   // openBooking() пришлось бы делать отдельный fetch за той же самой брони.
-  return `<div class="appt ${cssClass} ${stripeClass}${compactClass}" style="${positionStyle(booking.startTime, booking.endTime)}" tabindex="0" onclick="openBooking(this)"
+  // Окно 55, Задача C (10.08.2026) - клик по записи открывает ОБЩУЮ форму в режиме
+  // редактирования (window.openBookingEdit, assets/crm-walkin.js) вместо старой
+  // карточки-просмотра #bd-1 (window.openBooking, assets/mockup-crm.js). Фолбэк на
+  // openBooking нужен для crm-master.html: там формы записи нет вообще (мастер записи
+  // не создаёт и не переносит - решение Влада 08.08.2026, подтверждено бэкендом:
+  // requireRole owner/admin у /reschedule), поэтому старая карточка остаётся его
+  // рабочим интерфейсом просмотра и смены статуса.
+  // data-date/data-start-time (в дополнение к прежнему data-planned "10:00–10:40",
+  // который остаётся ради openBooking/updateNoShowUi и заголовка карточки) - режиму
+  // edit нужны РАЗДЕЛЬНЫЕ машинные значения: дата уходит в PATCH /reschedule как есть,
+  // а разбирать её обратно из человеческой строки с en-dash было бы лишним шагом.
+  return `<div class="appt ${cssClass} ${stripeClass}${compactClass}" style="${positionStyle(booking.startTime, booking.endTime)}" tabindex="0" onclick="(window.openBookingEdit||window.openBooking)(this)"
        data-id="${escapeHtml(booking.id)}" data-client="${escapeHtml(clientName)}" data-phone="${escapeHtml(booking.clientPhone || '')}" data-master="${escapeHtml(masterName)}"
        data-master-id="${escapeHtml(booking.masterId || '')}" data-service-ids="${escapeHtml((booking.serviceIds || []).join(','))}"
        data-service="${escapeHtml(priceLabel)}" data-planned="${escapeHtml(planned)}"
+       data-date="${escapeHtml(booking.date || '')}" data-start-time="${escapeHtml(booking.startTime)}"
        data-status="${dataStatus}" data-real-status="${escapeHtml(booking.status)}" data-confirmed="${booking.clientConfirmed ? 'true' : 'false'}" data-noshow="${isNoShow ? 'true' : 'false'}"
        data-noshow-streak="${booking.clientNoShowStreak ?? 0}" data-requires-prepayment="${booking.requiresPrepayment ? 'true' : 'false'}"
        data-actual-price="${booking.actualPrice ?? ''}">

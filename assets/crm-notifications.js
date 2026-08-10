@@ -12,6 +12,15 @@
 // владельцу, тянуть зависимость между модулями ради одного числа ни к чему.
 import { goToSection } from './crm-app-shell.js';
 import { ICON_BELL } from './crm-icons.js';
+// Окно 55, Задача F (10.08.2026) - XSS в списке уведомлений. Заголовок и текст
+// уведомления вставлялись в list.innerHTML сырыми, а часть из них строится из
+// пользовательского ввода: booking_new несёт ИМЯ КЛИЕНТА (с Окна 14), а имя приходит
+// из АНОНИМНОГО POST /bookings с публичного сайта. Подтверждено живым прогоном
+// 10.08.2026 на эфемерной базе: clientName = '<img src=x onerror=alert(1)>'
+// сохраняется (200), долетает до уведомления мастера и отдаётся GET /notifications
+// дословно. Экранирование берём готовое из crm-schedule-shared.js - та же функция
+// уже защищает пять других CRM-файлов, своей копии не заводим.
+import { escapeHtml } from './crm-schedule-shared.js';
 
 const TOKEN_KEY = 'alikhan-crm:token';
 const API = window.ALIKHAN_API_URL;
@@ -22,6 +31,13 @@ const TYPE_ICON = {
   schedule_request_new: '🗓',
   schedule_request_decided: '✅',
   master_lost_schedule: '⚠️',
+  // Окно 55, Задача F - типы перенесённой записи (задеплоены на прод 10.08.2026,
+  // Окно 54 Задача C). До этой правки показывался дефолтный 🔔, и "запись ушла" от
+  // "запись пришла" на глаз не отличались. Стрелки направления, а не одна общая
+  // иконка переноса: мастер в списке из десяти уведомлений должен видеть, потерял он
+  // клиента или получил, не вчитываясь в текст.
+  booking_moved_out: '📤',
+  booking_moved_in: '📥',
 };
 
 // Окно 35 (06.08.2026) - клик по уведомлению "у мастера пропал график" ведёт прямым
@@ -129,8 +145,8 @@ export function wireNotifications(staff) {
           return `<div class="msg-item${n.read ? '' : ' msg-item--unread'}" data-ntf-id="${n.id}" data-type="${n.type}" data-related-master-id="${n.relatedMasterId ?? ''}">
               <span class="msg-ico">${TYPE_ICON[n.type] ?? '🔔'}</span>
               <div class="msg-body">
-                <div class="msg-title">${n.title}</div>
-                ${n.body ? `<div class="msg-sub">${n.body}</div>` : ''}
+                <div class="msg-title">${escapeHtml(n.title)}</div>
+                ${n.body ? `<div class="msg-sub">${escapeHtml(n.body)}</div>` : ''}
                 <div class="msg-time">${timeAgo(n.createdAt)}</div>
                 ${actions}
               </div>

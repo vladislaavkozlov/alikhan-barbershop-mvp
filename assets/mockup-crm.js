@@ -149,7 +149,13 @@ function ruPlural(n, one, few, many) {
 // Вызывается из openBooking() и из toggleNoShow()/обработчика радио после PATCH,
 // чтобы не перезагружать страницу для отражения нового состояния.
 function updateNoShowUi() {
-  const panel = document.getElementById('bd-1');
+  // Окно 55, Задача C (10.08.2026) - панелью открытой записи на owner/admin стала
+  // общая форма (#walkinForm в режиме edit, assets/crm-walkin.js), на master осталась
+  // карточка #bd-1 (мастер записи не создаёт и не переносит). Тот же порядок выбора,
+  // что у bookingPanel() в assets/crm-booking-status.js - две копии одной логики
+  // потому, что этот файл classic <script>, а тот ES-модуль: импортировать нечем.
+  const form = document.getElementById('walkinForm');
+  const panel = form && form.dataset.bookingId ? form : document.getElementById('bd-1');
   if (!panel) return;
   const btn = document.getElementById('bk-noshow-btn');
   if (btn) {

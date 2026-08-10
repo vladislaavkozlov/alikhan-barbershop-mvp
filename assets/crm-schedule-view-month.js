@@ -178,7 +178,12 @@ export function wireMonthView(ctx) {
         closeDayEditModal();
         await setView('day', date);
         const card = document.querySelector(`.appt[data-planned="${planned}"]`);
-        if (card && typeof window.openBooking === 'function') window.openBooking(card);
+        // Окно 55, Задача C - та же пара "новая форма с фолбэком на старую", что в
+        // buildApptCard (assets/crm-calendar.js): эта кнопка - третья точка входа в
+        // карточку записи, аудит Задачи A нашёл её сверх двух, перечисленных в промпте.
+        // Без правки она после удаления старой формы открывала бы ничего.
+        const open = window.openBookingEdit || window.openBooking;
+        if (card && typeof open === 'function') open(card);
       });
     });
   }

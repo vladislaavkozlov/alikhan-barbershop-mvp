@@ -6,6 +6,21 @@
 import { API, getToken } from './crm-auth.js';
 import { formatMoney } from './crm-shared.js';
 
+// Окно 55, Задача C (10.08.2026) - носитель id открытой записи. До этого окна им
+// всегда была карточка-просмотр #bd-1 (assets/mockup-crm.js openBooking писала туда
+// dataset.bookingId). Теперь на crm-owner.html/crm-admin.html запись открывается в
+// ОБЩЕЙ форме (#walkinForm, режим edit - assets/crm-walkin.js), и панелью выступает
+// она; на crm-master.html формы нет вообще (мастер записи не создаёт и не переносит,
+// решение Влада 08.08.2026), там по-прежнему #bd-1. Одна функция вместо пяти прямых
+// getElementById('bd-1') - чтобы обе страницы обслуживал один и тот же код, а не две
+// копии обработчиков. Форма приоритетнее: пока она открыта в режиме edit, именно её
+// dataset описывает запись, с которой работает пользователь.
+function bookingPanel() {
+  const form = document.getElementById('walkinForm');
+  if (form && form.dataset.bookingId) return form;
+  return document.getElementById('bd-1');
+}
+
 // mockup-crm.js - классический (не module) скрипт, но браузер делит один и тот же
 // глобальный объект между ним и этим модулем, поэтому updateNoShowUi() (объявлена
 // там) видна отсюда через window. Правка этого переноса (без изменения поведения):
@@ -37,7 +52,7 @@ export function wireBookingStatusRadios() {
     if (radio.dataset.wired) return;
     radio.dataset.wired = '1';
     radio.addEventListener('change', async () => {
-      const panel = document.getElementById('bd-1');
+      const panel = bookingPanel();
       const bookingId = panel?.dataset.bookingId;
       const note = document.getElementById('bk-status-note');
       if (note) note.hidden = true;
@@ -96,7 +111,7 @@ export function wireBookingStatusRadios() {
 // в статичной разметке mockup-crm.js, тот же платформенный HTML-atrribut-scope
 // ограничение, что у виджетов даты/времени (см. crm-widgets.js).
 window.toggleNoShow = async function toggleNoShow(btn) {
-  const panel = document.getElementById('bd-1');
+  const panel = bookingPanel();
   const bookingId = panel?.dataset.bookingId;
   const note = document.getElementById('bk-noshow-note');
   if (note) note.hidden = true;
@@ -202,7 +217,7 @@ export function wireBookingServiceEdit(services, masterServices) {
   if (!saveBtn.dataset.wired) {
     saveBtn.dataset.wired = '1';
     saveBtn.addEventListener('click', async () => {
-      const panel = document.getElementById('bd-1');
+      const panel = bookingPanel();
       const bookingId = panel?.dataset.bookingId;
       const masterId = panel?.dataset.bookingMasterId;
       if (!bookingId || bookingServiceEditSelected.size === 0) return;
@@ -278,7 +293,7 @@ export function wireBookingDelete() {
   }
 
   async function doDelete(force) {
-    const panel = document.getElementById('bd-1');
+    const panel = bookingPanel();
     const bookingId = panel?.dataset.bookingId;
     if (!bookingId) return;
     row.innerHTML = '<span class="note">Удаляю…</span>';
@@ -301,7 +316,19 @@ export function wireBookingDelete() {
       // текущего вида Дня/Недели/Месяца (тот же уровень "не обновляем календарь
       // визуально", что уже есть у смены статуса выше - остаётся так же честно).
       document.querySelector('.appt--selected')?.remove();
-      if (panel) panel.open = false;
+      // Окно 55, Задача C - панелью теперь может быть либо <details> (старая карточка
+      // #bd-1, crm-master.html), либо <div class="walkin-form"> (общая форма в режиме
+      // edit, owner/admin). У div нет .open - ему нужно hidden, иначе после удаления
+      // форма осталась бы открытой с id уже несуществующей записи, и следующее
+      // нажатие "Сохранить изменения" ушло бы в 404.
+      if (panel) {
+        if (panel.tagName === 'DETAILS') {
+          panel.open = false;
+        } else {
+          delete panel.dataset.bookingId;
+          panel.hidden = true;
+        }
+      }
       row.innerHTML = '<span class="note">Запись удалена</span>';
     } catch (err) {
       row.innerHTML = `<span class="note" style="color:var(--danger)">Не удалось удалить: ${err.message}</span>`;
@@ -338,7 +365,7 @@ export function wireBookingActualPrice() {
   if (!saveBtn.dataset.wired) {
     saveBtn.dataset.wired = '1';
     saveBtn.addEventListener('click', async () => {
-      const panel = document.getElementById('bd-1');
+      const panel = bookingPanel();
       const bookingId = panel?.dataset.bookingId;
       if (!bookingId) return;
       // Пустое поле - явный сброс на null ("фактическая = как по услугам"), а не 0

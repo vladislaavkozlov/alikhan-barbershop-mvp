@@ -4,6 +4,7 @@
 // продажу" сразу после сохранения. Самая крупная отдельная функция файла. Код
 // перенесён 1в1, поведение не менялось.
 import { el, formatMoney, todayStr, pad2 } from './crm-shared.js';
+import { escapeHtml } from './crm-schedule-shared.js';
 import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } from './crm-widgets.js';
 import { API, getToken } from './crm-auth.js';
 import { renderLiveProof } from './crm-dashboard.js';
@@ -41,7 +42,56 @@ let selected = new Set();
 const checkboxByService = new Map();
 let rebookMode = false;
 
-export function wireWalkIn(staff, services, masterServices) {
+// Окно 55, Задача B (10.08.2026) - опознание клиента по телефону. Состояние на уровне
+// МОДУЛЯ по той же причине, что и всё выше: wireWalkIn() вызывается заново на каждый
+// renderLiveProof(), а обработчик input телефона привязывается один раз (dataset.wired)
+// и остаётся на ПЕРВОЙ версии функций - жившее внутри wireWalkIn() состояние поиска
+// после первой же записи расходилось бы с тем, что читает обработчик.
+// lookupSeq - защита от гонки ответов: администратор дописывает цифры быстрее, чем
+// отвечает сервер, и ответ по КОРОТКОМУ префиксу мог прийти после ответа по полному
+// номеру и перезаписать правильный признак неправильным.
+let lookupSeq = 0;
+let lookupPhoneKey = null;
+
+// Окно 55, Задача C - режим редактирования существующей записи. editMode держим на
+// уровне модуля по той же причине, что rebookMode выше (обработчик Submit привязан к
+// первой версии функции и читает модульное состояние, не своё замыкание).
+// editBooking - снимок открытой записи: с чем сравнивать при сохранении, чтобы
+// понять, нужен ли вообще PATCH /reschedule (перенос "без изменений" - лишний запрос
+// и лишнее уведомление мастеру, planRescheduleNotifications на бэкенде такой случай
+// тоже отсекает, но гонять сеть впустую незачем).
+let editMode = false;
+let editBooking = null;
+
+// Та же нормализация, что на бэкенде (normalizePhoneKey, api/routes/clients.js) -
+// последние 10 цифр. Дублируется намеренно: тянуть серверный модуль во фронтенд ради
+// одной строки нельзя (это ES-модуль бэкенда с зависимостями на pg), а расхождение
+// формул дало бы "ищу по одному ключу, нашёл по другому". 10 цифр = момент, когда
+// номер введён полностью и есть что искать.
+const PHONE_KEY_DIGITS = 10;
+function phoneKeyOf(raw) {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  return digits.length >= PHONE_KEY_DIGITS ? digits.slice(-PHONE_KEY_DIGITS) : null;
+}
+
+// "1 визит / 2 визита / 5 визитов". Такая же функция (ruPlural) есть в
+// assets/mockup-crm.js, но тот файл - classic <script>, не ES-модуль: импортировать
+// оттуда нечего, а завязываться на глобаль ради трёх слов - хуже, чем локальная копия
+// (и mockup-crm.js по Задаче D частично уезжает).
+function ruPluralVisits(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'визит';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'визита';
+  return 'визитов';
+}
+
+// Окно 55, Задача C - staffList (4-й параметр) добавлен ради дропдауна мастера в
+// режиме редактирования: до этого окна форма всегда открывалась на ЗАРАНЕЕ известного
+// мастера (клик по его колонке календаря), выбирать было не из чего. Передаётся из
+// assets/crm-dashboard.js, где список уже загружен для остальных виджетов - второго
+// запроса /staff не заводим.
+export function wireWalkIn(staff, services, masterServices, staffList = []) {
   const form = el('walkinForm');
   const picker = el('wfServicePicker');
   const summary = el('wfSummary');
@@ -63,6 +113,69 @@ export function wireWalkIn(staff, services, masterServices) {
   const modeLabelEl = el('wfModeLabel');
   const dateTimeRow = el('wfDateTimeRow');
   const hasRebookUi = !!(modeLabelEl && dateTimeRow);
+
+  // Окно 55, Задача C - элементы режима "редактирование существующей записи". Тот же
+  // приём опциональности, что у hasRebookUi: страница без этих блоков
+  // (crm-master.html - мастер записи не переносит, решение Влада 08.08.2026,
+  // подтверждено бэкендом: requireRole owner/admin у /reschedule) просто не получает
+  // режим edit, остальная форма работает как раньше.
+  const masterRow = el('wfMasterRow');
+  const editControls = el('wfEditControls');
+  const editExtras = el('wfEditExtras');
+  const statusNote = el('bk-status-note');
+  const hasEditUi = !!(hasRebookUi && masterRow && editControls);
+
+  // Отображаемый статус → id радио. Обратная к RADIO_ID_TO_STATUS в
+  // assets/crm-booking-status.js (там же живёт сам PATCH /bookings/:id/status -
+  // механику этого роута окно не трогает, только переносит контрол в новую форму).
+  const STATUS_TO_RADIO_ID = { planned: 'st-wait', done: 'st-came', no_show: 'st-no' };
+
+  // Дропдаун мастера для режима edit. Кастомный .custom-select (КОНВЕНЦИЯ-
+  // ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md), тот же виджет, что у "Закреплён за мастером" - строим
+  // его тем же HTML-контрактом (data-value + onclick-хуки mockup-crm.js), потому что
+  // интерактивность .custom-select живёт там и резолвится через window.
+  // Список - только те, кто реально принимает клиентов (providesServices), а НЕ по
+  // role === 'master': владелец Алиовсад сам стрижёт и обязан быть в списке, а
+  // администратор без услуг - нет. Тем же признаком бэкенд отбирает мастеров для
+  // расписания (serviceMasterIds, api/routes/staff.js) - берём тот же критерий, а не
+  // свой. Текущий мастер записи добавляется всегда, даже если его уже сняли с услуг:
+  // иначе открытая старая запись показала бы пустой дропдаун.
+  function renderMasterSelect(selectedMasterId) {
+    const slot = el('wfMaster-slot');
+    if (!slot) return;
+    const masters = (staffList || []).filter((s) => s.providesServices || s.id === selectedMasterId);
+    const current = masters.find((m) => m.id === selectedMasterId);
+    const options = masters
+      .map((m) => `<div class="custom-select-option${m.id === selectedMasterId ? ' selected' : ''}" onclick="pickCustomSelectOption(this)" data-value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</div>`)
+      .join('');
+    slot.innerHTML = `<div class="custom-select" id="wfMasterValue" data-value="${escapeHtml(selectedMasterId || '')}">
+      <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">${escapeHtml(current?.name || '')}</button>
+      <div class="custom-select-list" hidden>${options}</div>
+    </div>`;
+    // Смена мастера меняет прайс/длительность (master_services, у мастеров разные
+    // наборы) - перерисовываем список услуг под нового мастера и переносим уже
+    // выбранные, какие у него есть. Молча оставить чужие услуги нельзя: бэкенд
+    // ответит unknown_master_service (resolveRescheduleDuration), а владелец не
+    // поймёт, почему сохранение не прошло.
+    slot.querySelector('.custom-select')?.addEventListener('customselect:change', (e) => {
+      const nextMasterId = e.detail.value;
+      if (!nextMasterId || nextMasterId === currentMasterId) return;
+      const keep = [...selected];
+      currentMasterId = nextMasterId;
+      nameLabel.textContent = masters.find((m) => m.id === nextMasterId)?.name || '';
+      renderPicker(nextMasterId);
+      const available = new Set(checkboxByService.keys());
+      const kept = keep.filter((id) => available.has(id));
+      selected = mergeServiceCombos(new Set(kept));
+      syncCheckboxes();
+      renderSummary();
+      if (kept.length < keep.length) {
+        resultEl.hidden = false;
+        resultEl.className = 'wf-result wf-result--err';
+        resultEl.textContent = 'У нового мастера нет части прежних услуг - отметьте, что он делает по факту';
+      }
+    });
+  }
 
   // Разворот 08.08.2026 (тот же вечер) - Влад прямо спросил "зачем тумблер, если
   // можно просто дать записать как обычно": отдельный "Запись задним числом" убран,
@@ -168,11 +281,118 @@ export function wireWalkIn(staff, services, masterServices) {
     renderSummary();
   }
 
+  // ── Окно 55, Задача B - опознание клиента по телефону ──────────────────────
+  // GET /clients?phone= (контракт Окна 54): 200 с карточкой, 404 если такого клиента
+  // нет. Признак под полями, не alert - конвенция проекта на обратную связь формы
+  // (.wf-result рядом). hintEl опционален: страница без него (будущая/чужая разметка)
+  // просто не показывает признак, поиск тихо выключается целиком.
+  const hintEl = el('wfClientHint');
+
+  function setHint(kind, text, extraNode = null) {
+    if (!hintEl) return;
+    hintEl.hidden = false;
+    hintEl.className = `wf-client-hint wf-client-hint--${kind}`;
+    hintEl.textContent = text;
+    if (extraNode) hintEl.appendChild(extraNode);
+  }
+
+  function clearHint() {
+    if (!hintEl) return;
+    hintEl.hidden = true;
+    hintEl.textContent = '';
+    lookupPhoneKey = null;
+    lookupSeq += 1; // отменяет ответ на уже отправленный запрос (см. проверку seq ниже)
+  }
+
+  // Предложение, а не форсирование (промпт Задачи B): мастера/услуги последнего визита
+  // подставляет кнопка, которую администратор нажимает сам. Переиспользуем ровно тот же
+  // источник данных, что у "Записать снова" - card.lastVisit (getClientCard,
+  // api/routes/clients.js), а не заводим второй способ узнать "как было в прошлый раз".
+  // Мастера НЕ переключаем: форма открыта на конкретного мастера (клик по его колонке в
+  // календаре), молчаливая пересадка клиента на другого - не то, о чём просили.
+  function buildRepeatButton(card) {
+    const lastVisit = card.lastVisit;
+    if (!lastVisit || !lastVisit.services?.length) return null;
+    const sameMaster = lastVisit.masterId === currentMasterId;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-ghost btn-sm';
+    btn.id = 'wfClientRepeat';
+    btn.textContent = sameMaster
+      ? 'Как в прошлый раз'
+      : `Как в прошлый раз (был у: ${lastVisit.masterName || lastVisit.masterId})`;
+    btn.addEventListener('click', () => {
+      // Услуги последнего визита, отфильтрованные по прайсу ТЕКУЩЕГО мастера: у
+      // мастеров разный набор (master_services, Окно 10), чекбокса чужой услуги в
+      // форме просто нет. Тот же приём фильтрации по available, что в rebook-режиме
+      // openForWalkin ниже.
+      const available = new Set(checkboxByService.keys());
+      const wanted = lastVisit.services.map((s) => s.id).filter((id) => available.has(id));
+      if (wanted.length === 0) {
+        btn.disabled = true;
+        btn.textContent = 'У этого мастера нет тех же услуг';
+        return;
+      }
+      selected = mergeServiceCombos(new Set(wanted));
+      syncCheckboxes();
+      renderSummary();
+      btn.disabled = true;
+      btn.textContent = 'Подставлено';
+    });
+    return btn;
+  }
+
+  async function lookupClientByPhone(rawPhone) {
+    const key = phoneKeyOf(rawPhone);
+    if (!key) {
+      // Номер ещё не дописан - признака нет вообще. "Новый клиент" на трёх цифрах
+      // был бы враньём: по такому вводу никто не искал.
+      clearHint();
+      return;
+    }
+    if (key === lookupPhoneKey) return; // тот же номер, повторный запрос не нужен
+    lookupPhoneKey = key;
+    const seq = ++lookupSeq;
+    setHint('pending', 'Ищу клиента…');
+    try {
+      const res = await fetch(`${API}/clients?phone=${encodeURIComponent(rawPhone)}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (seq !== lookupSeq) return; // пришёл ответ на устаревший запрос - игнорируем
+      if (res.status === 404) {
+        setHint('new', 'Новый клиент - впишите имя');
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const card = await res.json();
+      if (seq !== lookupSeq) return;
+      // Имя автозаполняется, но остаётся editable (промпт: "Влад может поправить
+      // опечатку"). Уже набранное вручную имя не затираем - администратор мог начать
+      // с имени, а телефон дописать после.
+      if (!clientNameEl.value.trim()) clientNameEl.value = card.name || '';
+      const visitsCount = card.visits?.length ?? 0;
+      const visitsText = visitsCount > 0
+        ? `${visitsCount} ${ruPluralVisits(visitsCount)}`
+        : 'визитов пока не было';
+      setHint('found', `Клиент найден: ${card.name || 'без имени'}, ${visitsText}`, buildRepeatButton(card));
+    } catch (err) {
+      if (seq !== lookupSeq) return;
+      // Сеть/сервер не ответили - форма НЕ топится ошибкой (промпт п.4): запись
+      // сохраняется как для нового клиента, бэкенд всё равно свяжет её с существующим
+      // клиентом через ON CONFLICT (phone) при сохранении.
+      setHint('new', 'Не удалось проверить клиента - можно продолжать как с новым');
+      lookupPhoneKey = null; // следующий ввод пробует снова, а не молчит навсегда
+    }
+  }
+
   function openForWalkin(masterId, masterName, options = {}) {
     currentMasterId = masterId;
     nameLabel.textContent = masterName;
-    rebookMode = hasRebookUi && !!(options.rebook || options.slot);
+    editMode = hasEditUi && !!options.edit;
+    editBooking = editMode ? { ...options.booking, masterId } : null;
+    rebookMode = hasRebookUi && !!(options.rebook || options.slot || editMode);
     resultEl.hidden = true;
+    clearHint();
     if (hasSaleForm) {
       saleForm.hidden = true;
       delete saleForm.dataset.bookingId;
@@ -186,7 +406,9 @@ export function wireWalkIn(staff, services, masterServices) {
       // снова" (Окно 39), теперь и для клика по пустому слоту в дневном календаре
       // (assets/crm-calendar.js, window.openSlotBooking ниже) - подпись отдельная,
       // "Повторная запись" была бы нечестной для клиента, которого выбирают заново.
-      modeLabelEl.textContent = options.slot ? 'Новая запись на выбранное время' : rebookMode ? 'Повторная запись' : 'Новая запись без предзаписи';
+      modeLabelEl.textContent = editMode
+        ? 'Редактирование записи'
+        : options.slot ? 'Новая запись на выбранное время' : rebookMode ? 'Повторная запись' : 'Новая запись без предзаписи';
       dateTimeRow.hidden = !rebookMode;
       if (rebookMode) {
         // Дефолт - сегодня и ближайшее 15-минутное время в рабочем окне магазина
@@ -214,6 +436,40 @@ export function wireWalkIn(staff, services, masterServices) {
       syncCheckboxes();
       renderSummary();
     }
+    // ── Окно 55, Задача C: обвязка режима редактирования ──────────────────────
+    if (hasEditUi) {
+      masterRow.hidden = !editMode;
+      editControls.hidden = !editMode;
+      if (editExtras) editExtras.hidden = !editMode;
+      submitBtn.textContent = editMode ? 'Сохранить изменения' : 'Сохранить запись';
+      if (editMode) {
+        renderMasterSelect(masterId);
+        // id брони кладём на САМУ ФОРМУ: assets/crm-booking-status.js (статус,
+        // удаление, услуги, фактическая сумма) читает его с элемента-панели. Раньше
+        // панелью была карточка #bd-1, теперь - форма. Механика роутов не менялась,
+        // сменился только носитель id - см. resolveBookingPanel там же.
+        form.dataset.bookingId = editBooking.id || '';
+        form.dataset.bookingMasterId = masterId || '';
+        form.dataset.realStatus = editBooking.status || 'planned';
+        form.dataset.noshowStreak = String(editBooking.noShowStreak ?? 0);
+        form.dataset.requiresPrepayment = editBooking.requiresPrepayment ? 'true' : 'false';
+        const radio = el(STATUS_TO_RADIO_ID[editBooking.status] || 'st-wait');
+        if (radio) radio.checked = true;
+        if (statusNote) statusNote.hidden = true;
+        // Те же три рендерера, что раньше звала openBooking() - блоки переехали в
+        // форму вместе со своими id, обработчики не переписывались.
+        window.renderBookingServiceEdit?.(masterId, editBooking.serviceIds || []);
+        window.renderBookingDeleteRow?.();
+        window.renderBookingActualPrice?.(editBooking.actualPrice ?? null);
+        window.updateNoShowUi?.();
+      } else {
+        delete form.dataset.bookingId;
+        delete form.dataset.bookingMasterId;
+        delete form.dataset.realStatus;
+        delete form.dataset.noshowStreak;
+        delete form.dataset.requiresPrepayment;
+      }
+    }
     form.hidden = false;
     // Правка 07.08.2026 - было block:'start': форма теперь лежит В DOM ПОД календарём
     // (crm-owner.html, тот же приём, что уже фиксирует высоту .schedule-track - см.
@@ -238,10 +494,132 @@ export function wireWalkIn(staff, services, masterServices) {
     });
   }
 
+  // Окно 55, Задача B - поиск клиента по мере ввода телефона. Привязка один раз
+  // (dataset.wired), как у всех обработчиков этого файла. Дебаунс 350 мс: без него
+  // каждая цифра после десятой слала бы свой запрос. Событие input, не blur -
+  // администратор должен увидеть "клиент найден" ещё до того, как уйдёт из поля.
+  if (hintEl && !clientPhoneEl.dataset.lookupWired) {
+    clientPhoneEl.dataset.lookupWired = '1';
+    let debounceTimer = null;
+    clientPhoneEl.addEventListener('input', () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      const raw = clientPhoneEl.value;
+      if (!phoneKeyOf(raw)) {
+        clearHint(); // номер стёрли/не дописали - признак сразу убираем, не ждём таймер
+        return;
+      }
+      debounceTimer = setTimeout(() => lookupClientByPhone(raw), 350);
+    });
+  }
+
+  // ── Окно 55, Задача C: сохранение изменений существующей записи ────────────
+  // Два независимых шага по уже готовым роутам, механику которых окно не меняет:
+  // 1) добавленные услуги - PATCH /bookings/:id/services (Окно 51);
+  // 2) новый мастер/дата/время - PATCH /bookings/:id/reschedule (Окно 54).
+  // Порядок именно такой: длительность нового слота сервер считает по составу услуг
+  // (resolveRescheduleDuration), поэтому сначала состав, потом перенос - иначе слот
+  // посчитался бы по старому набору и мог бы разъехаться с реальностью.
+  const RESCHEDULE_REASON_TEXT = {
+    overlap: 'на это время у мастера уже есть другая запись - выберите свободное',
+    schedule_blocked: 'у мастера в это время перерыв или выходной',
+    master_not_bookable: 'у этого мастера ещё не настроен график работы',
+    past_time: 'нельзя перенести в прошлое',
+  };
+  const RESCHEDULE_ERROR_TEXT = {
+    booking_cancelled: 'запись отменена - перенести её нельзя, создайте новую',
+    booking_not_found: 'запись не найдена - возможно, её уже удалили',
+    unknown_master_service: 'новый мастер не оказывает часть услуг этой записи - поправьте список услуг',
+    unknown_master: 'такого мастера нет в системе',
+    forbidden: 'нет прав переносить эту запись (другая точка)',
+  };
+
+  async function submitEdit() {
+    const originalLabel = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Сохраняю…';
+    resultEl.hidden = true;
+    try {
+      const bookingId = editBooking?.id;
+      if (!bookingId) throw new Error('нет id записи');
+      const date = dateSelectValue('wfDateValue');
+      const startTime = timeSelectValue('wfTimeValue');
+      if (!date || !startTime) throw new Error('укажите дату и время');
+
+      // Услуги: шлём только ДОБАВЛЕННЫЕ. Роут умеет исключительно добавление (уже
+      // оказанные услуги не снимаются - осознанное решение Окна 51, это фиксация
+      // случившегося визита), поэтому снятие галочки здесь ничего не удаляет, и
+      // обещать обратное в интерфейсе нельзя.
+      const was = new Set(editBooking.serviceIds || []);
+      const added = [...selected].filter((id) => !was.has(id));
+      if (added.length > 0) {
+        const sr = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/services`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ serviceIds: added }),
+        });
+        const sdata = await sr.json().catch(() => ({}));
+        if (!sr.ok || sdata.ok === false) {
+          throw new Error(RESCHEDULE_ERROR_TEXT[sdata.error] || sdata.error || `HTTP ${sr.status}`);
+        }
+        editBooking.serviceIds = sdata.booking?.serviceIds || [...selected];
+      }
+
+      // Перенос - только если что-то реально изменилось. Пустой PATCH создал бы
+      // уведомление мастеру о переносе, которого не было (бэкенд такой случай тоже
+      // отсекает, planRescheduleNotifications, но лишний запрос ни к чему).
+      const moved =
+        currentMasterId !== editBooking.masterId ||
+        date !== editBooking.date ||
+        startTime !== editBooking.startTime;
+      if (moved) {
+        const rr = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/reschedule`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ masterId: currentMasterId, date, startTime }),
+        });
+        const rdata = await rr.json().catch(() => ({}));
+        if (!rr.ok || rdata.ok === false) {
+          // Разные тексты на разные причины (требование промпта) - "не удалось
+          // сохранить" на конфликте слота не говорит администратору, что делать.
+          const text =
+            RESCHEDULE_REASON_TEXT[rdata.reason] ||
+            RESCHEDULE_ERROR_TEXT[rdata.error] ||
+            rdata.error ||
+            `HTTP ${rr.status}`;
+          throw new Error(text);
+        }
+        // Запись НЕ испорчена при ошибке (сервер откатывает транзакцию целиком) -
+        // снимок обновляем только после успеха, иначе следующая попытка сравнивала
+        // бы с несуществующим состоянием.
+        editBooking.masterId = currentMasterId;
+        editBooking.date = date;
+        editBooking.startTime = startTime;
+      }
+
+      resultEl.hidden = false;
+      resultEl.className = 'wf-result wf-result--ok';
+      resultEl.textContent = moved || added.length
+        ? `Сохранено: ${nameLabel.textContent}, ${date} ${startTime}`
+        : 'Изменений не было';
+      renderLiveProof(staff); // перерисовать календарь: слот освободился/занялся
+    } catch (err) {
+      resultEl.hidden = false;
+      resultEl.className = 'wf-result wf-result--err';
+      resultEl.textContent = `Не удалось сохранить: ${err.message}`;
+    } finally {
+      submitBtn.disabled = selected.size === 0;
+      submitBtn.textContent = originalLabel;
+    }
+  }
+
   if (!submitBtn.dataset.wired) {
     submitBtn.dataset.wired = '1';
     submitBtn.addEventListener('click', async () => {
       if (selected.size === 0 || !currentMasterId) return;
+      // Окно 55, Задача C - редактирование существующей записи идёт своим путём:
+      // не POST /bookings (создало бы ВТОРУЮ запись вместо правки первой), а
+      // PATCH /services + PATCH /reschedule по уже существующему id.
+      if (editMode) return void (await submitEdit());
       const originalLabel = submitBtn.textContent;
       submitBtn.disabled = true;
       submitBtn.textContent = 'Сохраняю…';
@@ -377,6 +755,47 @@ export function wireWalkIn(staff, services, masterServices) {
   if (hasRebookUi) {
     window.openSlotBooking = (masterId, masterName, date, startTime) => {
       openForWalkin(masterId, masterName, { slot: true, date, startTime });
+    };
+  }
+
+  // Окно 55, Задача C - точка входа для клика по СУЩЕСТВУЮЩЕЙ записи в календаре
+  // (assets/crm-calendar.js, buildApptCard). Заменила openBooking() из
+  // assets/mockup-crm.js: раньше клик открывал отдельную карточку #bd-1 только на
+  // просмотр (все поля readonly, менялся один статус), теперь - ту же общую форму в
+  // режиме редактирования. Глобальная функция, а не export, по той же причине, что у
+  // двух соседок выше: карточки записей рисуются строкой HTML с onclick=, а
+  // HTML-атрибут резолвится только через window (ограничение браузера).
+  // hasEditUi=false (crm-master.html - мастер записи не переносит, решение Влада
+  // 08.08.2026) - функция не регистрируется, календарь там продолжает звать
+  // openBooking() и старую карточку, см. buildApptCard.
+  if (hasEditUi) {
+    window.openBookingEdit = (el) => {
+      const d = el.dataset;
+      // Подсветка выбранной карточки - тот же приём, что был у openBooking():
+      // wireBookingDelete (crm-booking-status.js) после удаления убирает из DOM
+      // именно .appt--selected, эту связь ломать нельзя.
+      document.querySelectorAll('.appt--selected').forEach((n) => {
+        if (n !== el) n.classList.remove('appt--selected');
+      });
+      el.classList.add('appt--selected');
+      openForWalkin(d.masterId, d.master, {
+        edit: true,
+        date: d.date,
+        startTime: d.startTime,
+        clientName: d.client,
+        clientPhone: d.phone,
+        serviceIds: (d.serviceIds || '').split(',').filter(Boolean),
+        booking: {
+          id: d.id,
+          date: d.date,
+          startTime: d.startTime,
+          serviceIds: (d.serviceIds || '').split(',').filter(Boolean),
+          status: d.realStatus || 'planned',
+          noShowStreak: parseInt(d.noshowStreak, 10) || 0,
+          requiresPrepayment: d.requiresPrepayment === 'true',
+          actualPrice: d.actualPrice ? Number(d.actualPrice) : null,
+        },
+      });
     };
   }
 }

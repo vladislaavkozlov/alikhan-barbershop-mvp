@@ -1053,6 +1053,21 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .wf-result--ok { background: rgba(111,174,124,0.14); border: 1px solid var(--success); color: var(--text); }
 .wf-result--err { background: rgba(193,85,74,0.14); border: 1px solid var(--danger); color: var(--text); }
 
+/* Признак "клиент найден / новый клиент" (Окно 55, Задача B, 10.08.2026) - строка под
+   полями имени/телефона в форме записи. Свои цвета не заводим: найденный клиент -
+   та же зелёная рамка, что у .wf-result--ok, новый - нейтральная (это не ошибка и не
+   успех, а просто факт), "ищу…" - приглушённый текст без рамки. Кнопка "подставить
+   услуги последнего визита" живёт прямо в строке: предложение, не форсирование
+   (промпт Задачи B), поэтому inline-кнопка, а не автоматическая отметка чекбоксов. */
+.wf-client-hint {
+  margin: 0 0 14px; font-size: 0.84rem; padding: 8px 12px; border-radius: 8px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px; line-height: 1.45;
+}
+.wf-client-hint[hidden] { display: none; }
+.wf-client-hint--found { background: rgba(111,174,124,0.14); border: 1px solid var(--success); color: var(--text); }
+.wf-client-hint--new { background: var(--surface-3); border: 1px solid var(--border); color: var(--text); }
+.wf-client-hint--pending { color: var(--text-muted); padding-left: 0; }
+
 /* "Удалить запись" (08.08.2026) - отделена от остальной карточки верхней линией,
    тот же приём отступа-границы, что уже держит .toggle-row между строками. */
 .bk-delete-row { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
