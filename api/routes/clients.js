@@ -1,6 +1,6 @@
-// GET /owner/alerts, GET /clients?risk=true, GET /clients/:id - вынесено из
-// server.mjs при декомпозиции (Этап 2 структурного рефакторинга, 07.08.2026), код
-// перенесён без изменений.
+// GET /owner/alerts, GET /clients?risk=true, GET /clients?phone=, GET /clients/:id -
+// вынесено из server.mjs при декомпозиции (Этап 2 структурного рефакторинга,
+// 07.08.2026), код перенесён без изменений; ветка ?phone= добавлена Окном 54.
 import { sendJson } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
@@ -90,10 +90,99 @@ export async function getClientCard(client, clientId) {
     visits,
     // Готовое сырьё для "Записать снова" (Задача 2, фронтенд) - мастер/услуги
     // последнего визита, дата и время выбираются заново на актуальной доступности.
-    lastVisit: visits[0]
-      ? { masterId: visits[0].masterId, masterName: visits[0].masterName, services: visits[0].services }
-      : null,
+    lastVisit: lastVisitOf(visits),
   };
+}
+
+// Сырьё для "Записать снова" - мастер/услуги последнего визита. Отдельная функция,
+// потому что Окно 54 пересобирает lastVisit после срезки истории по роли
+// (shapeClientCardForViewer ниже): два места не должны знать форму по-своему.
+function lastVisitOf(visits) {
+  return visits[0]
+    ? { masterId: visits[0].masterId, masterName: visits[0].masterName, services: visits[0].services }
+    : null;
+}
+
+// ── Окно 54 (10.08.2026, Задача A): поиск клиента по телефону ────────────────
+// Контракт под Окно 55: администратор вводит телефон в единой форме записи и сразу
+// видит, есть такой клиент или это новый. До этого окна такого поиска не было -
+// клиент только НЕЯВНО создавался/находился при сохранении брони через
+// INSERT ... ON CONFLICT (phone) (api/routes/bookings.js).
+//
+// ЧЕСТНАЯ ПОПРАВКА К ТЗ (правило 3 из CLAUDE.md): промпт просил нормализовать
+// телефон "тем же способом, что ON CONFLICT (phone)", но там нормализации НЕТ -
+// телефон пишется сырой строкой, unique-индекс clients_phone_key (миграция 002)
+// построен на сыром значении. Форматы при этом разные по факту: публичный виджет
+// шлёт "+7 999 123 45 67" (formatPhone, app.js:382), CRM-форма - `value.trim()` как
+// есть (crm-walkin.js:273). Поэтому нормализация живёт ЗДЕСЬ и применяется
+// симметрично к обеим сторонам сравнения: последние 10 цифр (для РФ это номер без
+// кода страны, что схлопывает +7/8/пробелы/скобки/дефисы в один ключ). Путь записи
+// не тронут - менять его значит трогать POST /bookings и мигрировать уже
+// накопленные строки, это отдельное решение, а не побочный эффект чтения.
+const PHONE_KEY_DIGITS = 10;
+
+export function normalizePhoneKey(raw) {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  if (!digits) return null;
+  return digits.length >= PHONE_KEY_DIGITS ? digits.slice(-PHONE_KEY_DIGITS) : digits;
+}
+
+// Та же нормализация, но над колонкой. Seq scan по clients осознан: таблица - клиенты
+// ОДНОГО барбершопа, функционального индекса под это не заводим (правило проекта:
+// миграции только когда без них нельзя, см. CLAUDE.md).
+const PHONE_DIGITS_SQL = `regexp_replace(phone, '[^0-9]', '', 'g')`;
+
+// Дубли одного номера в разных форматах в базе ВОЗМОЖНЫ (unique-индекс на сырой
+// строке их не запрещает: "+79991234567" и "+7 999 123 45 67" - две разные строки).
+// Поэтому выбор детерминированный: сначала точное совпадение присланной строки,
+// иначе первый по id - никогда "случайный из двух".
+export async function findClientByPhone(client, rawPhone) {
+  const key = normalizePhoneKey(rawPhone);
+  if (!key) return null;
+  const res = await client.query(
+    `SELECT id FROM clients
+     WHERE CASE WHEN length(${PHONE_DIGITS_SQL}) >= ${PHONE_KEY_DIGITS}
+                THEN right(${PHONE_DIGITS_SQL}, ${PHONE_KEY_DIGITS})
+                ELSE ${PHONE_DIGITS_SQL} END = $1
+     ORDER BY (phone = $2) DESC, id
+     LIMIT 1`,
+    [key, String(rawPhone ?? '')]
+  );
+  if (res.rows.length === 0) return null;
+  return getClientCard(client, res.rows[0].id);
+}
+
+// Какая ветка GET /clients запрошена. Вынесено в чистую функцию, чтобы разбор
+// параметров был покрыт офлайн-тестом: ветка ?risk=true существует с Окна 39 и её
+// поведение (включая 400 missing_fields, когда не передано ничего) обязано остаться
+// ровно прежним. Пустой/пробельный phone - это НЕ поиск, а отсутствие фильтра:
+// иначе Окно 55 приняло бы "клиент не найден" за ответ на пустой ввод.
+export function resolveClientsQueryMode(searchParams) {
+  const phone = searchParams.get('phone');
+  if (phone !== null && phone.trim() !== '') return { mode: 'phone', phone };
+  if (searchParams.get('risk') === 'true') return { mode: 'risk' };
+  return { mode: 'invalid' };
+}
+
+// Видимость карточки по роли. Телефон мастеру не отдаём - тот же уровень, что уже
+// принят в handleClientCard. История срезается по scope роли (admin - своя точка,
+// master - свои визиты), но САМ факт существования клиента не скрывается: 403/404
+// здесь сломали бы флоу Окна 55 (существующий клиент другой точки выглядел бы
+// новым, администратор завёл бы дубль, а бэкенд при сохранении брони всё равно
+// связал бы его с тем же ряд clients через ON CONFLICT (phone)). Это осознанное
+// отличие от handleClientCard: там просмотр чужой карточки, здесь опознание
+// клиента перед записью.
+export function shapeClientCardForViewer(card, auth) {
+  const visits =
+    auth.role === 'admin' ? card.visits.filter((v) => v.locationId === auth.locationId)
+    : auth.role === 'master' ? card.visits.filter((v) => v.masterId === auth.id)
+    : card.visits;
+  const shaped = { ...card, visits, lastVisit: lastVisitOf(visits) };
+  if (auth.role === 'master') {
+    const { phone, ...withoutPhone } = shaped;
+    return withoutPhone;
+  }
+  return shaped;
 }
 
 // Список "требует внимания" - клиенты с no_show_streak >= 1. locationId/masterId
@@ -178,15 +267,23 @@ export async function handleOwnerAlerts(req, res) {
   return sendJson(res, 200, result);
 }
 
-// ── /clients?risk=true - Окно 39 (06.08.2026, Задача 1). Список "требует
-// внимания" через listClientsAtRisk. Тот же приём разграничения по роли, что у
-// /payroll и /revenue/today: admin форсирован на свою точку, master - на своих
-// клиентов (тех, у кого есть бронь с этим мастером), owner видит всех. Телефон -
-// тот же уровень видимости, что в GET /bookings (разд.12 п.1 ТЗ): мастеру не отдаём.
+// ── /clients - две ветки. ?risk=true - список "требует внимания" (Окно 39,
+// 06.08.2026, Задача 1) через listClientsAtRisk. Тот же приём разграничения по
+// роли, что у /payroll и /revenue/today: admin форсирован на свою точку, master -
+// на своих клиентов (тех, у кого есть бронь с этим мастером), owner видит всех.
+// Телефон - тот же уровень видимости, что в GET /bookings (разд.12 п.1 ТЗ):
+// мастеру не отдаём. ?phone= - поиск клиента перед записью (Окно 54, Задача A),
+// 404 client_not_found = "новый клиент" для Окна 55.
 export async function handleClientsAtRisk(req, res, url) {
   const auth = await authenticate(req);
   if (!requireRole(auth, ['owner', 'admin', 'master'])) return sendJson(res, 401, { error: 'unauthorized' });
-  if (url.searchParams.get('risk') !== 'true') return sendJson(res, 400, { error: 'missing_fields' });
+  const query = resolveClientsQueryMode(url.searchParams);
+  if (query.mode === 'invalid') return sendJson(res, 400, { error: 'missing_fields' });
+  if (query.mode === 'phone') {
+    const card = await findClientByPhone(pool, query.phone);
+    if (!card) return sendJson(res, 404, { error: 'client_not_found' });
+    return sendJson(res, 200, shapeClientCardForViewer(card, auth));
+  }
   const locationId = auth.role === 'admin' ? auth.locationId : undefined;
   const masterId = auth.role === 'master' ? auth.id : undefined;
   const list = await listClientsAtRisk(pool, { locationId, masterId });
