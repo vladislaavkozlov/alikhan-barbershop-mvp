@@ -84,11 +84,24 @@
        раньше физически не мог ответить на "сколько мы заработали сегодня" без
        звонка владельцу (PRODUCT_AUDIT_REPORT, разд. "Администратор"). Сумма
        продаж (sales) за сегодня по своей точке - не полная аналитика владельца,
-       не разбивка по мастерам/услугам (вне объёма Окна 38). -->
-  <div class="stat-cards" style="max-width:280px;margin-bottom:18px">
+       не разбивка по мастерам/услугам (вне объёма Окна 38).
+
+       Неопознанные визиты сегодня (09.08.2026) - решение Алихана по найденному
+       живьём багу потери имени walk-in-клиента без телефона (Окно 53, Задача J,
+       память project_barbershop-owner-schedule-bugfixes-okno53-09-08): систему
+       не заставляем опознавать клиента по одному имени (не масштабируется - "который
+       из сотни Сергеев"), но администратор должен честно видеть, сколько сегодня
+       было визитов без телефона - та же цифра, что countUnidentifiedToday отдаёт
+       заодно с revenue в GET /revenue/today (один запрос, не два). -->
+  <div class="stat-cards" style="max-width:460px;margin-bottom:18px">
     <div class="stat-card stat-card--net">
       <div class="sc-label">Выручка сегодня</div>
       <div class="sc-value" id="revenueTodayAmount">— <span class="unsure">считаю…</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="sc-label">Неопознанных визитов сегодня</div>
+      <div class="sc-value" id="unidentifiedTodayCount">— <span class="unsure">считаю…</span></div>
+      <div class="sc-note">без телефона - не привязаны к карточке клиента</div>
     </div>
   </div>
 
@@ -138,10 +151,25 @@
             <div class="field"><label>Дата</label><div id="wfDate-slot"></div></div>
             <div class="field"><label>Время</label><div id="wfTime-slot"></div></div>
           </div>
+          <!-- Окно 55, Задача C (10.08.2026) - режим "редактирование существующей
+               записи", тот же контракт, что на crm-owner.html. Мастера в этом режиме
+               можно СМЕНИТЬ (PATCH /bookings/:id/reschedule, Окно 54) - администратор
+               допущен к этому роуту наравне с владельцем, но только в пределах своей
+               точки (handleBookingReschedule проверяет location_id с обеих сторон).
+               Список мастеров рисует assets/crm-walkin.js по реальному /staff. -->
+          <div class="field-grid" id="wfMasterRow" hidden>
+            <div class="field field--wide"><label>Мастер</label><div id="wfMaster-slot"></div></div>
+          </div>
           <div class="field-grid">
             <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
             <div class="field"><label>Телефон</label><input id="wfClientPhone" type="tel" placeholder="+7 900 000-00-00"></div>
           </div>
+          <!-- Окно 55, Задача B (10.08.2026) - опознание клиента по телефону:
+               GET /clients?phone= (контракт Окна 54) вызывается, как только введён
+               полный номер. Заполняет assets/crm-walkin.js (wireClientLookup). Тот же
+               блок, что на crm-owner.html - для администратора он даже важнее, именно
+               он записывает клиентов (решение Влада 08.08.2026). -->
+          <p class="wf-client-hint" id="wfClientHint" hidden></p>
           <details class="service-edit" open>
             <summary>Услуги (можно выбрать несколько - список только этого мастера)</summary>
             <div class="service-picker" id="wfServicePicker"></div>
@@ -152,6 +180,52 @@
             <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Отмена</button>
           </div>
           <p class="wf-result" id="wfResult" hidden></p>
+
+          <!-- Окно 55, Задача C - блоки, живущие ТОЛЬКО в режиме edit: статус визита,
+               добавление услуги к записи, фактическая сумма, удаление. Перенесены сюда
+               из карточки-просмотра #bd-1 один в один, вместе с id, потому что их
+               читают уже существующие модули (assets/crm-booking-status.js:
+               wireBookingStatusRadios / wireBookingServiceEdit / wireBookingActualPrice
+               / wireBookingDelete) - механику PATCH /status, PATCH /services,
+               PATCH /actual-price и DELETE это окно не меняет, только переселяет UI.
+               Кнопка "Клиент не пришёл" (toggleNoShow) НЕ переносится: на admin она
+               делала ровно то же, что радио ниже, двумя похожими контролами - тот же
+               разбор, что Окно 36 уже провело на owner. -->
+          <div class="wf-edit-controls" id="wfEditControls" hidden>
+            <div class="status-row" id="wfStatusRow">
+              <input type="radio" name="bstatus" id="st-wait">
+              <input type="radio" name="bstatus" id="st-came">
+              <input type="radio" name="bstatus" id="st-no">
+              <label for="st-wait">Ожидание</label>
+              <label for="st-came">Пришёл</label>
+              <label for="st-no">Не пришёл</label>
+            </div>
+            <p class="commission-note" id="bk-status-note" hidden></p>
+            <div class="noshow-banner" id="bk-noshow-banner" hidden>
+              <span class="ico">⚠</span>
+              <span></span>
+            </div>
+            <div class="bk-delete-row" id="bkDeleteRow"></div>
+          </div>
+
+          <div class="wf-edit-extras" id="wfEditExtras" hidden>
+            <details class="service-edit">
+              <summary>Добавить услугу к записи</summary>
+              <p class="section-hint">Уже отмеченные услуги оказаны и зафиксированы - отметьте новую, если клиенту сделали что-то ещё</p>
+              <div class="service-picker" id="bkServiceEditPicker"></div>
+              <button type="button" class="btn btn-primary btn-sm" id="bkServiceEditSave" disabled>Сохранить услугу</button>
+              <p class="wf-result" id="bkServiceEditResult" hidden></p>
+            </details>
+
+            <div class="field-grid">
+              <div class="field">
+                <label>Фактическая сумма <span class="badge badge-example">если отличается от суммы услуг выше</span></label>
+                <input id="bkActualPrice" type="number" min="0" placeholder="как по услугам">
+              </div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" id="bkActualPriceSave">Сохранить фактическую сумму</button>
+            <p class="wf-result" id="bkActualPriceResult" hidden></p>
+          </div>
 
           <div class="wf-sale" id="wfSaleForm" hidden>
             <h4 style="margin-top:18px">Добавить продажу к этой записи</h4>
@@ -270,115 +344,27 @@
           </div>
         </div>
 
-        <details class="booking-detail" id="bd-1" open>
-          <summary><strong id="bd-now">Клиент Б · Комплекс стрижка+борода · 11:00–12:00 (Алиовсад)</strong></summary>
-          <div class="booking-detail-body">
-            <div class="walkin-banner" id="bk-walkin-banner" hidden>
-              <span class="ico">★</span>
-              <span>Клиент без предварительной записи - поля ниже очищены, впишите имя, телефон и услугу вручную. Время прихода и статус уже проставлены автоматически</span>
-            </div>
-            <div class="status-row">
-              <input type="radio" name="bstatus" id="st-wait">
-              <input type="radio" name="bstatus" id="st-came" checked>
-              <input type="radio" name="bstatus" id="st-no">
-              <label for="st-wait">Ожидание</label>
-              <label for="st-came">Пришёл</label>
-              <label for="st-no">Не пришёл</label>
-            </div>
-            <div class="confirm-row">
-              <input type="checkbox" id="bconfirm" checked>
-              <label for="bconfirm">Клиент подтвердил запись</label>
-            </div>
-            <!-- Правка 03.08.2026: тумблер "Клиент не пришёл без предупреждения" убран -
-                 дублировал ту же самую (тоже нерабочую) кнопку "Клиент пришёл" ниже, два
-                 разных элемента на одну и ту же отметку сбивали с толку. Осталась одна
-                 реальная кнопка в field-grid (bk-noshow-btn) - см. отчёт сессии 03.08.2026. -->
-            <div class="noshow-banner" id="bk-noshow-banner" hidden>
-              <span class="ico">⚠</span>
-              <span></span>
-            </div>
-            <div class="birthday-banner">
-              <span class="ico">🎂</span>
-              <span>Пример: день рождения клиента - 15 августа, через 6 дней. Настройка в разделе «Акции» (у владельца) может заранее предложить ему скидку, чтобы клиент успел подготовиться и записаться</span>
-            </div>
-            <div class="field-grid">
-              <div class="field"><label>Клиент</label><input id="bk-client" value="Клиент Б" readonly></div>
-              <div class="field"><label>Телефон</label><input id="bk-phone" value="+7 900 000-00-02" readonly></div>
-              <div class="field"><label>Мастер записи</label><input id="bk-master" value="Алиовсад" readonly></div>
-              <div class="field field--wide">
-                <label>Закреплён за мастером</label>
-                <div class="custom-select" data-value="Алиовсад">
-                  <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">Алиовсад</button>
-                  <div class="custom-select-list" hidden>
-                    <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Не закреплён</div>
-                    <div class="custom-select-option selected" onclick="pickCustomSelectOption(this)">Алиовсад</div>
-                    <div class="custom-select-option" onclick="pickCustomSelectOption(this)">Мамедхан</div>
-                  </div>
-                </div>
-              </div>
-              <div class="field"><label>Услуга</label><input id="bk-service" value="Комплекс стрижка+борода · 3500₽" readonly></div>
-              <div class="field"><label>Дата рождения клиента</label><input value="15.08" readonly></div>
-              <div class="field"><label>Клиент с нами с</label><input value="03.02.2025" readonly></div>
-              <div class="field"><label>Плановое время</label><input id="bk-planned" value="11:00–12:00" readonly></div>
-              <div class="field"><label>Длительность услуги у этого мастера</label><input id="bk-duration" value="60 мин" readonly></div>
-              <div class="field">
-                <label>Статус визита</label>
-                <button id="bk-noshow-btn" class="btn btn-ghost btn-sm" type="button" onclick="toggleNoShow(this)">Клиент не пришёл</button>
-                <p class="commission-note" id="bk-noshow-note" hidden></p>
-              </div>
-              <div class="field">
-                <label>Комиссия мастера за запись</label>
-                <input id="bk-commission" value="Не начисляется" readonly>
-                <p class="commission-note" id="bk-commission-note">Алиовсад - владелец, комиссию самому себе не платит, вся сумма услуги и так остаётся в бизнесе</p>
-              </div>
-            </div>
-
-            <details class="service-edit">
-              <summary>Добавить услугу к записи</summary>
-              <!-- Правка 08.08.2026 (жалоба Влада) - раньше статичный макет без
-                   сохранения (см. историю в assets/mockup-crm.js pickServiceForBooking).
-                   Реальные данные - window.renderBookingServiceEdit/
-                   assets/crm-booking-status.js (wireBookingServiceEdit), вызывается из
-                   openBooking(). Уже оказанные услуги отмечены и заблокированы - это
-                   ДОБАВЛЕНИЕ к визиту, не редактирование задним числом. -->
-              <p class="section-hint">Уже отмеченные услуги оказаны и зафиксированы - отметьте новую, если клиенту сделали что-то ещё</p>
-              <div class="service-picker" id="bkServiceEditPicker"></div>
-              <button type="button" class="btn btn-primary btn-sm" id="bkServiceEditSave" disabled>Сохранить услугу</button>
-              <p class="wf-result" id="bkServiceEditResult" hidden></p>
-            </details>
-
-            <!-- "Фактическая сумма" (08.08.2026, вечер) - см. подробный комментарий в
-                 crm-owner.html у этого же блока. -->
-            <div class="field-grid">
-              <div class="field">
-                <label>Фактическая сумма <span class="badge badge-example">если отличается от суммы услуг выше</span></label>
-                <input id="bkActualPrice" type="number" min="0" placeholder="как по услугам">
-              </div>
-            </div>
-            <button type="button" class="btn btn-ghost btn-sm" id="bkActualPriceSave">Сохранить фактическую сумму</button>
-            <p class="wf-result" id="bkActualPriceResult" hidden></p>
-
-            <!-- Правка 08.08.2026 (Влад: "мастер зашёл случайно, сохранил не на ту дату -
-                 её же можно спокойно удалить?") - НАСТОЯЩЕЕ удаление (DELETE /bookings/:id),
-                 не просто отмена статуса (отменённая запись всё равно считалась бы в
-                 выручке - computeMasterPayroll не фильтрует по статусу). Подробности -
-                 тот же комментарий в crm-owner.html у этого же блока. -->
-            <div class="bk-delete-row" id="bkDeleteRow"></div>
-
-            <div class="field">
-              <label>Комментарии по клиенту <span class="badge badge-todo">видна вся история, не только эта запись</span></label>
-              <div class="comment-thread" id="bk-comment-thread">
-                <div class="comment-item"><div class="ci-meta">12.07.2026 · Мамедхан</div><div class="ci-text">Аллергия на определённый шампунь - использовать гипоаллергенную линейку (пример)</div></div>
-                <div class="comment-item"><div class="ci-meta">03.06.2026 · Алиовсад</div><div class="ci-text">Просит стричь покороче, не любит долго ждать (пример)</div></div>
-              </div>
-              <div class="comment-add-row">
-                <input type="text" id="bk-comment-new" placeholder="Новый комментарий">
-                <button class="btn btn-ghost btn-sm" type="button" onclick="addComment(this)">Добавить</button>
-              </div>
-              <p class="commission-note">Хранится по клиенту, видно при открытии любой его записи. Срок хранения - открытый вопрос, отдельно считать сколько места потянет база (не решено в этом окне)</p>
-            </div>
-          </div>
-        </details>
+        <!-- Карточка записи #bd-1 удалена Окном 55 (10.08.2026, Задача D), как и на
+             crm-owner.html: открытие и редактирование существующей записи идёт через
+             ОДНУ общую форму (#walkinForm выше, режим edit - assets/crm-walkin.js).
+             Статус, "добавить услугу", фактическая сумма и удаление переехали туда
+             вместе со своими id - роуты и обработчики (assets/crm-booking-status.js)
+             не менялись, сменился только носитель dataset.bookingId (bookingPanel()).
+             Что НЕ перенесено и почему:
+             - чекбокс #bconfirm "Клиент подтвердил запись" - роута на запись
+               bookings.client_confirmed нет нигде в server.mjs (тот же разбор, что
+               Окно 36 провело на owner); показывать элемент, который ничего не
+               сохраняет, честнее не показывать вовсе;
+             - кнопка #bk-noshow-btn (toggleNoShow) - делала ровно то же, что радио
+               статуса, двумя разными контролами на одно действие (Окно 36 уже убрало
+               её на owner по этой же причине). Сама функция window.toggleNoShow в
+               assets/crm-booking-status.js остаётся - её продолжает звать
+               crm-master.html, который это окно не трогает;
+             - "Комментарии по клиенту" - статичный макет без сохранения (addComment
+               только дописывал DOM, таблицы под это в схеме нет), скрыт на owner
+               Окном 36 по той же причине;
+             - "Дата рождения / Клиент с нами с / Комиссия" - readonly-поля с
+               хардкодом, не читавшие реальных данных клиента. -->
       </section>
     </div>
 

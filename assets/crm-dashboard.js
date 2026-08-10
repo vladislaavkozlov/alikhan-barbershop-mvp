@@ -235,11 +235,18 @@ export async function renderLiveProof(staff) {
     // просто рендерим то, что вернул бэкенд. Элемент есть только на
     // crm-admin.html (Окно 40 - отдельная задача для crm-owner.html, вне скоупа
     // этого окна).
+    //
+    // "Неопознанных визитов сегодня" (09.08.2026) - тот же ответ GET /revenue/today
+    // теперь заодно содержит unidentifiedCount (countUnidentifiedToday, api/routes/
+    // payroll.js) - решение Алихана по найденному багу потери имени walk-in без
+    // телефона. Один запрос на обе карточки, не дублируем fetch.
     const revenueTodayEl = el('revenueTodayAmount');
-    if (revenueTodayEl) {
+    const unidentifiedTodayEl = el('unidentifiedTodayCount');
+    if (revenueTodayEl || unidentifiedTodayEl) {
       try {
-        const { revenue } = await fetchJson('/revenue/today');
-        revenueTodayEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
+        const { revenue, unidentifiedCount } = await fetchJson('/revenue/today');
+        if (revenueTodayEl) revenueTodayEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
+        if (unidentifiedTodayEl) unidentifiedTodayEl.textContent = String(unidentifiedCount);
       } catch {
         // "считаю…" останется как было - основная ошибка уже видна в панели выше
       }
@@ -278,7 +285,7 @@ export async function renderLiveProof(staff) {
       wireScheduleEditor(masterId, fetchJson);
       wireWeeklyScheduleEditor(masterId, staff.role === 'owner', fetchJson);
     });
-    wireWalkIn(staff, services, masterServices);
+    wireWalkIn(staff, services, masterServices, staffList);
     wireMasterSelfView(staff, pctOf);
     wireMasterSelfDataTab(staff, services, masterServices, pctOf);
     wireMasterServiceEditors(staff.role, services, masterServices);
