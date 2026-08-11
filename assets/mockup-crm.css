@@ -888,6 +888,7 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 /* компактная лёгенда-чипы (Окно 32) - вместо абзаца-инструкции, точка+короткое слово,
    как в Google Calendar, а не предложение с описанием клика */
 .day-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; font-size: 0.82rem; }
+.day-legend[hidden] { display: none; }
 .day-legend .day-dot { margin-right: 5px; }
 .day-legend .legend-note { margin-left: 10px; color: var(--text-muted); }
 .month-day.is-holiday { background: rgba(185,139,84,0.14); border-color: var(--wood); }

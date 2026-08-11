@@ -16,6 +16,13 @@ import {
 } from './crm-schedule-shared.js';
 import { todayStr } from './crm-calendar.js';
 
+export function monthModeHintState(mode) {
+  return {
+    statusLegendHidden: mode === 'all',
+    aggregateHintHidden: mode !== 'all',
+  };
+}
+
 export function wireMonthView(ctx) {
   const {
     masters, isSolo, fetchJson, apiSend, holidayMapForRange, renderTimeSelect, timeSelectValue,
@@ -31,6 +38,14 @@ export function wireMonthView(ctx) {
   // бы двумя одинаковыми экранами.
   const hasTeamToggle = !isSolo && masters.length > 1;
   let monthMode = hasTeamToggle ? 'all' : 'single';
+
+  function syncMonthModeHints() {
+    const state = monthModeHintState(monthMode);
+    const statusLegend = document.getElementById('monthStatusLegend');
+    const aggregateHint = document.getElementById('monthAggregateHint');
+    if (statusLegend) statusLegend.hidden = state.statusLegendHidden;
+    if (aggregateHint) aggregateHint.hidden = state.aggregateHintHidden;
+  }
 
   // Ожидаемый график ЭТОГО дня недели по "Стандартному графику" (master_weekly_schedule) -
   // та же логика приоритета, что у getEffectiveSchedule на сервере (api/server.mjs),
@@ -383,6 +398,7 @@ export function wireMonthView(ctx) {
     // вообще, buildMasterSwitch не позвался бы ни разу без этой строки).
     const switchRow = document.getElementById('monthMasterSwitch');
     if (switchRow) switchRow.hidden = monthMode === 'all';
+    syncMonthModeHints();
     if (hasTeamToggle) {
       const modeRow = document.createElement('div');
       modeRow.className = 'master-switch-row';
@@ -398,6 +414,7 @@ export function wireMonthView(ctx) {
           monthMode = btn.dataset.mode;
           modeRow.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b === btn));
           if (switchRow) switchRow.hidden = monthMode === 'all';
+          syncMonthModeHints();
           loadMonth();
         });
       });

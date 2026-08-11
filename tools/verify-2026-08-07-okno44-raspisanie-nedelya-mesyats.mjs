@@ -139,6 +139,13 @@ try {
         check('Переключатель "Все мастера / по одному" отрисован (новый в этом окне)', toggleVisible === true, `найден=${toggleVisible}`);
         const defaultMode = await s.eval(`document.querySelector('#monthModeToggle [data-mode="all"]')?.classList.contains('active')`);
         check('По умолчанию активен режим "Все мастера" (вся команда сразу)', defaultMode === true, `active=${defaultMode}`);
+        const aggregateHints = await s.eval(`({
+          statusLegendHidden: document.getElementById('monthStatusLegend')?.hidden,
+          aggregateHintHidden: document.getElementById('monthAggregateHint')?.hidden,
+          aggregateHintText: document.getElementById('monthAggregateHint')?.textContent.trim(),
+        })`);
+        check('Регрессия: "Все мастера" скрывает неприменимую легенду Рабочий/Правка/Выходной', aggregateHints.statusLegendHidden === true, JSON.stringify(aggregateHints));
+        check('Регрессия: "Все мастера" объясняет процент как общую загрузку команды', aggregateHints.aggregateHintHidden === false && aggregateHints.aggregateHintText.includes('общую загрузку команды'), JSON.stringify(aggregateHints));
 
         const monthAggToday = await s.eval(`(() => {
           const cell = document.querySelector('.month-day--real[data-date="${today}"]');
@@ -156,6 +163,11 @@ try {
         // карандаш возвращаются, % считается уже для одного мастера.
         await s.eval(`document.querySelector('#monthModeToggle [data-mode="single"]').click()`);
         await sleep(500);
+        const singleHints = await s.eval(`({
+          statusLegendHidden: document.getElementById('monthStatusLegend')?.hidden,
+          aggregateHintHidden: document.getElementById('monthAggregateHint')?.hidden,
+        })`);
+        check('Регрессия: "По одному" возвращает легенду статусов и скрывает подсказку команды', singleHints.statusLegendHidden === false && singleHints.aggregateHintHidden === true, JSON.stringify(singleHints));
         const singlePick = await s.eval(`(() => {
           const btn = [...document.querySelectorAll('#monthMasterSwitch .master-pill')].find((b) => b.textContent === 'QA Мастер Один');
           if (!btn) return 'NOT_FOUND';
