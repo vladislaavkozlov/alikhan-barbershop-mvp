@@ -103,6 +103,13 @@ export function wireRoleEditors(staffList) {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
           body: JSON.stringify({ role: nextValue }),
         });
+        if (res.status === 409) {
+          // Замок последнего владельца (api/routes/staff.js, isLastOwnerDemotion) -
+          // единственный отказ этого роута, который владелец получает по делу, а не
+          // из-за сбоя. Показываем причину человеческим языком: "→ 409" ничего не
+          // объясняет тому, кто просто выбрал пункт в списке.
+          throw new Error('в системе должен остаться хотя бы один владелец');
+        }
         if (!res.ok) throw new Error(`staff/${masterId}/role → ${res.status}`);
         wrap.dataset.lastValue = nextValue;
         if (noteEl) noteEl.textContent = 'Сохранено';

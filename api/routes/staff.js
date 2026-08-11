@@ -72,6 +72,17 @@ export async function handleStaffPortfolio(req, res, parts) {
   return sendJson(res, 200, { ok: true });
 }
 
+// Замок от самозапирания системы, чистая функция (инцидент 11.08.2026, см. вызов в
+// handleStaffRole ниже и миграцию 043_restore_owner_role.sql). Вынесена отдельно от
+// роута ровно чтобы её можно было проверить юнитами без Postgres - тот же приём, что
+// у filterStaffForViewer/computeMasterPayroll ("один резолвер - одна правда").
+//
+// true = этот UPDATE оставил бы систему БЕЗ владельцев, значит выполнять его нельзя.
+export function isLastOwnerDemotion(ownerIds, staffId, nextRole) {
+  if (nextRole === 'owner') return false; // выдача роли владельцем никого не запирает
+  return ownerIds.length <= 1 && ownerIds.includes(staffId);
+}
+
 // ── /staff/:id/role - Задача 1 (Окно 14, 02.08.2026). Владелец меняет роль
 // сотрудника (например Мамедхан master→admin) - раньше чекбоксы роли в
 // crm-owner.html были кликабельны, но физически ничего не сохраняли, эндпоинта
@@ -83,6 +94,20 @@ export async function handleStaffRole(req, res, parts) {
   const body = await readBody(req);
   const role = body.role;
   if (!['owner', 'admin', 'master'].includes(role)) return sendJson(res, 400, { error: 'invalid_role' });
+  // Замок от самозапирания системы (инцидент 11.08.2026, миграция 043): владелец
+  // сменил СЕБЕ роль на 'мастер' - и вернуть её стало некому, потому что этот самый
+  // роут доступен только owner, а других владельцев на проде нет (все тестовые и
+  // QA-owner вычищены миграциями 014/024/027/035/039). Починка потребовала
+  // миграции, то есть деплоя - интерфейсом это было неисправимо.
+  //
+  // Проверяем не "меняет ли владелец себя", а более широкое условие "останется ли в
+  // системе хоть один владелец": заперлись бы точно так же, если бы владелец A снял
+  // роль с последнего владельца B, не трогая себя. Условие построено на СОСТОЯНИИ
+  // базы, а не на auth.id, поэтому закрывает оба пути одной проверкой.
+  const owners = await pool.query('SELECT id FROM staff WHERE role = $1', ['owner']);
+  if (isLastOwnerDemotion(owners.rows.map((r) => r.id), staffId, role)) {
+    return sendJson(res, 409, { error: 'last_owner_role_locked' });
+  }
   const result = await pool.query('UPDATE staff SET role = $1 WHERE id = $2 RETURNING id, role', [role, staffId]);
   if (result.rows.length === 0) return sendJson(res, 404, { error: 'staff_not_found' });
   return sendJson(res, 200, { ok: true, id: result.rows[0].id, role: result.rows[0].role });

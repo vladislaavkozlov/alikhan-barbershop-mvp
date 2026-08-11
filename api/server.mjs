@@ -52,6 +52,8 @@ export { findMastersMissingSchedule, notifyOwnerAboutMastersMissingSchedule } fr
 export { isoWeekday, enumerateDateRange } from './lib/time.js';
 import { handleLogin, handleMe } from './routes/auth.js';
 import { handleStaffList, handleStaffPortfolio, handleStaffRole } from './routes/staff.js';
+// Ре-экспорт для tests/api.staff-role-lock.test.js (инцидент 11.08.2026).
+export { isLastOwnerDemotion } from './routes/staff.js';
 import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
 import { handleBookings, handleBookingCancel, handleBookingStatus, handleBookingAddServices, handleBookingReschedule, handleBookingActualPrice, handleBookingDelete, handleSales } from './routes/bookings.js';
 // Ре-экспорт для tests/api.booking-reschedule.test.js (Окно 54, Задача B и C).
