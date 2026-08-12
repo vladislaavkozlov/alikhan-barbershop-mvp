@@ -52,7 +52,8 @@ export { findMastersMissingSchedule, notifyOwnerAboutMastersMissingSchedule } fr
 // декомпозиции, plans/2026-08-07-server-mjs-decomposition.md.
 export { isoWeekday, enumerateDateRange } from './lib/time.js';
 import { handleLogin, handleLogout, handleMe, handlePinChange } from './routes/auth.js';
-import { handleStaffCreate, handleStaffList, handleStaffMediaUpload, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
+import { handleStaffCreate, handleStaffList, handleStaffMediaDelete, handleStaffMediaOrder, handleStaffMediaUpload, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
+import { MEDIA_ROOT } from './lib/staff-media.js';
 import { handlePublicMasters } from './routes/public-masters.js';
 // Ре-экспорт для tests/api.staff-role-lock.test.js (инцидент 11.08.2026).
 export { isLastOwnerDemotion } from './routes/staff.js';
@@ -112,7 +113,10 @@ const ROUTES = [
   { method: 'POST', path: 'staff', auth: 'management' },
   { method: 'PUT', path: 'staff/:id', auth: 'management' },
   { method: 'POST', path: 'staff/:id/media', auth: 'management' },
+  { method: 'PUT', path: 'staff/:id/media/order', auth: 'management' },
+  { method: 'DELETE', path: 'staff/:id/media/:mediaId', auth: 'management' },
   { method: 'GET', path: 'public/masters', auth: 'public' },
+  { method: 'GET', path: 'media/:key', auth: 'public' },
   { method: 'PUT', path: 'staff/:id/portfolio', auth: 'management' },
   { method: 'PUT', path: 'staff/:id/role', auth: 'management' },
   { method: 'GET', path: 'services', auth: 'any-staff' },
@@ -217,7 +221,10 @@ const server = createServer(async (req, res) => {
     if (parts[0] === 'staff' && parts.length === 1 && req.method === 'POST') return handleStaffCreate(req, res);
     if (parts[0] === 'staff' && parts[1] && parts.length === 2 && req.method === 'PUT') return handleStaffUpdate(req, res, parts);
     if (parts[0] === 'staff' && parts[1] && parts[2] === 'media' && parts.length === 3 && req.method === 'POST') return handleStaffMediaUpload(req,res,parts,url);
+    if (parts[0] === 'staff' && parts[1] && parts[2] === 'media' && parts[3] === 'order' && req.method === 'PUT') return handleStaffMediaOrder(req,res,parts);
+    if (parts[0] === 'staff' && parts[1] && parts[2] === 'media' && parts[3] && req.method === 'DELETE') return handleStaffMediaDelete(req,res,parts);
     if (parts[0] === 'public' && parts[1] === 'masters' && req.method === 'GET') return handlePublicMasters(req,res);
+    if (parts[0] === 'media' && parts[1] && req.method === 'GET') { const key=parts[1]; if(!/^[a-f0-9]{36}\.webp$/.test(key)) return sendJson(res,404,{error:'media_not_found'}); try { const image=readFileSync(join(MEDIA_ROOT,key)); res.writeHead(200,{ 'Content-Type':'image/webp','Cache-Control':'public, max-age=86400' }); return res.end(image); } catch { return sendJson(res,404,{error:'media_not_found'}); } }
 
     // ── /staff/:id/portfolio - Задача 4 (Окно 13, 01.08.2026). Только владелец
     // редактирует (тот же уровень доступа, что у /payroll-settings PUT - Алихан сам
