@@ -11,9 +11,14 @@
   --bg-main: #0C1A16;
   --bg-sidebar: #10241C;
   --bg-header: #0C1A16;
-  --panel-bg: rgba(47, 64, 50, 0.34);
-  --panel-bg-light: rgba(47, 64, 50, 0.20);
-  --panel-bg-collapsed: rgba(47, 64, 50, 0.10);
+  /* Правка (продолжение 12.08.2026) - панели раньше были на отдельном оливковом
+     rgba(47,64,50), не из той же цветовой семьи, что --bg-main/--surface*
+     (холодный чёрно-бирюзовый) - расхождение оттенков и читалось как "цвета не
+     сочетаются". Теперь панели - производная от --surface-3 через color-mix,
+     та же семья зелёного, разница только в светлоте/прозрачности. */
+  --panel-bg: color-mix(in srgb, var(--surface-3) 40%, transparent);
+  --panel-bg-light: color-mix(in srgb, var(--surface-3) 24%, transparent);
+  --panel-bg-collapsed: color-mix(in srgb, var(--surface-2) 16%, transparent);
 
   --bg: var(--bg-main);
   --surface: #142520;
