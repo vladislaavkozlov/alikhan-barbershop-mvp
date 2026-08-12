@@ -2,6 +2,7 @@ import {
   createStore,
   createHttpBackend,
   getMasters,
+  loadPublicMasters,
   getServices,
   priceLabelForMaster,
   priceForMaster,
@@ -29,7 +30,7 @@ if (!window.ALIKHAN_API_URL) {
     'font:12px/1.4 monospace;padding:6px 10px;border-radius:6px;opacity:0.85;pointer-events:none;max-width:280px';
   document.body.append(banner);
 }
-const masters = getMasters();
+let masters = getMasters();
 const services = getServices();
 
 const priceGrid = document.getElementById('price-grid');
@@ -841,6 +842,13 @@ form.addEventListener('submit', async (event) => {
 renderPrice();
 renderMasters();
 renderMasterOptions();
+
+if (window.ALIKHAN_API_URL) {
+  loadPublicMasters(window.ALIKHAN_API_URL).then((rows) => {
+    masters = rows.map((m) => ({ ...m, workWindow: { start: '10:00', end: '20:00' }, isPlaceholder: false }));
+    renderMasters(); renderMasterOptions();
+  }).catch(() => { if (mastersGrid) mastersGrid.dataset.publicMastersError = '1'; });
+}
 
 // Правка 03.08.2026: подгружаем реальные master_services после первой отрисовки
 // (мастера/цены общего прайса не зависят от этого запроса) - если пользователь

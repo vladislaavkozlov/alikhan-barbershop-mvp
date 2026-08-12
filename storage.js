@@ -224,6 +224,12 @@ export function getMasters() {
   return MASTERS;
 }
 
+export async function loadPublicMasters(apiBaseUrl) {
+  const res = await fetch(`${apiBaseUrl}/public/masters`);
+  if (!res.ok) throw new Error(`storage.js: GET /public/masters → ${res.status}`);
+  return res.json();
+}
+
 // Задача C промпта Окна 29 (05.08.2026) - мастер без единого рабочего дня в
 // стандартном графике не должен быть виден в списке выбора клиента (бэкенд остаётся
 // финальным рубежом - см. master_not_bookable в api/server.mjs createBookingTx, это
