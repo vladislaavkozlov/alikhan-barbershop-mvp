@@ -37,6 +37,7 @@
     <a href="index.html" class="brand">АЛИХАН</a>
     <div class="nav-right">
       <span class="location-badge">Вы: <strong id="selfNameBadge">Алиовсад</strong></span>
+      <button class="notif-bell crm-top-action" type="button" id="refreshBtn" aria-label="Обновить данные"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17,1.5 21,5.5 17,9.5"/><path d="M3,12.5v-2a4,4 0 0 1 4,-4h14"/><polyline points="7,22.5 3,18.5 7,14.5"/><path d="M21,11.5v2a4,4 0 0 1 -4,4H3"/></svg></button>
       <div class="msg-bell-wrap" style="position:relative">
         <button class="notif-bell crm-top-action" type="button" id="msgBell" aria-label="Уведомления о записях и графике"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
         <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
@@ -414,10 +415,12 @@
   import { initCrmAuth } from './assets/crm-auth.js';
   import { initAppShell } from './assets/crm-app-shell.js';
   import { initCrmNavigationPanels, upgradeScheduleViews } from './assets/crm-navigation-panels.js';
+  import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
   upgradeScheduleViews(['day', 'week', 'month']);
   initCrmAuth('master');
   initAppShell('master');
   initCrmNavigationPanels();
+  initCrmRefreshControl();
 </script>
 </body>
 </html>

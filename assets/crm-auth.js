@@ -5,7 +5,7 @@
 import { getMasters, getServices } from '../storage.js';
 import { wireNotifications } from './crm-notifications.js';
 import { el } from './crm-shared.js';
-import { renderLiveProof } from './crm-dashboard.js';
+import { refreshRoleSnapshot, renderLiveProof } from './crm-dashboard.js';
 
 export const API = window.ALIKHAN_API_URL;
 const TOKEN_KEY = 'alikhan-crm:token';
@@ -105,6 +105,7 @@ export function initCrmAuth(requiredRole) {
     document.querySelectorAll('#roleSwitch [data-role]').forEach((indicator) => {
       indicator.hidden = indicator.dataset.role !== staff.role;
     });
+    window.__refreshRoleSnapshot = () => refreshRoleSnapshot(staff);
     renderLiveProof(staff);
     wireNotifications(staff);
   }

@@ -187,6 +187,37 @@ export async function refreshFinance() {
   }
 }
 
+export async function refreshRoleSnapshot(staff) {
+  const myPayrollDayEl = el('myPayrollDay');
+  const myWeekEl = el('myPayrollWeek');
+  const myMonthEl = el('myPayrollMonth');
+  if (myPayrollDayEl || myWeekEl || myMonthEl) {
+    const today = todayStr();
+    const fillMyPayroll = async (targetEl, from, to) => {
+      if (!targetEl) return;
+      const { payroll } = await fetchJson(`/payroll?masterId=${staff.id}&from=${from}&to=${to}`);
+      targetEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
+    };
+    await Promise.allSettled([
+      fillMyPayroll(myPayrollDayEl, today, today),
+      fillMyPayroll(myWeekEl, periodStartStr('week'), today),
+      fillMyPayroll(myMonthEl, periodStartStr('month'), today),
+    ]);
+  }
+
+  const revenueTodayEl = el('revenueTodayAmount');
+  const unidentifiedTodayEl = el('unidentifiedTodayCount');
+  if (revenueTodayEl || unidentifiedTodayEl) {
+    try {
+      const { revenue, unidentifiedCount } = await fetchJson('/revenue/today');
+      if (revenueTodayEl) revenueTodayEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
+      if (unidentifiedTodayEl) unidentifiedTodayEl.textContent = String(unidentifiedCount);
+    } catch {
+      // Сохраняем последнее успешно показанное значение при временной ошибке сети
+    }
+  }
+}
+
 export async function renderLiveProof(staff) {
   try {
     const [staffList, services, bookingsRes, masterServices, payrollRows, payrollFromActualPrice] = await Promise.all([
@@ -209,26 +240,7 @@ export async function renderLiveProof(staff) {
     // резолвера (GET /payroll, computeMasterPayroll в api/server.mjs), различается
     // только диапазон дат. Владельца/админа (карточки выше, revenueEl/payrollEl)
     // не трогает - вне скоупа этого окна (см. crm-owner.html/crm-admin.html).
-    const myPayrollDayEl = el('myPayrollDay');
-    const myWeekEl = el('myPayrollWeek');
-    const myMonthEl = el('myPayrollMonth');
-    if (myPayrollDayEl || myWeekEl || myMonthEl) {
-      const today = todayStr();
-      const fillMyPayroll = async (targetEl, from, to) => {
-        if (!targetEl) return;
-        try {
-          const { payroll } = await fetchJson(`/payroll?masterId=${staff.id}&from=${from}&to=${to}`);
-          targetEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
-        } catch {
-          // "считаю…" останется как было - основная ошибка уже видна в панели выше
-        }
-      };
-      await Promise.all([
-        fillMyPayroll(myPayrollDayEl, today, today),
-        fillMyPayroll(myWeekEl, periodStartStr('week'), today),
-        fillMyPayroll(myMonthEl, periodStartStr('month'), today),
-      ]);
-    }
+    await refreshRoleSnapshot(staff);
 
     // Администратор: единственная цифра "Выручка сегодня" (Окно 38, 06.08.2026) -
     // GET /revenue/today уже фильтрует по точке администратора на сервере, здесь
@@ -240,18 +252,6 @@ export async function renderLiveProof(staff) {
     // теперь заодно содержит unidentifiedCount (countUnidentifiedToday, api/routes/
     // payroll.js) - решение Алихана по найденному багу потери имени walk-in без
     // телефона. Один запрос на обе карточки, не дублируем fetch.
-    const revenueTodayEl = el('revenueTodayAmount');
-    const unidentifiedTodayEl = el('unidentifiedTodayCount');
-    if (revenueTodayEl || unidentifiedTodayEl) {
-      try {
-        const { revenue, unidentifiedCount } = await fetchJson('/revenue/today');
-        if (revenueTodayEl) revenueTodayEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
-        if (unidentifiedTodayEl) unidentifiedTodayEl.textContent = String(unidentifiedCount);
-      } catch {
-        // "считаю…" останется как было - основная ошибка уже видна в панели выше
-      }
-    }
-
     // Окно 15 (02.08.2026) - календарь "День" был статичной вёрсткой-примером, не
     // видел реальные брони (баг Влада - "запись на Екатерину не видна ни у неё, ни у
     // Али").

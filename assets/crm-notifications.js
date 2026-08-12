@@ -210,5 +210,6 @@ export function wireNotifications(staff) {
   });
 
   refreshBadge();
+  window.__refreshNotifications = refreshBadge;
   setInterval(refreshBadge, 45 * 1000);
 }

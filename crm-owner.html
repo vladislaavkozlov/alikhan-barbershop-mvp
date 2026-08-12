@@ -1018,6 +1018,7 @@
   import { wireScheduleAlerts, renderOwnerAlerts } from './assets/crm-schedule-alerts.js';
   import { initAppShell } from './assets/crm-app-shell.js';
   import { refreshFinance } from './assets/crm-dashboard.js';
+  import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
   initCrmAuth('owner');
   const scheduleRequestsApi = initOwnerScheduleRequests();
   wireClientsRisk();
@@ -1045,26 +1046,14 @@
   // обновлять нечего.
   upgradeBookingPanel();
   initCrmNavigationPanels();
-  const refreshBtn = document.getElementById('refreshBtn');
-  refreshBtn?.addEventListener('click', async () => {
-    if (refreshBtn.disabled) return;
-    refreshBtn.disabled = true;
-    refreshBtn.classList.add('is-refreshing');
-    try {
-      await Promise.all([
-        renderOwnerAlerts(),
-        renderRiskList(),
-        scheduleRequestsApi?.refresh?.(),
-        window.__refreshScheduleViews?.(),
-        window.__refreshTeamSchedules?.(),
-        refreshFinance(),
-        window.updateNotifBadge?.(),
-      ]);
-    } finally {
-      refreshBtn.disabled = false;
-      setTimeout(() => refreshBtn.classList.remove('is-refreshing'), 500);
-    }
-  });
+  window.__refreshOwnerDashboard = () => Promise.all([
+    renderOwnerAlerts(),
+    renderRiskList(),
+    scheduleRequestsApi?.refresh?.(),
+    window.__refreshTeamSchedules?.(),
+    refreshFinance(),
+  ]);
+  initCrmRefreshControl();
 </script>
 </body>
 </html>

@@ -63,6 +63,7 @@
     <a href="index.html" class="brand">АЛИХАН</a>
     <div class="nav-right">
       <span class="location-badge">Ставрополь, ул. Андрея Голуба 16 ст1</span>
+      <button class="notif-bell crm-top-action" type="button" id="refreshBtn" aria-label="Обновить данные"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17,1.5 21,5.5 17,9.5"/><path d="M3,12.5v-2a4,4 0 0 1 4,-4h14"/><polyline points="7,22.5 3,18.5 7,14.5"/><path d="M21,11.5v2a4,4 0 0 1 -4,4H3"/></svg></button>
       <button class="notif-bell crm-top-action" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span class="notif-badge">3</span></button>
       <div class="msg-bell-wrap" style="position:relative">
         <button class="notif-bell crm-top-action" type="button" id="msgBell" aria-label="Уведомления о записях и графике"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
@@ -590,10 +591,12 @@
   import { initCrmAuth } from './assets/crm-auth.js';
   import { initAppShell } from './assets/crm-app-shell.js';
   import { initCrmNavigationPanels, upgradeBookingPanel } from './assets/crm-navigation-panels.js';
+  import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
   upgradeBookingPanel();
   initCrmAuth('admin');
   initAppShell('admin');
   initCrmNavigationPanels();
+  initCrmRefreshControl();
 </script>
 </body>
 </html>
