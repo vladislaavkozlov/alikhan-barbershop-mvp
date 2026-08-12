@@ -10,8 +10,9 @@
   --owner-control-radius: 10px;
   --owner-panel-border: color-mix(in srgb, var(--accent) 24%, var(--border));
   --owner-panel-border-active: color-mix(in srgb, var(--accent) 52%, var(--border));
-  --owner-panel-quiet: color-mix(in srgb, var(--surface) 64%, transparent);
-  --owner-panel-active: color-mix(in srgb, var(--surface-2) 86%, var(--surface));
+  --owner-panel-quiet: color-mix(in srgb, var(--surface-2) 78%, var(--surface));
+  --owner-panel-hover: color-mix(in srgb, var(--surface-3) 58%, var(--surface-2));
+  --owner-panel-active: color-mix(in srgb, var(--surface-3) 70%, var(--surface-2));
 }
 
 /* Содержимое раздела больше не лежит внутри второй тяжёлой карточки. Сайдбар,
@@ -235,7 +236,7 @@
 
 .crm-navigation-ui details.staff-card:not([open]):hover {
   border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
-  background: var(--surface-2);
+  background: var(--owner-panel-hover);
 }
 
 .crm-navigation-ui details.staff-card::before {

@@ -71,11 +71,15 @@ test('все навигационные стрелки используют ро
   assert.match(css, /\.day-nav-btn:hover[\s\S]*?color: var\(--text\);/);
 });
 
-test('hover верхних действий и закрытых панелей повторяет поверхность сайдбара', async () => {
+test('фон закрытых, наведённых и открытых панелей строит единый уровень глубины', async () => {
   const css = await source('assets/crm-navigation-panels.css');
 
   assert.match(css, /\.crm-top-action:hover[\s\S]*?background: var\(--surface-2\);[\s\S]*?color: var\(--text\);/);
-  assert.match(css, /details\.staff-card:not\(\[open\]\):hover[\s\S]*?background: var\(--surface-2\);/);
+  assert.match(css, /--owner-panel-quiet: color-mix\(in srgb, var\(--surface-2\) 78%, var\(--surface\)\);/);
+  assert.match(css, /--owner-panel-hover: color-mix\(in srgb, var\(--surface-3\) 58%, var\(--surface-2\)\);/);
+  assert.match(css, /--owner-panel-active: color-mix\(in srgb, var\(--surface-3\) 70%, var\(--surface-2\)\);/);
+  assert.match(css, /details\.staff-card:not\(\[open\]\):hover[\s\S]*?background: var\(--owner-panel-hover\);/);
+  assert.match(css, /details\.staff-card\[open\][\s\S]*?background: var\(--owner-panel-active\);/);
 });
 
 test('предупреждение о графике использует новый семантический компонент', async () => {
