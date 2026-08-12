@@ -9,9 +9,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeMasterPayroll } from '../api/server.mjs';
 
-function makeFakeClient({ pctRows = [], bookingsRows = [], linkRows = [], masterServiceRows = [], serviceRows = [] } = {}) {
+function makeFakeClient({ pctRows = [], bookingsRows = [], linkRows = [], masterServiceRows = [], serviceRows = [], discountRows = [{ payrollFromActualPrice: false }] } = {}) {
   return {
     async query(sql, params) {
+      if (sql.includes('FROM discount_settings')) return { rows: discountRows };
       if (sql.includes('FROM master_payroll_settings')) return { rows: pctRows };
       if (sql.includes('FROM booking_services')) return { rows: linkRows };
       if (sql.includes('FROM master_services')) return { rows: masterServiceRows };
