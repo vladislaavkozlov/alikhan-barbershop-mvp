@@ -1,10 +1,24 @@
 /* Окно 9, часть 1 - визуальный макет CRM. Общая тема, переиспользует токены admin.html 1в1. */
 /* Любой новый выбор времени/даты/списка - через готовый виджет, не нативный input/select: см. КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md в корне проекта. */
 :root {
-  --bg: #12201A;
-  --surface: #1C2E24;
-  --surface-2: #24392C;
-  --surface-3: #2C4433;
+  /* Правка 12.08.2026 - тёмная глубокая палитра (просьба Влада: "темнее, глубже,
+     визуально легче"). --bg-main/--bg-sidebar/--bg-header - именованные фоны
+     слоёв app shell, --panel-* - полупрозрачные фоны крупных блоков/аккордеонов
+     (используются через background, не через opacity, чтобы не гасить дочерний
+     контент). --bg/--surface/--surface-2/--surface-3 остаются основными
+     токенами для всей остальной вёрстки (карточки, поля, дропдауны) - просто
+     переведены на эту же тёмную шкалу. */
+  --bg-main: #0C1A16;
+  --bg-sidebar: #10241C;
+  --bg-header: #0C1A16;
+  --panel-bg: rgba(47, 64, 50, 0.50);
+  --panel-bg-light: rgba(47, 64, 50, 0.30);
+  --panel-bg-collapsed: rgba(47, 64, 50, 0.18);
+
+  --bg: var(--bg-main);
+  --surface: #142520;
+  --surface-2: #1C322A;
+  --surface-3: #243F35;
   --accent: #C6A15B;
   --accent-hover: #B58F45;
   --wood: #B98B54;
@@ -93,7 +107,7 @@ a { color: var(--accent); }
 
 header.site {
   position: sticky; top: 0; z-index: 30;
-  background: rgba(18,32,26,0.94);
+  background: color-mix(in srgb, var(--bg-header) 94%, transparent);
   backdrop-filter: blur(6px);
   border-bottom: 1px solid var(--border);
 }
@@ -595,7 +609,8 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 
 /* ---------- booking detail (expands under schedule) ---------- */
-details.booking-detail { margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+details.booking-detail { margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-bg-collapsed); }
+details.booking-detail[open] { background: var(--panel-bg); }
 details.booking-detail summary {
   cursor: pointer; padding: 12px 16px; font-size: 0.86rem; color: var(--accent); font-weight: 600;
   list-style: none; display: flex; align-items: center; gap: 8px;

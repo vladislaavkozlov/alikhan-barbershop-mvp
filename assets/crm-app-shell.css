@@ -43,7 +43,7 @@
     padding-right: var(--space-4);
     padding-bottom: var(--space-5);
     padding-left: var(--space-4);
-    background: var(--surface);
+    background: var(--bg-sidebar);
     border-right: 1px solid var(--border);
     box-shadow: var(--shadow-md);
     z-index: 35;
@@ -145,7 +145,7 @@
     margin: auto 0;
     align-items: center;
     justify-content: center;
-    background: var(--surface);
+    background: var(--bg-sidebar);
     border: 1px solid var(--border);
     border-radius: 50%;
     box-shadow: var(--shadow-md);
