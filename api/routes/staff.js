@@ -1,12 +1,13 @@
 // GET /staff, PUT /staff/:id/portfolio, PUT /staff/:id/role - вынесено из
 // server.mjs при декомпозиции (Этап 2 структурного рефакторинга, 07.08.2026), код
 // перенесён без изменений.
-import { sendJson, readBody } from '../lib/http.js';
+import { sendJson, readBody, readRawBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate } from '../lib/auth.js';
 import { canManageStaff, canMutateProtectedOwner, isAssignableRole } from '../lib/permissions.js';
 import { hashPin } from '../lib/auth.js';
 import { randomBytes } from 'node:crypto';
+import { MAX_PORTFOLIO_ITEMS, removeStoredImage, saveProcessedImage } from '../lib/staff-media.js';
 import { mastersWithWorkingSchedule, filterStaffForViewer } from '../lib/schedule-core.js';
 
 // ── /staff - роль ограничивает выдачу на уровне SQL, не только в UI ──
@@ -129,6 +130,8 @@ export async function handleStaffUpdate(req, res, parts) {
     return sendJson(res, 200, { staff: { id: row.id, locationId: row.location_id, name: row.name, phone: row.phone, email: row.email, role: row.role, employed: row.employed, providesServices: row.provides_services, hasSystemAccess: row.has_system_access } });
   } catch (error) { if (error?.code === '23505') return sendJson(res, 409, { error: 'email_in_use' }); throw error; }
 }
+
+export async function handleStaffMediaUpload(req, res, parts, url) { const auth=await authenticate(req); if(!canManageStaff(auth)) return sendJson(res,401,{error:'unauthorized'}); const staffId=decodeURIComponent(parts[1]); const kind=url.searchParams.get('kind'); if(!['avatar','portfolio'].includes(kind)) return sendJson(res,400,{error:'invalid_media_kind'}); if(kind==='portfolio'){const count=await pool.query('SELECT count(*)::int AS n FROM staff_media WHERE staff_id=$1 AND kind=$2',[staffId,kind]); if(count.rows[0].n>=MAX_PORTFOLIO_ITEMS)return sendJson(res,409,{error:'portfolio_limit'});} try{const saved=await saveProcessedImage(await readRawBody(req)); const id=`media-${randomBytes(12).toString('hex')}`; if(kind==='avatar'){const old=await pool.query(`DELETE FROM staff_media WHERE staff_id=$1 AND kind='avatar' RETURNING storage_key`,[staffId]); await Promise.all(old.rows.map((r)=>removeStoredImage(r.storage_key)));} await pool.query('INSERT INTO staff_media (id,staff_id,kind,storage_key,sort_order) VALUES($1,$2,$3,$4,(SELECT coalesce(max(sort_order),0)+1 FROM staff_media WHERE staff_id=$2 AND kind=$3))',[id,staffId,kind,saved.key]); return sendJson(res,201,{media:{id,kind,url:`/media/${saved.key}`}});}catch(error){return sendJson(res,error.code==='payload_too_large'?413:400,{error:error.code==='payload_too_large'?'file_too_large':'invalid_image'});}}
 
 // ── /staff/:id/role - Задача 1 (Окно 14, 02.08.2026). Владелец меняет роль
 // сотрудника (например Мамедхан master→admin) - раньше чекбоксы роли в

@@ -52,7 +52,8 @@ export { findMastersMissingSchedule, notifyOwnerAboutMastersMissingSchedule } fr
 // декомпозиции, plans/2026-08-07-server-mjs-decomposition.md.
 export { isoWeekday, enumerateDateRange } from './lib/time.js';
 import { handleLogin, handleLogout, handleMe, handlePinChange } from './routes/auth.js';
-import { handleStaffCreate, handleStaffList, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
+import { handleStaffCreate, handleStaffList, handleStaffMediaUpload, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
+import { handlePublicMasters } from './routes/public-masters.js';
 // Ре-экспорт для tests/api.staff-role-lock.test.js (инцидент 11.08.2026).
 export { isLastOwnerDemotion } from './routes/staff.js';
 import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
@@ -110,6 +111,8 @@ const ROUTES = [
   { method: 'GET', path: 'staff', auth: 'any-staff' },
   { method: 'POST', path: 'staff', auth: 'management' },
   { method: 'PUT', path: 'staff/:id', auth: 'management' },
+  { method: 'POST', path: 'staff/:id/media', auth: 'management' },
+  { method: 'GET', path: 'public/masters', auth: 'public' },
   { method: 'PUT', path: 'staff/:id/portfolio', auth: 'management' },
   { method: 'PUT', path: 'staff/:id/role', auth: 'management' },
   { method: 'GET', path: 'services', auth: 'any-staff' },
@@ -213,6 +216,8 @@ const server = createServer(async (req, res) => {
     }
     if (parts[0] === 'staff' && parts.length === 1 && req.method === 'POST') return handleStaffCreate(req, res);
     if (parts[0] === 'staff' && parts[1] && parts.length === 2 && req.method === 'PUT') return handleStaffUpdate(req, res, parts);
+    if (parts[0] === 'staff' && parts[1] && parts[2] === 'media' && parts.length === 3 && req.method === 'POST') return handleStaffMediaUpload(req,res,parts,url);
+    if (parts[0] === 'public' && parts[1] === 'masters' && req.method === 'GET') return handlePublicMasters(req,res);
 
     // ── /staff/:id/portfolio - Задача 4 (Окно 13, 01.08.2026). Только владелец
     // редактирует (тот же уровень доступа, что у /payroll-settings PUT - Алихан сам
