@@ -18,15 +18,17 @@
 - [x] Зафиксирована общая колонка 748px и зарезервирована высота до ответа API
 - [x] Запрещён вертикальный overflow, сохранён горизонтальный scroll
 - [x] Шкала времени закреплена у левого края при прокрутке до дальних мастеров
+- [x] Оформление шкалы ограничено участком 10:00-20:00, верхняя зона прозрачна
+- [x] Крайние отметки 10:00 и 20:00 полностью помещаются внутри панели
 - [x] Добавлен живой сценарий с шестью мастерами и длинными именами
 - [x] Проверены desktop и mobile
-- [x] Получено явное разрешение пользователя на прод-деплой
+- [x] Получено повторное явное разрешение пользователя на прод-деплой полировки
 
 ## Улики
 
-- `node --test tests/schedule-day.fixed-layout.test.js` - 3/3
-- `node --test tests/schedule*.test.js` - 36/36
-- `node tools/verify-2026-08-12-day-fixed-horizontal.mjs` - 10/10
-- Полный `node --test` - 207 passed, 14 известных падений вне этой CSS-правки:
+- `node --test tests/schedule-day.fixed-layout.test.js` - 4/4
+- `node --test tests/schedule*.test.js` - 37/37
+- `node tools/verify-2026-08-12-day-fixed-horizontal.mjs` - 13/13
+- Полный `node --test` - 208 passed, 14 известных падений вне этой CSS-правки:
   устаревшие fake-query тесты payroll и недоступная удалённая БД RBAC
-- Скриншоты: `/tmp/day-fixed-horizontal-desktop.png`, `/tmp/day-fixed-horizontal-mobile.png`
+- Скриншоты: `/tmp/day-time-scale-polished-desktop.png`, `/tmp/day-fixed-horizontal-mobile.png`

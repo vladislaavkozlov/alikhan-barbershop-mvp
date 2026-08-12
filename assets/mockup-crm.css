@@ -440,11 +440,27 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
 }
 /* 12.08.2026 - шкала времени остаётся у левого края, пока колонки мастеров
-   листаются горизонтально. Непрозрачная тень закрывает 8px flex-gap, чтобы
-   содержимое колонок не просвечивало между часами и расписанием. */
+   листаются горизонтально. Сам sticky-контейнер полностью прозрачный: визуальная
+   панель начинается только вместе с часовой дорожкой, не поднимаясь к именам. */
 .panel-sp-day .hour-gutter {
-  position: sticky; left: 0; z-index: 3; background: var(--surface);
-  box-shadow: 8px 0 0 var(--surface);
+  position: sticky; left: 0; z-index: 3; width: 52px;
+  background: transparent; box-shadow: none;
+}
+.panel-sp-day .hour-marks {
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+.panel-sp-day .hour-marks span { right: 8px; font-weight: 500; letter-spacing: 0.01em; }
+.panel-sp-day .hour-marks span:first-child { transform: translateY(0); }
+.panel-sp-day .hour-marks span:last-child {
+  top: calc(100% - 1px) !important; transform: translateY(-100%);
+}
+.panel-sp-day .schedule-col-head {
+  position: relative; z-index: 4;
 }
 .panel-sp-day .schedule-row-with-gutter { width: max-content; min-width: 100%; }
 /* Правка Влада 07.08.2026 - шапка колонки мастера в "День" по центру, имя под
