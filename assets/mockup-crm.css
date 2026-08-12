@@ -11,9 +11,9 @@
   --bg-main: #0C1A16;
   --bg-sidebar: #10241C;
   --bg-header: #0C1A16;
-  --panel-bg: rgba(47, 64, 50, 0.50);
-  --panel-bg-light: rgba(47, 64, 50, 0.30);
-  --panel-bg-collapsed: rgba(47, 64, 50, 0.18);
+  --panel-bg: rgba(47, 64, 50, 0.34);
+  --panel-bg-light: rgba(47, 64, 50, 0.20);
+  --panel-bg-collapsed: rgba(47, 64, 50, 0.10);
 
   --bg: var(--bg-main);
   --surface: #142520;
