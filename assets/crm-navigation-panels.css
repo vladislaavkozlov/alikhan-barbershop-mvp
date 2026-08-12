@@ -34,32 +34,101 @@
 }
 
 .crm-navigation-ui .panel-group-controls {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 80;
   display: flex;
-  justify-content: flex-end;
-  margin: 0 0 8px;
+  pointer-events: none;
 }
 
 .crm-navigation-ui .panel-group-toggle {
-  min-height: 34px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 15px 0 12px;
+  border: 1px solid var(--owner-panel-border-active);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 14px 34px -18px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.018) inset;
   font-family: inherit;
-  font-size: 0.76rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1;
   cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background-color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out),
+    box-shadow 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
 }
 
 .crm-navigation-ui .panel-group-toggle:hover {
   background: var(--surface-2);
   color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--border));
+  box-shadow: 0 16px 38px -18px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.024) inset;
+  transform: translateY(-1px);
+}
+
+.crm-navigation-ui .panel-group-toggle:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
 }
 
 .crm-navigation-ui .panel-group-toggle:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 78%, white);
   outline-offset: 2px;
+}
+
+.crm-navigation-ui .panel-group-toggle__icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.crm-navigation-ui .panel-group-toggle__icon i {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 160ms var(--ease-out);
+}
+
+.crm-navigation-ui .panel-group-toggle__icon i + i {
+  transform: translateY(2px) rotate(45deg);
+}
+
+.crm-navigation-ui .panel-group-toggle[aria-expanded='true'] .panel-group-toggle__icon i {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.crm-navigation-ui .panel-group-toggle[aria-expanded='true'] .panel-group-toggle__icon i + i {
+  transform: translateY(-2px) rotate(225deg);
+}
+
+@media (max-width: 640px) {
+  .crm-navigation-ui .panel-group-controls {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .crm-navigation-ui .panel-group-toggle {
+    min-height: 42px;
+    padding-right: 13px;
+  }
 }
 
 .crm-navigation-ui .booking-create-card .walkin-form {

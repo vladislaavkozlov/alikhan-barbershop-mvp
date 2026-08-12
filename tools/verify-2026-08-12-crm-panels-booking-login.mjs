@@ -54,7 +54,7 @@ await withStaticServer('http://127.0.0.1:9', async (base) => {
       open: [...document.querySelectorAll('.panel-a .schedule-view-card')].every((card) => card.open),
       text: document.querySelector('.panel-a .panel-group-toggle').textContent,
     }))()`);
-    check('Общий контрол раскрывает все панели и меняет подпись', expanded.open && expanded.text === 'Свернуть все', JSON.stringify(expanded));
+    check('Общий контрол раскрывает все панели и меняет подпись', expanded.open && expanded.text.includes('Свернуть все'), JSON.stringify(expanded));
     await session.click('.panel-a .panel-group-toggle');
     const collapsed = await session.eval(`[...document.querySelectorAll('.panel-a .schedule-view-card')].every((card) => !card.open)`);
     check('Общий контрол сворачивает все панели обратно', collapsed);

@@ -97,12 +97,16 @@ test('утверждённая дизайн-конвенция сохранен�
 
 test('общий модуль управляет всеми панелями только внутри своего списка', async () => {
   const js = await source('assets/crm-navigation-panels.js');
+  const css = await source('assets/crm-navigation-panels.css');
   const pages = await Promise.all(['crm-owner.html', 'crm-admin.html', 'crm-master.html'].map(source));
 
   assert.match(js, /:scope > details\.staff-card/);
+  assert.match(js, /if \(!panels\.length/);
   assert.match(js, /Развернуть все/);
   assert.match(js, /Свернуть все/);
   assert.match(js, /aria-expanded/);
+  assert.match(css, /\.panel-group-controls \{[\s\S]*?position: fixed;/);
+  assert.match(css, /\.panel-group-toggle__icon/);
   for (const page of pages) assert.match(page, /initCrmNavigationPanels/);
 });
 

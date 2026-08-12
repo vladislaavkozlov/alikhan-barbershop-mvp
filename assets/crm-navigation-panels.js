@@ -4,14 +4,16 @@ function directPanels(list) {
 
 function syncToggle(button, panels) {
   const allOpen = panels.every((panel) => panel.open);
-  button.textContent = allOpen ? 'Свернуть все' : 'Развернуть все';
+  const action = allOpen ? 'Свернуть все' : 'Развернуть все';
+  button.querySelector('.panel-group-toggle__label').textContent = action;
+  button.setAttribute('aria-label', action);
   button.setAttribute('aria-expanded', String(allOpen));
 }
 
 export function initCrmNavigationPanels(root = document) {
   root.querySelectorAll('.staff-list').forEach((list, index) => {
     const panels = directPanels(list);
-    if (panels.length < 2 || list.dataset.panelControlsWired) return;
+    if (!panels.length || list.dataset.panelControlsWired) return;
     list.dataset.panelControlsWired = '1';
 
     const controls = document.createElement('div');
@@ -19,6 +21,7 @@ export function initCrmNavigationPanels(root = document) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'panel-group-toggle';
+    button.innerHTML = '<span class="panel-group-toggle__icon" aria-hidden="true"><i></i><i></i></span><span class="panel-group-toggle__label"></span>';
     button.setAttribute('aria-controls', list.id || `panel-group-${index + 1}`);
     if (!list.id) list.id = `panel-group-${index + 1}`;
     controls.append(button);
