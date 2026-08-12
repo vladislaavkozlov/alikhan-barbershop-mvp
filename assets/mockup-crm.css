@@ -131,6 +131,20 @@
 
 * { box-sizing: border-box; }
 
+/* 13.08.2026 - системный фикс класса багов, который в этом файле латали поштучно
+   17 раз (.ra-row[hidden], #wfDateTimeRow[hidden], .day-legend[hidden] и т.д.).
+   Причина одна и та же: браузерное правило [hidden]{display:none} приходит из
+   user-agent-стилей, а любой авторский `display:flex/grid/inline-block` на классе
+   его перебивает - элемент с атрибутом hidden остаётся на экране. Живой замер
+   нашёл ЧЕТЫРЕ ещё не залатанных случая: #msgBellBadge (красный счётчик "0" в
+   шапке не исчезал при нуле уведомлений), #logoutBtn, #wfMasterRow,
+   #clientCardRebook. Одно правило закрывает и их, и все будущие: [hidden] - это
+   семантика «элемента нет», она обязана побеждать любой display.
+   Проверено: во всём проекте нет ни одного [hidden]-правила с display, отличным
+   от none, так что ничего не ломается. Существующие точечные правила оставлены
+   как есть (стали избыточны, но безвредны) - их вычистка это отдельная задача. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -542,8 +556,15 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
      слотов (10:00-20:00 × 64px), рабочее окно точки не меняется */
   height: 640px; overflow: visible;
 }
+/* Правка 13.08.2026 - перевёрнутая иерархия внимания. Штриховка выходного шла
+   цветами surface-3 (светлота 20%) по surface-2 (16%), то есть была СВЕТЛЕЕ
+   рабочих колонок - пустой, нерабочий день оказывался самым ярким пятном экрана
+   и перекрикивал реальные записи. Пустое состояние обязано быть тише занятого.
+   Теперь колонка выходного темнее рабочей (panel-bg-collapsed, 9%), а полосы
+   едва светлее её самой - фактура читается, но внимание не тянет. */
 .schedule-track.day-off {
-  background-image: repeating-linear-gradient(135deg, var(--surface-3) 0 10px, var(--surface-2) 10px 20px);
+  background-color: var(--panel-bg-collapsed);
+  background-image: repeating-linear-gradient(135deg, var(--panel-bg-light) 0 10px, transparent 10px 20px);
   display: flex; align-items: center; justify-content: center;
 }
 .day-off-label { color: var(--text-muted); font-size: 0.82rem; font-style: italic; }
