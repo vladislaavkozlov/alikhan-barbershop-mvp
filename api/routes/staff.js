@@ -14,7 +14,7 @@ import { mastersWithWorkingSchedule, filterStaffForViewer } from '../lib/schedul
 export async function handleStaffList(req, res) {
   const auth = await authenticate(req);
   if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-  let query = `SELECT id, location_id, name, photo_url, phone, email, role, employed, provides_services, has_system_access,
+  let query = `SELECT id, location_id, name, photo_url, phone, email, role, employed, provides_services, has_system_access, public_profile_enabled,
                       experience_text, strengths_text, certificates_text, before_after_urls
                FROM staff WHERE 1=1`;
   const params = [];
@@ -37,6 +37,7 @@ export async function handleStaffList(req, res) {
     employed: r.employed,
     providesServices: r.provides_services,
     hasSystemAccess: r.has_system_access,
+    publicProfileEnabled: r.public_profile_enabled,
     // Задача 4 (Окно 13, 01.08.2026, Блок 6 в.23-26) - портфолио мастера,
     // самредактируемые владельцем поля, см. миграцию 009_staff_portfolio.sql
     experienceText: r.experience_text,
@@ -68,9 +69,9 @@ export async function handleStaffPortfolio(req, res, parts) {
   const staffId = decodeURIComponent(parts[1]);
   const body = await readBody(req);
   const result = await pool.query(
-    `UPDATE staff SET experience_text = $1, strengths_text = $2, certificates_text = $3, before_after_urls = $4
-     WHERE id = $5 RETURNING id`,
-    [body.experienceText ?? null, body.strengthsText ?? null, body.certificatesText ?? null, body.beforeAfterUrls ?? null, staffId]
+    `UPDATE staff SET experience_text = $1, strengths_text = $2, certificates_text = $3, before_after_urls = $4, public_profile_enabled = $5
+     WHERE id = $6 RETURNING id`,
+    [body.experienceText ?? null, body.strengthsText ?? null, body.certificatesText ?? null, body.beforeAfterUrls ?? null, body.publicProfileEnabled === true, staffId]
   );
   if (result.rows.length === 0) return sendJson(res, 404, { error: 'staff_not_found' });
   return sendJson(res, 200, { ok: true });
