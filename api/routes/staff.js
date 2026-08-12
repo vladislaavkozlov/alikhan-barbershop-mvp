@@ -5,6 +5,8 @@ import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate } from '../lib/auth.js';
 import { canManageStaff, canMutateProtectedOwner, isAssignableRole } from '../lib/permissions.js';
+import { hashPin } from '../lib/auth.js';
+import { randomBytes } from 'node:crypto';
 import { mastersWithWorkingSchedule, filterStaffForViewer } from '../lib/schedule-core.js';
 
 // ── /staff - роль ограничивает выдачу на уровне SQL, не только в UI ──
@@ -82,6 +84,50 @@ export async function handleStaffPortfolio(req, res, parts) {
 export function isLastOwnerDemotion(ownerIds, staffId, nextRole) {
   if (nextRole === 'owner') return false; // выдача роли владельцем никого не запирает
   return ownerIds.length <= 1 && ownerIds.includes(staffId);
+}
+
+export function normalizeEmail(value) {
+  const email = String(value ?? '').trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+}
+export const isValidPin = (pin) => /^\d{6}$/.test(String(pin ?? ''));
+export const newTemporaryPin = () => String(randomBytes(4).readUInt32BE(0) % 900000 + 100000);
+
+export async function handleStaffCreate(req, res) {
+  const auth = await authenticate(req);
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
+  const body = await readBody(req);
+  const email = normalizeEmail(body.email);
+  const name = String(body.name ?? '').trim();
+  if (!name || !email || !isAssignableRole(body.role)) return sendJson(res, 400, { error: 'invalid_staff_data' });
+  const id = `staff-${randomBytes(12).toString('hex')}`;
+  const temporaryPin = newTemporaryPin();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(`INSERT INTO staff (id, location_id, name, phone, email, role, employed, provides_services, has_system_access, pin_hash, must_change_pin) VALUES ($1,$2,$3,$4,$5,$6,true,$7,true,$8,true) RETURNING id, location_id, name, phone, email, role, employed, provides_services, has_system_access, must_change_pin`, [id, body.locationId ?? null, name, String(body.phone ?? '').trim() || null, email, body.role, body.providesServices === true, hashPin(temporaryPin)]);
+    await client.query('COMMIT');
+    const row = result.rows[0];
+    return sendJson(res, 201, { staff: { id: row.id, locationId: row.location_id, name: row.name, phone: row.phone, email: row.email, role: row.role, employed: row.employed, providesServices: row.provides_services, hasSystemAccess: row.has_system_access, mustChangePin: row.must_change_pin }, temporaryPin });
+  } catch (error) { await client.query('ROLLBACK'); if (error?.code === '23505') return sendJson(res, 409, { error: 'email_in_use' }); throw error; } finally { client.release(); }
+}
+
+export async function handleStaffUpdate(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
+  const staffId = decodeURIComponent(parts[1]);
+  const body = await readBody(req);
+  const target = await pool.query('SELECT protected_owner FROM staff WHERE id = $1', [staffId]);
+  if (!target.rows.length) return sendJson(res, 404, { error: 'staff_not_found' });
+  if (!canMutateProtectedOwner(auth, { protectedOwner: target.rows[0].protected_owner })) return sendJson(res, 403, { error: 'protected_owner' });
+  const email = normalizeEmail(body.email);
+  if (!email || !String(body.name ?? '').trim()) return sendJson(res, 400, { error: 'invalid_staff_data' });
+  try {
+    const result = await pool.query(`UPDATE staff SET location_id=$1,name=$2,phone=$3,email=$4,employed=$5,provides_services=$6,has_system_access=$7 WHERE id=$8 RETURNING id,location_id,name,phone,email,role,employed,provides_services,has_system_access`, [body.locationId ?? null, String(body.name).trim(), String(body.phone ?? '').trim() || null, email, body.employed !== false, body.providesServices === true, body.hasSystemAccess !== false, staffId]);
+    const row = result.rows[0];
+    if (!row.employed || !row.has_system_access) await pool.query('DELETE FROM sessions WHERE staff_id = $1', [staffId]);
+    return sendJson(res, 200, { staff: { id: row.id, locationId: row.location_id, name: row.name, phone: row.phone, email: row.email, role: row.role, employed: row.employed, providesServices: row.provides_services, hasSystemAccess: row.has_system_access } });
+  } catch (error) { if (error?.code === '23505') return sendJson(res, 409, { error: 'email_in_use' }); throw error; }
 }
 
 // ── /staff/:id/role - Задача 1 (Окно 14, 02.08.2026). Владелец меняет роль

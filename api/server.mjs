@@ -51,8 +51,8 @@ export { findMastersMissingSchedule, notifyOwnerAboutMastersMissingSchedule } fr
 // server.mjs (in-memory юниты без реального Postgres) - см. правило 6 плана
 // декомпозиции, plans/2026-08-07-server-mjs-decomposition.md.
 export { isoWeekday, enumerateDateRange } from './lib/time.js';
-import { handleLogin, handleMe } from './routes/auth.js';
-import { handleStaffList, handleStaffPortfolio, handleStaffRole } from './routes/staff.js';
+import { handleLogin, handleLogout, handleMe, handlePinChange } from './routes/auth.js';
+import { handleStaffCreate, handleStaffList, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
 // Ре-экспорт для tests/api.staff-role-lock.test.js (инцидент 11.08.2026).
 export { isLastOwnerDemotion } from './routes/staff.js';
 import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
@@ -105,7 +105,11 @@ const ROUTES = [
   { method: 'GET', path: 'health', auth: 'public' },
   { method: 'POST', path: 'auth/login', auth: 'public' },
   { method: 'GET', path: 'auth/me', auth: 'any-staff' },
+  { method: 'PUT', path: 'auth/pin', auth: 'any-staff' },
+  { method: 'POST', path: 'auth/logout', auth: 'public' },
   { method: 'GET', path: 'staff', auth: 'any-staff' },
+  { method: 'POST', path: 'staff', auth: 'management' },
+  { method: 'PUT', path: 'staff/:id', auth: 'management' },
   { method: 'PUT', path: 'staff/:id/portfolio', auth: 'management' },
   { method: 'PUT', path: 'staff/:id/role', auth: 'management' },
   { method: 'GET', path: 'services', auth: 'any-staff' },
@@ -200,11 +204,15 @@ const server = createServer(async (req, res) => {
     if (parts[0] === 'auth' && parts[1] === 'me' && req.method === 'GET') {
       return handleMe(req, res);
     }
+    if (parts[0] === 'auth' && parts[1] === 'pin' && req.method === 'PUT') return handlePinChange(req, res);
+    if (parts[0] === 'auth' && parts[1] === 'logout' && req.method === 'POST') return handleLogout(req, res);
 
     // ── /staff - роль ограничивает выдачу на уровне SQL, не только в UI ──
     if (parts[0] === 'staff' && parts.length === 1 && req.method === 'GET') {
       return handleStaffList(req, res);
     }
+    if (parts[0] === 'staff' && parts.length === 1 && req.method === 'POST') return handleStaffCreate(req, res);
+    if (parts[0] === 'staff' && parts[1] && parts.length === 2 && req.method === 'PUT') return handleStaffUpdate(req, res, parts);
 
     // ── /staff/:id/portfolio - Задача 4 (Окно 13, 01.08.2026). Только владелец
     // редактирует (тот же уровень доступа, что у /payroll-settings PUT - Алихан сам
