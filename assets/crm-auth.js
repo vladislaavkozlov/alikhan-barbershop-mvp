@@ -111,6 +111,7 @@ export function initCrmAuth(requiredRole) {
     window.__refreshRoleSnapshot = () => refreshRoleSnapshot(staff);
     renderLiveProof(staff);
     wireNotifications(staff);
+    document.dispatchEvent(new CustomEvent('crm:authenticated', { detail: staff }));
   }
 
   // Баг (найден Владом 02.08.2026): заход на crm-master.html с уже сохранённой в
