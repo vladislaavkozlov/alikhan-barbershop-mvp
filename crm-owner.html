@@ -121,7 +121,7 @@
   </div>
 </header>
 
-<main class="wrap page" id="crmMain">
+<main class="wrap page" id="crmMain" hidden>
   <!-- Правка 08.08.2026 - убран крупный заголовок раздела (#shellSectionTitle): активный
        пункт sidebar уже подсвечен золотым и показывает то же название - заголовок сверху
        страницы дублировал его один в один, прямая правка Влада по скриншоту. -->
@@ -1011,6 +1011,7 @@
 <script>window.ALIKHAN_API_URL = 'https://alikhancrm1-vladislaavkozlov.amvera.io';</script>
 <script src="assets/mockup-crm.js"></script>
 <script type="module">
+  import { initCrmNavigationPanels, upgradeBookingPanel } from './assets/crm-navigation-panels.js';
   import { initCrmAuth } from './assets/crm-auth.js';
   import { initOwnerScheduleRequests } from './assets/crm-schedule-requests.js';
   import { wireClientsRisk, renderRiskList } from './assets/crm-clients.js';
@@ -1042,6 +1043,8 @@
   // уже применён для window.__refreshScheduleViews. "Аналитика" (panel-d) не входит
   // в список - там нет ни одного реального запроса к серверу (только "00% пример"),
   // обновлять нечего.
+  upgradeBookingPanel();
+  initCrmNavigationPanels();
   const refreshBtn = document.getElementById('refreshBtn');
   refreshBtn?.addEventListener('click', async () => {
     if (refreshBtn.disabled) return;

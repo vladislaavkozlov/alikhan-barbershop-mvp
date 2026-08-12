@@ -38,15 +38,16 @@ function buildLoginGate() {
   div.className = 'login-gate';
   div.innerHTML = `
     <div class="login-card">
+      <p class="login-kicker">CRM</p>
       <div class="login-brand">АЛИХАН</div>
-      <p class="login-tag">CRM · вход в боевую базу</p>
+      <p class="login-tag">Вход для сотрудников</p>
       <form id="loginForm" novalidate>
-        <div class="field"><label>Email</label><input id="loginEmail" type="email" required autocomplete="username"></div>
-        <div class="field"><label>PIN</label><input id="loginPin" type="password" inputmode="numeric" required autocomplete="current-password"></div>
-        <p id="loginError" class="login-error" hidden></p>
+        <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" required autocomplete="username"></div>
+        <div class="field"><label for="loginPin">PIN</label><input id="loginPin" type="password" inputmode="numeric" required autocomplete="current-password"></div>
+        <p id="loginError" class="login-error" role="alert" aria-live="polite" hidden></p>
         <button class="btn btn-primary" type="submit">Войти</button>
       </form>
-      <p class="login-hint">Настоящий вход в тестовый контур - данные реальные, точка/мастера пока тестовые (будем переносить на боевой домен Алихана отдельно). Доступы - у Влада.</p>
+      <p class="login-hint">Введите рабочий email и PIN</p>
     </div>`;
   document.body.prepend(div);
   return div;

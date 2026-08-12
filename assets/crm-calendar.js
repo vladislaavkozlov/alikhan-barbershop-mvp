@@ -338,7 +338,7 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
   const grid = document.querySelector('.panel-sp-day .schedule-grid');
   if (!grid) return; // страница без дневного календаря (не должно случиться, но не падаем)
 
-  const isSolo = !!document.getElementById('walkinSoloTrigger');
+  const isSolo = staff.role === 'master';
   // crm-owner.html/crm-admin.html - несколько колонок, одна на каждого реального
   // мастера, видимого этой роли (staffList уже отфильтрован сервером по роли).
   const masters = isSolo ? [staff] : mastersOf(staffList);

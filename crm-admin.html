@@ -77,7 +77,7 @@
   </div>
 </header>
 
-<main class="wrap page" id="crmMain">
+<main class="wrap page" id="crmMain" hidden>
 
   <!-- Окно 38 (06.08.2026) - единственная цифра дневной выручки: администратор
        раньше физически не мог ответить на "сколько мы заработали сегодня" без
@@ -589,8 +589,11 @@
 <script type="module">
   import { initCrmAuth } from './assets/crm-auth.js';
   import { initAppShell } from './assets/crm-app-shell.js';
+  import { initCrmNavigationPanels, upgradeBookingPanel } from './assets/crm-navigation-panels.js';
+  upgradeBookingPanel();
   initCrmAuth('admin');
   initAppShell('admin');
+  initCrmNavigationPanels();
 </script>
 </body>
 </html>

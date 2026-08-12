@@ -29,6 +29,128 @@
   gap: 10px;
 }
 
+.crm-navigation-ui .schedule-view-card .seg-panel {
+  display: block;
+}
+
+.crm-navigation-ui .panel-group-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
+
+.crm-navigation-ui .panel-group-toggle {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.crm-navigation-ui .panel-group-toggle:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.crm-navigation-ui .panel-group-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 78%, white);
+  outline-offset: 2px;
+}
+
+.crm-navigation-ui .booking-create-card .walkin-form {
+  margin: 0;
+}
+
+/* Вход продолжает язык открытой панели: одна золотая линия, спокойная поверхность,
+   те же радиусы и фокус-кольца. Скоуп не затрагивает публичную запись. */
+.crm-navigation-ui .login-gate {
+  align-items: safe center;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.crm-navigation-ui .login-card {
+  position: relative;
+  width: min(420px, 100%);
+  overflow: hidden;
+  padding: 36px 32px 30px;
+  border: 1px solid var(--owner-panel-border-active);
+  border-radius: var(--owner-panel-radius);
+  background: var(--owner-panel-active);
+  box-shadow: 0 24px 64px -42px rgba(0, 0, 0, 0.9);
+}
+
+.crm-navigation-ui .login-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+}
+
+.crm-navigation-ui .login-kicker {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.crm-navigation-ui .login-tag {
+  margin-bottom: 28px;
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+
+.crm-navigation-ui .login-card .field label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.crm-navigation-ui .login-card input {
+  min-height: 44px;
+  border: 1px solid var(--owner-panel-border);
+  border-radius: var(--owner-control-radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.crm-navigation-ui .login-card input:hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+}
+
+.crm-navigation-ui .login-card input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 78%, white);
+  outline-offset: 2px;
+}
+
+.crm-navigation-ui .login-card input:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  box-shadow: 0 0 0 1000px var(--surface) inset;
+  caret-color: var(--text);
+}
+
+.crm-navigation-ui .login-card button[type='submit'] {
+  min-height: 44px;
+  border-radius: var(--owner-control-radius);
+}
+
+.crm-navigation-ui .login-error {
+  border-radius: var(--owner-control-radius);
+}
+
+.crm-navigation-ui .login-hint {
+  margin-bottom: 0;
+}
+
 .crm-navigation-ui details.staff-card {
   position: relative;
   overflow: clip;
@@ -442,6 +564,13 @@
 }
 
 @media (max-width: 640px) {
+  .crm-navigation-ui .login-gate {
+    padding: 16px;
+  }
+
+  .crm-navigation-ui .login-card {
+    padding: 28px 20px 24px;
+  }
   .crm-navigation-ui details.staff-card summary {
     min-height: 64px;
     padding: 11px 12px 11px 14px;

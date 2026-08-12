@@ -60,7 +60,7 @@ export function wireScheduleViews(ctx) {
   window.__scheduleViewsWired = true;
 
   const { staff, staffList, services, priceOf, fetchJson, apiSend, renderDateSelect, renderTimeSelect, timeSelectValue, todayStr, renderDayCalendar } = ctx;
-  const isSolo = !!document.getElementById('walkinSoloTrigger');
+  const isSolo = staff.role === 'master';
   const masters = isSolo ? [staff] : mastersOf(staffList);
   if (masters.length === 0) return; // роль без доступа к расписанию (не должно случиться, но не падаем)
 

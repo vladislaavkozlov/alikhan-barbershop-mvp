@@ -140,10 +140,13 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
   // расписания (serviceMasterIds, api/routes/staff.js) - берём тот же критерий, а не
   // свой. Текущий мастер записи добавляется всегда, даже если его уже сняли с услуг:
   // иначе открытая старая запись показала бы пустой дропдаун.
-  function renderMasterSelect(selectedMasterId) {
+  function renderMasterSelect(selectedMasterId, { manual = false } = {}) {
     const slot = el('wfMaster-slot');
     if (!slot) return;
-    const masters = (staffList || []).filter((s) => s.providesServices || s.id === selectedMasterId);
+    const masters = (staffList || []).filter((s) => manual
+      ? s.providesServices && s.hasWorkingSchedule !== false
+      : s.providesServices || s.id === selectedMasterId
+    );
     const current = masters.find((m) => m.id === selectedMasterId);
     const options = masters
       .map((m) => `<div class="custom-select-option${m.id === selectedMasterId ? ' selected' : ''}" onclick="pickCustomSelectOption(this)" data-value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</div>`)
@@ -390,7 +393,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     nameLabel.textContent = masterName;
     editMode = hasEditUi && !!options.edit;
     editBooking = editMode ? { ...options.booking, masterId } : null;
-    rebookMode = hasRebookUi && !!(options.rebook || options.slot || editMode);
+    rebookMode = hasRebookUi && !!(options.rebook || options.slot || options.manual || editMode);
     resultEl.hidden = true;
     clearHint();
     if (hasSaleForm) {
@@ -408,7 +411,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       // "Повторная запись" была бы нечестной для клиента, которого выбирают заново.
       modeLabelEl.textContent = editMode
         ? 'Редактирование записи'
-        : options.slot ? 'Новая запись на выбранное время' : rebookMode ? 'Повторная запись' : 'Новая запись без предзаписи';
+        : options.slot ? 'Новая запись на выбранное время' : options.manual ? 'Новая запись' : rebookMode ? 'Повторная запись' : 'Новая запись без предзаписи';
       dateTimeRow.hidden = !rebookMode;
       if (rebookMode) {
         // Дефолт - сегодня и ближайшее 15-минутное время в рабочем окне магазина
@@ -438,12 +441,14 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     }
     // ── Окно 55, Задача C: обвязка режима редактирования ──────────────────────
     if (hasEditUi) {
-      masterRow.hidden = !editMode;
+      masterRow.hidden = !(editMode || options.manual);
       editControls.hidden = !editMode;
       if (editExtras) editExtras.hidden = !editMode;
       submitBtn.textContent = editMode ? 'Сохранить изменения' : 'Сохранить запись';
+      if (editMode || options.manual) {
+        renderMasterSelect(masterId, { manual: !!options.manual });
+      }
       if (editMode) {
-        renderMasterSelect(masterId);
         // id брони кладём на САМУ ФОРМУ: assets/crm-booking-status.js (статус,
         // удаление, услуги, фактическая сумма) читает его с элемента-панели. Раньше
         // панелью была карточка #bd-1, теперь - форма. Механика роутов не менялась,
@@ -470,6 +475,8 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         delete form.dataset.requiresPrepayment;
       }
     }
+    const bookingCard = form.closest('details.booking-create-card');
+    if (bookingCard && !bookingCard.open) bookingCard.open = true;
     form.hidden = false;
     // Правка 07.08.2026 - было block:'start': форма теперь лежит В DOM ПОД календарём
     // (crm-owner.html, тот же приём, что уже фиксирует высоту .schedule-track - см.
@@ -477,8 +484,24 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     // "День" уезжал за верх экрана - ровно жалоба "вкладка скачет". 'nearest' скроллит,
     // только если форма реально не видна, и на минимальное расстояние - клик по слоту
     // календаря уже держит нужное место в поле зрения, дальний прыжок не нужен.
-    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (!options.manual) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
+
+  window.openManualBooking = () => {
+    const masters = (staffList || []).filter((candidate) =>
+      candidate.providesServices && candidate.hasWorkingSchedule !== false
+    );
+    const master = masters[0];
+    if (!master) {
+      resultEl.hidden = false;
+      resultEl.className = 'wf-result wf-result--err';
+      resultEl.textContent = 'Нет мастера с рабочим графиком для новой записи';
+      form.hidden = false;
+      return;
+    }
+    openForWalkin(master.id, master.name, { manual: true });
+  };
+  if (el('scheduleCard-booking')?.open && form.hidden) window.openManualBooking();
 
   // crm-master.html: единственный мастер - он и есть залогиненный сотрудник, выбирать не из чего
   const soloBtn = el('walkinSoloTrigger');
@@ -491,6 +514,8 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     cancelBtn.dataset.wired = '1';
     cancelBtn.addEventListener('click', () => {
       form.hidden = true;
+      const bookingCard = form.closest('details.booking-create-card');
+      if (bookingCard) bookingCard.open = false;
     });
   }
 
