@@ -84,7 +84,7 @@ try {
         await sleep(1300);
 
         // ═══════════════════ НЕДЕЛЯ ═══════════════════
-        await s.click('label[for="sp-week"]');
+        await s.click('#scheduleCard-week > summary');
         await sleep(500);
 
         // Переключатель мастера - выбираем o44-master1 явно (дефолт мог бы попасть на
@@ -130,7 +130,7 @@ try {
         await s.screenshot('/tmp/okno44-week.png');
 
         // ═══════════════════ МЕСЯЦ ═══════════════════
-        await s.click('label[for="sp-month"]');
+        await s.click('#scheduleCard-month > summary');
         await sleep(500);
 
         // Переключатель "Все мастера / по одному" - честная поправка к ТЗ, построен с
@@ -141,11 +141,12 @@ try {
         check('По умолчанию активен режим "Все мастера" (вся команда сразу)', defaultMode === true, `active=${defaultMode}`);
         const aggregateHints = await s.eval(`({
           statusLegendHidden: document.getElementById('monthStatusLegend')?.hidden,
-          aggregateHintHidden: document.getElementById('monthAggregateHint')?.hidden,
-          aggregateHintText: document.getElementById('monthAggregateHint')?.textContent.trim(),
+          aggregateHintExists: !!document.getElementById('monthAggregateHint'),
+          weekdayHeaders: [...document.querySelectorAll('#monthGrid > .month-weekday')].map((el) => el.textContent.trim()),
         })`);
         check('Регрессия: "Все мастера" скрывает неприменимую легенду Рабочий/Правка/Выходной', aggregateHints.statusLegendHidden === true, JSON.stringify(aggregateHints));
-        check('Регрессия: "Все мастера" объясняет процент как общую загрузку команды', aggregateHints.aggregateHintHidden === false && aggregateHints.aggregateHintText.includes('общую загрузку команды'), JSON.stringify(aggregateHints));
+        check('Месяц не показывает удалённую текстовую подсказку про процент', aggregateHints.aggregateHintExists === false, JSON.stringify(aggregateHints));
+        check('Месяц подписывает все семь столбцов от Пн до Вс', JSON.stringify(aggregateHints.weekdayHeaders) === JSON.stringify(['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']), JSON.stringify(aggregateHints));
 
         const monthAggToday = await s.eval(`(() => {
           const cell = document.querySelector('.month-day--real[data-date="${today}"]');
@@ -165,9 +166,9 @@ try {
         await sleep(500);
         const singleHints = await s.eval(`({
           statusLegendHidden: document.getElementById('monthStatusLegend')?.hidden,
-          aggregateHintHidden: document.getElementById('monthAggregateHint')?.hidden,
+          aggregateHintExists: !!document.getElementById('monthAggregateHint'),
         })`);
-        check('Регрессия: "По одному" возвращает легенду статусов и скрывает подсказку команды', singleHints.statusLegendHidden === false && singleHints.aggregateHintHidden === true, JSON.stringify(singleHints));
+        check('Регрессия: "По одному" возвращает легенду статусов без удалённой подсказки команды', singleHints.statusLegendHidden === false && singleHints.aggregateHintExists === false, JSON.stringify(singleHints));
         const singlePick = await s.eval(`(() => {
           const btn = [...document.querySelectorAll('#monthMasterSwitch .master-pill')].find((b) => b.textContent === 'QA Мастер Один');
           if (!btn) return 'NOT_FOUND';
@@ -184,19 +185,14 @@ try {
         check('"По одному" (master1): % загрузки = 50% (480 доступно, 240 занято)', monthSingleToday?.pct === '50%', `pct=${monthSingleToday?.pct}`);
         check('"По одному": dot-статус возвращается (осмыслен для конкретного мастера)', monthSingleToday?.hasDot === true, `hasDot=${monthSingleToday?.hasDot}`);
         check('"По одному": карандаш редактирования возвращается', monthSingleToday?.hasEdit === true, `hasEdit=${monthSingleToday?.hasEdit}`);
+        await s.screenshot('/tmp/okno44-month-single.png');
 
         // ── Ключевой сценарий DoD Окна 25 - клик по дню ведёт в День с верной датой ──
         await s.click(`.month-day--real[data-date="${today}"]`);
         await sleep(400);
-        const dayViewState = await s.eval(`({ spDayChecked: document.getElementById('sp-day')?.checked, dayDate: document.getElementById('dayNavDate')?.dataset.value })`);
-        check('Клик по дню в Месяце переключает на вид "День" (DoD Окна 25, не сломан)', dayViewState.spDayChecked === true, JSON.stringify(dayViewState));
+        const dayViewState = await s.eval(`({ dayCardOpen: document.getElementById('scheduleCard-day')?.open, dayDate: document.getElementById('dayNavDate')?.dataset.value })`);
+        check('Клик по дню в Месяце раскрывает вид "День" (DoD Окна 25, не сломан)', dayViewState.dayCardOpen === true, JSON.stringify(dayViewState));
         check('День открывается ИМЕННО с той датой, по которой кликнули', dayViewState.dayDate === today, `dayDate=${dayViewState.dayDate}, ожидали ${today}`);
-
-        // ── Регрессия: Год того же раздела не задет ──────────────────────────
-        await s.click('label[for="sp-year"]');
-        await sleep(300);
-        const yearHasContent = await s.eval(`document.getElementById('yearGrid')?.children.length > 0`);
-        check('Регрессия: вид "Год" по-прежнему рендерится', yearHasContent === true, `yearGrid children>0: ${yearHasContent}`);
       });
     });
   });

@@ -861,6 +861,10 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
    ("Новогодние каникулы" в holiday-label) и 7 колонок раздвигают страницу на мобильном */
 .month-grid { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 6px; }
 .month-grid .wd { text-align: center; font-size: 0.72rem; color: var(--text-muted); padding-bottom: 4px; }
+.month-weekday {
+  text-align: center; color: var(--text-muted); font-size: 0.72rem; font-weight: 600;
+  padding: 2px 0 4px;
+}
 .month-day {
   position: relative; min-height: 62px; border: 1px solid var(--border); border-radius: 8px;
   padding: 6px 8px; background: var(--surface-2); font-size: 0.78rem; overflow: hidden;
@@ -889,6 +893,7 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
    как в Google Calendar, а не предложение с описанием клика */
 .day-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; font-size: 0.82rem; }
 .day-legend[hidden] { display: none; }
+.panel-sp-month .day-legend { margin: 4px 0 12px; }
 .day-legend .day-dot { margin-right: 5px; }
 .day-legend .legend-note { margin-left: 10px; color: var(--text-muted); }
 .month-day.is-holiday { background: rgba(185,139,84,0.14); border-color: var(--wood); }

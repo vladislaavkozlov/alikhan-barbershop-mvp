@@ -10,7 +10,7 @@
 // дня требует конкретного мастера). "По одному" - прежнее поведение 1:1
 // (weeklyBaselineFor/dayStatusDot/modal), просто с добавленным % загрузки в ячейке.
 import {
-  isoWeekdayOf, addMonths, pad2, dayStatusDot, ruPluralBooking, holidayNameOf, escapeHtml,
+  WEEKDAY_SHORT, isoWeekdayOf, addMonths, pad2, dayStatusDot, ruPluralBooking, holidayNameOf, escapeHtml,
   conflictListWithOpenButton, buildMasterSwitch, isDayOffShift, GLOBAL_DEFAULT_START, GLOBAL_DEFAULT_END,
   fmtRu, loadPercent, toMinutes,
 } from './crm-schedule-shared.js';
@@ -19,8 +19,13 @@ import { todayStr } from './crm-calendar.js';
 export function monthModeHintState(mode) {
   return {
     statusLegendHidden: mode === 'all',
-    aggregateHintHidden: mode !== 'all',
   };
+}
+
+export function monthWeekdayHeaderHtml() {
+  return WEEKDAY_SHORT
+    .map((weekday) => `<div class="month-weekday">${weekday}</div>`)
+    .join('');
 }
 
 export function wireMonthView(ctx) {
@@ -42,9 +47,7 @@ export function wireMonthView(ctx) {
   function syncMonthModeHints() {
     const state = monthModeHintState(monthMode);
     const statusLegend = document.getElementById('monthStatusLegend');
-    const aggregateHint = document.getElementById('monthAggregateHint');
     if (statusLegend) statusLegend.hidden = state.statusLegendHidden;
-    if (aggregateHint) aggregateHint.hidden = state.aggregateHintHidden;
   }
 
   // Ожидаемый график ЭТОГО дня недели по "Стандартному графику" (master_weekly_schedule) -
@@ -270,7 +273,7 @@ export function wireMonthView(ctx) {
         if (!bookingsByDate.has(b.date)) bookingsByDate.set(b.date, []);
         bookingsByDate.get(b.date).push(b);
       }
-      let cells = leadingEmptyCells(firstOfMonth);
+      let cells = monthWeekdayHeaderHtml() + leadingEmptyCells(firstOfMonth);
       for (const day of rangeDays) {
         const baseline = weeklyBaselineFor(weeklyByWeekday, isoWeekdayOf(day.date));
         const current = { startTime: day.startTime, endTime: day.endTime, breaks: day.breaks };
@@ -359,7 +362,7 @@ export function wireMonthView(ctx) {
           byDate.set(day.date, rec);
         }
       });
-      let cells = leadingEmptyCells(firstOfMonth);
+      let cells = monthWeekdayHeaderHtml() + leadingEmptyCells(firstOfMonth);
       // Дни месяца берём из byDate.keys() (не из ответа одного мастера) - каждый
       // bookableMaster запрошен на тот же диапазон firstOfMonth..lastOfMonth, значит
       // объединение их дат покрывает весь месяц целиком (bookableMasters.length > 0
