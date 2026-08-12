@@ -3,7 +3,8 @@
 // перенесён без изменений.
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
-import { authenticate, requireRole } from '../lib/auth.js';
+import { authenticate } from '../lib/auth.js';
+import { canManageStaff, canMutateProtectedOwner, isAssignableRole } from '../lib/permissions.js';
 import { mastersWithWorkingSchedule, filterStaffForViewer } from '../lib/schedule-core.js';
 
 // ── /staff - роль ограничивает выдачу на уровне SQL, не только в UI ──
@@ -60,7 +61,7 @@ export async function handleStaffList(req, res) {
 // сам) - этот эндпоинт даёт саму возможность, не контент.
 export async function handleStaffPortfolio(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const staffId = decodeURIComponent(parts[1]);
   const body = await readBody(req);
   const result = await pool.query(
@@ -89,11 +90,16 @@ export function isLastOwnerDemotion(ownerIds, staffId, nextRole) {
 // не существовало вообще. Owner-only - роль решает исключительно Алихан.
 export async function handleStaffRole(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const staffId = decodeURIComponent(parts[1]);
   const body = await readBody(req);
   const role = body.role;
-  if (!['owner', 'admin', 'master'].includes(role)) return sendJson(res, 400, { error: 'invalid_role' });
+  if (!isAssignableRole(role)) return sendJson(res, 400, { error: 'invalid_role' });
+  const target = await pool.query('SELECT id, protected_owner FROM staff WHERE id = $1', [staffId]);
+  if (target.rows.length === 0) return sendJson(res, 404, { error: 'staff_not_found' });
+  if (!canMutateProtectedOwner(auth, { protectedOwner: target.rows[0].protected_owner })) {
+    return sendJson(res, 403, { error: 'protected_owner' });
+  }
   // Замок от самозапирания системы (инцидент 11.08.2026, миграция 043): владелец
   // сменил СЕБЕ роль на 'мастер' - и вернуть её стало некому, потому что этот самый
   // роут доступен только owner, а других владельцев на проде нет (все тестовые и
@@ -109,6 +115,5 @@ export async function handleStaffRole(req, res, parts) {
     return sendJson(res, 409, { error: 'last_owner_role_locked' });
   }
   const result = await pool.query('UPDATE staff SET role = $1 WHERE id = $2 RETURNING id, role', [role, staffId]);
-  if (result.rows.length === 0) return sendJson(res, 404, { error: 'staff_not_found' });
   return sendJson(res, 200, { ok: true, id: result.rows[0].id, role: result.rows[0].role });
 }

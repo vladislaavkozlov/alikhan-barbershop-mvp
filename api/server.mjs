@@ -19,6 +19,7 @@ import { dirname, join } from 'node:path';
 import { setCors, sendJson } from './lib/http.js';
 import { pool } from './lib/db.js';
 import { authenticate, requireRole } from './lib/auth.js';
+import { canManageStaff } from './lib/permissions.js';
 // Ре-экспорт для tests/*.test.js, которые импортируют эти имена напрямую из
 // server.mjs (in-memory юниты без реального Postgres) - не используются в самом
 // server.mjs напрямую (все роуты, которые их вызывали, переехали в routes/*.js).
@@ -105,11 +106,11 @@ const ROUTES = [
   { method: 'POST', path: 'auth/login', auth: 'public' },
   { method: 'GET', path: 'auth/me', auth: 'any-staff' },
   { method: 'GET', path: 'staff', auth: 'any-staff' },
-  { method: 'PUT', path: 'staff/:id/portfolio', auth: 'owner' },
-  { method: 'PUT', path: 'staff/:id/role', auth: 'owner' },
+  { method: 'PUT', path: 'staff/:id/portfolio', auth: 'management' },
+  { method: 'PUT', path: 'staff/:id/role', auth: 'management' },
   { method: 'GET', path: 'services', auth: 'any-staff' },
   { method: 'GET', path: 'master-services', auth: 'public' },
-  { method: 'PUT', path: 'master-services/:masterId/:serviceId', auth: 'owner' },
+  { method: 'PUT', path: 'master-services/:masterId/:serviceId', auth: 'management' },
   { method: 'GET', path: 'bookings', auth: 'public' },
   { method: 'POST', path: 'bookings', auth: 'public' },
   { method: 'POST', path: 'bookings/:id/cancel', auth: 'any-staff' },
@@ -125,28 +126,28 @@ const ROUTES = [
   { method: 'DELETE', path: 'schedule', auth: 'any-staff' },
   { method: 'GET', path: 'schedule-range', auth: 'any-staff' },
   { method: 'GET', path: 'holidays', auth: 'public' },
-  { method: 'POST', path: 'holidays/close', auth: 'owner' },
+  { method: 'POST', path: 'holidays/close', auth: 'management' },
   { method: 'GET', path: 'schedule-availability', auth: 'public' },
   { method: 'GET', path: 'masters-next-availability', auth: 'public' },
   { method: 'GET', path: 'master-weekly-schedule', auth: 'any-staff' },
   { method: 'PUT', path: 'master-weekly-schedule', auth: 'any-staff' },
   { method: 'POST', path: 'schedule-requests', auth: 'any-staff' },
   { method: 'GET', path: 'schedule-requests', auth: 'any-staff' },
-  { method: 'PATCH', path: 'schedule-requests/:id/decision', auth: 'owner' },
-  { method: 'PATCH', path: 'schedule-requests/:id/cancel', auth: 'owner' },
+  { method: 'PATCH', path: 'schedule-requests/:id/decision', auth: 'management' },
+  { method: 'PATCH', path: 'schedule-requests/:id/cancel', auth: 'management' },
   { method: 'GET', path: 'notifications', auth: 'any-staff' },
   { method: 'GET', path: 'notifications/unread-count', auth: 'any-staff' },
   { method: 'POST', path: 'notifications/:id/read', auth: 'any-staff' },
   { method: 'POST', path: 'notifications/read-all', auth: 'any-staff' },
   { method: 'GET', path: 'payroll-settings', auth: 'any-staff' },
-  { method: 'PUT', path: 'payroll-settings', auth: 'owner' },
+  { method: 'PUT', path: 'payroll-settings', auth: 'management' },
   { method: 'GET', path: 'discount-settings', auth: 'any-staff' },
-  { method: 'PUT', path: 'discount-settings', auth: 'owner' },
+  { method: 'PUT', path: 'discount-settings', auth: 'management' },
   { method: 'GET', path: 'payroll', auth: 'any-staff' },
   { method: 'GET', path: 'revenue/today', auth: 'any-staff' },
   { method: 'GET', path: 'clients', auth: 'any-staff' },
   { method: 'GET', path: 'clients/:id', auth: 'any-staff' },
-  { method: 'GET', path: 'owner/alerts', auth: 'owner' },
+  { method: 'GET', path: 'owner/alerts', auth: 'management' },
 ];
 
 function matchRoute(method, parts) {
@@ -177,7 +178,9 @@ const server = createServer(async (req, res) => {
     if (!matchedRoute) return sendJson(res, 404, { error: 'route_not_found' });
     if (matchedRoute.auth !== 'public') {
       const gateAuth = await authenticate(req);
-      if (matchedRoute.auth === 'owner') {
+      if (matchedRoute.auth === 'management') {
+        if (!canManageStaff(gateAuth)) return sendJson(res, 401, { error: 'unauthorized' });
+      } else if (matchedRoute.auth === 'owner') {
         if (!requireRole(gateAuth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
       } else if (!gateAuth) {
         return sendJson(res, 401, { error: 'unauthorized' });

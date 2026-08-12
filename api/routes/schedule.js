@@ -5,6 +5,7 @@
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
+import { BOOKING_OPERATOR_ROLES, canManageStaff } from '../lib/permissions.js';
 import { addDaysIso, enumerateDateRange, shopNow } from '../lib/time.js';
 import {
   getEffectiveSchedule,
@@ -98,7 +99,7 @@ export async function handleSchedule(req, res, url) {
 
   if (req.method === 'POST') {
     const auth = await authenticate(req);
-    if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+    if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
     const body = await readBody(req);
     if (!body.masterId || !body.date || !body.startTime || !body.endTime) {
       return sendJson(res, 400, { error: 'missing_fields' });
@@ -156,7 +157,7 @@ export async function handleSchedule(req, res, url) {
   // специально восстанавливать не нужно, это уже гарантия резолвера.
   if (req.method === 'DELETE') {
     const auth = await authenticate(req);
-    if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+    if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
     const masterId = url.searchParams.get('masterId');
     const date = url.searchParams.get('date');
     if (!masterId || !date) return sendJson(res, 400, { error: 'missing_fields' });
@@ -225,7 +226,7 @@ export async function handleHolidaysList(req, res, url) {
 // разных выходных с разным поведением.
 export async function handleHolidaysClose(req, res) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const body = await readBody(req);
   if (!body.from || !body.to) return sendJson(res, 400, { error: 'missing_fields' });
   if (body.masterIds != null && !Array.isArray(body.masterIds)) {
@@ -375,7 +376,7 @@ export async function handleMasterWeeklySchedule(req, res, url) {
   }
 
   if (req.method === 'PUT') {
-    if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+    if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
     const body = await readBody(req);
     const rows = validateWeeklyChanges(body.weeklyChanges);
     if (!body.masterId || !rows) return sendJson(res, 400, { error: 'missing_fields' });

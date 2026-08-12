@@ -4,6 +4,7 @@
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
+import { canManageStaff } from '../lib/permissions.js';
 
 // ── /services - каталог, доступен любой авторизованной роли ──────────
 export async function handleServicesList(req, res) {
@@ -56,7 +57,7 @@ export async function handleMasterServicesList(req, res) {
 // duration_min по умолчанию берётся из общего каталога services, если не передан.
 export async function handleMasterServiceUpdate(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const masterId = decodeURIComponent(parts[1]);
   const serviceId = decodeURIComponent(parts[2]);
   const body = await readBody(req);

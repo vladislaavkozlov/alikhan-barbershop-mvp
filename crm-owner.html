@@ -1019,7 +1019,7 @@
   import { initAppShell } from './assets/crm-app-shell.js';
   import { refreshFinance } from './assets/crm-dashboard.js';
   import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
-  initCrmAuth('owner');
+  initCrmAuth(['owner', 'manager']);
   const scheduleRequestsApi = initOwnerScheduleRequests();
   wireClientsRisk();
   wireScheduleAlerts();
