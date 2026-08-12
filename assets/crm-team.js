@@ -5,7 +5,7 @@ import { renderMasterServiceEditor } from './crm-master-services.js';
 import { wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 
 const roleLabel = { owner: 'Владелец', manager: 'Управляющий', admin: 'Администратор', master: 'Мастер' };
-const esc = (value = '') => String(value).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[c]));
+const esc = (value = '') => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[c]));
 const section = (title, content) => `<section class="team-editor-section"><h3><span aria-hidden="true">${ICON_TEAM}</span> ${title}</h3>${content}</section>`;
 
 function staffCard(staff) {

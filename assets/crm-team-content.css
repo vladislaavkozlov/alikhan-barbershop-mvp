@@ -2,6 +2,7 @@
 .crm-navigation-ui .team-editor-section { border-top:1px solid var(--border); padding-top:20px; }
 .crm-navigation-ui .team-editor-section:first-child { border-top:0; padding-top:0; }
 .crm-navigation-ui .team-editor-section h3 { margin:0 0 14px; font-size:1rem; color:var(--text); }
+.crm-navigation-ui .team-editor-section h3 svg { width:18px; height:18px; vertical-align:-4px; margin-right:7px; color:var(--accent); }
 .crm-navigation-ui .team-editor-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .crm-navigation-ui .team-editor-card textarea { min-height:72px; resize:vertical; }
 .crm-navigation-ui .team-editor-actions { display:flex; gap:10px; flex-wrap:wrap; }
