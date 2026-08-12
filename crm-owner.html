@@ -7,6 +7,7 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/mockup-crm.css" />
 <link rel="stylesheet" href="assets/crm-app-shell.css" />
+<link rel="stylesheet" href="assets/crm-navigation-panels.css" />
 <style>
   /* Окно 45 (08.08.2026) - День/Неделя/Месяц Расписания больше не radio-пилюли, а
      сворачиваемые карточки (.schedule-view-card) - видимость содержимого решает сам
@@ -87,7 +88,7 @@
   #wi1-6m:checked ~ .panel-wi1-6m, #wi1-year:checked ~ .panel-wi1-year { display: block; }
 </style>
 </head>
-<body>
+<body class="crm-navigation-ui">
 
 <header class="site">
   <div class="nav">
@@ -106,17 +107,17 @@
       <!-- Окно 45 (08.08.2026) - мягкое обновление (перечитать данные без
            location.reload(), чтобы не терять текущую вкладку/раскрытые карточки/дату
            в календаре - решение Влада 08.08.2026). -->
-      <button class="notif-bell" type="button" id="refreshBtn" aria-label="Обновить данные"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17,1.5 21,5.5 17,9.5"/><path d="M3,12.5v-2a4,4 0 0 1 4,-4h14"/><polyline points="7,22.5 3,18.5 7,14.5"/><path d="M21,11.5v2a4,4 0 0 1 -4,4H3"/></svg></button>
+      <button class="notif-bell crm-top-action" type="button" id="refreshBtn" aria-label="Обновить данные"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17,1.5 21,5.5 17,9.5"/><path d="M3,12.5v-2a4,4 0 0 1 4,-4h14"/><polyline points="7,22.5 3,18.5 7,14.5"/><path d="M21,11.5v2a4,4 0 0 1 -4,4H3"/></svg></button>
       <div class="msg-bell-wrap" style="position:relative">
-        <button class="notif-bell" type="button" id="msgBell" aria-label="Уведомления и клиенты, которым стоит позвонить"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
+        <button class="notif-bell crm-top-action" type="button" id="msgBell" aria-label="Уведомления и клиенты, которым стоит позвонить"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
         <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
       </div>
       <span id="sessionInfo" class="session-info" hidden></span>
-      <button id="logoutBtn" class="logout-btn" type="button" hidden>Выйти</button>
+      <button id="logoutBtn" class="logout-btn crm-top-action" type="button" hidden>Выйти</button>
       <div class="role-switch" id="roleSwitch">
-        <a href="crm-owner.html" data-role="owner" aria-current="page">Владелец</a>
-        <a href="crm-admin.html" data-role="admin">Администратор</a>
-        <a href="crm-master.html" data-role="master">Мастер</a>
+        <a class="crm-top-action" href="crm-owner.html" data-role="owner" aria-current="page">Владелец</a>
+        <a class="crm-top-action" href="crm-admin.html" data-role="admin">Администратор</a>
+        <a class="crm-top-action" href="crm-master.html" data-role="master">Мастер</a>
       </div>
     </div>
   </div>

@@ -50,9 +50,18 @@ export async function renderOwnerAlerts() {
 
     scheduleEl.innerHTML = mastersWithoutSchedule
       .map(
-        (m) => `<div class="break-row">
-          <span class="note" style="font-style:normal;color:var(--text)">⚠ У мастера ${escapeHtml(m.name)} нет рабочего графика - клиенты не могут записаться</span>
-          <button class="btn btn-ghost btn-sm" type="button" data-open-schedule-tab>Настроить график</button>
+        (m) => `<div class="owner-schedule-alert" role="status">
+          <span class="owner-schedule-alert__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3.5" y="5" width="17" height="15" rx="2.2"/>
+              <path d="M3.5 9.5h17M8 3v3.5M16 3v3.5M8.5 14.5h7M12 11v7"/>
+            </svg>
+          </span>
+          <span class="owner-schedule-alert__copy">
+            <strong>Нет рабочего графика</strong>
+            <span>Мастер ${escapeHtml(m.name)} - клиенты не могут записаться</span>
+          </span>
+          <button class="owner-schedule-alert__action" type="button" data-open-schedule-tab>Настроить график</button>
         </div>`
       )
       .join('');
