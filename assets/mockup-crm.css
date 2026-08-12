@@ -418,7 +418,9 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 /* ---------- period tabs (День / Неделя, etc) ---------- */
 .seg-tabs { position: relative; display: block; margin-bottom: 18px; }
 .seg-tabs input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
-.seg-bar { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; gap: 2px; }
+/* Фон переключателя День/Неделя/Месяц/Год - точечная правка по референсу Влада,
+   не трогает --surface-2 (используется в других местах, там всё устраивает). */
+.seg-bar { display: inline-flex; background: #16261E; border: 1px solid var(--border); border-radius: 999px; padding: 3px; gap: 2px; }
 .seg-bar label {
   cursor: pointer; padding: 7px 16px; border-radius: 999px;
   font-size: 0.82rem; font-weight: 600; color: var(--text-muted);
