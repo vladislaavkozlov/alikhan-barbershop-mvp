@@ -19,6 +19,7 @@ import { wireScheduleEditor, wireWeeklyScheduleEditor } from './crm-schedule-edi
 import { wireMasterServiceEditors } from './crm-master-services.js';
 import { wirePayrollDateSlots, wireMasterPayrollPeriod, renderRevenuePeriods, renderStaffPayrollPeriods, periodStartStr, wireDiscountSettings } from './crm-payroll.js';
 import { wireMasterSelfView, wireMasterSelfDataTab } from './crm-master-self.js';
+import { wireAdminSelfData } from './crm-admin-self.js';
 import { wireBookingStatusRadios, wireBookingServiceEdit, wireBookingDelete, wireBookingActualPrice } from './crm-booking-status.js';
 import { wireWalkIn } from './crm-walkin.js';
 
@@ -288,6 +289,7 @@ export async function renderLiveProof(staff) {
     wireWalkIn(staff, services, masterServices, staffList);
     wireMasterSelfView(staff, pctOf);
     wireMasterSelfDataTab(staff, services, masterServices, pctOf);
+    wireAdminSelfData(staff, staffList);
     wireMasterServiceEditors(staff.role, services, masterServices);
     wirePayrollDateSlots();
     wireDiscountSettings();

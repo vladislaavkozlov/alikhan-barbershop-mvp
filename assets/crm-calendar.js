@@ -329,7 +329,9 @@ export function todayStr() {
 // Экспортирована (Окно 18) - Неделя/Месяц (assets/crm-schedule-views.js) строят
 // переключатель мастера по тому же списку, что и "Мой день", а не своему.
 export function mastersOf(staffList) {
-  return staffList.filter((s) => s.providesServices).sort((a, b) => a.id.localeCompare(b.id));
+  return staffList
+    .filter((s) => s.providesServices && s.hasWorkingSchedule !== false)
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export async function renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson, date }) {

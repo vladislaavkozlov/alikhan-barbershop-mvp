@@ -1,11 +1,10 @@
 // Окно 22 (04.08.2026, Задача 1) - unit на filterStaffForViewer: мастер без рабочего
-// графика (is_working=true нигде в master_weekly_schedule) не должен быть виден
-// не-владельцу, владелец видит всех + hasWorkingSchedule. In-memory, без реального
-// Postgres - тот же приём, что уже используется в tests/api.schedule-range.test.js
-// (server.mjs экспортирует чистую функцию, сервер сам не стартует при импорте).
+// графика (is_working=true нигде в master_weekly_schedule) не должен попадать в
+// расписание, но остаётся виден владельцу и администратору с явным флагом. Тест
+// импортирует чистую бизнес-функцию напрямую и не требует Postgres.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterStaffForViewer } from '../api/server.mjs';
+import { filterStaffForViewer } from '../api/lib/schedule-core.js';
 
 const STAFF = [
   { id: 'master-1', name: 'Алиовсад', role: 'owner', providesServices: true },
@@ -29,12 +28,13 @@ test('owner видит всех мастеров + hasWorkingSchedule на ка�
   assert.equal('hasWorkingSchedule' in byId.get('admin-1'), false);
 });
 
-test('admin/master не видят мастера без рабочего графика вовсе', () => {
+test('admin видит всех сотрудников точки с флагом графика, master не видит недоступного мастера', () => {
   const forAdmin = filterStaffForViewer(STAFF, 'admin', SCHEDULED);
   assert.deepEqual(
     forAdmin.map((r) => r.id),
-    ['master-1', 'master-2', 'admin-1']
+    ['master-1', 'master-2', 'qa-window19-master', 'admin-1']
   );
+  assert.equal(forAdmin.find((r) => r.id === 'qa-window19-master').hasWorkingSchedule, false);
   const forMaster = filterStaffForViewer(STAFF, 'master', SCHEDULED);
   assert.deepEqual(
     forMaster.map((r) => r.id),
@@ -47,8 +47,8 @@ test('мастер с хотя бы одним is_working=true - виден вс
   assert.ok(result.some((r) => r.id === 'master-2'));
 });
 
-test('пустой scheduledMasterIds - все providesServices=true скрыты от не-владельца', () => {
-  const result = filterStaffForViewer(STAFF, 'admin', new Set());
+test('пустой scheduledMasterIds - мастеру скрыты все providesServices=true', () => {
+  const result = filterStaffForViewer(STAFF, 'master', new Set());
   assert.deepEqual(
     result.map((r) => r.id),
     ['admin-1']

@@ -17,7 +17,7 @@ test('все три кабинета подключают общий слой н
     assert.match(html, /class="[^"]*crm-top-action/);
   }
   assert.equal((pages[0].match(/<details class="staff-card/g) || []).length, 12);
-  assert.equal((pages[1].match(/<details class="staff-card/g) || []).length, 2);
+  assert.equal((pages[1].match(/<details class="staff-card/g) || []).length, 4);
   assert.equal((pages[2].match(/<details class="staff-card/g) || []).length, 1);
 });
 
