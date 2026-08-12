@@ -11,14 +11,17 @@
   --bg-main: #0C1A16;
   --bg-sidebar: #10241C;
   --bg-header: #0C1A16;
-  /* Правка (продолжение 12.08.2026) - панели раньше были на отдельном оливковом
-     rgba(47,64,50), не из той же цветовой семьи, что --bg-main/--surface*
-     (холодный чёрно-бирюзовый) - расхождение оттенков и читалось как "цвета не
-     сочетаются". Теперь панели - производная от --surface-3 через color-mix,
-     та же семья зелёного, разница только в светлоте/прозрачности. */
-  --panel-bg: color-mix(in srgb, var(--surface-3) 40%, transparent);
-  --panel-bg-light: color-mix(in srgb, var(--surface-3) 24%, transparent);
-  --panel-bg-collapsed: color-mix(in srgb, var(--surface-2) 16%, transparent);
+  /* Правка (продолжение 12.08.2026, третий заход) - Влад: "убери все прозрачности,
+     подбери цвета, чтобы без неё сочетались и выглядели дорого". Панели/бордер были
+     полупрозрачными (color-mix .../rgba) - итоговый цвет зависел от того, что под
+     ними, поэтому на разных экранах читался чуть по-разному даже при одной и той же
+     формуле. Теперь --panel-bg* - готовые сплошные ступени той же холодной зелёной
+     шкалы, что --bg-main/--surface* (не отдельный оттенок), --border - тоже сплошной
+     (раньше rgba(198,161,91,0.25) плыл по цвету от фона под ним). closed < hover <
+     open по светлоте и насыщенности - открытая карточка самая "весомая". */
+  --panel-bg-collapsed: #112720;
+  --panel-bg-light: #1B3C2D;
+  --panel-bg: #244F39;
 
   --bg: var(--bg-main);
   --surface: #142520;
@@ -29,7 +32,7 @@
   --wood: #B98B54;
   --text: #F3EFE4;
   --text-muted: #B9B2A2;
-  --border: rgba(198, 161, 91, 0.25);
+  --border: #37452F;
   --leather: #17140F;
   --danger: #C1554A;
   --success: #6FAE7C;
@@ -112,8 +115,7 @@ a { color: var(--accent); }
 
 header.site {
   position: sticky; top: 0; z-index: 30;
-  background: color-mix(in srgb, var(--bg-header) 94%, transparent);
-  backdrop-filter: blur(6px);
+  background: var(--bg-header);
   border-bottom: 1px solid var(--border);
 }
 .nav {
@@ -211,7 +213,7 @@ h1 { margin: 0 0 4px; color: var(--accent); font-size: clamp(1.5rem, 1.4vw + 1.0
 }
 .msg-item:last-child { border-bottom: none; }
 .msg-item:hover { background: var(--surface-2); }
-.msg-item--unread { background: rgba(198,161,91,0.08); }
+.msg-item--unread { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
 .msg-ico { flex-shrink: 0; font-size: 1rem; }
 .msg-body { flex: 1; min-width: 0; }
 .msg-title { font-weight: 600; font-size: 0.86rem; }

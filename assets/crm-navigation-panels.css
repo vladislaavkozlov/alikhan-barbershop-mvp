@@ -94,7 +94,7 @@
   height: 24px;
   flex: 0 0 24px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
   color: var(--accent);
 }
 
@@ -465,7 +465,7 @@
   min-height: 38px;
   border: 1px solid var(--owner-panel-border);
   border-radius: var(--owner-control-radius);
-  background: color-mix(in srgb, var(--surface) 56%, transparent);
+  background: color-mix(in srgb, var(--surface) 56%, var(--bg-header));
   color: var(--text-muted);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
   transition:
@@ -560,7 +560,7 @@
   padding: 10px 12px 10px 14px;
   border: 1px solid var(--owner-panel-border);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 72%, var(--bg-main));
 }
 
 .crm-navigation-ui .owner-schedule-alert::before {
@@ -624,7 +624,7 @@
 
 .crm-navigation-ui .owner-schedule-alert__action:hover {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
   color: var(--accent);
 }
 
