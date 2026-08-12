@@ -1,23 +1,372 @@
-.crm-navigation-ui .team-editor-card .staff-card-body { display:grid; gap:24px; }
-.crm-navigation-ui .team-editor-section { border-top:1px solid var(--border); padding-top:20px; }
-.crm-navigation-ui .team-editor-section:first-child { border-top:0; padding-top:0; }
-.crm-navigation-ui .team-editor-section h3 { margin:0 0 14px; font-size:1rem; color:var(--text); }
-.crm-navigation-ui .team-editor-section h3 svg { width:18px; height:18px; vertical-align:-4px; margin-right:7px; color:var(--accent); }
-.crm-navigation-ui .team-editor-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-.crm-navigation-ui .team-editor-card textarea { min-height:72px; resize:vertical; }
-.crm-navigation-ui .team-editor-actions { display:flex; gap:10px; flex-wrap:wrap; }
-.crm-navigation-ui .team-add-card summary { color:var(--accent); }
-.crm-navigation-ui .team-media-input { display:grid; gap:6px; }
-.crm-navigation-ui .team-media-input small { color:var(--muted); font-size:.78rem; }
-.crm-navigation-ui .team-media-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px; }
-.crm-navigation-ui .team-media-item { margin:0; display:grid; gap:6px; }
-.crm-navigation-ui .team-media-item img { display:block; width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; border:1px solid var(--border); }
-.crm-navigation-ui .team-media-item figcaption { display:grid; gap:5px; font-size:.78rem; }
-.crm-navigation-ui .team-media-item button { justify-self:start; }
-.crm-navigation-ui .team-media-actions { display:flex; gap:5px; }
-.crm-navigation-ui .team-schedule-exception { margin-top:18px; padding:14px; border:1px solid var(--border); border-radius:10px; display:grid; gap:12px; }
-.crm-navigation-ui .team-schedule-exception h4 { margin:0; font-size:.95rem; }
-.crm-navigation-ui .team-exception-list { display:grid; gap:8px; }
-.crm-navigation-ui .team-exception-item { display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:.86rem; }
-.crm-navigation-ui [data-locked-owner] .staff-card-body { opacity:.7; }
-@media (max-width:640px) { .crm-navigation-ui .team-editor-grid { grid-template-columns:1fr; } .crm-navigation-ui .team-editor-card .staff-card-body { padding-inline:14px; } }
+/* Содержимое раскрытых карточек команды. Оболочка, summary и токены остаются
+   в общих CRM-стилях, здесь только внутренний вертикальный редактор */
+.crm-navigation-ui .team-editor-card .staff-card-body {
+  display: block;
+  min-width: 0;
+}
+
+/* Глобальный section в mockup-crm.css рисует самостоятельную карточку. Внутри
+   сотрудника нужен плоский поток с разделителями, поэтому полностью гасим его */
+.crm-navigation-ui .team-editor-section {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 0;
+  padding: 30px 0 32px;
+  margin: 0;
+  min-width: 0;
+}
+.crm-navigation-ui .team-editor-section:first-child { padding-top: 4px; }
+.crm-navigation-ui .team-editor-section:last-of-type { border-bottom: 0; padding-bottom: 22px; }
+
+.crm-navigation-ui .team-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.crm-navigation-ui .team-section-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.crm-navigation-ui .team-section-icon svg { width: 17px; height: 17px; }
+.crm-navigation-ui .team-section-head h3 {
+  margin: 0 0 3px;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.25;
+}
+.crm-navigation-ui .team-section-head p,
+.crm-navigation-ui .team-add-intro p,
+.crm-navigation-ui .team-exception-head p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--text-muted);
+  font-size: .78rem;
+  line-height: 1.5;
+}
+
+.crm-navigation-ui .team-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  min-width: 0;
+}
+.crm-navigation-ui .team-editor-grid + .team-editor-grid { margin-top: 16px; }
+.crm-navigation-ui .team-editor-card .field,
+.crm-navigation-ui .team-add-card .field { min-width: 0; }
+.crm-navigation-ui .team-editor-card .field input,
+.crm-navigation-ui .team-editor-card .field select,
+.crm-navigation-ui .team-editor-card .field textarea,
+.crm-navigation-ui .team-add-card .field input,
+.crm-navigation-ui .team-add-card .field select {
+  width: 100%;
+  min-width: 0;
+}
+.crm-navigation-ui .team-editor-card textarea { min-height: 86px; resize: vertical; }
+.crm-navigation-ui .team-editor-card input::placeholder,
+.crm-navigation-ui .team-editor-card textarea::placeholder { color: color-mix(in srgb, var(--text-muted) 58%, transparent); }
+
+.crm-navigation-ui .team-toggle-stack { margin-top: 16px; }
+.crm-navigation-ui .team-toggle-row {
+  min-width: 0;
+  padding: 13px 2px;
+  border-bottom-color: color-mix(in srgb, var(--border) 58%, transparent);
+}
+.crm-navigation-ui .team-toggle-row > span:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.crm-navigation-ui .team-toggle-row .tr-label { font-weight: 600; color: var(--text); }
+.crm-navigation-ui .team-toggle-row .tr-sub { display: block; line-height: 1.4; }
+.crm-navigation-ui .team-toggle-row .switch input:focus-visible ~ .track {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Услуги: собственная золотая галочка вместо синего системного checkbox */
+.crm-navigation-ui .team-editor-section .service-picker {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+.crm-navigation-ui .team-editor-section .service-check {
+  min-width: 0;
+  padding: 13px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 58%, transparent);
+}
+.crm-navigation-ui .team-editor-section .service-check > span { min-width: 0; }
+.crm-navigation-ui .team-editor-section .service-check input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 62%, var(--border));
+  border-radius: 5px;
+  background: transparent center / 12px 12px no-repeat;
+  cursor: pointer;
+}
+.crm-navigation-ui .team-editor-section .service-check input[type="checkbox"]:checked {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m2.2 6.2 2.2 2.2 5.3-5.2' fill='none' stroke='%2317140F' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.crm-navigation-ui .team-editor-section .service-check input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.crm-navigation-ui .team-editor-section .service-check:has(input:checked) {
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-2));
+}
+
+/* Файлы не отдаются на отрисовку браузеру: нативный input остаётся доступным,
+   но действие выглядит как обычный контрол текущей CRM */
+.crm-navigation-ui .team-media-upload {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+  padding: 15px 16px;
+  margin-bottom: 18px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 52%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 52%, transparent);
+}
+.crm-navigation-ui .team-media-upload > div { display: grid; gap: 3px; min-width: 0; }
+.crm-navigation-ui .team-media-upload strong { font-size: .84rem; }
+.crm-navigation-ui .team-media-upload small { color: var(--text-muted); font-size: .73rem; line-height: 1.45; }
+.crm-navigation-ui .team-file-action {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  color: var(--accent);
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms var(--ease-out), color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+.crm-navigation-ui .team-file-action:hover { background: var(--accent); color: var(--leather); }
+.crm-navigation-ui .team-file-action:active { transform: scale(.98); }
+.crm-navigation-ui .team-file-action:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+.crm-navigation-ui .team-file-action svg { width: 16px; height: 16px; }
+.crm-navigation-ui .team-file-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.crm-navigation-ui .team-media-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.crm-navigation-ui .team-media-list:empty { display: none; }
+.crm-navigation-ui .team-media-item { margin: 0; display: grid; gap: 7px; min-width: 0; }
+.crm-navigation-ui .team-media-item img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+}
+.crm-navigation-ui .team-media-item figcaption { display: grid; gap: 6px; font-size: .72rem; color: var(--text-muted); }
+.crm-navigation-ui .team-media-actions { display: flex; gap: 5px; }
+.crm-navigation-ui .team-media-item button { padding: 4px 7px; font-size: .68rem; border-color: var(--border); }
+.crm-navigation-ui .team-media-delete { justify-self: start; color: var(--danger); }
+
+/* Роли без нативного select: три понятных варианта и видимое выбранное состояние */
+.crm-navigation-ui .team-role-picker,
+.crm-navigation-ui .team-exception-types {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  min-width: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+}
+.crm-navigation-ui .team-role-picker legend,
+.crm-navigation-ui .team-exception-types legend {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+  color: var(--text-muted);
+  font-size: .76rem;
+}
+.crm-navigation-ui .team-role-option,
+.crm-navigation-ui .team-exception-types label { position: relative; min-width: 0; cursor: pointer; }
+.crm-navigation-ui .team-role-option input,
+.crm-navigation-ui .team-exception-types input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.crm-navigation-ui .team-role-option > span,
+.crm-navigation-ui .team-exception-types label > span {
+  display: grid;
+  gap: 3px;
+  height: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-2) 52%, transparent);
+  transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out);
+}
+.crm-navigation-ui .team-role-option strong,
+.crm-navigation-ui .team-exception-types strong { font-size: .8rem; color: var(--text); }
+.crm-navigation-ui .team-role-option small,
+.crm-navigation-ui .team-exception-types small { color: var(--text-muted); font-size: .7rem; line-height: 1.4; }
+.crm-navigation-ui .team-role-option input:checked + span,
+.crm-navigation-ui .team-exception-types input:checked + span {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.crm-navigation-ui .team-role-option input:focus-visible + span,
+.crm-navigation-ui .team-exception-types input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
+.crm-navigation-ui .team-role-static {
+  display: grid;
+  gap: 3px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+}
+.crm-navigation-ui .team-role-static span,
+.crm-navigation-ui .team-role-static small { color: var(--text-muted); font-size: .74rem; }
+.crm-navigation-ui .team-role-static strong { font-size: .88rem; }
+
+.crm-navigation-ui .team-schedule-exception {
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 48%, transparent);
+  display: grid;
+  gap: 15px;
+  min-width: 0;
+}
+.crm-navigation-ui .team-schedule-exception h4 { margin: 0 0 3px; font-size: .92rem; }
+.crm-navigation-ui .team-exception-types { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 0; }
+.crm-navigation-ui .team-break-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.crm-navigation-ui .team-break-fields[hidden] { display: none; }
+.crm-navigation-ui .team-exception-list { display: grid; gap: 7px; }
+.crm-navigation-ui .team-exception-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  font-size: .78rem;
+}
+.crm-navigation-ui .team-exception-item button { padding: 5px 9px; font-size: .7rem; color: var(--danger); border-color: var(--border); }
+
+.crm-navigation-ui .team-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+}
+.crm-navigation-ui .team-editor-actions .payroll-note { margin: 0; }
+.crm-navigation-ui .team-add-card summary { color: var(--accent); }
+.crm-navigation-ui .team-add-intro {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+.crm-navigation-ui .team-add-intro > span {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.crm-navigation-ui .team-add-intro svg { width: 17px; height: 17px; }
+.crm-navigation-ui .team-add-intro h3 { margin: 0 0 3px; font-size: 1rem; }
+.crm-navigation-ui .team-add-card .team-role-picker { margin-top: 18px; }
+.crm-navigation-ui .team-create-result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 14px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 15px;
+  border-left: 3px solid var(--success);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--success) 10%, var(--surface-2));
+}
+.crm-navigation-ui .team-create-result[hidden] { display: none; }
+.crm-navigation-ui .team-create-result > span { color: var(--text-muted); font-size: .74rem; }
+.crm-navigation-ui .team-create-result code { grid-row: 1 / 3; grid-column: 2; color: var(--text); font-size: 1.1rem; letter-spacing: .12em; }
+.crm-navigation-ui .team-create-result button { grid-column: 1 / -1; justify-self: start; margin-top: 6px; }
+.crm-navigation-ui [data-locked-owner] .staff-card-body { opacity: .72; }
+
+@media (max-width: 640px) {
+  .crm-navigation-ui .team-editor-card .staff-card-body,
+  .crm-navigation-ui .team-add-card .staff-card-body { padding-inline: 12px; min-width: 0; }
+  .crm-navigation-ui .team-editor-section { padding: 24px 0 26px; min-width: 0; }
+  .crm-navigation-ui .team-section-head { margin-bottom: 17px; }
+  .crm-navigation-ui .team-editor-grid { grid-template-columns: 1fr; gap: 13px; min-width: 0; }
+  .crm-navigation-ui .team-toggle-row { align-items: flex-start; }
+  .crm-navigation-ui .team-media-upload { align-items: stretch; flex-direction: column; gap: 12px; padding: 14px; }
+  .crm-navigation-ui .team-file-action { width: 100%; }
+  .crm-navigation-ui .team-media-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .crm-navigation-ui .team-role-picker { grid-template-columns: 1fr; }
+  .crm-navigation-ui .team-schedule-exception { padding: 14px 12px; }
+  .crm-navigation-ui .team-exception-types { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .crm-navigation-ui .team-break-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .crm-navigation-ui .team-exception-item { align-items: flex-start; }
+  .crm-navigation-ui .team-editor-actions { align-items: stretch; flex-direction: column; }
+  .crm-navigation-ui .team-editor-actions .btn { width: 100%; }
+  .crm-navigation-ui .team-create-result { grid-template-columns: 1fr; }
+  .crm-navigation-ui .team-create-result code { grid-row: auto; grid-column: auto; }
+  .crm-navigation-ui .team-create-result button { grid-column: auto; width: 100%; }
+
+  /* Семь дней всегда остаются одной аккуратной строкой и не создают overflow */
+  .crm-navigation-ui .team-editor-section .weekday-icon-strip {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+  }
+  .crm-navigation-ui .team-editor-section .weekday-icon {
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    padding: 0;
+    font-size: .64rem;
+  }
+  .crm-navigation-ui .team-editor-section .field-grid { grid-template-columns: 1fr; min-width: 0; }
+  .crm-navigation-ui .team-editor-section .service-picker { grid-template-columns: 1fr; min-width: 0; }
+  .crm-navigation-ui .team-editor-section .service-check { min-width: 0; }
+  .crm-navigation-ui .team-editor-section .sc-name,
+  .crm-navigation-ui .team-editor-section .sc-meta { min-width: 0; }
+}

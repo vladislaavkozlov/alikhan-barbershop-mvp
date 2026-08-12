@@ -17,5 +17,23 @@ test('команда строится из API плоскими секциями
   assert.match(js, /data-role/);
   assert.match(js, /locationId/);
   assert.match(js, /crm:authenticated/);
+  for (const icon of ['ICON_PROFILE', 'ICON_SERVICES', 'ICON_SCHEDULE', 'ICON_ACCESS', 'ICON_UPLOAD']) {
+    assert.match(js, new RegExp(icon));
+  }
+  assert.match(js, /class="switch"/);
+  assert.match(js, /team-file-action/);
+  assert.match(js, /team-role-option/);
+  assert.match(js, /openStaffIds/);
+  assert.doesNotMatch(js, /<input name="(?:employed|providesServices|publicProfileEnabled|hasSystemAccess)" type="checkbox"/);
   assert.doesNotMatch(js, /beforeAfterUrls/);
+});
+
+test('стили команды отменяют вложенные карточки, системные галочки и держат 360 px', async () => {
+  const css = await readFile(new URL('assets/crm-team-content.css', root), 'utf8');
+  assert.match(css, /\.team-editor-section\s*\{[^}]*background:\s*transparent/s);
+  assert.match(css, /\.service-check input\[type="checkbox"\]\s*\{[^}]*appearance:\s*none/s);
+  assert.match(css, /\.team-file-native\s*\{[^}]*position:\s*absolute/s);
+  assert.match(css, /@media \(max-width:\s*640px\)/);
+  assert.match(css, /grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(css, /min-width:\s*0/);
 });
