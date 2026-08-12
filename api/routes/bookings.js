@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
+import { BOOKING_OPERATOR_ROLES } from '../lib/permissions.js';
 import { addMinutes, dateColToStr, intervalsOverlap, shopNow, toMinutes } from '../lib/time.js';
 import { mastersWithWorkingSchedule, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
 import { notifyStaff } from '../lib/notify-core.js';
@@ -314,7 +315,7 @@ async function listBookingsForRequest(url, auth) {
     // и crm-master.html уже показывает поле "Дата рождения клиента" - мастеру нужно
     // знать дату, чтобы поздравить. Видна owner/admin/master, не анонимному запросу.
     const clientBirthday = r.client_birthday instanceof Date ? r.client_birthday.toISOString().slice(0, 10) : r.client_birthday;
-    if (auth.role === 'owner' || auth.role === 'admin') {
+    if (BOOKING_OPERATOR_ROLES.includes(auth.role)) {
       // requiresPrepayment/reviewRequestPending - видно только владельцу/администратору
       // (Задачи 3 и 6, Окно 13, 01.08.2026) - мастеру эти пометки не нужны для работы.
       // clientNoShowStreak - правка 03.08.2026: карточка записи показывала пример-
@@ -397,7 +398,7 @@ export async function handleBookings(req, res, url) {
 // удаляются вместе с ней, одной транзакцией.
 export async function handleBookingDelete(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
   const bookingId = decodeURIComponent(parts[1]);
   const bookingRes = await pool.query('SELECT id, location_id FROM bookings WHERE id = $1', [bookingId]);
   if (bookingRes.rows.length === 0) return sendJson(res, 404, { error: 'booking_not_found' });
@@ -884,7 +885,7 @@ async function rescheduleBookingTx({ bookingId, masterId, date, startTime, isSta
 // пришла, админы точки - симметрично. Логика адресатов в planRescheduleNotifications.
 export async function handleBookingReschedule(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
   const body = await readBody(req);
   if (!body.masterId || !body.date || !body.startTime) {
     return sendJson(res, 400, { error: 'missing_fields' });
@@ -923,7 +924,7 @@ export async function handleBookingReschedule(req, res, parts) {
 // не эта ручка - здесь только фиксация факта, не расчёт.
 export async function handleBookingActualPrice(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
   const bookingId = decodeURIComponent(parts[1]);
   const bookingRes = await pool.query('SELECT id, location_id FROM bookings WHERE id = $1', [bookingId]);
   if (bookingRes.rows.length === 0) return sendJson(res, 404, { error: 'booking_not_found' });
@@ -942,7 +943,7 @@ export async function handleBookingActualPrice(req, res, parts) {
 // ── /sales - продажа (косметика и т.п.), привязана к визиту (разд.14.3 п.2) ──
 export async function handleSales(req, res, url) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
 
   if (req.method === 'GET') {
     const bookingId = url.searchParams.get('bookingId');

@@ -4,6 +4,8 @@
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
+import { canManageStaff } from '../lib/permissions.js';
+import { BOOKING_OPERATOR_ROLES } from '../lib/permissions.js';
 
 // Окно 37 (06.08.2026, Задача 1) - единый резолвер ЗП мастера за произвольный
 // период. До этого окна одна и та же формула (сумма цены броней × ставка мастера
@@ -162,7 +164,7 @@ export async function handlePayrollSettings(req, res, url) {
   }
 
   if (req.method === 'PUT') {
-    if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+    if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
     const body = await readBody(req);
     if (!body.masterId || typeof body.pct !== 'number') {
       return sendJson(res, 400, { error: 'missing_fields' });
@@ -191,7 +193,7 @@ export async function handleDiscountSettings(req, res) {
   }
 
   if (req.method === 'PUT') {
-    if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+    if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
     const body = await readBody(req);
     if (typeof body.payrollFromActualPrice !== 'boolean') {
       return sendJson(res, 400, { error: 'missing_fields' });
@@ -237,7 +239,7 @@ export async function handlePayroll(req, res, url) {
 // locationId - по конкретной.
 export async function handleRevenueToday(req, res, url) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
   const locationId = auth.role === 'admin' ? auth.locationId : url.searchParams.get('locationId');
   // unidentifiedCount (09.08.2026) - добавлен в тот же ответ, не отдельный роут:
   // тот же контур доступа (owner/admin), та же "сегодняшняя" сводка дня, что уже

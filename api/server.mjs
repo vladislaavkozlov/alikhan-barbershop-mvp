@@ -19,6 +19,7 @@ import { dirname, join } from 'node:path';
 import { setCors, sendJson } from './lib/http.js';
 import { pool } from './lib/db.js';
 import { authenticate, requireRole } from './lib/auth.js';
+import { canManageStaff } from './lib/permissions.js';
 // Ре-экспорт для tests/*.test.js, которые импортируют эти имена напрямую из
 // server.mjs (in-memory юниты без реального Postgres) - не используются в самом
 // server.mjs напрямую (все роуты, которые их вызывали, переехали в routes/*.js).
@@ -50,8 +51,11 @@ export { findMastersMissingSchedule, notifyOwnerAboutMastersMissingSchedule } fr
 // server.mjs (in-memory юниты без реального Postgres) - см. правило 6 плана
 // декомпозиции, plans/2026-08-07-server-mjs-decomposition.md.
 export { isoWeekday, enumerateDateRange } from './lib/time.js';
-import { handleLogin, handleMe } from './routes/auth.js';
-import { handleStaffList, handleStaffPortfolio, handleStaffRole } from './routes/staff.js';
+import { handleLogin, handleLogout, handleMe, handlePinChange } from './routes/auth.js';
+import { handleStaffCreate, handleStaffList, handleStaffMediaDelete, handleStaffMediaOrder, handleStaffMediaUpload, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
+import { MEDIA_ROOT } from './lib/staff-media.js';
+import { handlePublicMasters } from './routes/public-masters.js';
+import { handleLocationsList } from './routes/locations.js';
 // Ре-экспорт для tests/api.staff-role-lock.test.js (инцидент 11.08.2026).
 export { isLastOwnerDemotion } from './routes/staff.js';
 import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
@@ -60,6 +64,7 @@ import { handleBookings, handleBookingCancel, handleBookingStatus, handleBooking
 export { checkSlotAvailability, resolveRescheduleDuration, planRescheduleNotifications, formatMoveSlot } from './routes/bookings.js';
 import {
   handleSchedule,
+  handleScheduleExceptions,
   handleScheduleRange,
   handleHolidaysList,
   handleHolidaysClose,
@@ -104,12 +109,22 @@ const ROUTES = [
   { method: 'GET', path: 'health', auth: 'public' },
   { method: 'POST', path: 'auth/login', auth: 'public' },
   { method: 'GET', path: 'auth/me', auth: 'any-staff' },
+  { method: 'PUT', path: 'auth/pin', auth: 'any-staff' },
+  { method: 'POST', path: 'auth/logout', auth: 'public' },
   { method: 'GET', path: 'staff', auth: 'any-staff' },
-  { method: 'PUT', path: 'staff/:id/portfolio', auth: 'owner' },
-  { method: 'PUT', path: 'staff/:id/role', auth: 'owner' },
+  { method: 'GET', path: 'locations', auth: 'any-staff' },
+  { method: 'POST', path: 'staff', auth: 'management' },
+  { method: 'PUT', path: 'staff/:id', auth: 'management' },
+  { method: 'POST', path: 'staff/:id/media', auth: 'management' },
+  { method: 'PUT', path: 'staff/:id/media/order', auth: 'management' },
+  { method: 'DELETE', path: 'staff/:id/media/:mediaId', auth: 'management' },
+  { method: 'GET', path: 'public/masters', auth: 'public' },
+  { method: 'GET', path: 'media/:key', auth: 'public' },
+  { method: 'PUT', path: 'staff/:id/portfolio', auth: 'management' },
+  { method: 'PUT', path: 'staff/:id/role', auth: 'management' },
   { method: 'GET', path: 'services', auth: 'any-staff' },
   { method: 'GET', path: 'master-services', auth: 'public' },
-  { method: 'PUT', path: 'master-services/:masterId/:serviceId', auth: 'owner' },
+  { method: 'PUT', path: 'master-services/:masterId/:serviceId', auth: 'management' },
   { method: 'GET', path: 'bookings', auth: 'public' },
   { method: 'POST', path: 'bookings', auth: 'public' },
   { method: 'POST', path: 'bookings/:id/cancel', auth: 'any-staff' },
@@ -124,29 +139,30 @@ const ROUTES = [
   { method: 'POST', path: 'schedule', auth: 'any-staff' },
   { method: 'DELETE', path: 'schedule', auth: 'any-staff' },
   { method: 'GET', path: 'schedule-range', auth: 'any-staff' },
+  { method: 'POST', path: 'schedule-exceptions', auth: 'any-staff' },
   { method: 'GET', path: 'holidays', auth: 'public' },
-  { method: 'POST', path: 'holidays/close', auth: 'owner' },
+  { method: 'POST', path: 'holidays/close', auth: 'management' },
   { method: 'GET', path: 'schedule-availability', auth: 'public' },
   { method: 'GET', path: 'masters-next-availability', auth: 'public' },
   { method: 'GET', path: 'master-weekly-schedule', auth: 'any-staff' },
   { method: 'PUT', path: 'master-weekly-schedule', auth: 'any-staff' },
   { method: 'POST', path: 'schedule-requests', auth: 'any-staff' },
   { method: 'GET', path: 'schedule-requests', auth: 'any-staff' },
-  { method: 'PATCH', path: 'schedule-requests/:id/decision', auth: 'owner' },
-  { method: 'PATCH', path: 'schedule-requests/:id/cancel', auth: 'owner' },
+  { method: 'PATCH', path: 'schedule-requests/:id/decision', auth: 'management' },
+  { method: 'PATCH', path: 'schedule-requests/:id/cancel', auth: 'management' },
   { method: 'GET', path: 'notifications', auth: 'any-staff' },
   { method: 'GET', path: 'notifications/unread-count', auth: 'any-staff' },
   { method: 'POST', path: 'notifications/:id/read', auth: 'any-staff' },
   { method: 'POST', path: 'notifications/read-all', auth: 'any-staff' },
   { method: 'GET', path: 'payroll-settings', auth: 'any-staff' },
-  { method: 'PUT', path: 'payroll-settings', auth: 'owner' },
+  { method: 'PUT', path: 'payroll-settings', auth: 'management' },
   { method: 'GET', path: 'discount-settings', auth: 'any-staff' },
-  { method: 'PUT', path: 'discount-settings', auth: 'owner' },
+  { method: 'PUT', path: 'discount-settings', auth: 'management' },
   { method: 'GET', path: 'payroll', auth: 'any-staff' },
   { method: 'GET', path: 'revenue/today', auth: 'any-staff' },
   { method: 'GET', path: 'clients', auth: 'any-staff' },
   { method: 'GET', path: 'clients/:id', auth: 'any-staff' },
-  { method: 'GET', path: 'owner/alerts', auth: 'owner' },
+  { method: 'GET', path: 'owner/alerts', auth: 'management' },
 ];
 
 function matchRoute(method, parts) {
@@ -177,7 +193,9 @@ const server = createServer(async (req, res) => {
     if (!matchedRoute) return sendJson(res, 404, { error: 'route_not_found' });
     if (matchedRoute.auth !== 'public') {
       const gateAuth = await authenticate(req);
-      if (matchedRoute.auth === 'owner') {
+      if (matchedRoute.auth === 'management') {
+        if (!canManageStaff(gateAuth)) return sendJson(res, 401, { error: 'unauthorized' });
+      } else if (matchedRoute.auth === 'owner') {
         if (!requireRole(gateAuth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
       } else if (!gateAuth) {
         return sendJson(res, 401, { error: 'unauthorized' });
@@ -197,11 +215,21 @@ const server = createServer(async (req, res) => {
     if (parts[0] === 'auth' && parts[1] === 'me' && req.method === 'GET') {
       return handleMe(req, res);
     }
+    if (parts[0] === 'auth' && parts[1] === 'pin' && req.method === 'PUT') return handlePinChange(req, res);
+    if (parts[0] === 'auth' && parts[1] === 'logout' && req.method === 'POST') return handleLogout(req, res);
 
     // ── /staff - роль ограничивает выдачу на уровне SQL, не только в UI ──
     if (parts[0] === 'staff' && parts.length === 1 && req.method === 'GET') {
       return handleStaffList(req, res);
     }
+    if (parts[0] === 'locations' && parts.length === 1 && req.method === 'GET') return handleLocationsList(req, res);
+    if (parts[0] === 'staff' && parts.length === 1 && req.method === 'POST') return handleStaffCreate(req, res);
+    if (parts[0] === 'staff' && parts[1] && parts.length === 2 && req.method === 'PUT') return handleStaffUpdate(req, res, parts);
+    if (parts[0] === 'staff' && parts[1] && parts[2] === 'media' && parts.length === 3 && req.method === 'POST') return handleStaffMediaUpload(req,res,parts,url);
+    if (parts[0] === 'staff' && parts[1] && parts[2] === 'media' && parts[3] === 'order' && req.method === 'PUT') return handleStaffMediaOrder(req,res,parts);
+    if (parts[0] === 'staff' && parts[1] && parts[2] === 'media' && parts[3] && req.method === 'DELETE') return handleStaffMediaDelete(req,res,parts);
+    if (parts[0] === 'public' && parts[1] === 'masters' && req.method === 'GET') return handlePublicMasters(req,res);
+    if (parts[0] === 'media' && parts[1] && req.method === 'GET') { const key=parts[1]; if(!/^[a-f0-9]{36}\.webp$/.test(key)) return sendJson(res,404,{error:'media_not_found'}); try { const image=readFileSync(join(MEDIA_ROOT,key)); res.writeHead(200,{ 'Content-Type':'image/webp','Cache-Control':'public, max-age=86400' }); return res.end(image); } catch { return sendJson(res,404,{error:'media_not_found'}); } }
 
     // ── /staff/:id/portfolio - Задача 4 (Окно 13, 01.08.2026). Только владелец
     // редактирует (тот же уровень доступа, что у /payroll-settings PUT - Алихан сам
@@ -323,6 +351,7 @@ const server = createServer(async (req, res) => {
     if (parts[0] === 'schedule-range' && parts.length === 1 && req.method === 'GET') {
       return handleScheduleRange(req, res, url);
     }
+    if (parts[0] === 'schedule-exceptions' && parts.length === 1 && req.method === 'POST') return handleScheduleExceptions(req, res);
 
     // ── /holidays - производственный календарь (Окно 24, 05.08.2026). Анонимный
     // GET: тот же уровень доступа, что у /services и узкого /schedule - публичному

@@ -3,6 +3,7 @@
 // без изменений.
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { pool } from './db.js';
+import { canManageStaff } from './permissions.js';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 дней - простой логин, не нужен рефреш-стек
 
@@ -45,7 +46,7 @@ export async function authenticate(req) {
   const result = await pool.query(
     `SELECT s.id, s.name, s.role, s.location_id, sess.expires_at
      FROM sessions sess JOIN staff s ON s.id = sess.staff_id
-     WHERE sess.token = $1`,
+     WHERE sess.token = $1 AND s.employed = true AND s.has_system_access = true`,
     [token]
   );
   if (result.rows.length === 0) return null;
@@ -56,4 +57,8 @@ export async function authenticate(req) {
 
 export function requireRole(auth, roles) {
   return auth && roles.includes(auth.role);
+}
+
+export function requireManagementRole(auth) {
+  return canManageStaff(auth);
 }

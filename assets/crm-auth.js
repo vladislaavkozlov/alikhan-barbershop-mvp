@@ -10,8 +10,8 @@ import { refreshRoleSnapshot, renderLiveProof } from './crm-dashboard.js';
 export const API = window.ALIKHAN_API_URL;
 const TOKEN_KEY = 'alikhan-crm:token';
 const STAFF_KEY = 'alikhan-crm:staff';
-const ROLE_LABELS = { owner: 'владелец', admin: 'администратор точки', master: 'мастер' };
-const ROLE_PAGE = { owner: 'crm-owner.html', admin: 'crm-admin.html', master: 'crm-master.html' };
+const ROLE_LABELS = { owner: 'владелец', manager: 'управляющий', admin: 'администратор точки', master: 'мастер' };
+const ROLE_PAGE = { owner: 'crm-owner.html', manager: 'crm-owner.html', admin: 'crm-admin.html', master: 'crm-master.html' };
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -89,6 +89,7 @@ export async function apiSend(path, method, body) {
 }
 
 export function initCrmAuth(requiredRole) {
+  const requiredRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
   const gate = buildLoginGate();
   const main = el('crmMain');
   const sessionInfo = el('sessionInfo');
@@ -103,11 +104,14 @@ export function initCrmAuth(requiredRole) {
     // а не ссылкой на соседний кабинет: переход на страницу чужой роли намеренно
     // очищает несовместимую сессию, поэтому такого ложного действия в UI быть не должно.
     document.querySelectorAll('#roleSwitch [data-role]').forEach((indicator) => {
-      indicator.hidden = indicator.dataset.role !== staff.role;
+      const isManagementIndicator = indicator.dataset.role === 'owner' && staff.role === 'manager';
+      indicator.hidden = !(indicator.dataset.role === staff.role || isManagementIndicator);
+      if (isManagementIndicator) indicator.textContent = 'Управляющий';
     });
     window.__refreshRoleSnapshot = () => refreshRoleSnapshot(staff);
     renderLiveProof(staff);
     wireNotifications(staff);
+    document.dispatchEvent(new CustomEvent('crm:authenticated', { detail: staff }));
   }
 
   // Баг (найден Владом 02.08.2026): заход на crm-master.html с уже сохранённой в
@@ -122,7 +126,7 @@ export function initCrmAuth(requiredRole) {
   // сессию и показывает форму входа прямо на этой странице, чтобы можно было
   // сразу ввести данные нужной роли.
   function handleStaff(staff, fromLogin) {
-    if (staff.role !== requiredRole) {
+    if (!requiredRoles.includes(staff.role)) {
       if (fromLogin) {
         location.href = ROLE_PAGE[staff.role] || 'crm-owner.html';
       } else {
@@ -158,7 +162,13 @@ export function initCrmAuth(requiredRole) {
   if (main) main.hidden = true;
   const existing = getStoredStaff();
   if (existing && getToken()) {
-    handleStaff(existing);
+    fetchJson('/auth/me').then((data) => {
+      setSession(getToken(), data.staff);
+      handleStaff(data.staff);
+    }).catch(() => {
+      clearSession();
+      gate.hidden = false;
+    });
   } else {
     gate.hidden = false;
   }

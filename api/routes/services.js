@@ -4,12 +4,13 @@
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
+import { canManageStaff } from '../lib/permissions.js';
 
 // ── /services - каталог, доступен любой авторизованной роли ──────────
 export async function handleServicesList(req, res) {
   const auth = await authenticate(req);
   if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-  const result = await pool.query('SELECT id, name, category, duration_min, price, composition FROM services');
+  const result = await pool.query('SELECT id, name, category, duration_min, price, composition FROM services ORDER BY name, id');
   return sendJson(
     res,
     200,
@@ -33,7 +34,7 @@ export async function handleServicesList(req, res) {
 // разрешён так же, как уже сделано для /schedule (Окно 15) - ничего чувствительнее
 // цены/длительности здесь нет, эти цифры и так были видны на сайте захардкоженными.
 export async function handleMasterServicesList(req, res) {
-  const result = await pool.query('SELECT master_id, service_id, price, duration_min FROM master_services');
+  const result = await pool.query('SELECT master_id, service_id, price, duration_min FROM master_services ORDER BY master_id, service_id');
   return sendJson(
     res,
     200,
@@ -56,7 +57,7 @@ export async function handleMasterServicesList(req, res) {
 // duration_min по умолчанию берётся из общего каталога services, если не передан.
 export async function handleMasterServiceUpdate(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const masterId = decodeURIComponent(parts[1]);
   const serviceId = decodeURIComponent(parts[2]);
   const body = await readBody(req);

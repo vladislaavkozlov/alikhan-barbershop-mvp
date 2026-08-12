@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="assets/mockup-crm.css" />
 <link rel="stylesheet" href="assets/crm-app-shell.css" />
 <link rel="stylesheet" href="assets/crm-navigation-panels.css" />
+<link rel="stylesheet" href="assets/crm-team-content.css" />
 <style>
   /* Окно 45 (08.08.2026) - День/Неделя/Месяц Расписания больше не radio-пилюли, а
      сворачиваемые карточки (.schedule-view-card) - видимость содержимого решает сам
@@ -1019,7 +1020,8 @@
   import { initAppShell } from './assets/crm-app-shell.js';
   import { refreshFinance } from './assets/crm-dashboard.js';
   import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
-  initCrmAuth('owner');
+  import { renderTeam } from './assets/crm-team.js';
+  initCrmAuth(['owner', 'manager']);
   const scheduleRequestsApi = initOwnerScheduleRequests();
   wireClientsRisk();
   wireScheduleAlerts();
@@ -1054,6 +1056,7 @@
     refreshFinance(),
   ]);
   initCrmRefreshControl();
+  renderTeam();
 </script>
 </body>
 </html>

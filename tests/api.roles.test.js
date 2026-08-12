@@ -122,6 +122,13 @@ before(async () => {
      ON CONFLICT (master_id, service_id) DO NOTHING`,
     [FIXTURE_MASTER_LOC1, FIXTURE_MASTER_LOC2]
   );
+  await pool.query(
+    `INSERT INTO master_weekly_schedule (master_id, weekday, is_working, work_start, work_end)
+     SELECT master_id, weekday, true, '10:00', '20:00'
+     FROM unnest($1::text[]) AS master_id CROSS JOIN generate_series(1, 7) AS weekday
+     ON CONFLICT (master_id, weekday) DO UPDATE SET is_working = true, work_start = '10:00', work_end = '20:00', break_start = NULL, break_end = NULL`,
+    [[FIXTURE_MASTER_LOC1, FIXTURE_MASTER_LOC2]]
+  );
 
   async function makeBooking(masterId) {
     const res = await fetch(`${API_URL}/bookings`, {
@@ -147,6 +154,7 @@ before(async () => {
 after(async () => {
   if (!pool) return;
   await pool.query('DELETE FROM bookings WHERE master_id = ANY($1)', [FIXTURE_STAFF_IDS]);
+  await pool.query('DELETE FROM master_weekly_schedule WHERE master_id = ANY($1)', [FIXTURE_STAFF_IDS]);
   await pool.query('DELETE FROM master_services WHERE master_id = ANY($1)', [FIXTURE_STAFF_IDS]);
   await pool.query('DELETE FROM staff WHERE id = ANY($1)', [FIXTURE_STAFF_IDS]);
   await pool.query(`DELETE FROM clients WHERE phone = '+79990001122'`);
