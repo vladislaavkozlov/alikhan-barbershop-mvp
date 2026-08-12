@@ -1,0 +1,423 @@
+/*
+ * Утверждённый визуальный слой навигационных панелей всех CRM-кабинетов
+ * Источник правил: docs/design/crm-navigation-panels.md
+ * Все селекторы намеренно ограничены .crm-navigation-ui, чтобы публичная запись
+ * не менялась вместе с внутренними кабинетами
+ */
+
+.crm-navigation-ui {
+  --owner-panel-radius: 14px;
+  --owner-control-radius: 10px;
+  --owner-panel-border: color-mix(in srgb, var(--accent) 24%, var(--border));
+  --owner-panel-border-active: color-mix(in srgb, var(--accent) 52%, var(--border));
+  --owner-panel-quiet: color-mix(in srgb, var(--surface) 64%, transparent);
+  --owner-panel-active: color-mix(in srgb, var(--surface-2) 86%, var(--surface));
+}
+
+/* Аккордеоны всех разделов владельца, администратора и мастера */
+.crm-navigation-ui .staff-list {
+  gap: 10px;
+}
+
+.crm-navigation-ui details.staff-card {
+  position: relative;
+  overflow: clip;
+  border: 1px solid var(--owner-panel-border);
+  border-radius: var(--owner-panel-radius);
+  background: var(--owner-panel-quiet);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018);
+  transition:
+    background-color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    box-shadow 160ms var(--ease-out);
+}
+
+.crm-navigation-ui details.staff-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+  opacity: 0;
+  z-index: 2;
+  transition: opacity 160ms var(--ease-out);
+}
+
+.crm-navigation-ui details.staff-card[open] {
+  border-color: var(--owner-panel-border-active);
+  background: var(--owner-panel-active);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 12px 28px -24px rgba(0, 0, 0, 0.72);
+}
+
+.crm-navigation-ui details.staff-card[open]::before {
+  opacity: 1;
+}
+
+.crm-navigation-ui details.staff-card summary {
+  min-height: 70px;
+  padding: 13px 18px 13px 20px;
+  gap: 14px;
+  flex-wrap: nowrap;
+  background: transparent;
+  transition: background-color 140ms var(--ease-out);
+}
+
+.crm-navigation-ui details.staff-card summary:hover {
+  background: color-mix(in srgb, var(--surface-3) 20%, transparent);
+}
+
+.crm-navigation-ui details.staff-card summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 78%, white);
+  outline-offset: -3px;
+  border-radius: calc(var(--owner-panel-radius) - 1px);
+}
+
+.crm-navigation-ui details.staff-card .summary-meta {
+  min-width: 0;
+}
+
+.crm-navigation-ui details.staff-card .summary-meta .name {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.crm-navigation-ui details.staff-card .summary-meta .role {
+  color: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  line-height: 1.35;
+}
+
+.crm-navigation-ui details.staff-card .avatar-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--owner-control-radius);
+  background: color-mix(in srgb, var(--surface-3) 72%, transparent);
+  border-color: var(--owner-panel-border);
+  transition:
+    background-color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    box-shadow 160ms var(--ease-out);
+}
+
+.crm-navigation-ui details.staff-card .avatar-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.crm-navigation-ui details.staff-card[open] .avatar-icon {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px -12px color-mix(in srgb, var(--accent) 78%, transparent);
+}
+
+.crm-navigation-ui details.staff-card[open] .avatar-icon svg {
+  color: var(--leather);
+}
+
+/* Карточки людей сохраняют круглый аватар, но используют общий размер заголовка */
+.crm-navigation-ui details.staff-card summary > .avatar {
+  width: 40px;
+  height: 40px;
+  transition:
+    color 160ms var(--ease-out),
+    background-color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    box-shadow 160ms var(--ease-out);
+}
+
+.crm-navigation-ui details.staff-card[open] summary > .avatar {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--leather);
+  box-shadow: 0 8px 20px -12px color-mix(in srgb, var(--accent) 78%, transparent);
+}
+
+.crm-navigation-ui details.staff-card .chevron {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  overflow: hidden;
+  border: 1px solid var(--owner-panel-border);
+  border-radius: 9px;
+  color: var(--text-muted);
+  font-size: 0;
+  transform: none;
+  transition:
+    color 140ms var(--ease-out),
+    border-color 140ms var(--ease-out),
+    background-color 140ms var(--ease-out);
+}
+
+.crm-navigation-ui details.staff-card .chevron::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 160ms var(--ease-out);
+}
+
+.crm-navigation-ui details.staff-card[open] .chevron {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--surface-3) 44%, transparent);
+  transform: none;
+}
+
+.crm-navigation-ui details.staff-card[open] .chevron::before {
+  transform: translateY(-1px) rotate(45deg);
+}
+
+.crm-navigation-ui details.staff-card .staff-card-body {
+  position: relative;
+  margin-top: 0;
+  padding: 18px 20px 22px;
+  border-top: 0;
+}
+
+.crm-navigation-ui details.staff-card .staff-card-body::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 74px;
+  right: 18px;
+  height: 1px;
+  background: var(--owner-panel-border);
+}
+
+/* Единая система служебных действий в правой части верхней панели */
+.crm-navigation-ui .nav-right {
+  gap: 10px;
+}
+
+.crm-navigation-ui .crm-top-action {
+  min-height: 38px;
+  border: 1px solid var(--owner-panel-border);
+  border-radius: var(--owner-control-radius);
+  background: color-mix(in srgb, var(--surface) 56%, transparent);
+  color: var(--text-muted);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  transition:
+    color 140ms var(--ease-out),
+    background-color 140ms var(--ease-out),
+    border-color 140ms var(--ease-out),
+    box-shadow 140ms var(--ease-out);
+}
+
+.crm-navigation-ui button.crm-top-action {
+  font-family: inherit;
+}
+
+.crm-navigation-ui .notif-bell.crm-top-action {
+  width: 38px;
+  padding: 0;
+  color: var(--text-muted);
+}
+
+.crm-navigation-ui .notif-bell.crm-top-action svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.6;
+}
+
+/* Служебные действия повторяют лёгкость иконок сайдбара: без постоянной рамки,
+   поверхность появляется только при наведении. Переключатель ролей ниже остаётся
+   отдельным навигационным контролом со своим active-состоянием */
+.crm-navigation-ui .notif-bell.crm-top-action,
+.crm-navigation-ui .logout-btn.crm-top-action {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.crm-navigation-ui .logout-btn.crm-top-action,
+.crm-navigation-ui .role-switch .crm-top-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border-radius: var(--owner-control-radius);
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.crm-navigation-ui .crm-top-action:hover {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
+  background: color-mix(in srgb, var(--surface-3) 55%, transparent);
+  color: var(--text);
+}
+
+.crm-navigation-ui .notif-bell.crm-top-action:hover,
+.crm-navigation-ui .logout-btn.crm-top-action:hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--surface-3) 55%, transparent);
+}
+
+.crm-navigation-ui .crm-top-action:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 78%, white);
+  outline-offset: 2px;
+}
+
+.crm-navigation-ui .role-switch .crm-top-action[aria-current='page'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--leather);
+  box-shadow: 0 8px 20px -14px color-mix(in srgb, var(--accent) 84%, transparent);
+}
+
+/* Предупреждения об отсутствии рабочего графика */
+.crm-navigation-ui #ownerAlertsSchedule {
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.crm-navigation-ui .owner-schedule-alert {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--owner-panel-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+}
+
+.crm-navigation-ui .owner-schedule-alert::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+}
+
+.crm-navigation-ui .owner-schedule-alert__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.crm-navigation-ui .owner-schedule-alert__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.crm-navigation-ui .owner-schedule-alert__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.crm-navigation-ui .owner-schedule-alert__copy strong {
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.crm-navigation-ui .owner-schedule-alert__action {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color 140ms var(--ease-out),
+    background-color 140ms var(--ease-out),
+    border-color 140ms var(--ease-out);
+}
+
+.crm-navigation-ui .owner-schedule-alert__action:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.crm-navigation-ui .owner-schedule-alert__action:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 78%, white);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .crm-navigation-ui details.staff-card summary {
+    min-height: 64px;
+    padding: 11px 12px 11px 14px;
+    gap: 11px;
+  }
+
+  .crm-navigation-ui details.staff-card .summary-badges {
+    display: none;
+  }
+
+  .crm-navigation-ui details.staff-card .staff-card-body {
+    padding: 16px 12px 18px;
+  }
+
+  .crm-navigation-ui details.staff-card .staff-card-body::before {
+    left: 65px;
+    right: 12px;
+  }
+
+  .crm-navigation-ui .owner-schedule-alert {
+    grid-template-columns: 36px minmax(0, 1fr);
+    padding: 10px 10px 10px 13px;
+  }
+
+  .crm-navigation-ui .owner-schedule-alert__action {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+/* В узком desktop у администратора и мастера адрес дублирует данные сайдбара и
+   выталкивает реальные действия за правую кромку. Убираем только справочный badge */
+@media (min-width: 1024px) and (max-width: 1500px) {
+  .crm-navigation-ui .nav-right > .location-badge {
+    display: none;
+  }
+
+  .crm-navigation-ui .role-switch {
+    gap: 5px;
+  }
+
+  .crm-navigation-ui .role-switch .crm-top-action {
+    padding-inline: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-navigation-ui details.staff-card,
+  .crm-navigation-ui details.staff-card::before,
+  .crm-navigation-ui details.staff-card .avatar-icon,
+  .crm-navigation-ui details.staff-card summary > .avatar,
+  .crm-navigation-ui details.staff-card .chevron,
+  .crm-navigation-ui details.staff-card .chevron::before,
+  .crm-navigation-ui .crm-top-action,
+  .crm-navigation-ui .owner-schedule-alert__action {
+    transition: none;
+  }
+}

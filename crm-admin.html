@@ -7,6 +7,7 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/mockup-crm.css" />
 <link rel="stylesheet" href="assets/crm-app-shell.css" />
+<link rel="stylesheet" href="assets/crm-navigation-panels.css" />
 <style>
   #sp-day:checked ~ .panel-sp-day, #sp-week:checked ~ .panel-sp-week,
   #sp-month:checked ~ .panel-sp-month, #sp-year:checked ~ .panel-sp-year { display: block; }
@@ -55,24 +56,24 @@
   #wi1-6m:checked ~ .panel-wi1-6m, #wi1-year:checked ~ .panel-wi1-year { display: block; }
 </style>
 </head>
-<body>
+<body class="crm-navigation-ui">
 
 <header class="site">
   <div class="nav">
     <a href="index.html" class="brand">АЛИХАН</a>
     <div class="nav-right">
       <span class="location-badge">Ставрополь, ул. Андрея Голуба 16 ст1</span>
-      <button class="notif-bell" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили">🔔<span class="notif-badge">3</span></button>
+      <button class="notif-bell crm-top-action" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span class="notif-badge">3</span></button>
       <div class="msg-bell-wrap" style="position:relative">
-        <button class="notif-bell" type="button" id="msgBell" aria-label="Уведомления о записях и графике">✉<span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
+        <button class="notif-bell crm-top-action" type="button" id="msgBell" aria-label="Уведомления о записях и графике"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
         <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
       </div>
       <span id="sessionInfo" class="session-info" hidden></span>
-      <button id="logoutBtn" class="logout-btn" type="button" hidden>Выйти</button>
+      <button id="logoutBtn" class="logout-btn crm-top-action" type="button" hidden>Выйти</button>
       <div class="role-switch" id="roleSwitch">
-        <a href="crm-owner.html" data-role="owner">Владелец</a>
-        <a href="crm-admin.html" data-role="admin" aria-current="page">Администратор</a>
-        <a href="crm-master.html" data-role="master">Мастер</a>
+        <a class="crm-top-action" href="crm-owner.html" data-role="owner">Владелец</a>
+        <a class="crm-top-action" href="crm-admin.html" data-role="admin" aria-current="page">Администратор</a>
+        <a class="crm-top-action" href="crm-master.html" data-role="master">Мастер</a>
       </div>
     </div>
   </div>
