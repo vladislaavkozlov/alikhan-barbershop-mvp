@@ -136,7 +136,7 @@ export function wireNotifications(staff) {
       list.innerHTML = items
         .map((n) => {
           const actions =
-            n.type === 'schedule_request_new' && staff.role === 'owner' && n.scheduleRequestId
+            n.type === 'schedule_request_new' && ['owner', 'manager'].includes(staff.role) && n.scheduleRequestId
               ? `<div class="msg-actions">
                    <button class="btn-ghost btn-sm" type="button" data-decide="approved" data-req="${n.scheduleRequestId}" data-ntf="${n.id}">Одобрить</button>
                    <button class="btn-ghost btn-sm" type="button" data-decide="rejected" data-req="${n.scheduleRequestId}" data-ntf="${n.id}">Отклонить</button>
@@ -210,5 +210,6 @@ export function wireNotifications(staff) {
   });
 
   refreshBadge();
+  window.__refreshNotifications = refreshBadge;
   setInterval(refreshBadge, 45 * 1000);
 }

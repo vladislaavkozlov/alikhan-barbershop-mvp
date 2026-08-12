@@ -5,7 +5,8 @@
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
-import { addDaysIso, enumerateDateRange, shopNow } from '../lib/time.js';
+import { BOOKING_OPERATOR_ROLES, canManageStaff } from '../lib/permissions.js';
+import { addDaysIso, enumerateDateRange, shopNow, toMinutes } from '../lib/time.js';
 import {
   getEffectiveSchedule,
   findScheduleConflicts,
@@ -26,6 +27,72 @@ import {
   findWeeklyScheduleConflicts,
   writeWeeklySchedule,
 } from '../lib/schedule-core.js';
+
+export function scheduleExceptionBreaks(type, effective, breakStart, breakEnd) {
+  if (!effective?.startTime || !effective?.endTime) return null;
+  if (type === 'dayOff') return [{ startTime: effective.startTime, endTime: effective.endTime }];
+  if (type !== 'break' || !/^\d{2}:\d{2}$/.test(breakStart ?? '') || !/^\d{2}:\d{2}$/.test(breakEnd ?? '')) return null;
+  if (toMinutes(breakStart) >= toMinutes(breakEnd) || toMinutes(breakStart) < toMinutes(effective.startTime) || toMinutes(breakEnd) > toMinutes(effective.endTime)) return null;
+  return [{ startTime: breakStart, endTime: breakEnd }];
+}
+
+// Атомарное применение разового перерыва или выходного на один день/диапазон.
+// Нельзя собирать диапазон циклом на браузере: при конфликте на последней дате
+// половина изменений уже сохранилась бы. Здесь сначала проверяются все даты, затем
+// одна транзакция либо применяет их все, либо не меняет ничего
+export async function handleScheduleExceptions(req, res) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
+  const body = await readBody(req);
+  const { masterId, dateFrom, dateTo, type, breakStart, breakEnd } = body;
+  if (!masterId || !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo ?? '')) return sendJson(res, 400, { error: 'missing_fields' });
+  const dates = enumerateDateRange(dateFrom, dateTo);
+  if (!dates.length || dates.length > 31) return sendJson(res, 400, { error: 'invalid_range', maxDays: 31 });
+  if (auth.role === 'admin') {
+    const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [masterId]);
+    if (staffRes.rows.length === 0 || staffRes.rows[0].location_id !== auth.locationId) return sendJson(res, 403, { error: 'forbidden' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const changes = [];
+    const conflictsByDate = [];
+    for (const date of dates) {
+      const effective = await getEffectiveSchedule(client, masterId, date);
+      const breaks = scheduleExceptionBreaks(type, effective, breakStart, breakEnd);
+      if (!breaks) {
+        await client.query('ROLLBACK');
+        return sendJson(res, 400, { error: 'invalid_schedule_exception' });
+      }
+      const conflicts = await findScheduleConflicts(client, masterId, date, breaks);
+      if (conflicts.length) conflictsByDate.push({ date, conflicts });
+      changes.push({ date, startTime: effective.startTime, endTime: effective.endTime, breaks });
+    }
+    if (conflictsByDate.length) {
+      await client.query('ROLLBACK');
+      return sendJson(res, 409, { error: 'schedule_conflict', conflicts: conflictsByDate });
+    }
+    for (const change of changes) {
+      const shift = await client.query(
+        `INSERT INTO schedule_shifts (master_id, date, start_time, end_time) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (master_id, date) DO UPDATE SET start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time
+         RETURNING id`,
+        [masterId, change.date, change.startTime, change.endTime]
+      );
+      await client.query('DELETE FROM schedule_breaks WHERE shift_id = $1', [shift.rows[0].id]);
+      for (const item of change.breaks) {
+        await client.query('INSERT INTO schedule_breaks (shift_id, start_time, end_time) VALUES ($1, $2, $3)', [shift.rows[0].id, item.startTime, item.endTime]);
+      }
+    }
+    await client.query('COMMIT');
+    return sendJson(res, 200, { ok: true, count: changes.length });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 // ── /schedule - смены + перерывы (список интервалов, разд.14.1) ──────
 export async function handleSchedule(req, res, url) {
@@ -98,7 +165,7 @@ export async function handleSchedule(req, res, url) {
 
   if (req.method === 'POST') {
     const auth = await authenticate(req);
-    if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+    if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
     const body = await readBody(req);
     if (!body.masterId || !body.date || !body.startTime || !body.endTime) {
       return sendJson(res, 400, { error: 'missing_fields' });
@@ -156,7 +223,7 @@ export async function handleSchedule(req, res, url) {
   // специально восстанавливать не нужно, это уже гарантия резолвера.
   if (req.method === 'DELETE') {
     const auth = await authenticate(req);
-    if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+    if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
     const masterId = url.searchParams.get('masterId');
     const date = url.searchParams.get('date');
     if (!masterId || !date) return sendJson(res, 400, { error: 'missing_fields' });
@@ -225,7 +292,7 @@ export async function handleHolidaysList(req, res, url) {
 // разных выходных с разным поведением.
 export async function handleHolidaysClose(req, res) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const body = await readBody(req);
   if (!body.from || !body.to) return sendJson(res, 400, { error: 'missing_fields' });
   if (body.masterIds != null && !Array.isArray(body.masterIds)) {
@@ -375,7 +442,7 @@ export async function handleMasterWeeklySchedule(req, res, url) {
   }
 
   if (req.method === 'PUT') {
-    if (!requireRole(auth, ['owner', 'admin'])) return sendJson(res, 401, { error: 'unauthorized' });
+    if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
     const body = await readBody(req);
     const rows = validateWeeklyChanges(body.weeklyChanges);
     if (!body.masterId || !rows) return sendJson(res, 400, { error: 'missing_fields' });

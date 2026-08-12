@@ -329,7 +329,9 @@ export function todayStr() {
 // Экспортирована (Окно 18) - Неделя/Месяц (assets/crm-schedule-views.js) строят
 // переключатель мастера по тому же списку, что и "Мой день", а не своему.
 export function mastersOf(staffList) {
-  return staffList.filter((s) => s.providesServices).sort((a, b) => a.id.localeCompare(b.id));
+  return staffList
+    .filter((s) => s.providesServices && s.hasWorkingSchedule !== false)
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export async function renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson, date }) {
@@ -338,7 +340,7 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
   const grid = document.querySelector('.panel-sp-day .schedule-grid');
   if (!grid) return; // страница без дневного календаря (не должно случиться, но не падаем)
 
-  const isSolo = !!document.getElementById('walkinSoloTrigger');
+  const isSolo = staff.role === 'master';
   // crm-owner.html/crm-admin.html - несколько колонок, одна на каждого реального
   // мастера, видимого этой роли (staffList уже отфильтрован сервером по роли).
   const masters = isSolo ? [staff] : mastersOf(staffList);

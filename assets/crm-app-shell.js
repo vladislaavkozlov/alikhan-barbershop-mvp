@@ -72,10 +72,10 @@ const ROLE_CONFIG = {
   admin: {
     profileLabel: 'Администратор',
     defaultSection: 'schedule',
-    order: ['schedule', 'team'],
-    radio: { schedule: 'pt-a', team: 'pt-b' },
-    label: { schedule: 'Расписание', team: 'Сотрудники' },
-    icon: { schedule: ICON_SCHEDULE, team: ICON_TEAM },
+    order: ['schedule', 'team', 'profile'],
+    radio: { schedule: 'pt-a', team: 'pt-b', profile: 'pt-c' },
+    label: { schedule: 'Расписание', team: 'Сотрудники', profile: 'Личные данные' },
+    icon: { schedule: ICON_SCHEDULE, team: ICON_TEAM, profile: ICON_PROFILE },
   },
   master: {
     profileLabel: 'Мастер',
@@ -203,6 +203,5 @@ export function initAppShell(role = 'owner') {
   goToSection(activeConfig.defaultSection);
 }
 
-// Мост для инлайн-обработчиков в HTML (тот же установившийся в проекте паттерн,
-// что уже применён к window.toggleRetentionPanel/window.updateNotifBadge).
+// Мост для инлайн-обработчиков в HTML и переходов из доменных модулей.
 window.crmGoToSection = goToSection;

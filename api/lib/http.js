@@ -30,3 +30,9 @@ export async function readBody(req) {
     return {};
   }
 }
+
+export async function readRawBody(req, maxBytes = 8 * 1024 * 1024) {
+  const chunks = []; let size = 0;
+  for await (const chunk of req) { size += chunk.length; if (size > maxBytes) { const error = new Error('payload_too_large'); error.code = 'payload_too_large'; throw error; } chunks.push(chunk); }
+  return Buffer.concat(chunks);
+}

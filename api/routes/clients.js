@@ -5,6 +5,7 @@ import { sendJson } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { mastersWithWorkingSchedule } from '../lib/schedule-core.js';
+import { canManageStaff } from '../lib/permissions.js';
 import { findMastersMissingSchedule } from '../lib/notify-core.js';
 
 // Окно 39 (06.08.2026) - индикатор риска ухода клиента. no_show_streak уже
@@ -262,7 +263,7 @@ export async function computeOwnerAlerts(client) {
 // (мастера без графика, необработанные заявки, клиенты в риске) одним запросом.
 export async function handleOwnerAlerts(req, res) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const result = await computeOwnerAlerts(pool);
   return sendJson(res, 200, result);
 }

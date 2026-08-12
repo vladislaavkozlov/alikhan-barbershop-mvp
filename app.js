@@ -2,6 +2,7 @@ import {
   createStore,
   createHttpBackend,
   getMasters,
+  loadPublicMasters,
   getServices,
   priceLabelForMaster,
   priceForMaster,
@@ -29,7 +30,9 @@ if (!window.ALIKHAN_API_URL) {
     'font:12px/1.4 monospace;padding:6px 10px;border-radius:6px;opacity:0.85;pointer-events:none;max-width:280px';
   document.body.append(banner);
 }
-const masters = getMasters();
+// В боевом режиме список начинается пустым: нельзя на мгновение показать старых
+// демо-мастеров, а затем молча заменить их ответом API или оставить при его ошибке
+let masters = window.ALIKHAN_API_URL ? [] : getMasters();
 const services = getServices();
 
 const priceGrid = document.getElementById('price-grid');
@@ -434,17 +437,31 @@ function renderPrice() {
 
 function renderMasters() {
   mastersGrid.replaceChildren();
+  if (!masters.length) {
+    const message = document.createElement('p');
+    message.className = 'masters-disclaimer';
+    message.textContent = mastersGrid.dataset.publicMastersError === '1'
+      ? 'Не удалось загрузить мастеров. Обновите страницу или попробуйте позже'
+      : 'Загружаем мастеров…';
+    mastersGrid.append(message);
+    return;
+  }
   let i = 0;
   for (const master of masters) {
     const card = document.createElement('div');
     card.className = 'master-card';
 
-    const avatar = document.createElement('div');
+    const avatar = master.photoUrl ? document.createElement('img') : document.createElement('div');
     avatar.className = 'master-avatar';
-    avatar.textContent = master.name
-      .split(' ')
-      .map((part) => part[0])
-      .join('');
+    if (master.photoUrl) {
+      avatar.src = master.photoUrl;
+      avatar.alt = `Фотография мастера ${master.name}`;
+    } else {
+      avatar.textContent = master.name
+        .split(' ')
+        .map((part) => part[0])
+        .join('');
+    }
 
     const tag = document.createElement('span');
     tag.className = 'master-placeholder-tag';
@@ -459,6 +476,24 @@ function renderMasters() {
     win.textContent = `${master.workWindow.start}-${master.workWindow.end}`;
 
     card.append(avatar, tag, name, win);
+    for (const [field, label] of [['experienceText', 'Стаж'], ['strengthsText', 'Сильные стороны'], ['certificatesText', 'Курсы и сертификаты']]) {
+      if (!master[field]) continue;
+      const detail = document.createElement('p');
+      detail.className = 'master-profile-detail';
+      detail.textContent = `${label}: ${master[field]}`;
+      card.append(detail);
+    }
+    if (master.portfolio?.length) {
+      const portfolio = document.createElement('div');
+      portfolio.className = 'master-portfolio';
+      for (const item of master.portfolio) {
+        const image = document.createElement('img');
+        image.src = item.url;
+        image.alt = `Работа мастера ${master.name}`;
+        portfolio.append(image);
+      }
+      card.append(portfolio);
+    }
     mastersGrid.append(card);
     armReveal(card, i * 50);
     i += 1;
@@ -841,6 +876,23 @@ form.addEventListener('submit', async (event) => {
 renderPrice();
 renderMasters();
 renderMasterOptions();
+
+if (window.ALIKHAN_API_URL) {
+  loadPublicMasters(window.ALIKHAN_API_URL).then((rows) => {
+    masters = rows.map((m) => ({ ...m, workWindow: { start: '10:00', end: '20:00' }, isPlaceholder: false }));
+    renderMasters(); renderMasterOptions();
+  }).catch(() => {
+    if (mastersGrid) {
+      mastersGrid.dataset.publicMastersError = '1';
+      renderMasters();
+    }
+    masterGrid.replaceChildren();
+    const message = document.createElement('p');
+    message.className = 'form-msg error';
+    message.textContent = 'Не удалось загрузить мастеров для записи. Обновите страницу или попробуйте позже';
+    masterGrid.append(message);
+  });
+}
 
 // Правка 03.08.2026: подгружаем реальные master_services после первой отрисовки
 // (мастера/цены общего прайса не зависят от этого запроса) - если пользователь

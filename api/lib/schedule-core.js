@@ -58,11 +58,12 @@ export async function getEffectiveSchedule(client, masterId, date) {
 // покрыть unit-тестом без реального Postgres (тот же приём, что уже применяется для
 // getEffectiveSchedule/isScheduleDayOff выше). viewerRole==='owner' видит всех
 // (+ hasWorkingSchedule на каждой строке-мастере, чтобы владелец сам увидел, кому
-// нужно донастроить график) - остальные роли мастеров без рабочего графика в ответе
-// не получают вовсе. Не-мастеров (providesServices=false - сам владелец/админ без
-// стрижек) фильтр не касается ни для кого.
+// нужно донастроить график). Администратор тоже видит весь состав своей точки,
+// включая сотрудника без графика, но получает явный hasWorkingSchedule=false,
+// чтобы календарь и создание записи могли отдельно исключить его. Мастер видит
+// только себя. Не-мастеров фильтр не касается.
 export function filterStaffForViewer(staffRows, viewerRole, scheduledMasterIds) {
-  if (viewerRole === 'owner') {
+  if (viewerRole === 'owner' || viewerRole === 'admin') {
     return staffRows.map((r) => (r.providesServices ? { ...r, hasWorkingSchedule: scheduledMasterIds.has(r.id) } : r));
   }
   return staffRows.filter((r) => !r.providesServices || scheduledMasterIds.has(r.id));

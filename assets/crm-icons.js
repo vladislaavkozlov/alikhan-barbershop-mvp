@@ -27,3 +27,13 @@ export const ICON_SIDEBAR_TOGGLE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="ht
 // Окно 47 (09.08.2026) - раздел "Личные данные" мастера в sidebar. Профиль/анкета,
 // тот же line-art стиль (STROKE), не эмодзи - см. остальные иконки этого файла.
 export const ICON_PROFILE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="6.8" r="3"/><path d="M4 17c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg>`;
+
+// Иконки внутренних разделов карточки сотрудника. Та же сетка 20x20 и тот же
+// stroke, что у оболочки CRM, но разные метафоры помогают быстро сканировать
+// длинную раскрытую карточку без повторяющихся ножниц у каждого заголовка
+export const ICON_DETAILS = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3.5" width="14" height="13" rx="2"/><circle cx="7" cy="8" r="1.7"/><path d="M10.5 7.3h3.5M10.5 10h3.5M5.2 13.2h8.8"/></svg>`;
+export const ICON_PUBLIC = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7"/><path d="M3.5 8h13M3.5 12h13M10 3c2 2 3 4.3 3 7s-1 5-3 7c-2-2-3-4.3-3-7s1-5 3-7Z"/></svg>`;
+export const ICON_SERVICES = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><circle cx="5" cy="5.3" r="2"/><circle cx="5" cy="14.7" r="2"/><path d="M6.6 6.6 16.5 16.5M6.6 13.4 16.5 3.5"/></svg>`;
+export const ICON_ACCESS = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="10" r="4"/><path d="M11 10h6M14 10v2M16.5 10v2"/></svg>`;
+export const ICON_UPLOAD = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><path d="M10 13V3M6.5 6.5 10 3l3.5 3.5"/><path d="M4 11.5v3A2.5 2.5 0 0 0 6.5 17h7a2.5 2.5 0 0 0 2.5-2.5v-3"/></svg>`;
+export const ICON_ADD = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><path d="M10 4v12M4 10h12"/></svg>`;

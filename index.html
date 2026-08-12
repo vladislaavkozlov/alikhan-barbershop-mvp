@@ -356,6 +356,7 @@
     display: flex; align-items: center; justify-content: center;
     margin: 0 auto 14px; font-size: 1.4rem; color: var(--accent);
   }
+  img.master-avatar{ object-fit: cover; }
   .master-name{ font-size: 1.05rem; font-weight: 600; margin-bottom: 6px; }
   .master-placeholder-tag{
     display: inline-block; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase;
@@ -364,6 +365,9 @@
     padding: 3px 10px; margin-bottom: 10px;
   }
   .master-window{ font-size: 0.84rem; color: var(--text-muted); }
+  .master-profile-detail{ margin: 10px 0 0; font-size: .78rem; line-height: 1.45; color: var(--text-muted); text-align: left; }
+  .master-portfolio{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 12px; }
+  .master-portfolio img{ width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 5px; border: 1px solid var(--border); }
   .masters-disclaimer{
     margin-top: 18px; padding: 14px 16px;
     background: var(--surface-2); border-radius: 8px; border: 1px solid var(--border);

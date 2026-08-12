@@ -4,6 +4,7 @@
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
+import { canManageStaff } from '../lib/permissions.js';
 import { enumerateDateRange, dateColToStr, shopNow } from '../lib/time.js';
 import {
   validateWeeklyChanges,
@@ -164,7 +165,7 @@ export async function handleScheduleRequests(req, res, url) {
 // промпта - Мамедхан approve/reject не получает).
 export async function handleScheduleRequestDecision(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const requestId = Number(parts[1]);
   const body = await readBody(req);
   if (!['approved', 'rejected'].includes(body.decision)) return sendJson(res, 400, { error: 'invalid_decision' });
@@ -284,7 +285,7 @@ export async function handleScheduleRequestDecision(req, res, parts) {
 // схеме нет, и заводить его в рамках этого окна никто не просил.
 export async function handleScheduleRequestCancel(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const requestId = Number(parts[1]);
   if (!Number.isInteger(requestId)) return sendJson(res, 400, { error: 'invalid_id' });
 

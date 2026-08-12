@@ -9,13 +9,6 @@
 <link rel="stylesheet" href="assets/crm-app-shell.css" />
 <link rel="stylesheet" href="assets/crm-navigation-panels.css" />
 <style>
-  #sp-day:checked ~ .panel-sp-day, #sp-week:checked ~ .panel-sp-week,
-  #sp-month:checked ~ .panel-sp-month, #sp-year:checked ~ .panel-sp-year { display: block; }
-  #sp-day:checked ~ .seg-bar label[for="sp-day"],
-  #sp-week:checked ~ .seg-bar label[for="sp-week"],
-  #sp-month:checked ~ .seg-bar label[for="sp-month"],
-  #sp-year:checked ~ .seg-bar label[for="sp-year"] { background: var(--accent); color: var(--leather); }
-
   #zp1-calc:checked ~ .panel-zp1-calc { display: block; }
   #zp1-calc:checked ~ .seg-bar label[for="zp1-calc"] { background: var(--accent); color: var(--leather); }
 
@@ -54,6 +47,9 @@
   #wi1-6m:checked ~ .seg-bar label[for="wi1-6m"], #wi1-year:checked ~ .seg-bar label[for="wi1-year"] { background: var(--accent); color: var(--leather); }
   #wi1-month:checked ~ .panel-wi1-month, #wi1-3m:checked ~ .panel-wi1-3m,
   #wi1-6m:checked ~ .panel-wi1-6m, #wi1-year:checked ~ .panel-wi1-year { display: block; }
+
+  #pt-c:checked ~ .tab-bar label[for="pt-c"] { color: var(--accent); border-color: var(--accent); }
+  #pt-c:checked ~ .panel-c { display: block; }
 </style>
 </head>
 <body class="crm-navigation-ui">
@@ -63,68 +59,30 @@
     <a href="index.html" class="brand">АЛИХАН</a>
     <div class="nav-right">
       <span class="location-badge">Ставрополь, ул. Андрея Голуба 16 ст1</span>
-      <button class="notif-bell crm-top-action" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span class="notif-badge">3</span></button>
+      <button class="notif-bell crm-top-action" type="button" id="refreshBtn" aria-label="Обновить данные"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17,1.5 21,5.5 17,9.5"/><path d="M3,12.5v-2a4,4 0 0 1 4,-4h14"/><polyline points="7,22.5 3,18.5 7,14.5"/><path d="M21,11.5v2a4,4 0 0 1 -4,4H3"/></svg></button>
       <div class="msg-bell-wrap" style="position:relative">
-        <button class="notif-bell crm-top-action" type="button" id="msgBell" aria-label="Уведомления о записях и графике"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
+        <button class="notif-bell crm-top-action" type="button" id="msgBell" aria-label="Уведомления о записях и графике"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
         <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
       </div>
       <span id="sessionInfo" class="session-info" hidden></span>
       <button id="logoutBtn" class="logout-btn crm-top-action" type="button" hidden>Выйти</button>
       <div class="role-switch" id="roleSwitch">
-        <a class="crm-top-action" href="crm-owner.html" data-role="owner">Владелец</a>
-        <a class="crm-top-action" href="crm-admin.html" data-role="admin" aria-current="page">Администратор</a>
-        <a class="crm-top-action" href="crm-master.html" data-role="master">Мастер</a>
+        <span class="crm-top-action" data-role="admin" aria-current="page">Администратор</span>
       </div>
     </div>
   </div>
 </header>
 
-<main class="wrap page" id="crmMain">
-
-  <!-- Окно 38 (06.08.2026) - единственная цифра дневной выручки: администратор
-       раньше физически не мог ответить на "сколько мы заработали сегодня" без
-       звонка владельцу (PRODUCT_AUDIT_REPORT, разд. "Администратор"). Сумма
-       продаж (sales) за сегодня по своей точке - не полная аналитика владельца,
-       не разбивка по мастерам/услугам (вне объёма Окна 38).
-
-       Неопознанные визиты сегодня (09.08.2026) - решение Алихана по найденному
-       живьём багу потери имени walk-in-клиента без телефона (Окно 53, Задача J,
-       память project_barbershop-owner-schedule-bugfixes-okno53-09-08): систему
-       не заставляем опознавать клиента по одному имени (не масштабируется - "который
-       из сотни Сергеев"), но администратор должен честно видеть, сколько сегодня
-       было визитов без телефона - та же цифра, что countUnidentifiedToday отдаёт
-       заодно с revenue в GET /revenue/today (один запрос, не два). -->
-  <div class="stat-cards" style="max-width:460px;margin-bottom:18px">
-    <div class="stat-card stat-card--net">
-      <div class="sc-label">Выручка сегодня</div>
-      <div class="sc-value" id="revenueTodayAmount">— <span class="unsure">считаю…</span></div>
-    </div>
-    <div class="stat-card">
-      <div class="sc-label">Неопознанных визитов сегодня</div>
-      <div class="sc-value" id="unidentifiedTodayCount">— <span class="unsure">считаю…</span></div>
-      <div class="sc-note">без телефона - не привязаны к карточке клиента</div>
-    </div>
-  </div>
-
-  <div class="retention-alert" id="retention-panel">
-    <div class="ra-head"><span class="ico">⚠</span><strong>3 клиента точки не приходили 2+ месяца</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
-    <div class="ra-body">
-    <p class="section-hint" style="margin:6px 0 12px">Показан запущенный случай - от 2 месяцев без визита</p>
-    <div class="ra-list">
-      <div class="ra-row"><span class="ra-name">Клиент Е</span><span class="ra-last">Последний визит 18.05.2026 · 2.3 мес назад</span><span class="ra-master">Мамедхан</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-row"><span class="ra-name">Клиент Ж</span><span class="ra-last">Последний визит 15.04.2026 · 3.4 мес назад</span><span class="ra-master">Мамедхан</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-row"><span class="ra-name">Клиент И</span><span class="ra-last">Последний визит 20.02.2026 · 5.2 мес назад</span><span class="ra-master">Алиовсад</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-restore" hidden><button class="btn-ghost btn-sm" type="button" onclick="restoreRetentionRows(this)">Показать скрытые (<span class="count">0</span>)</button></div>
-    </div>
-    </div>
-  </div>
+<main class="wrap page" id="crmMain" hidden>
 
   <div class="page-tabs">
     <input type="radio" name="pt" id="pt-a" checked>
     <input type="radio" name="pt" id="pt-b">
+    <input type="radio" name="pt" id="pt-c">
     <div class="tab-bar">
       <label for="pt-a">Расписание</label>
       <label for="pt-b">Сотрудники</label>
+      <label for="pt-c">Личные данные</label>
     </div>
 
     <!-- ======================= РАСПИСАНИЕ ======================= -->
@@ -243,16 +201,11 @@
           <input type="radio" name="sched-period" id="sp-day" checked>
           <input type="radio" name="sched-period" id="sp-week">
           <input type="radio" name="sched-period" id="sp-month">
-          <input type="radio" name="sched-period" id="sp-year">
           <div class="seg-bar">
             <label for="sp-day">День</label>
             <label for="sp-week">Неделя</label>
             <label for="sp-month">Месяц</label>
-            <label for="sp-year">Год</label>
           </div>
-          <!-- Окно 25 - подпись-якорь текущей даты, общая на четыре вкладки (заполняет
-               assets/crm-schedule-views.js, тот же блок, что на crm-owner.html) -->
-          <div class="view-anchor" id="scheduleViewAnchor"></div>
 
           <div class="seg-panel panel-sp-day">
             <div class="day-nav" id="dayNav">
@@ -299,23 +252,6 @@
             <div class="month-grid" id="monthGrid"></div>
           </div>
 
-          <div class="seg-panel panel-sp-year">
-            <p class="section-hint" style="margin-top:12px">Справочно - производственный календарь РФ на 2026 год</p>
-            <div class="year-grid">
-              <div class="year-month"><div class="ym-name">Январь</div><span class="ym-holiday">Новогодние каникулы 1-8, Рождество 7</span></div>
-              <div class="year-month"><div class="ym-name">Февраль</div><span class="ym-holiday">23 - День защитника Отечества</span></div>
-              <div class="year-month"><div class="ym-name">Март</div><span class="ym-holiday">8 - Международный женский день</span></div>
-              <div class="year-month"><div class="ym-name">Апрель</div><span class="ym-holiday">без праздников</span></div>
-              <div class="year-month"><div class="ym-name">Май</div><span class="ym-holiday">1 - Праздник Весны и Труда, 9 - День Победы</span></div>
-              <div class="year-month"><div class="ym-name">Июнь</div><span class="ym-holiday">12 - День России</span></div>
-              <div class="year-month"><div class="ym-name">Июль</div><span class="ym-holiday">без праздников</span></div>
-              <div class="year-month"><div class="ym-name">Август</div><span class="ym-holiday">без праздников</span></div>
-              <div class="year-month"><div class="ym-name">Сентябрь</div><span class="ym-holiday">без праздников</span></div>
-              <div class="year-month"><div class="ym-name">Октябрь</div><span class="ym-holiday">без праздников</span></div>
-              <div class="year-month"><div class="ym-name">Ноябрь</div><span class="ym-holiday">4 - День народного единства</span></div>
-              <div class="year-month"><div class="ym-name">Декабрь</div><span class="ym-holiday">31 - предновогодний, сокращённый</span></div>
-            </div>
-          </div>
         </div>
 
         <div class="day-edit-modal" id="dayEditModal" hidden>
@@ -374,12 +310,6 @@
       <section>
         <!-- Правка 07.08.2026 - убран дублирующий <h2>Сотрудники</h2>: название вкладки
              уже видно в active-состоянии таб-бара выше. -->
-        <p class="section-hint">Роль и список услуг - только для просмотра, менять может владелец</p>
-
-        <div class="staff-filter-row">
-          <button class="btn-ghost btn-sm" type="button">+ Добавить сотрудника</button>
-        </div>
-
         <div class="staff-list">
           <!-- ИВАН 1 — полная карточка -->
           <details class="staff-card" open>
@@ -580,6 +510,52 @@
               <div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно (12 мес)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div>
             </div>
           </details>
+
+          <details class="staff-card" id="staffCard-master-3">
+            <summary>
+              <div class="avatar lg">ЕЛ</div>
+              <div class="summary-meta"><div class="name">Елизавета</div><div class="role">Мастер</div></div>
+              <div class="summary-badges"><span class="badge badge-on">Оказывает услуги</span><span class="badge badge-on">Доступ к сервису</span></div>
+              <span class="chevron">▸</span>
+            </summary>
+            <div class="staff-card-body">
+              <h4>Контакты</h4>
+              <div class="field-grid">
+                <div class="field"><label>Телефон</label><input id="adminStaffPhone-master-3" value="—" readonly></div>
+                <div class="field"><label>Email</label><input id="adminStaffEmail-master-3" value="—" readonly></div>
+              </div>
+              <h4>Услуги</h4>
+              <div class="service-picker" data-master-id="master-3"></div>
+              <h4>График работы</h4>
+              <div id="weeklyEditor-master-3"></div>
+            </div>
+          </details>
+        </div>
+      </section>
+    </div>
+
+    <div class="tab-panel panel-c">
+      <section>
+        <div class="staff-list">
+          <details class="staff-card" open>
+            <summary>
+              <div class="avatar lg" id="adminSelfAvatar">--</div>
+              <div class="summary-meta"><div class="name" id="adminSelfName">—</div><div class="role">Администратор</div></div>
+              <span class="chevron">▸</span>
+            </summary>
+            <div class="staff-card-body">
+              <h4>Контакты</h4>
+              <div class="field-grid">
+                <div class="field"><label>Телефон</label><input id="adminSelfPhone" value="—" readonly></div>
+                <div class="field"><label>Email</label><input id="adminSelfEmail" value="—" readonly></div>
+              </div>
+              <h4>Доступ</h4>
+              <div class="field-grid">
+                <div class="field"><label>Роль</label><input value="Администратор" readonly></div>
+                <div class="field"><label>Точка</label><input value="Алихан, Ставрополь" readonly></div>
+              </div>
+            </div>
+          </details>
         </div>
       </section>
     </div>
@@ -591,8 +567,14 @@
 <script type="module">
   import { initCrmAuth } from './assets/crm-auth.js';
   import { initAppShell } from './assets/crm-app-shell.js';
+  import { initCrmNavigationPanels, upgradeBookingPanel, upgradeScheduleViews } from './assets/crm-navigation-panels.js';
+  import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
+  upgradeScheduleViews(['day', 'week', 'month']);
+  upgradeBookingPanel();
   initCrmAuth('admin');
   initAppShell('admin');
+  initCrmNavigationPanels();
+  initCrmRefreshControl();
 </script>
 </body>
 </html>

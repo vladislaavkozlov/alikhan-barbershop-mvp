@@ -37,35 +37,21 @@
     <a href="index.html" class="brand">АЛИХАН</a>
     <div class="nav-right">
       <span class="location-badge">Вы: <strong id="selfNameBadge">Алиовсад</strong></span>
-      <button class="notif-bell crm-top-action" type="button" onclick="toggleRetentionPanel(this)" aria-label="Клиенты, которые давно не приходили"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span class="notif-badge">2</span></button>
+      <button class="notif-bell crm-top-action" type="button" id="refreshBtn" aria-label="Обновить данные"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17,1.5 21,5.5 17,9.5"/><path d="M3,12.5v-2a4,4 0 0 1 4,-4h14"/><polyline points="7,22.5 3,18.5 7,14.5"/><path d="M21,11.5v2a4,4 0 0 1 -4,4H3"/></svg></button>
       <div class="msg-bell-wrap" style="position:relative">
-        <button class="notif-bell crm-top-action" type="button" id="msgBell" aria-label="Уведомления о записях и графике"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
+        <button class="notif-bell crm-top-action" type="button" id="msgBell" aria-label="Уведомления о записях и графике"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
         <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
       </div>
       <span id="sessionInfo" class="session-info" hidden></span>
       <button id="logoutBtn" class="logout-btn crm-top-action" type="button" hidden>Выйти</button>
       <div class="role-switch" id="roleSwitch">
-        <a class="crm-top-action" href="crm-owner.html" data-role="owner">Владелец</a>
-        <a class="crm-top-action" href="crm-admin.html" data-role="admin">Администратор</a>
-        <a class="crm-top-action" href="crm-master.html" data-role="master" aria-current="page">Мастер</a>
+        <span class="crm-top-action" data-role="master" aria-current="page">Мастер</span>
       </div>
     </div>
   </div>
 </header>
 
-<main class="wrap page" id="crmMain">
-
-  <div class="retention-alert" id="retention-panel">
-    <div class="ra-head"><span class="ico">⚠</span><strong>2 моих клиента не приходили 2+ месяца</strong><button class="ra-close" type="button" onclick="closeRetentionPanel(this)" aria-label="Закрыть">✕</button></div>
-    <div class="ra-body">
-    <p class="section-hint" style="margin:6px 0 12px">Видны только мои клиенты - без чужих телефонов и истории</p>
-    <div class="ra-list">
-      <div class="ra-row"><span class="ra-name">Клиент Д</span><span class="ra-last">Последний визит 25.05.2026 · 2.1 мес назад</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-row"><span class="ra-name">Клиент Ж</span><span class="ra-last">Последний визит 15.04.2026 · 3.4 мес назад</span><button class="btn-ghost btn-sm" type="button">Позвонить</button><input class="ra-note" type="text" placeholder="Заметка (пример: перезвонить 5.08)"><button class="ra-dismiss" type="button" title="Скрыть из списка - например уже позвонили" onclick="dismissRetentionRow(this)">✕</button></div>
-      <div class="ra-restore" hidden><button class="btn-ghost btn-sm" type="button" onclick="restoreRetentionRows(this)">Показать скрытые (<span class="count">0</span>)</button></div>
-    </div>
-    </div>
-  </div>
+<main class="wrap page" id="crmMain" hidden>
 
   <style>
     /* Задача 2 (Окно 14, 02.08.2026) - третья вкладка мастера, тот же паттерн pt-c,
@@ -428,8 +414,13 @@
 <script type="module">
   import { initCrmAuth } from './assets/crm-auth.js';
   import { initAppShell } from './assets/crm-app-shell.js';
+  import { initCrmNavigationPanels, upgradeScheduleViews } from './assets/crm-navigation-panels.js';
+  import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
+  upgradeScheduleViews(['day', 'week', 'month']);
   initCrmAuth('master');
   initAppShell('master');
+  initCrmNavigationPanels();
+  initCrmRefreshControl();
 </script>
 </body>
 </html>

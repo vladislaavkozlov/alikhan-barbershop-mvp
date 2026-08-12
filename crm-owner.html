@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="assets/mockup-crm.css" />
 <link rel="stylesheet" href="assets/crm-app-shell.css" />
 <link rel="stylesheet" href="assets/crm-navigation-panels.css" />
+<link rel="stylesheet" href="assets/crm-team-content.css" />
 <style>
   /* Окно 45 (08.08.2026) - День/Неделя/Месяц Расписания больше не radio-пилюли, а
      сворачиваемые карточки (.schedule-view-card) - видимость содержимого решает сам
@@ -115,15 +116,13 @@
       <span id="sessionInfo" class="session-info" hidden></span>
       <button id="logoutBtn" class="logout-btn crm-top-action" type="button" hidden>Выйти</button>
       <div class="role-switch" id="roleSwitch">
-        <a class="crm-top-action" href="crm-owner.html" data-role="owner" aria-current="page">Владелец</a>
-        <a class="crm-top-action" href="crm-admin.html" data-role="admin">Администратор</a>
-        <a class="crm-top-action" href="crm-master.html" data-role="master">Мастер</a>
+        <span class="crm-top-action" data-role="owner" aria-current="page">Владелец</span>
       </div>
     </div>
   </div>
 </header>
 
-<main class="wrap page" id="crmMain">
+<main class="wrap page" id="crmMain" hidden>
   <!-- Правка 08.08.2026 - убран крупный заголовок раздела (#shellSectionTitle): активный
        пункт sidebar уже подсвечен золотым и показывает то же название - заголовок сверху
        страницы дублировал его один в один, прямая правка Влада по скриншоту. -->
@@ -155,18 +154,6 @@
         <!-- Правка 07.08.2026 - убран дублирующий <h2>Расписание</h2>: заголовок раздела
              уже показывает topbar (#shellSectionTitle, assets/crm-app-shell.js) и пункт
              sidebar - третье повторение того же слова внутри панели было лишним. -->
-
-        <!-- Окно 42 (07.08.2026) - демонтаж вкладки "Сегодня": оба алерта переехали сюда,
-             наверх раздела, где владелец реально их чинит (график - в "Команде", заявка -
-             в истории заявок ниже на этой же странице). GET /owner/alerts
-             (computeOwnerAlerts, Окна 35/39 переиспользованы без пересчёта). Наполняет
-             assets/crm-schedule-alerts.js (переименован из crm-owner-today.js - вкладки
-             "Сегодня" больше нет, модуль был только про эти два алерта). Выручка сегодня
-             отсюда убрана целиком - дублировала раздел "Финансы" (#rvAllDayRevenue), риск-
-             список клиентов ("Клиенты, которым стоит позвонить") больше не имеет отдельного
-             экрана до раздела "Клиенты" (Окно 48) - решение Влада, сигнал остаётся только в
-             счётчике колокольчика (assets/crm-clients.js), см. правку в шапке ниже. -->
-        <div class="breaks-list" id="ownerAlertsSchedule"><span class="note">Загрузка…</span></div>
 
         <!-- Окно 45 (08.08.2026) - переключатель-пилюли День/Неделя/Месяц заменён на 4
              независимые сворачиваемые карточки (можно раскрыть любое число одновременно -
@@ -278,6 +265,10 @@
                owner/admin у /reschedule, api/routes/bookings.js). -->
           <!-- (карточка #bd-1 удалена - см. комментарий выше) -->
         </div>
+
+        <!-- Уведомления идут после навигационных панелей, чтобы "Расписание" начиналось
+             на той же высоте, что остальные разделы. Наполняет crm-schedule-alerts.js. -->
+        <div class="breaks-list" id="ownerAlertsSchedule"><span class="note">Загрузка…</span></div>
 
         <!-- Правка 07.08.2026 - форма walk-in/новой записи перенесена СЮДА, под календарь
              (была выше, перед .seg-tabs День/Неделя/Месяц) - в hidden-состоянии разницы не
@@ -1021,13 +1012,16 @@
 <script>window.ALIKHAN_API_URL = 'https://alikhancrm1-vladislaavkozlov.amvera.io';</script>
 <script src="assets/mockup-crm.js"></script>
 <script type="module">
+  import { initCrmNavigationPanels, upgradeBookingPanel } from './assets/crm-navigation-panels.js';
   import { initCrmAuth } from './assets/crm-auth.js';
   import { initOwnerScheduleRequests } from './assets/crm-schedule-requests.js';
   import { wireClientsRisk, renderRiskList } from './assets/crm-clients.js';
   import { wireScheduleAlerts, renderOwnerAlerts } from './assets/crm-schedule-alerts.js';
   import { initAppShell } from './assets/crm-app-shell.js';
   import { refreshFinance } from './assets/crm-dashboard.js';
-  initCrmAuth('owner');
+  import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
+  import { renderTeam } from './assets/crm-team.js';
+  initCrmAuth(['owner', 'manager']);
   const scheduleRequestsApi = initOwnerScheduleRequests();
   wireClientsRisk();
   wireScheduleAlerts();
@@ -1052,26 +1046,17 @@
   // уже применён для window.__refreshScheduleViews. "Аналитика" (panel-d) не входит
   // в список - там нет ни одного реального запроса к серверу (только "00% пример"),
   // обновлять нечего.
-  const refreshBtn = document.getElementById('refreshBtn');
-  refreshBtn?.addEventListener('click', async () => {
-    if (refreshBtn.disabled) return;
-    refreshBtn.disabled = true;
-    refreshBtn.classList.add('is-refreshing');
-    try {
-      await Promise.all([
-        renderOwnerAlerts(),
-        renderRiskList(),
-        scheduleRequestsApi?.refresh?.(),
-        window.__refreshScheduleViews?.(),
-        window.__refreshTeamSchedules?.(),
-        refreshFinance(),
-        window.updateNotifBadge?.(),
-      ]);
-    } finally {
-      refreshBtn.disabled = false;
-      setTimeout(() => refreshBtn.classList.remove('is-refreshing'), 500);
-    }
-  });
+  upgradeBookingPanel();
+  initCrmNavigationPanels();
+  window.__refreshOwnerDashboard = () => Promise.all([
+    renderOwnerAlerts(),
+    renderRiskList(),
+    scheduleRequestsApi?.refresh?.(),
+    window.__refreshTeamSchedules?.(),
+    refreshFinance(),
+  ]);
+  initCrmRefreshControl();
+  renderTeam();
 </script>
 </body>
 </html>

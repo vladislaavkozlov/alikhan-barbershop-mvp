@@ -14,9 +14,210 @@
   --owner-panel-active: color-mix(in srgb, var(--surface-2) 86%, var(--surface));
 }
 
+/* Содержимое раздела больше не лежит внутри второй тяжёлой карточки. Сайдбар,
+   верхняя панель и сами навигационные панели уже задают достаточную структуру. */
+.crm-navigation-ui .page-tabs > .tab-panel > section {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
 /* Аккордеоны всех разделов владельца, администратора и мастера */
 .crm-navigation-ui .staff-list {
   gap: 10px;
+}
+
+.crm-navigation-ui .schedule-view-card .seg-panel {
+  display: block;
+}
+
+.crm-navigation-ui .panel-group-controls {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 80;
+  display: flex;
+  pointer-events: none;
+}
+
+.crm-navigation-ui .panel-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 15px 0 12px;
+  border: 1px solid var(--owner-panel-border-active);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 14px 34px -18px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.018) inset;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background-color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out),
+    box-shadow 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+
+.crm-navigation-ui .panel-group-toggle:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--border));
+  box-shadow: 0 16px 38px -18px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.024) inset;
+  transform: translateY(-1px);
+}
+
+.crm-navigation-ui .panel-group-toggle:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.crm-navigation-ui .panel-group-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 78%, white);
+  outline-offset: 2px;
+}
+
+.crm-navigation-ui .panel-group-toggle__icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.crm-navigation-ui .panel-group-toggle__icon i {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 160ms var(--ease-out);
+}
+
+.crm-navigation-ui .panel-group-toggle__icon i + i {
+  transform: translateY(2px) rotate(45deg);
+}
+
+.crm-navigation-ui .panel-group-toggle[aria-expanded='true'] .panel-group-toggle__icon i {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.crm-navigation-ui .panel-group-toggle[aria-expanded='true'] .panel-group-toggle__icon i + i {
+  transform: translateY(-2px) rotate(225deg);
+}
+
+@media (max-width: 640px) {
+  .crm-navigation-ui .panel-group-controls {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .crm-navigation-ui .panel-group-toggle {
+    min-height: 42px;
+    padding-right: 13px;
+  }
+}
+
+.crm-navigation-ui .booking-create-card .walkin-form {
+  margin: 0;
+}
+
+/* Вход продолжает язык открытой панели: одна золотая линия, спокойная поверхность,
+   те же радиусы и фокус-кольца. Скоуп не затрагивает публичную запись. */
+.crm-navigation-ui .login-gate {
+  align-items: safe center;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.crm-navigation-ui .login-card {
+  position: relative;
+  width: min(420px, 100%);
+  overflow: hidden;
+  padding: 36px 32px 30px;
+  border: 1px solid var(--owner-panel-border-active);
+  border-radius: var(--owner-panel-radius);
+  background: var(--owner-panel-active);
+  box-shadow: 0 24px 64px -42px rgba(0, 0, 0, 0.9);
+}
+
+.crm-navigation-ui .login-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+}
+
+.crm-navigation-ui .login-kicker {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.crm-navigation-ui .login-tag {
+  margin-bottom: 28px;
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+
+.crm-navigation-ui .login-card .field label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.crm-navigation-ui .login-card input {
+  min-height: 44px;
+  border: 1px solid var(--owner-panel-border);
+  border-radius: var(--owner-control-radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.crm-navigation-ui .login-card input:hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+}
+
+.crm-navigation-ui .login-card input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 78%, white);
+  outline-offset: 2px;
+}
+
+.crm-navigation-ui .login-card input:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  box-shadow: 0 0 0 1000px var(--surface) inset;
+  caret-color: var(--text);
+}
+
+.crm-navigation-ui .login-card button[type='submit'] {
+  min-height: 44px;
+  border-radius: var(--owner-control-radius);
+}
+
+.crm-navigation-ui .login-error {
+  border-radius: var(--owner-control-radius);
+}
+
+.crm-navigation-ui .login-hint {
+  margin-bottom: 0;
 }
 
 .crm-navigation-ui details.staff-card {
@@ -30,6 +231,11 @@
     background-color 160ms var(--ease-out),
     border-color 160ms var(--ease-out),
     box-shadow 160ms var(--ease-out);
+}
+
+.crm-navigation-ui details.staff-card:not([open]):hover {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: var(--surface-2);
 }
 
 .crm-navigation-ui details.staff-card::before {
@@ -65,7 +271,12 @@
 }
 
 .crm-navigation-ui details.staff-card summary:hover {
-  background: color-mix(in srgb, var(--surface-3) 20%, transparent);
+  background: transparent;
+}
+
+.crm-navigation-ui details.staff-card summary:hover .chevron,
+.crm-navigation-ui details.staff-card summary:hover .avatar-icon {
+  color: var(--text);
 }
 
 .crm-navigation-ui details.staff-card summary:focus-visible {
@@ -93,13 +304,12 @@
 .crm-navigation-ui details.staff-card .avatar-icon {
   width: 40px;
   height: 40px;
-  border-radius: var(--owner-control-radius);
-  background: color-mix(in srgb, var(--surface-3) 72%, transparent);
-  border-color: var(--owner-panel-border);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
   transition:
-    background-color 160ms var(--ease-out),
-    border-color 160ms var(--ease-out),
-    box-shadow 160ms var(--ease-out);
+    color 160ms var(--ease-out);
 }
 
 .crm-navigation-ui details.staff-card .avatar-icon svg {
@@ -108,13 +318,13 @@
 }
 
 .crm-navigation-ui details.staff-card[open] .avatar-icon {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 8px 20px -12px color-mix(in srgb, var(--accent) 78%, transparent);
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
 }
 
 .crm-navigation-ui details.staff-card[open] .avatar-icon svg {
-  color: var(--leather);
+  color: inherit;
 }
 
 /* Карточки людей сохраняют круглый аватар, но используют общий размер заголовка */
@@ -143,8 +353,9 @@
   height: 32px;
   margin-left: auto;
   overflow: hidden;
-  border: 1px solid var(--owner-panel-border);
-  border-radius: 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   color: var(--text-muted);
   font-size: 0;
   transform: none;
@@ -156,23 +367,75 @@
 
 .crm-navigation-ui details.staff-card .chevron::before {
   content: '';
-  width: 6px;
-  height: 6px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(-45deg);
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='m7 4 6 6-6 6' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='m7 4 6 6-6 6' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  transform: none;
   transition: transform 160ms var(--ease-out);
 }
 
 .crm-navigation-ui details.staff-card[open] .chevron {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
-  background: color-mix(in srgb, var(--surface-3) 44%, transparent);
+  background: transparent;
   transform: none;
 }
 
 .crm-navigation-ui details.staff-card[open] .chevron::before {
-  transform: translateY(-1px) rotate(45deg);
+  transform: rotate(90deg);
+}
+
+/* Все стрелки листания используют один и тот же оптически ровный SVG и наследуют
+   цвет контрола. Текстовые ‹/› остаются в HTML как безопасный fallback. */
+.crm-navigation-ui .day-nav-btn,
+.crm-navigation-ui .custom-date-nav-btn {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0;
+}
+
+.crm-navigation-ui .day-nav-btn::before,
+.crm-navigation-ui .custom-date-nav-btn::before,
+.crm-navigation-ui details.booking-detail summary::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='m7 4 6 6-6 6' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='m7 4 6 6-6 6' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.crm-navigation-ui .custom-date-nav-btn[aria-label^='Предыдущ']::before {
+  transform: rotate(180deg);
+}
+
+.crm-navigation-ui .day-nav-btn[aria-label^='Предыдущ']::before {
+  transform: rotate(180deg);
+}
+
+.crm-navigation-ui .day-nav-btn:hover:not(:disabled),
+.crm-navigation-ui .custom-date-nav-btn:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.crm-navigation-ui details.booking-detail summary::before {
+  transition: transform 160ms var(--ease-out), color 140ms var(--ease-out);
+}
+
+.crm-navigation-ui details.booking-detail summary:hover::before {
+  color: var(--text);
+}
+
+.crm-navigation-ui details.booking-detail[open] summary::before {
+  transform: rotate(90deg);
 }
 
 .crm-navigation-ui details.staff-card .staff-card-body {
@@ -209,6 +472,12 @@
     background-color 140ms var(--ease-out),
     border-color 140ms var(--ease-out),
     box-shadow 140ms var(--ease-out);
+}
+
+/* Явная страховка от повторения production-регрессии 12.08.2026: авторский
+   display ниже не должен раскрывать элемент, который auth пометил hidden */
+.crm-navigation-ui .crm-top-action[hidden] {
+  display: none;
 }
 
 .crm-navigation-ui button.crm-top-action {
@@ -250,15 +519,15 @@
 }
 
 .crm-navigation-ui .crm-top-action:hover {
-  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
-  background: color-mix(in srgb, var(--surface-3) 55%, transparent);
+  border-color: transparent;
+  background: var(--surface-2);
   color: var(--text);
 }
 
 .crm-navigation-ui .notif-bell.crm-top-action:hover,
 .crm-navigation-ui .logout-btn.crm-top-action:hover {
   border-color: transparent;
-  background: color-mix(in srgb, var(--surface-3) 55%, transparent);
+  background: var(--surface-2);
 }
 
 .crm-navigation-ui .crm-top-action:focus-visible {
@@ -276,7 +545,8 @@
 /* Предупреждения об отсутствии рабочего графика */
 .crm-navigation-ui #ownerAlertsSchedule {
   gap: 8px;
-  margin-bottom: 14px;
+  margin-top: 14px;
+  margin-bottom: 0;
 }
 
 .crm-navigation-ui .owner-schedule-alert {
@@ -363,6 +633,13 @@
 }
 
 @media (max-width: 640px) {
+  .crm-navigation-ui .login-gate {
+    padding: 16px;
+  }
+
+  .crm-navigation-ui .login-card {
+    padding: 28px 20px 24px;
+  }
   .crm-navigation-ui details.staff-card summary {
     min-height: 64px;
     padding: 11px 12px 11px 14px;
