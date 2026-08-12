@@ -6,8 +6,15 @@ test('команда строится из API плоскими секциями
   const js = await readFile(new URL('assets/crm-team.js', root), 'utf8');
   for (const label of ['Основное','Профиль на сайте','Услуги и время','График','Доступ']) assert.match(js, new RegExp(label));
   assert.match(js, /fetchJson\('\/staff'\)/);
-  assert.match(js, /addCard\(\)/);
+  assert.match(js, /addCard\(locations\)/);
   assert.match(js, /renderMasterServiceEditor/);
   assert.match(js, /wireWeeklyScheduleEditor/);
+  assert.match(js, /data-schedule-exception/);
+  assert.match(js, /\/schedule\?masterId/);
+  assert.match(js, /data-media-list/);
+  assert.match(js, /media\/order/);
+  assert.match(js, /data-role/);
+  assert.match(js, /locationId/);
+  assert.match(js, /crm:authenticated/);
   assert.doesNotMatch(js, /beforeAfterUrls/);
 });

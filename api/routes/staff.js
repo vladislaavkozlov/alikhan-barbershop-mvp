@@ -14,7 +14,7 @@ import { mastersWithWorkingSchedule, filterStaffForViewer } from '../lib/schedul
 export async function handleStaffList(req, res) {
   const auth = await authenticate(req);
   if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-  let query = `SELECT id, location_id, name, photo_url, phone, email, role, employed, provides_services, has_system_access, public_profile_enabled,
+  let query = `SELECT id, location_id, name, photo_url, phone, email, role, protected_owner, employed, provides_services, has_system_access, public_profile_enabled,
                       experience_text, strengths_text, certificates_text, before_after_urls
                FROM staff WHERE 1=1`;
   const params = [];
@@ -34,6 +34,7 @@ export async function handleStaffList(req, res) {
     phone: r.phone,
     email: r.email,
     role: r.role,
+    protectedOwner: r.protected_owner,
     employed: r.employed,
     providesServices: r.provides_services,
     hasSystemAccess: r.has_system_access,
@@ -45,6 +46,24 @@ export async function handleStaffList(req, res) {
     certificatesText: r.certificates_text,
     beforeAfterUrls: r.before_after_urls,
   }));
+  const mediaRows = mapped.length
+    ? await pool.query(
+      `SELECT id, staff_id, kind, storage_key, sort_order
+       FROM staff_media WHERE staff_id = ANY($1) ORDER BY staff_id, kind, sort_order, created_at`,
+      [mapped.map((row) => row.id)]
+    )
+    : { rows: [] };
+  const mediaByStaff = new Map();
+  for (const media of mediaRows.rows) {
+    if (!mediaByStaff.has(media.staff_id)) mediaByStaff.set(media.staff_id, []);
+    mediaByStaff.get(media.staff_id).push({
+      id: media.id,
+      kind: media.kind,
+      url: `/media/${media.storage_key}`,
+      sortOrder: media.sort_order,
+    });
+  }
+  for (const row of mapped) row.media = mediaByStaff.get(row.id) ?? [];
   // Окно 22 (04.08.2026, Задача 1) - мастер без ни одной строки is_working=true в
   // master_weekly_schedule фолбэчится в getEffectiveSchedule на GLOBAL_DEFAULT
   // "10:00-20:00, без перерыва" (см. комментарий выше по файлу) - выглядит для
@@ -67,6 +86,9 @@ export async function handleStaffPortfolio(req, res, parts) {
   const auth = await authenticate(req);
   if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const staffId = decodeURIComponent(parts[1]);
+  const target = await pool.query('SELECT protected_owner FROM staff WHERE id = $1', [staffId]);
+  if (!target.rows.length) return sendJson(res, 404, { error: 'staff_not_found' });
+  if (!canMutateProtectedOwner(auth, { protectedOwner: target.rows[0].protected_owner })) return sendJson(res, 403, { error: 'protected_owner' });
   const body = await readBody(req);
   const result = await pool.query(
     `UPDATE staff SET experience_text = $1, strengths_text = $2, certificates_text = $3, before_after_urls = $4, public_profile_enabled = $5
@@ -132,10 +154,98 @@ export async function handleStaffUpdate(req, res, parts) {
   } catch (error) { if (error?.code === '23505') return sendJson(res, 409, { error: 'email_in_use' }); throw error; }
 }
 
-export async function handleStaffMediaUpload(req, res, parts, url) { const auth=await authenticate(req); if(!canManageStaff(auth)) return sendJson(res,401,{error:'unauthorized'}); const staffId=decodeURIComponent(parts[1]); const kind=url.searchParams.get('kind'); if(!['avatar','portfolio'].includes(kind)) return sendJson(res,400,{error:'invalid_media_kind'}); if(kind==='portfolio'){const count=await pool.query('SELECT count(*)::int AS n FROM staff_media WHERE staff_id=$1 AND kind=$2',[staffId,kind]); if(count.rows[0].n>=MAX_PORTFOLIO_ITEMS)return sendJson(res,409,{error:'portfolio_limit'});} try{const saved=await saveProcessedImage(await readRawBody(req)); const id=`media-${randomBytes(12).toString('hex')}`; if(kind==='avatar'){const old=await pool.query(`DELETE FROM staff_media WHERE staff_id=$1 AND kind='avatar' RETURNING storage_key`,[staffId]); await Promise.all(old.rows.map((r)=>removeStoredImage(r.storage_key)));} await pool.query('INSERT INTO staff_media (id,staff_id,kind,storage_key,sort_order) VALUES($1,$2,$3,$4,(SELECT coalesce(max(sort_order),0)+1 FROM staff_media WHERE staff_id=$2 AND kind=$3))',[id,staffId,kind,saved.key]); return sendJson(res,201,{media:{id,kind,url:`/media/${saved.key}`}});}catch(error){return sendJson(res,error.code==='payload_too_large'?413:400,{error:error.code==='payload_too_large'?'file_too_large':'invalid_image'});}}
+async function staffMediaTarget(auth, staffId, res) {
+  const target = await pool.query('SELECT protected_owner FROM staff WHERE id = $1', [staffId]);
+  if (!target.rows.length) {
+    sendJson(res, 404, { error: 'staff_not_found' });
+    return null;
+  }
+  if (!canMutateProtectedOwner(auth, { protectedOwner: target.rows[0].protected_owner })) {
+    sendJson(res, 403, { error: 'protected_owner' });
+    return null;
+  }
+  return target.rows[0];
+}
 
-export async function handleStaffMediaDelete(req,res,parts){const auth=await authenticate(req);if(!canManageStaff(auth))return sendJson(res,401,{error:'unauthorized'});const result=await pool.query('DELETE FROM staff_media WHERE staff_id=$1 AND id=$2 RETURNING storage_key',[decodeURIComponent(parts[1]),decodeURIComponent(parts[3])]);if(!result.rows.length)return sendJson(res,404,{error:'media_not_found'});await removeStoredImage(result.rows[0].storage_key);return sendJson(res,200,{ok:true});}
-export async function handleStaffMediaOrder(req,res,parts){const auth=await authenticate(req);if(!canManageStaff(auth))return sendJson(res,401,{error:'unauthorized'});const body=await readBody(req);if(!Array.isArray(body.mediaIds))return sendJson(res,400,{error:'invalid_media_order'});const client=await pool.connect();try{await client.query('BEGIN');for(let i=0;i<body.mediaIds.length;i++)await client.query(`UPDATE staff_media SET sort_order=$1 WHERE id=$2 AND staff_id=$3 AND kind='portfolio'`,[i,body.mediaIds[i],decodeURIComponent(parts[1])]);await client.query('COMMIT');return sendJson(res,200,{ok:true});}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}}
+export async function handleStaffMediaUpload(req, res, parts, url) {
+  const auth = await authenticate(req);
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
+  const staffId = decodeURIComponent(parts[1]);
+  if (!await staffMediaTarget(auth, staffId, res)) return;
+  const kind = url.searchParams.get('kind');
+  if (!['avatar', 'portfolio'].includes(kind)) return sendJson(res, 400, { error: 'invalid_media_kind' });
+  if (kind === 'portfolio') {
+    const count = await pool.query('SELECT count(*)::int AS n FROM staff_media WHERE staff_id=$1 AND kind=$2', [staffId, kind]);
+    if (count.rows[0].n >= MAX_PORTFOLIO_ITEMS) return sendJson(res, 409, { error: 'portfolio_limit' });
+  }
+  let saved;
+  try {
+    saved = await saveProcessedImage(await readRawBody(req));
+    const id = `media-${randomBytes(12).toString('hex')}`;
+    const client = await pool.connect();
+    let replaced = [];
+    try {
+      await client.query('BEGIN');
+      if (kind === 'avatar') {
+        const old = await client.query(`DELETE FROM staff_media WHERE staff_id=$1 AND kind='avatar' RETURNING storage_key`, [staffId]);
+        replaced = old.rows.map((row) => row.storage_key);
+      }
+      await client.query(
+        `INSERT INTO staff_media (id,staff_id,kind,storage_key,sort_order)
+         VALUES($1,$2,$3,$4,(SELECT coalesce(max(sort_order),0)+1 FROM staff_media WHERE staff_id=$2 AND kind=$3))`,
+        [id, staffId, kind, saved.key]
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+    await Promise.all(replaced.map((key) => removeStoredImage(key)));
+    return sendJson(res, 201, { media: { id, kind, url: `/media/${saved.key}` } });
+  } catch (error) {
+    if (saved) await removeStoredImage(saved.key).catch(() => {});
+    return sendJson(res, error.code === 'payload_too_large' ? 413 : 400, { error: error.code === 'payload_too_large' ? 'file_too_large' : 'invalid_image' });
+  }
+}
+
+export async function handleStaffMediaDelete(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
+  const staffId = decodeURIComponent(parts[1]);
+  if (!await staffMediaTarget(auth, staffId, res)) return;
+  const result = await pool.query('DELETE FROM staff_media WHERE staff_id=$1 AND id=$2 RETURNING storage_key', [staffId, decodeURIComponent(parts[3])]);
+  if (!result.rows.length) return sendJson(res, 404, { error: 'media_not_found' });
+  await removeStoredImage(result.rows[0].storage_key);
+  return sendJson(res, 200, { ok: true });
+}
+
+export async function handleStaffMediaOrder(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
+  const staffId = decodeURIComponent(parts[1]);
+  if (!await staffMediaTarget(auth, staffId, res)) return;
+  const body = await readBody(req);
+  if (!Array.isArray(body.mediaIds) || new Set(body.mediaIds).size !== body.mediaIds.length) return sendJson(res, 400, { error: 'invalid_media_order' });
+  const existing = await pool.query(`SELECT id FROM staff_media WHERE staff_id=$1 AND kind='portfolio' ORDER BY sort_order`, [staffId]);
+  const ids = existing.rows.map((row) => row.id);
+  if (ids.length !== body.mediaIds.length || ids.some((id) => !body.mediaIds.includes(id))) return sendJson(res, 400, { error: 'invalid_media_order' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (let i = 0; i < body.mediaIds.length; i++) {
+      await client.query(`UPDATE staff_media SET sort_order=$1 WHERE id=$2 AND staff_id=$3`, [i, body.mediaIds[i], staffId]);
+    }
+    await client.query('COMMIT');
+    return sendJson(res, 200, { ok: true });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 // ── /staff/:id/role - Задача 1 (Окно 14, 02.08.2026). Владелец меняет роль
 // сотрудника (например Мамедхан master→admin) - раньше чекбоксы роли в

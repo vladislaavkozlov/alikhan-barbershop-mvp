@@ -7,4 +7,17 @@
 .crm-navigation-ui .team-editor-card textarea { min-height:72px; resize:vertical; }
 .crm-navigation-ui .team-editor-actions { display:flex; gap:10px; flex-wrap:wrap; }
 .crm-navigation-ui .team-add-card summary { color:var(--accent); }
+.crm-navigation-ui .team-media-input { display:grid; gap:6px; }
+.crm-navigation-ui .team-media-input small { color:var(--muted); font-size:.78rem; }
+.crm-navigation-ui .team-media-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px; }
+.crm-navigation-ui .team-media-item { margin:0; display:grid; gap:6px; }
+.crm-navigation-ui .team-media-item img { display:block; width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; border:1px solid var(--border); }
+.crm-navigation-ui .team-media-item figcaption { display:grid; gap:5px; font-size:.78rem; }
+.crm-navigation-ui .team-media-item button { justify-self:start; }
+.crm-navigation-ui .team-media-actions { display:flex; gap:5px; }
+.crm-navigation-ui .team-schedule-exception { margin-top:18px; padding:14px; border:1px solid var(--border); border-radius:10px; display:grid; gap:12px; }
+.crm-navigation-ui .team-schedule-exception h4 { margin:0; font-size:.95rem; }
+.crm-navigation-ui .team-exception-list { display:grid; gap:8px; }
+.crm-navigation-ui .team-exception-item { display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:.86rem; }
+.crm-navigation-ui [data-locked-owner] .staff-card-body { opacity:.7; }
 @media (max-width:640px) { .crm-navigation-ui .team-editor-grid { grid-template-columns:1fr; } .crm-navigation-ui .team-editor-card .staff-card-body { padding-inline:14px; } }

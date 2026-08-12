@@ -55,6 +55,7 @@ import { handleLogin, handleLogout, handleMe, handlePinChange } from './routes/a
 import { handleStaffCreate, handleStaffList, handleStaffMediaDelete, handleStaffMediaOrder, handleStaffMediaUpload, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
 import { MEDIA_ROOT } from './lib/staff-media.js';
 import { handlePublicMasters } from './routes/public-masters.js';
+import { handleLocationsList } from './routes/locations.js';
 // Ре-экспорт для tests/api.staff-role-lock.test.js (инцидент 11.08.2026).
 export { isLastOwnerDemotion } from './routes/staff.js';
 import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
@@ -110,6 +111,7 @@ const ROUTES = [
   { method: 'PUT', path: 'auth/pin', auth: 'any-staff' },
   { method: 'POST', path: 'auth/logout', auth: 'public' },
   { method: 'GET', path: 'staff', auth: 'any-staff' },
+  { method: 'GET', path: 'locations', auth: 'any-staff' },
   { method: 'POST', path: 'staff', auth: 'management' },
   { method: 'PUT', path: 'staff/:id', auth: 'management' },
   { method: 'POST', path: 'staff/:id/media', auth: 'management' },
@@ -218,6 +220,7 @@ const server = createServer(async (req, res) => {
     if (parts[0] === 'staff' && parts.length === 1 && req.method === 'GET') {
       return handleStaffList(req, res);
     }
+    if (parts[0] === 'locations' && parts.length === 1 && req.method === 'GET') return handleLocationsList(req, res);
     if (parts[0] === 'staff' && parts.length === 1 && req.method === 'POST') return handleStaffCreate(req, res);
     if (parts[0] === 'staff' && parts[1] && parts.length === 2 && req.method === 'PUT') return handleStaffUpdate(req, res, parts);
     if (parts[0] === 'staff' && parts[1] && parts[2] === 'media' && parts.length === 3 && req.method === 'POST') return handleStaffMediaUpload(req,res,parts,url);
