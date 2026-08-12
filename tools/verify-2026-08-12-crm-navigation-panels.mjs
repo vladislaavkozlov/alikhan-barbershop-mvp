@@ -18,6 +18,7 @@ function visualSnapshotSource() {
     const actionStyles = topActions.map((node) => {
       const style = getComputedStyle(node);
       return {
+        kind: node.closest('.role-switch') ? 'role' : 'utility',
         height: Math.round(node.getBoundingClientRect().height),
         radius: style.borderRadius,
         border: style.borderTopWidth,
@@ -69,7 +70,8 @@ async function checkRole({ base, page, email, pin, section, expectedCards, scree
     check(`${page}: подключён общий класс и найдено ${expectedCards} панелей`, view.bodyClass && view.cardCount === expectedCards, JSON.stringify(view));
     check(`${page}: раскрытая панель имеет золотой rail, закрытая его скрывает`, view.openRailOpacity === '1' && (view.closedRailOpacity === '0' || view.closedRailOpacity === null), JSON.stringify(view));
     check(`${page}: панель и шеврон используют утверждённую геометрию`, view.openRadius === '14px' && view.chevronBox === 32 && view.chevronDirection !== 'none', JSON.stringify(view));
-    check(`${page}: видимые верхние действия имеют общий размер и рамку`, view.topActions.length >= 4 && view.topActions.every((item) => item.height === 38 && item.radius === '10px' && item.border === '1px'), JSON.stringify(view));
+    check(`${page}: видимые верхние действия имеют общий размер`, view.topActions.length >= 4 && view.topActions.every((item) => item.height === 38 && item.radius === '10px'), JSON.stringify(view));
+    check(`${page}: служебные действия без рамок, навигация ролей сохраняет контур`, view.topActions.filter((item) => item.kind === 'utility').every((item) => item.border === '0px') && view.topActions.filter((item) => item.kind === 'role').every((item) => item.border === '1px'), JSON.stringify(view));
     check(`${page}: верхние действия целиком помещаются во viewport`, view.topActionsInsideViewport, JSON.stringify(view));
     check(`${page}: desktop не создаёт горизонтальный скролл страницы`, view.pageFits, JSON.stringify(view));
     await session.screenshot(screenshot);

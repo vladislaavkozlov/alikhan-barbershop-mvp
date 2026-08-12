@@ -31,6 +31,13 @@ test('стиль ограничен CRM-кабинетами и описывае
   assert.match(css, /@media \(max-width: 640px\)/);
 });
 
+test('служебные иконки и иконка предупреждения не имеют постоянных рамок', async () => {
+  const css = await source('assets/crm-navigation-panels.css');
+
+  assert.match(css, /\.notif-bell\.crm-top-action,[\s\S]*?\.logout-btn\.crm-top-action \{[\s\S]*?border: 0;/);
+  assert.match(css, /\.owner-schedule-alert__icon \{[\s\S]*?border: 0;[\s\S]*?background: transparent;/);
+});
+
 test('предупреждение о графике использует новый семантический компонент', async () => {
   const js = await source('assets/crm-schedule-alerts.js');
 

@@ -220,6 +220,16 @@
   padding: 0;
 }
 
+/* Служебные действия повторяют лёгкость иконок сайдбара: без постоянной рамки,
+   поверхность появляется только при наведении. Переключатель ролей ниже остаётся
+   отдельным навигационным контролом со своим active-состоянием */
+.crm-navigation-ui .notif-bell.crm-top-action,
+.crm-navigation-ui .logout-btn.crm-top-action {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .crm-navigation-ui .logout-btn.crm-top-action,
 .crm-navigation-ui .role-switch .crm-top-action {
   display: inline-flex;
@@ -236,6 +246,12 @@
   border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
   background: color-mix(in srgb, var(--surface-3) 55%, transparent);
   color: var(--text);
+}
+
+.crm-navigation-ui .notif-bell.crm-top-action:hover,
+.crm-navigation-ui .logout-btn.crm-top-action:hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--surface-3) 55%, transparent);
 }
 
 .crm-navigation-ui .crm-top-action:focus-visible {
@@ -282,9 +298,9 @@
   place-items: center;
   width: 36px;
   height: 36px;
-  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-3));
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--accent);
 }
 
