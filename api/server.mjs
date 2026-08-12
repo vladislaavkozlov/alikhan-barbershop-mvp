@@ -64,6 +64,7 @@ import { handleBookings, handleBookingCancel, handleBookingStatus, handleBooking
 export { checkSlotAvailability, resolveRescheduleDuration, planRescheduleNotifications, formatMoveSlot } from './routes/bookings.js';
 import {
   handleSchedule,
+  handleScheduleExceptions,
   handleScheduleRange,
   handleHolidaysList,
   handleHolidaysClose,
@@ -138,6 +139,7 @@ const ROUTES = [
   { method: 'POST', path: 'schedule', auth: 'any-staff' },
   { method: 'DELETE', path: 'schedule', auth: 'any-staff' },
   { method: 'GET', path: 'schedule-range', auth: 'any-staff' },
+  { method: 'POST', path: 'schedule-exceptions', auth: 'any-staff' },
   { method: 'GET', path: 'holidays', auth: 'public' },
   { method: 'POST', path: 'holidays/close', auth: 'management' },
   { method: 'GET', path: 'schedule-availability', auth: 'public' },
@@ -349,6 +351,7 @@ const server = createServer(async (req, res) => {
     if (parts[0] === 'schedule-range' && parts.length === 1 && req.method === 'GET') {
       return handleScheduleRange(req, res, url);
     }
+    if (parts[0] === 'schedule-exceptions' && parts.length === 1 && req.method === 'POST') return handleScheduleExceptions(req, res);
 
     // ── /holidays - производственный календарь (Окно 24, 05.08.2026). Анонимный
     // GET: тот же уровень доступа, что у /services и узкого /schedule - публичному

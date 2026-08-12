@@ -11,6 +11,7 @@ test('команда строится из API плоскими секциями
   assert.match(js, /wireWeeklyScheduleEditor/);
   assert.match(js, /data-schedule-exception/);
   assert.match(js, /\/schedule\?masterId/);
+  assert.match(js, /\/schedule-exceptions/);
   assert.match(js, /data-media-list/);
   assert.match(js, /media\/order/);
   assert.match(js, /data-role/);

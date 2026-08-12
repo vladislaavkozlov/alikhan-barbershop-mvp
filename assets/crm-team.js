@@ -164,17 +164,17 @@ async function saveException(root) {
   const dates = rangeDates(from, to);
   if (dates.length > 31) return showNote(root, 'Диапазон не может быть длиннее 31 дня');
   const type = cardValue(root, 'exceptionType').value;
-  for (const date of dates) {
-    const current = await fetchJson(`/schedule?masterId=${encodeURIComponent(root.dataset.staffId)}&date=${date}`);
-    const effective = current[0];
-    const breaks = type === 'dayOff'
-      ? [{ startTime: effective.startTime, endTime: effective.endTime }]
-      : [{ startTime: cardValue(root, 'breakStart').value, endTime: cardValue(root, 'breakEnd').value }];
-    const result = await apiSend('/schedule', 'POST', { masterId: root.dataset.staffId, date, startTime: effective.startTime, endTime: effective.endTime, breaks });
-    if (!result.ok) { note.textContent = result.status === 409 ? 'Есть конфликт с записью. Данные перечитаны' : 'Не удалось сохранить. Повторите попытку'; await loadExceptions(root); return; }
+  try {
+    const result = await apiSend('/schedule-exceptions', 'POST', {
+      masterId: root.dataset.staffId, dateFrom: from, dateTo: to, type,
+      breakStart: cardValue(root, 'breakStart').value, breakEnd: cardValue(root, 'breakEnd').value,
+    });
+    if (!result.ok) { note.textContent = result.status === 409 ? 'Есть конфликт с записью. Данные перечитаны' : 'Не удалось сохранить. Проверьте время и повторите попытку'; await loadExceptions(root); return; }
+    note.textContent = 'Разовое изменение сохранено';
+    await loadExceptions(root);
+  } catch {
+    note.textContent = 'Не удалось сохранить. Повторите попытку';
   }
-  note.textContent = 'Разовое изменение сохранено';
-  await loadExceptions(root);
 }
 
 function wire(root) {
