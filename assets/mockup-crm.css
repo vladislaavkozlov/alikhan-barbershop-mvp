@@ -944,7 +944,7 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 }
 .month-day {
   position: relative; min-height: 62px; border: 1px solid var(--border); border-radius: 8px;
-  padding: 6px 8px; background: var(--surface-2); font-size: 0.78rem; overflow: hidden;
+  padding: 6px 8px; background: var(--panel-bg-light); font-size: 0.78rem; overflow: hidden;
 }
 .month-day.is-empty { background: transparent; border-color: transparent; }
 .month-day .num { font-weight: 600; display: block; }
@@ -1123,7 +1123,7 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 
 /* ---------- реальная форма "клиент без предзаписи" (Влад 01.08.2026) ---------- */
 .walkin-form {
-  background: var(--surface-2); border: 1px solid var(--accent); border-radius: 10px;
+  background: var(--panel-bg-light); border: 1px solid var(--accent); border-radius: 10px;
   padding: 16px 18px; margin-bottom: 20px;
 }
 .walkin-form[hidden] { display: none; }
