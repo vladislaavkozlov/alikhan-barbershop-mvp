@@ -15,6 +15,9 @@ function visualSnapshotSource() {
     const openChevron = open?.querySelector('.chevron');
     const topActions = [...document.querySelectorAll('.nav-right .crm-top-action')]
       .filter((node) => getComputedStyle(node).display !== 'none');
+    const inactiveSidebarIcon = document.querySelector('.app-nav-item:not(.is-active) .app-nav-icon');
+    const utilityIcons = topActions.filter((node) => !node.closest('.role-switch') && node.querySelector('svg'));
+    const scheduleAlertIcon = document.querySelector('.owner-schedule-alert__icon');
     const actionStyles = topActions.map((node) => {
       const style = getComputedStyle(node);
       return {
@@ -34,6 +37,14 @@ function visualSnapshotSource() {
       chevronBox: openChevron ? Math.round(openChevron.getBoundingClientRect().width) : null,
       chevronDirection: openChevron ? getComputedStyle(openChevron, '::before').transform : null,
       topActions: actionStyles,
+      inactiveSidebarIconColor: inactiveSidebarIcon ? getComputedStyle(inactiveSidebarIcon).color : null,
+      utilityIconColors: utilityIcons.map((node) => getComputedStyle(node).color),
+      utilityIconSizes: utilityIcons.map((node) => {
+        const svg = node.querySelector('svg');
+        const style = getComputedStyle(svg);
+        return { width: Math.round(svg.getBoundingClientRect().width), height: Math.round(svg.getBoundingClientRect().height), strokeWidth: style.strokeWidth };
+      }),
+      scheduleAlertIconColor: scheduleAlertIcon ? getComputedStyle(scheduleAlertIcon).color : null,
       topActionsInsideViewport: topActions.every((node) => {
         const rect = node.getBoundingClientRect();
         return rect.left >= 0 && rect.right <= window.innerWidth;
@@ -72,6 +83,11 @@ async function checkRole({ base, page, email, pin, section, expectedCards, scree
     check(`${page}: панель и шеврон используют утверждённую геометрию`, view.openRadius === '14px' && view.chevronBox === 32 && view.chevronDirection !== 'none', JSON.stringify(view));
     check(`${page}: видимые верхние действия имеют общий размер`, view.topActions.length >= 4 && view.topActions.every((item) => item.height === 38 && item.radius === '10px'), JSON.stringify(view));
     check(`${page}: служебные действия без рамок, навигация ролей сохраняет контур`, view.topActions.filter((item) => item.kind === 'utility').every((item) => item.border === '0px') && view.topActions.filter((item) => item.kind === 'role').every((item) => item.border === '1px'), JSON.stringify(view));
+    check(`${page}: верхние иконки совпадают по цвету с неактивными иконками сайдбара`, view.utilityIconColors.length > 0 && view.utilityIconColors.every((color) => color === view.inactiveSidebarIconColor), JSON.stringify(view));
+    check(`${page}: верхние SVG совпадают с геометрией иконок сайдбара`, view.utilityIconSizes.every((icon) => icon.width === 18 && icon.height === 18 && icon.strokeWidth === '1.6px'), JSON.stringify(view));
+    if (page === 'crm-owner.html') {
+      check('Владелец: иконка предупреждения совпадает по цвету с сайдбаром', view.scheduleAlertIconColor === view.inactiveSidebarIconColor, JSON.stringify(view));
+    }
     check(`${page}: верхние действия целиком помещаются во viewport`, view.topActionsInsideViewport, JSON.stringify(view));
     check(`${page}: desktop не создаёт горизонтальный скролл страницы`, view.pageFits, JSON.stringify(view));
     await session.screenshot(screenshot);

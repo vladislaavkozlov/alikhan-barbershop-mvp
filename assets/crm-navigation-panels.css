@@ -218,6 +218,13 @@
 .crm-navigation-ui .notif-bell.crm-top-action {
   width: 38px;
   padding: 0;
+  color: var(--text-muted);
+}
+
+.crm-navigation-ui .notif-bell.crm-top-action svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.6;
 }
 
 /* Служебные действия повторяют лёгкость иконок сайдбара: без постоянной рамки,
@@ -301,7 +308,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--accent);
+  color: var(--text-muted);
 }
 
 .crm-navigation-ui .owner-schedule-alert__icon svg {

@@ -38,6 +38,14 @@ test('служебные иконки и иконка предупреждени
   assert.match(css, /\.owner-schedule-alert__icon \{[\s\S]*?border: 0;[\s\S]*?background: transparent;/);
 });
 
+test('верхние SVG и предупреждения используют цвет и геометрию иконок сайдбара', async () => {
+  const css = await source('assets/crm-navigation-panels.css');
+
+  assert.match(css, /\.notif-bell\.crm-top-action \{[\s\S]*?color: var\(--text-muted\);/);
+  assert.match(css, /\.notif-bell\.crm-top-action svg \{[\s\S]*?width: 18px;[\s\S]*?height: 18px;[\s\S]*?stroke-width: 1\.6;/);
+  assert.match(css, /\.owner-schedule-alert__icon \{[\s\S]*?color: var\(--text-muted\);/);
+});
+
 test('предупреждение о графике использует новый семантический компонент', async () => {
   const js = await source('assets/crm-schedule-alerts.js');
 
