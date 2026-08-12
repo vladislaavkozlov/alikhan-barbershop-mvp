@@ -11,6 +11,7 @@
   --owner-panel-border: color-mix(in srgb, var(--accent) 24%, var(--border));
   --owner-panel-border-active: color-mix(in srgb, var(--accent) 52%, var(--border));
   --owner-panel-quiet: var(--panel-bg-collapsed);
+  --owner-panel-hover: var(--panel-bg-light);
   --owner-panel-active: var(--panel-bg);
 }
 
@@ -235,7 +236,7 @@
 
 .crm-navigation-ui details.staff-card:not([open]):hover {
   border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
-  background: var(--panel-bg-light);
+  background: var(--owner-panel-hover);
 }
 
 .crm-navigation-ui details.staff-card::before {

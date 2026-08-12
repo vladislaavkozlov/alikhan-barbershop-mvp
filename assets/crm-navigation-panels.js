@@ -2,7 +2,8 @@ function directPanels(list) {
   return [...list.querySelectorAll(':scope > details.staff-card')];
 }
 
-function syncToggle(button, panels) {
+function syncToggle(button, list) {
+  const panels = directPanels(list);
   const allOpen = panels.every((panel) => panel.open);
   const action = allOpen ? 'Свернуть все' : 'Развернуть все';
   button.querySelector('.panel-group-toggle__label').textContent = action;
@@ -11,14 +12,15 @@ function syncToggle(button, panels) {
 }
 
 export function initCrmNavigationPanels(root = document) {
+  const doc = root.ownerDocument || root;
   root.querySelectorAll('.staff-list').forEach((list, index) => {
     const panels = directPanels(list);
     if (!panels.length || list.dataset.panelControlsWired) return;
     list.dataset.panelControlsWired = '1';
 
-    const controls = document.createElement('div');
+    const controls = doc.createElement('div');
     controls.className = 'panel-group-controls';
-    const button = document.createElement('button');
+    const button = doc.createElement('button');
     button.type = 'button';
     button.className = 'panel-group-toggle';
     button.innerHTML = '<span class="panel-group-toggle__icon" aria-hidden="true"><i></i><i></i></span><span class="panel-group-toggle__label"></span>';
@@ -28,12 +30,13 @@ export function initCrmNavigationPanels(root = document) {
     list.before(controls);
 
     button.addEventListener('click', () => {
-      const shouldOpen = !panels.every((panel) => panel.open);
-      panels.forEach((panel) => { panel.open = shouldOpen; });
-      syncToggle(button, panels);
+      const currentPanels = directPanels(list);
+      const shouldOpen = !currentPanels.every((panel) => panel.open);
+      currentPanels.forEach((panel) => { panel.open = shouldOpen; });
+      syncToggle(button, list);
     });
-    panels.forEach((panel) => panel.addEventListener('toggle', () => syncToggle(button, panels)));
-    syncToggle(button, panels);
+    list.addEventListener('toggle', () => syncToggle(button, list), true);
+    syncToggle(button, list);
   });
 }
 
