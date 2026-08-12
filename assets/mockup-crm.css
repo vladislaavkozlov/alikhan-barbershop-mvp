@@ -424,6 +424,29 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   gap: 14px; min-width: 100%;
 }
 .schedule-col { position: relative; }
+
+/* 12.08.2026 - вид "День" держит одну высоту при загрузке и при горизонтальном
+   просмотре нескольких мастеров. 98px хватает на аватар + имя в две строки,
+   10px уже существующего margin-bottom + 640px часовой дорожки = 748px.
+   min-height у grid резервирует место ещё до ответа API, поэтому раскрытая карточка
+   не схлопывается и не вырастает повторно. Вертикальный overflow запрещён только
+   здесь: список мастеров должен перемещаться исключительно по горизонтали. */
+.panel-sp-day .schedule-scroll { overflow-x: auto; overflow-y: hidden; }
+.panel-sp-day .schedule-grid { min-height: 748px; align-items: start; }
+.panel-sp-day .schedule-col { height: 748px; }
+.panel-sp-day .schedule-col-head { height: 98px; box-sizing: border-box; }
+.panel-sp-day .schedule-col-head .name {
+  max-width: 100%; line-height: 1.2; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+/* 12.08.2026 - шкала времени остаётся у левого края, пока колонки мастеров
+   листаются горизонтально. Непрозрачная тень закрывает 8px flex-gap, чтобы
+   содержимое колонок не просвечивало между часами и расписанием. */
+.panel-sp-day .hour-gutter {
+  position: sticky; left: 0; z-index: 3; background: var(--surface);
+  box-shadow: 8px 0 0 var(--surface);
+}
+.panel-sp-day .schedule-row-with-gutter { width: max-content; min-width: 100%; }
 /* Правка Влада 07.08.2026 - шапка колонки мастера в "День" по центру, имя под
    кружком-аватаром (было в ряд, слева) */
 .schedule-col-head {
