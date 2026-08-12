@@ -10,7 +10,7 @@ import { canManageStaff } from '../lib/permissions.js';
 export async function handleServicesList(req, res) {
   const auth = await authenticate(req);
   if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-  const result = await pool.query('SELECT id, name, category, duration_min, price, composition FROM services');
+  const result = await pool.query('SELECT id, name, category, duration_min, price, composition FROM services ORDER BY name, id');
   return sendJson(
     res,
     200,
@@ -34,7 +34,7 @@ export async function handleServicesList(req, res) {
 // разрешён так же, как уже сделано для /schedule (Окно 15) - ничего чувствительнее
 // цены/длительности здесь нет, эти цифры и так были видны на сайте захардкоженными.
 export async function handleMasterServicesList(req, res) {
-  const result = await pool.query('SELECT master_id, service_id, price, duration_min FROM master_services');
+  const result = await pool.query('SELECT master_id, service_id, price, duration_min FROM master_services ORDER BY master_id, service_id');
   return sendJson(
     res,
     200,
