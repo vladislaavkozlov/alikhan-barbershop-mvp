@@ -211,6 +211,12 @@
     box-shadow 140ms var(--ease-out);
 }
 
+/* Явная страховка от повторения production-регрессии 12.08.2026: авторский
+   display ниже не должен раскрывать элемент, который auth пометил hidden */
+.crm-navigation-ui .crm-top-action[hidden] {
+  display: none;
+}
+
 .crm-navigation-ui button.crm-top-action {
   font-family: inherit;
 }

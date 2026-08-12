@@ -45,6 +45,9 @@ function visualSnapshotSource() {
         return { width: Math.round(svg.getBoundingClientRect().width), height: Math.round(svg.getBoundingClientRect().height), strokeWidth: style.strokeWidth };
       }),
       scheduleAlertIconColor: scheduleAlertIcon ? getComputedStyle(scheduleAlertIcon).color : null,
+      roleIndicatorCount: document.querySelectorAll('#roleSwitch [data-role]').length,
+      roleIndicatorTag: document.querySelector('#roleSwitch [data-role]')?.tagName || null,
+      roleIndicatorHref: document.querySelector('#roleSwitch [data-role]')?.getAttribute('href') || null,
       topActionsInsideViewport: topActions.every((node) => {
         const rect = node.getBoundingClientRect();
         return rect.left >= 0 && rect.right <= window.innerWidth;
@@ -88,6 +91,22 @@ async function checkRole({ base, page, email, pin, section, expectedCards, scree
     if (page === 'crm-owner.html') {
       check('Владелец: иконка предупреждения совпадает по цвету с сайдбаром', view.scheduleAlertIconColor === view.inactiveSidebarIconColor, JSON.stringify(view));
     }
+    check(`${page}: роль показана одной статичной меткой без ссылки`, view.roleIndicatorCount === 1 && view.roleIndicatorTag === 'SPAN' && view.roleIndicatorHref === null, JSON.stringify(view));
+    const sessionBeforeRoleClick = await session.eval(`JSON.stringify({
+      href: location.href,
+      token: localStorage.getItem('alikhan-crm:token'),
+      staff: localStorage.getItem('alikhan-crm:staff'),
+      mainHidden: document.getElementById('crmMain').hidden,
+    })`);
+    await session.click('#roleSwitch [data-role]');
+    await sleep(120);
+    const sessionAfterRoleClick = await session.eval(`JSON.stringify({
+      href: location.href,
+      token: localStorage.getItem('alikhan-crm:token'),
+      staff: localStorage.getItem('alikhan-crm:staff'),
+      mainHidden: document.getElementById('crmMain').hidden,
+    })`);
+    check(`${page}: клик по метке роли не меняет страницу и сессию`, sessionAfterRoleClick === sessionBeforeRoleClick, `before=${sessionBeforeRoleClick} after=${sessionAfterRoleClick}`);
     check(`${page}: верхние действия целиком помещаются во viewport`, view.topActionsInsideViewport, JSON.stringify(view));
     check(`${page}: desktop не создаёт горизонтальный скролл страницы`, view.pageFits, JSON.stringify(view));
     await session.screenshot(screenshot);
