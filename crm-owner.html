@@ -115,9 +115,7 @@
       <span id="sessionInfo" class="session-info" hidden></span>
       <button id="logoutBtn" class="logout-btn crm-top-action" type="button" hidden>Выйти</button>
       <div class="role-switch" id="roleSwitch">
-        <a class="crm-top-action" href="crm-owner.html" data-role="owner" aria-current="page">Владелец</a>
-        <a class="crm-top-action" href="crm-admin.html" data-role="admin">Администратор</a>
-        <a class="crm-top-action" href="crm-master.html" data-role="master">Мастер</a>
+        <span class="crm-top-action" data-role="owner" aria-current="page">Владелец</span>
       </div>
     </div>
   </div>
@@ -155,18 +153,6 @@
         <!-- Правка 07.08.2026 - убран дублирующий <h2>Расписание</h2>: заголовок раздела
              уже показывает topbar (#shellSectionTitle, assets/crm-app-shell.js) и пункт
              sidebar - третье повторение того же слова внутри панели было лишним. -->
-
-        <!-- Окно 42 (07.08.2026) - демонтаж вкладки "Сегодня": оба алерта переехали сюда,
-             наверх раздела, где владелец реально их чинит (график - в "Команде", заявка -
-             в истории заявок ниже на этой же странице). GET /owner/alerts
-             (computeOwnerAlerts, Окна 35/39 переиспользованы без пересчёта). Наполняет
-             assets/crm-schedule-alerts.js (переименован из crm-owner-today.js - вкладки
-             "Сегодня" больше нет, модуль был только про эти два алерта). Выручка сегодня
-             отсюда убрана целиком - дублировала раздел "Финансы" (#rvAllDayRevenue), риск-
-             список клиентов ("Клиенты, которым стоит позвонить") больше не имеет отдельного
-             экрана до раздела "Клиенты" (Окно 48) - решение Влада, сигнал остаётся только в
-             счётчике колокольчика (assets/crm-clients.js), см. правку в шапке ниже. -->
-        <div class="breaks-list" id="ownerAlertsSchedule"><span class="note">Загрузка…</span></div>
 
         <!-- Окно 45 (08.08.2026) - переключатель-пилюли День/Неделя/Месяц заменён на 4
              независимые сворачиваемые карточки (можно раскрыть любое число одновременно -
@@ -278,6 +264,10 @@
                owner/admin у /reschedule, api/routes/bookings.js). -->
           <!-- (карточка #bd-1 удалена - см. комментарий выше) -->
         </div>
+
+        <!-- Уведомления идут после навигационных панелей, чтобы "Расписание" начиналось
+             на той же высоте, что остальные разделы. Наполняет crm-schedule-alerts.js. -->
+        <div class="breaks-list" id="ownerAlertsSchedule"><span class="note">Загрузка…</span></div>
 
         <!-- Правка 07.08.2026 - форма walk-in/новой записи перенесена СЮДА, под календарь
              (была выше, перед .seg-tabs День/Неделя/Месяц) - в hidden-состоянии разницы не

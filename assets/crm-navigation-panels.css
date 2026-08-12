@@ -14,6 +14,16 @@
   --owner-panel-active: color-mix(in srgb, var(--surface-2) 86%, var(--surface));
 }
 
+/* Содержимое раздела больше не лежит внутри второй тяжёлой карточки. Сайдбар,
+   верхняя панель и сами навигационные панели уже задают достаточную структуру. */
+.crm-navigation-ui .page-tabs > .tab-panel > section {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
 /* Аккордеоны всех разделов владельца, администратора и мастера */
 .crm-navigation-ui .staff-list {
   gap: 10px;
@@ -30,6 +40,11 @@
     background-color 160ms var(--ease-out),
     border-color 160ms var(--ease-out),
     box-shadow 160ms var(--ease-out);
+}
+
+.crm-navigation-ui details.staff-card:not([open]):hover {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: var(--surface-2);
 }
 
 .crm-navigation-ui details.staff-card::before {
@@ -65,7 +80,12 @@
 }
 
 .crm-navigation-ui details.staff-card summary:hover {
-  background: color-mix(in srgb, var(--surface-3) 20%, transparent);
+  background: transparent;
+}
+
+.crm-navigation-ui details.staff-card summary:hover .chevron,
+.crm-navigation-ui details.staff-card summary:hover .avatar-icon {
+  color: var(--text);
 }
 
 .crm-navigation-ui details.staff-card summary:focus-visible {
@@ -93,13 +113,12 @@
 .crm-navigation-ui details.staff-card .avatar-icon {
   width: 40px;
   height: 40px;
-  border-radius: var(--owner-control-radius);
-  background: color-mix(in srgb, var(--surface-3) 72%, transparent);
-  border-color: var(--owner-panel-border);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
   transition:
-    background-color 160ms var(--ease-out),
-    border-color 160ms var(--ease-out),
-    box-shadow 160ms var(--ease-out);
+    color 160ms var(--ease-out);
 }
 
 .crm-navigation-ui details.staff-card .avatar-icon svg {
@@ -108,13 +127,13 @@
 }
 
 .crm-navigation-ui details.staff-card[open] .avatar-icon {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 8px 20px -12px color-mix(in srgb, var(--accent) 78%, transparent);
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
 }
 
 .crm-navigation-ui details.staff-card[open] .avatar-icon svg {
-  color: var(--leather);
+  color: inherit;
 }
 
 /* Карточки людей сохраняют круглый аватар, но используют общий размер заголовка */
@@ -143,8 +162,9 @@
   height: 32px;
   margin-left: auto;
   overflow: hidden;
-  border: 1px solid var(--owner-panel-border);
-  border-radius: 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   color: var(--text-muted);
   font-size: 0;
   transform: none;
@@ -156,23 +176,75 @@
 
 .crm-navigation-ui details.staff-card .chevron::before {
   content: '';
-  width: 6px;
-  height: 6px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(-45deg);
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='m7 4 6 6-6 6' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='m7 4 6 6-6 6' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  transform: none;
   transition: transform 160ms var(--ease-out);
 }
 
 .crm-navigation-ui details.staff-card[open] .chevron {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
-  background: color-mix(in srgb, var(--surface-3) 44%, transparent);
+  background: transparent;
   transform: none;
 }
 
 .crm-navigation-ui details.staff-card[open] .chevron::before {
-  transform: translateY(-1px) rotate(45deg);
+  transform: rotate(90deg);
+}
+
+/* Все стрелки листания используют один и тот же оптически ровный SVG и наследуют
+   цвет контрола. Текстовые ‹/› остаются в HTML как безопасный fallback. */
+.crm-navigation-ui .day-nav-btn,
+.crm-navigation-ui .custom-date-nav-btn {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0;
+}
+
+.crm-navigation-ui .day-nav-btn::before,
+.crm-navigation-ui .custom-date-nav-btn::before,
+.crm-navigation-ui details.booking-detail summary::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='m7 4 6 6-6 6' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='m7 4 6 6-6 6' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.crm-navigation-ui .custom-date-nav-btn[aria-label^='Предыдущ']::before {
+  transform: rotate(180deg);
+}
+
+.crm-navigation-ui .day-nav-btn[aria-label^='Предыдущ']::before {
+  transform: rotate(180deg);
+}
+
+.crm-navigation-ui .day-nav-btn:hover:not(:disabled),
+.crm-navigation-ui .custom-date-nav-btn:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.crm-navigation-ui details.booking-detail summary::before {
+  transition: transform 160ms var(--ease-out), color 140ms var(--ease-out);
+}
+
+.crm-navigation-ui details.booking-detail summary:hover::before {
+  color: var(--text);
+}
+
+.crm-navigation-ui details.booking-detail[open] summary::before {
+  transform: rotate(90deg);
 }
 
 .crm-navigation-ui details.staff-card .staff-card-body {
@@ -209,6 +281,12 @@
     background-color 140ms var(--ease-out),
     border-color 140ms var(--ease-out),
     box-shadow 140ms var(--ease-out);
+}
+
+/* Явная страховка от повторения production-регрессии 12.08.2026: авторский
+   display ниже не должен раскрывать элемент, который auth пометил hidden */
+.crm-navigation-ui .crm-top-action[hidden] {
+  display: none;
 }
 
 .crm-navigation-ui button.crm-top-action {
@@ -250,15 +328,15 @@
 }
 
 .crm-navigation-ui .crm-top-action:hover {
-  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
-  background: color-mix(in srgb, var(--surface-3) 55%, transparent);
+  border-color: transparent;
+  background: var(--surface-2);
   color: var(--text);
 }
 
 .crm-navigation-ui .notif-bell.crm-top-action:hover,
 .crm-navigation-ui .logout-btn.crm-top-action:hover {
   border-color: transparent;
-  background: color-mix(in srgb, var(--surface-3) 55%, transparent);
+  background: var(--surface-2);
 }
 
 .crm-navigation-ui .crm-top-action:focus-visible {
@@ -276,7 +354,8 @@
 /* Предупреждения об отсутствии рабочего графика */
 .crm-navigation-ui #ownerAlertsSchedule {
   gap: 8px;
-  margin-bottom: 14px;
+  margin-top: 14px;
+  margin-bottom: 0;
 }
 
 .crm-navigation-ui .owner-schedule-alert {

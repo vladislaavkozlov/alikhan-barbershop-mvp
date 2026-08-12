@@ -46,6 +46,38 @@ test('верхние SVG и предупреждения используют ц
   assert.match(css, /\.owner-schedule-alert__icon \{[\s\S]*?color: var\(--text-muted\);/);
 });
 
+test('панели начинаются с общего края без старой внешней карточки', async () => {
+  const css = await source('assets/crm-navigation-panels.css');
+  const owner = await source('crm-owner.html');
+
+  assert.match(css, /\.page-tabs > \.tab-panel > section \{[\s\S]*?background: transparent;[\s\S]*?border: 0;[\s\S]*?padding: 0;/);
+  assert.ok(owner.indexOf('class="staff-list schedule-view-cards"') < owner.indexOf('id="ownerAlertsSchedule"'));
+});
+
+test('панельные иконки не имеют рамок и используют цвет сайдбара', async () => {
+  const css = await source('assets/crm-navigation-panels.css');
+
+  assert.match(css, /details\.staff-card \.avatar-icon \{[\s\S]*?border: 0;[\s\S]*?background: transparent;[\s\S]*?color: var\(--text-muted\);/);
+  assert.match(css, /details\.staff-card\[open\] \.avatar-icon \{[\s\S]*?background: transparent;[\s\S]*?color: var\(--accent\);/);
+});
+
+test('все навигационные стрелки используют ровный SVG-mask и меняют цвет', async () => {
+  const css = await source('assets/crm-navigation-panels.css');
+
+  assert.match(css, /\.chevron::before[\s\S]*?mask:[^;]*data:image\/svg\+xml/);
+  assert.match(css, /\.day-nav-btn::before[\s\S]*?mask:[^;]*data:image\/svg\+xml/);
+  assert.match(css, /\.custom-date-nav-btn::before[\s\S]*?mask:[^;]*data:image\/svg\+xml/);
+  assert.match(css, /summary:hover \.chevron[\s\S]*?color: var\(--text\);/);
+  assert.match(css, /\.day-nav-btn:hover[\s\S]*?color: var\(--text\);/);
+});
+
+test('hover верхних действий и закрытых панелей повторяет поверхность сайдбара', async () => {
+  const css = await source('assets/crm-navigation-panels.css');
+
+  assert.match(css, /\.crm-top-action:hover[\s\S]*?background: var\(--surface-2\);[\s\S]*?color: var\(--text\);/);
+  assert.match(css, /details\.staff-card:not\(\[open\]\):hover[\s\S]*?background: var\(--surface-2\);/);
+});
+
 test('предупреждение о графике использует новый семантический компонент', async () => {
   const js = await source('assets/crm-schedule-alerts.js');
 
