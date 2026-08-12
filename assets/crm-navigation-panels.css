@@ -262,6 +262,20 @@
   opacity: 1;
 }
 
+/* Карточки Расписания (День/Неделя/Месяц/Год) - отдельный, более тёмный фон по
+   референсу Влада, чем у карточек команды/остальных разделов (те - ок, не
+   трогать). Календарь внутри и так насыщен цветом (записи, статусы) - карточка
+   вокруг него нарочно спокойнее, почти сливается с фоном страницы. */
+.crm-navigation-ui details.staff-card.schedule-view-card {
+  background: #101E19;
+}
+.crm-navigation-ui details.staff-card.schedule-view-card:not([open]):hover {
+  background: #142A22;
+}
+.crm-navigation-ui details.staff-card.schedule-view-card[open] {
+  background: #16261E;
+}
+
 .crm-navigation-ui details.staff-card summary {
   min-height: 70px;
   padding: 13px 18px 13px 20px;
