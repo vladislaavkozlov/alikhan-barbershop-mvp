@@ -625,6 +625,105 @@ export async function handleBookingAddServices(req, res, parts) {
   }
 }
 
+// ── PUT /bookings/:id/services - ПОЛНЫЙ состав услуг записи (13.08.2026, Влад:
+// "клиент пришёл и они с мастером решили сделать другую услугу - её можно будет
+// изменить?"). До этого дня состав можно было только дополнять (PATCH выше), а
+// снять ошибочно отмеченную услугу - нечем: единственным выходом было удалить
+// запись и создать заново, теряя её id вместе с actual_price, комментарием и
+// привязанными продажами. Здесь тело запроса описывает состав ЦЕЛИКОМ: чего в нём
+// нет - то удаляется, чего не было - добавляется.
+//
+// PATCH (только добавление) сознательно оставлен рядом и не тронут: им пользуется
+// мастер со своей страницы (crm-master.html), где снятие услуги недоступно по
+// решению Влада от 08.08.2026 ("только администратор проводит запись и оплату").
+// Роли здесь - owner/admin, как у actual-price и удаления: снятие услуги меняет
+// деньги визита и зарплату мастера.
+//
+// Длительность пересчитывается по прайсу мастера ЭТОЙ записи - тем же способом,
+// что при переносе (resolveRescheduleDuration). Пересечения с соседними записями
+// НЕ проверяются: это фиксация уже случившегося визита, тот же осознанный
+// компромисс, что и у PATCH-версии (см. комментарий там).
+export function resolveServicesReplacement({ serviceIds, masterServiceRows, currentServiceIds }) {
+  if (!Array.isArray(serviceIds) || serviceIds.length === 0) return { error: 'missing_fields' };
+  const wanted = [...new Set(serviceIds)];
+  if (masterServiceRows.length !== wanted.length) return { error: 'unknown_master_service' };
+  const current = new Set(currentServiceIds);
+  const next = new Set(wanted);
+  return {
+    serviceIds: wanted,
+    added: wanted.filter((id) => !current.has(id)),
+    removed: [...current].filter((id) => !next.has(id)),
+    durationMin: masterServiceRows.reduce((sum, r) => sum + r.duration_min, 0),
+  };
+}
+
+export async function handleBookingSetServices(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
+  const body = await readBody(req);
+  const bookingId = decodeURIComponent(parts[1]);
+
+  const bookingRes = await pool.query(
+    'SELECT id, master_id, location_id, start_time, status FROM bookings WHERE id = $1',
+    [bookingId]
+  );
+  if (bookingRes.rows.length === 0) return sendJson(res, 404, { error: 'booking_not_found' });
+  const booking = bookingRes.rows[0];
+  if (auth.role === 'admin' && booking.location_id !== auth.locationId) {
+    return sendJson(res, 403, { error: 'forbidden' });
+  }
+  if (booking.status === 'cancelled') return sendJson(res, 409, { error: 'booking_cancelled' });
+
+  const wanted = Array.isArray(body.serviceIds) ? [...new Set(body.serviceIds)] : [];
+  const msRes = wanted.length
+    ? await pool.query(
+        'SELECT service_id, duration_min FROM master_services WHERE master_id = $1 AND service_id = ANY($2)',
+        [booking.master_id, wanted]
+      )
+    : { rows: [] };
+  const currentRes = await pool.query('SELECT service_id FROM booking_services WHERE booking_id = $1', [bookingId]);
+  const plan = resolveServicesReplacement({
+    serviceIds: wanted,
+    masterServiceRows: msRes.rows,
+    currentServiceIds: currentRes.rows.map((r) => r.service_id),
+  });
+  if (plan.error) return sendJson(res, 400, { error: plan.error });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (plan.removed.length > 0) {
+      await client.query('DELETE FROM booking_services WHERE booking_id = $1 AND service_id = ANY($2)', [
+        bookingId,
+        plan.removed,
+      ]);
+    }
+    for (const serviceId of plan.added) {
+      await client.query(
+        'INSERT INTO booking_services (booking_id, service_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [bookingId, serviceId]
+      );
+    }
+    // Конец слота считается от НАЧАЛА записи и полного состава - не сдвигом от
+    // прежнего конца (как в PATCH-версии, которая умеет только удлинять): при
+    // снятии услуги слот обязан укоротиться, а не остаться прежним.
+    const newEndTime = addMinutes(booking.start_time, plan.durationMin);
+    await client.query('UPDATE bookings SET end_time = $1 WHERE id = $2', [newEndTime, bookingId]);
+    await client.query('COMMIT');
+    return sendJson(res, 200, {
+      ok: true,
+      booking: { id: bookingId, serviceIds: plan.serviceIds, endTime: newEndTime },
+      added: plan.added,
+      removed: plan.removed,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // ── /bookings/:id/reschedule - ПЕРЕНОС записи: другой мастер и/или другая дата/
 // время (Окно 54, 10.08.2026, Задача B). Честная находка, из-за которой окно
 // существует: услугу у существующей записи менять уже было можно (PATCH

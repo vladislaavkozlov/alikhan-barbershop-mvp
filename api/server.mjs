@@ -59,9 +59,9 @@ import { handleLocationsList } from './routes/locations.js';
 // Ре-экспорт для tests/api.staff-role-lock.test.js (инцидент 11.08.2026).
 export { isLastOwnerDemotion } from './routes/staff.js';
 import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
-import { handleBookings, handleBookingCancel, handleBookingStatus, handleBookingAddServices, handleBookingReschedule, handleBookingActualPrice, handleBookingDelete, handleSales } from './routes/bookings.js';
+import { handleBookings, handleBookingCancel, handleBookingStatus, handleBookingAddServices, handleBookingSetServices, handleBookingReschedule, handleBookingActualPrice, handleBookingDelete, handleSales } from './routes/bookings.js';
 // Ре-экспорт для tests/api.booking-reschedule.test.js (Окно 54, Задача B и C).
-export { checkSlotAvailability, resolveRescheduleDuration, planRescheduleNotifications, formatMoveSlot, normalizeStaffComment, BOOKING_COMMENT_MAX_LEN } from './routes/bookings.js';
+export { checkSlotAvailability, resolveRescheduleDuration, planRescheduleNotifications, formatMoveSlot, normalizeStaffComment, BOOKING_COMMENT_MAX_LEN, resolveServicesReplacement } from './routes/bookings.js';
 import {
   handleSchedule,
   handleScheduleExceptions,
@@ -130,6 +130,7 @@ const ROUTES = [
   { method: 'POST', path: 'bookings/:id/cancel', auth: 'any-staff' },
   { method: 'PATCH', path: 'bookings/:id/status', auth: 'any-staff' },
   { method: 'PATCH', path: 'bookings/:id/services', auth: 'any-staff' },
+  { method: 'PUT', path: 'bookings/:id/services', auth: 'any-staff' },
   { method: 'PATCH', path: 'bookings/:id/reschedule', auth: 'any-staff' },
   { method: 'DELETE', path: 'bookings/:id', auth: 'any-staff' },
   { method: 'PATCH', path: 'bookings/:id/actual-price', auth: 'any-staff' },
@@ -319,6 +320,14 @@ const server = createServer(async (req, res) => {
     // api/routes/bookings.js.
     if (parts[0] === 'bookings' && parts[1] && parts[2] === 'services' && parts.length === 3 && req.method === 'PATCH') {
       return handleBookingAddServices(req, res, parts);
+    }
+
+    // ── PUT /bookings/:id/services - ПОЛНЫЙ состав услуг записи (13.08.2026):
+    // в отличие от PATCH выше умеет и СНЯТЬ услугу (клиент передумал уже в кресле),
+    // пересчитывая конец слота от начала записи - см. handleBookingSetServices,
+    // api/routes/bookings.js. owner/admin, мастер остаётся на PATCH.
+    if (parts[0] === 'bookings' && parts[1] && parts[2] === 'services' && parts.length === 3 && req.method === 'PUT') {
+      return handleBookingSetServices(req, res, parts);
     }
 
     // ── /bookings/:id/reschedule - перенос записи на другого мастера/дату/время

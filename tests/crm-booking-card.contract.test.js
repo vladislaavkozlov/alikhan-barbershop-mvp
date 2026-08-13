@@ -74,12 +74,26 @@ test('сумма подтягивается из состава услуг и н
   assert.match(status, /if \(priceTouched\) return;/);
 });
 
-test('уже оказанные услуги заблокированы в самом списке услуг', async () => {
+test('услуги записи редактируются целиком: снятая галочка уезжает на сервер', async () => {
   const walkin = await source('assets/crm-walkin.js');
-  assert.match(walkin, /lockedServices = new Set\(editMode/);
-  assert.match(walkin, /input\.disabled = isLocked \|\|/);
+  // Полный состав, а не только добавленные - иначе снятие услуги ничего не меняло бы
+  assert.match(walkin, /method: 'PUT'[\s\S]{0,200}serviceIds: \[\.\.\.selected\]/);
+  assert.match(walkin, /const removed = \[\.\.\.was\]\.filter/);
   for (const page of OPERATOR_PAGES) {
     const html = await source(page);
     assert.match(html, /id="wfServiceEditHint"/, page);
+    assert.match(html, /услугу можно снять или добавить/, page);
   }
+});
+
+test('цвет записи в календаре говорит об исходе визита', async () => {
+  const calendar = await source('assets/crm-calendar.js');
+  const css = await source('assets/mockup-crm.css');
+  // Неявка получает СВОЙ класс, а не тот же, что у ожидания
+  assert.match(calendar, /'no_show' \? 'appt--noshow'/);
+  assert.match(css, /\.appt--noshow \{[^}]*border-color: var\(--danger\)/);
+  // Полосы слева: ожидание нейтральное, пришёл зелёный, не пришёл красный
+  assert.match(css, /\.appt--status-planned \{ border-left-color: var\(--accent\); \}/);
+  assert.match(css, /\.appt--status-done \{ border-left-color: var\(--success\); \}/);
+  assert.match(css, /\.appt--status-noshow \{ border-left-color: var\(--danger\); \}/);
 });

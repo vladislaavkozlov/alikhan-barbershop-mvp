@@ -435,11 +435,13 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     nameLabel.textContent = masterName;
     editMode = hasEditUi && !!options.edit;
     editBooking = editMode ? { ...options.booking, masterId } : null;
-    // Блокируем ровно то, что уже сохранено в записи (не то, что отмечено сейчас) -
-    // set пересобирается на каждое открытие формы, иначе прошлая запись блокировала бы
-    // услуги в следующей.
-    lockedServices = new Set(editMode ? editBooking.serviceIds || [] : []);
-    if (serviceEditHint) serviceEditHint.hidden = !editMode || lockedServices.size === 0;
+    // 13.08.2026 - услуги записи стали полностью редактируемыми (PUT
+    // /bookings/:id/services умеет и снятие), поэтому на owner/admin ничего не
+    // блокируем: галочка снимается, состав сохраняется общей кнопкой. Блокировка
+    // осталась только там, где снятие действительно недоступно - на странице
+    // мастера (своя карточка, PATCH-только), её ставит wireBookingServiceEdit.
+    lockedServices = new Set();
+    if (serviceEditHint) serviceEditHint.hidden = !editMode;
     rebookMode = hasRebookUi && !!(options.rebook || options.slot || options.manual || editMode);
     resultEl.hidden = true;
     clearHint();
@@ -627,23 +629,29 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       const startTime = timeSelectValue('wfTimeValue');
       if (!date || !startTime) throw new Error('укажите дату и время');
 
-      // Услуги: шлём только ДОБАВЛЕННЫЕ. Роут умеет исключительно добавление (уже
-      // оказанные услуги не снимаются - осознанное решение Окна 51, это фиксация
-      // случившегося визита), поэтому снятие галочки здесь ничего не удаляет, и
-      // обещать обратное в интерфейсе нельзя.
+      // Услуги: шлём ПОЛНЫЙ состав (PUT /bookings/:id/services, 13.08.2026, Влад:
+      // "клиент передумал уже в кресле - услугу можно будет изменить?"). Раньше
+      // здесь был PATCH, умеющий только дописывать: снятая галочка ничего не
+      // удаляла, и единственным способом исправить состав было удалить запись
+      // целиком. Теперь снятие работает, конец слота пересчитывает сервер.
       const was = new Set(editBooking.serviceIds || []);
       const added = [...selected].filter((id) => !was.has(id));
-      if (added.length > 0) {
+      const removed = [...was].filter((id) => !selected.has(id));
+      if (added.length > 0 || removed.length > 0) {
         const sr = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/services`, {
-          method: 'PATCH',
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ serviceIds: added }),
+          body: JSON.stringify({ serviceIds: [...selected] }),
         });
         const sdata = await sr.json().catch(() => ({}));
         if (!sr.ok || sdata.ok === false) {
           throw new Error(RESCHEDULE_ERROR_TEXT[sdata.error] || sdata.error || `HTTP ${sr.status}`);
         }
         editBooking.serviceIds = sdata.booking?.serviceIds || [...selected];
+        // Состав поменялся - блокировка списка идёт за ним, иначе только что
+        // снятая услуга осталась бы заблокированной до перезагрузки страницы.
+        lockedServices = new Set();
+        syncCheckboxes();
       }
 
       // Перенос - только если что-то реально изменилось. Пустой PATCH создал бы

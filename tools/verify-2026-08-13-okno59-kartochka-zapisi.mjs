@@ -222,11 +222,11 @@ try {
           card.serviceSummaryText === 'Услуги', `summary="${card.serviceSummaryText}"`);
         check('п.2: отдельного блока "Добавить услугу к записи" на странице нет',
           card.hasServiceEditBlock === false, `есть=${card.hasServiceEditBlock}`);
-        check('п.2: уже оказанная услуга отмечена и заблокирована в самом списке услуг',
-          card.checks.some((c) => c.id === 'strizhka' && c.checked && c.disabled)
+        check('п.2: сохранённая услуга отмечена и её МОЖНО снять (галочка не заблокирована)',
+          card.checks.some((c) => c.id === 'strizhka' && c.checked && !c.disabled)
           && card.checks.some((c) => c.id === 'vosk' && !c.checked && !c.disabled),
           JSON.stringify(card.checks));
-        check('п.2: подсказка про уже оказанные услуги видна в режиме редактирования',
+        check('п.2: подсказка про правку состава услуг видна в режиме редактирования',
           card.hintVisible === true, `видна=${card.hintVisible}`);
         check('п.3: в фактическую сумму подтянулась сумма услуг (2000)',
           card.priceValue === '2000', `value="${card.priceValue}"`);
@@ -295,8 +295,61 @@ try {
           reopened.priceValue === '3000', `value="${reopened.priceValue}"`);
         check('п.3: комментарий пережил перезагрузку и виден в карточке записи',
           reopened.commentValue === 'Владелец дал скидку 500 ₽', `value="${reopened.commentValue}"`);
-        check('п.2: обе сохранённые услуги теперь заблокированы от снятия',
-          reopened.checks.filter((c) => c.checked && c.disabled).length === 2, JSON.stringify(reopened.checks));
+        check('п.2: обе сохранённые услуги отмечены и остаются редактируемыми',
+          reopened.checks.filter((c) => c.checked && !c.disabled).length === 2, JSON.stringify(reopened.checks));
+
+        // Снятие услуги: клиент передумал уже в кресле (13.08.2026)
+        const beforeRemoval = await fetchBooking();
+        await clickCenter(s, '#wfServicePicker input[value="vosk"]');
+        await sleep(300);
+        await clickCenter(s, '#wfSubmit');
+        await sleep(2000);
+        const afterRemoval = await fetchBooking();
+        check('снятие услуги: воск ушёл из записи, стрижка осталась',
+          afterRemoval.serviceIds.length === 1 && afterRemoval.serviceIds[0] === 'strizhka',
+          JSON.stringify(afterRemoval.serviceIds));
+        check('снятие услуги: слот укоротился на длительность снятой услуги',
+          afterRemoval.endTime < beforeRemoval.endTime,
+          JSON.stringify({ было: beforeRemoval.endTime, стало: afterRemoval.endTime }));
+
+        // Цвета статусов в календаре (13.08.2026): исход визита виден с одного взгляда
+        const doneRes = await fetch(`${apiUrl}/bookings`, {
+          method: 'POST', headers: auth,
+          body: JSON.stringify({ masterId: 'o59-owner', serviceIds: ['strizhka'], date: today, startTime: '16:00', clientName: 'Пришёл Сергей', clientPhone: null, channel: 'admin' }),
+        });
+        const doneBooking = (await doneRes.json()).booking;
+        const noShowRes = await fetch(`${apiUrl}/bookings`, {
+          method: 'POST', headers: auth,
+          body: JSON.stringify({ masterId: 'o59-owner', serviceIds: ['strizhka'], date: today, startTime: '17:00', clientName: 'Не пришёл Пётр', clientPhone: null, channel: 'admin' }),
+        });
+        const noShowBooking = (await noShowRes.json()).booking;
+        await fetch(`${apiUrl}/bookings/${doneBooking.id}/status`, { method: 'PATCH', headers: auth, body: JSON.stringify({ status: 'done' }) });
+        await fetch(`${apiUrl}/bookings/${noShowBooking.id}/status`, { method: 'PATCH', headers: auth, body: JSON.stringify({ status: 'no_show' }) });
+        await s.navigate(`${base}/crm-owner.html`);
+        await sleep(3000);
+        await clickCenter(s, '#scheduleCard-day > summary');
+        await sleep(1500);
+        const colors = await s.eval(`(function(){
+          const cls = (id) => document.querySelector('.appt[data-id="' + id + '"]')?.className || null;
+          const bg = (id) => {
+            const el = document.querySelector('.appt[data-id="' + id + '"]');
+            return el ? getComputedStyle(el).backgroundColor : null;
+          };
+          return {
+            waiting: cls(${JSON.stringify(booking.id)}), waitingBg: bg(${JSON.stringify(booking.id)}),
+            done: cls(${JSON.stringify(doneBooking.id)}), doneBg: bg(${JSON.stringify(doneBooking.id)}),
+            noShow: cls(${JSON.stringify(noShowBooking.id)}), noShowBg: bg(${JSON.stringify(noShowBooking.id)}),
+          };
+        })()`);
+        check('календарь: ожидание - нейтральная запись с золотой полосой',
+          /appt--new/.test(colors.waiting) && /appt--status-planned/.test(colors.waiting), JSON.stringify(colors.waiting));
+        check('календарь: пришёл - зелёная запись с зелёной полосой',
+          /appt--done/.test(colors.done) && /appt--status-done/.test(colors.done), JSON.stringify(colors.done));
+        check('календарь: не пришёл - КРАСНАЯ запись, а не такая же, как ожидание',
+          /appt--noshow/.test(colors.noShow) && /appt--status-noshow/.test(colors.noShow)
+          && colors.noShowBg !== colors.waitingBg,
+          JSON.stringify({ cls: colors.noShow, bg: colors.noShowBg, ожидание: colors.waitingBg }));
+        await s.screenshot('/private/tmp/claude-501/-Users-user/dc382e00-eab6-4473-94f6-420c70bc6da1/scratchpad/okno59-statuses-after.png');
 
         await s.screenshot('/private/tmp/claude-501/-Users-user/dc382e00-eab6-4473-94f6-420c70bc6da1/scratchpad/okno59-owner-card.png');
 

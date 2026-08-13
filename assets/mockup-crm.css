@@ -628,6 +628,9 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .appt--compact .t { line-height: 1; }
 .appt--done { background: rgba(111,174,124,0.24); border-color: var(--success); color: #DDEFE0; }
 .appt--new { background: rgba(198,161,91,0.28); border-color: var(--accent); color: var(--text); }
+/* Неявка (13.08.2026, Влад) - своя красная заливка, а не та же, что у ожидания:
+   в дневном календаре пропущенный визит должен читаться с одного взгляда. */
+.appt--noshow { background: rgba(193,85,74,0.26); border-color: var(--danger); color: #F6DFDB; }
 .appt--selected { background: rgba(124,147,184,0.28); border-color: var(--info); color: #E4EAF3; }
 .appt--break {
   background: repeating-linear-gradient(135deg, rgba(185,139,84,0.18) 0 8px, transparent 8px 16px);
@@ -645,9 +648,13 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
    border-left переопределён (width+color), не полный border - background/остальные
    стороны рамки остаются от appt--done/appt--new (Окно 15), эти правила идут ПОСЛЕ
    них в каскаде, чтобы левая сторона выигрывала при той же специфичности. */
+/* Правка 13.08.2026 (Влад) - цвет записи говорит об ИСХОДЕ визита, а не о
+   подтверждении брони: ожидание нейтральное, пришёл зелёный, не пришёл красный.
+   Было наоборот - зелёная полоса у ещё не состоявшейся записи и серая у
+   выполненной, а неявка вообще красилась как обычная запись. */
 .appt--status-planned, .appt--status-done, .appt--status-noshow { border-left-width: 4px; }
-.appt--status-planned { border-left-color: var(--success); }
-.appt--status-done { border-left-color: var(--text-muted); }
+.appt--status-planned { border-left-color: var(--accent); }
+.appt--status-done { border-left-color: var(--success); }
 .appt--status-noshow { border-left-color: var(--danger); }
 
 /* Окно 43 - "пунктирный слот на свободном месте": следует за курсором в

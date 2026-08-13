@@ -80,11 +80,12 @@ function serviceLabelFor(booking, services, priceOf) {
 
 const STATUS_TO_DATA = { planned: 'wait', done: 'came', no_show: 'no' };
 
-// Окно 43 (07.08.2026) - полоса слева по статусу (DoD промпта): зелёная = подтверждена
-// (planned - активная бронь, ждём клиента), серая = завершена (done), красная = не
-// пришёл (no_show). Отдельная модификатор-класс поверх существующих appt--done/
-// appt--new (задают фон/полный бордер, Окно 15) - границы слева переопределяются ПОСЛЕ
-// них в mockup-crm.css, сам фон/остальные стороны рамки не трогаем.
+// Полоса слева по статусу. Правка 13.08.2026 (Влад): раньше зелёной полосой
+// помечалась ОЖИДАЕМАЯ запись, а выполненная - серой, то есть цвет говорил о
+// подтверждении брони, а не об исходе визита. Логика перевёрнута на ту, которую
+// человек и ожидает: ожидание - нейтральное (ничего ещё не случилось), пришёл -
+// зелёный, не пришёл - красный. Классы-модификаторы лежат поверх appt--done/
+// appt--noshow/appt--new (фон и рамка, Окно 15 + правка 13.08.2026).
 const STATUS_STRIPE_CLASS = { planned: 'appt--status-planned', done: 'appt--status-done', no_show: 'appt--status-noshow' };
 
 function buildApptCard(booking, { masterName, services, priceOf }) {
@@ -94,7 +95,13 @@ function buildApptCard(booking, { masterName, services, priceOf }) {
   const { nameLabel, priceLabel } = serviceLabelFor(booking, services, priceOf);
   const planned = `${booking.startTime}–${booking.endTime}`;
   const dataStatus = STATUS_TO_DATA[booking.status] ?? 'wait';
-  const cssClass = booking.status === 'done' ? 'appt--done' : 'appt--new';
+  // Правка 13.08.2026 (Влад: "если не пришёл - запись в календаре красная") - до
+  // этого неявка красилась КАК ОЖИДАНИЕ (в else попадали и planned, и no_show), и
+  // отличалась только полоской в 4px слева да значком ⚠: в дне на глаз неявку было
+  // не отличить от обычной записи.
+  const cssClass = booking.status === 'done' ? 'appt--done'
+    : booking.status === 'no_show' ? 'appt--noshow'
+    : 'appt--new';
   const stripeClass = STATUS_STRIPE_CLASS[booking.status] ?? '';
   const isNoShow = booking.status === 'no_show';
   const warn = isNoShow ? '<span class="appt-warn">⚠</span>' : '';
