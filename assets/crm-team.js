@@ -11,7 +11,7 @@ import {
   ICON_UPLOAD,
 } from './crm-icons.js';
 import { initCrmNavigationPanels } from './crm-navigation-panels.js';
-import { renderMasterServiceEditor } from './crm-master-services.js';
+import { collectServiceChanges, renderMasterServiceEditor, saveServiceChanges } from './crm-master-services.js';
 import { wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 
 const roleLabel = { owner: 'Владелец', manager: 'Управляющий', admin: 'Администратор', master: 'Мастер' };
@@ -127,6 +127,13 @@ async function saveCard(card) {
   showNote(card, 'Сохраняю…');
   const value = (name) => cardValue(card, name);
   const providesServicesChanged = value('providesServices').checked !== (card.dataset.providesServices === '1');
+  // Услуги уезжают той же кнопкой, что и остальная карточка - отправляем их первыми,
+  // чтобы отказ был виден до того, как остальное уже сохранилось
+  const serviceChanges = collectServiceChanges(card.querySelector('.service-picker'));
+  if (serviceChanges.length) {
+    const failedService = await saveServiceChanges(id, serviceChanges);
+    if (failedService) return showNote(card, 'Не удалось сохранить услуги. Повторите попытку');
+  }
   const main = await apiSend(`/staff/${encodeURIComponent(id)}`, 'PUT', {
     name: value('name').value,
     phone: value('phone').value,
@@ -272,7 +279,9 @@ function cardSnapshot(card) {
 function updateSaveState(card) {
   const button = card.querySelector('[data-save]');
   if (!button || card.dataset.lockedOwner !== undefined) return;
-  button.disabled = cardSnapshot(card) === card.dataset.snapshot;
+  const fieldsChanged = cardSnapshot(card) !== card.dataset.snapshot;
+  const servicesChanged = collectServiceChanges(card.querySelector('.service-picker')).length > 0;
+  button.disabled = !fieldsChanged && !servicesChanged;
 }
 
 function wireDirtyTracking(root) {
@@ -291,6 +300,7 @@ function wireDirtyTracking(root) {
   };
   root.addEventListener('input', onEdit);
   root.addEventListener('change', onEdit);
+  root.addEventListener('crm:card-dirty', onEdit);
 }
 
 function wire(root) {
@@ -363,7 +373,10 @@ export async function renderTeam() {
       // у администратора - человеку нужно видеть и менять свои смены и выходные, даже
       // когда он не появляется в расписании записи (правка Влада 13.08.2026).
       const staffCanEdit = canEdit && !(me.staff.role === 'manager' && staff.protectedOwner);
-      renderMasterServiceEditor(host.querySelector(`.service-picker[data-master-id="${staff.id}"]`), staff.id, staffCanEdit && staff.providesServices !== false, services, masterServices);
+      const picker = host.querySelector(`.service-picker[data-master-id="${staff.id}"]`);
+      renderMasterServiceEditor(picker, staff.id, staffCanEdit && staff.providesServices !== false, services, masterServices, () => {
+        picker.closest('.team-editor-card')?.dispatchEvent(new CustomEvent('crm:card-dirty', { bubbles: true }));
+      });
       wireWeeklyScheduleEditor(staff.id, staffCanEdit, fetchJson);
     });
     wire(host);

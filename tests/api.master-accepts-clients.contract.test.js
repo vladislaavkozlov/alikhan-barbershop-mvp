@@ -164,7 +164,10 @@ test('кнопка сохранения включается только при
   const team = await readFile(new URL('assets/crm-team.js', root), 'utf8');
   assert.match(team, /data-save disabled/);                       // стартует неактивной
   assert.match(team, /function cardSnapshot\(card\)/);            // снимок исходных значений
-  assert.match(team, /button\.disabled = cardSnapshot\(card\) === card\.dataset\.snapshot/);
+  assert.match(team, /const fieldsChanged = cardSnapshot\(card\) !== card\.dataset\.snapshot/);
+  // услуги уезжают той же кнопкой и тоже будят её (правка Влада 13.08.2026)
+  assert.match(team, /const servicesChanged = collectServiceChanges\([\s\S]{0,80}\.length > 0/);
+  assert.match(team, /button\.disabled = !fieldsChanged && !servicesChanged/);
   // снимок покрывает ровно то, что уезжает по кнопке; услуги и фото сохраняются сами
   for (const field of ['name', 'phone', 'email', 'employed', 'providesServices', 'publicProfileEnabled']) {
     assert.ok(team.includes(`'${field}'`), `поле ${field} не отслеживается`);
@@ -172,4 +175,24 @@ test('кнопка сохранения включается только при
   assert.match(team, /team-role-picker input\[type="radio"\]:checked/);
   // делегированные слушатели вешаются один раз - renderTeam зовут многократно
   assert.match(team, /root\.dataset\.dirtyWired/);
+});
+
+// Влад 13.08.2026: менял галки услуг, кнопка не оживала - услуги сохранялись сами по
+// себе, мгновенным запросом, и в "есть что сохранять" не входили.
+test('услуги сохраняются кнопкой карточки, а не мгновенно по клику', async () => {
+  const root = new URL('../', import.meta.url);
+  const [services, team] = await Promise.all([
+    readFile(new URL('assets/crm-master-services.js', root), 'utf8'),
+    readFile(new URL('assets/crm-team.js', root), 'utf8'),
+  ]);
+  // клик по услуге больше не отправляет запрос сам
+  const editor = services.slice(services.indexOf('export function renderMasterServiceEditor'), services.indexOf('export function collectServiceChanges'));
+  assert.doesNotMatch(editor, /fetch\(/);
+  assert.match(editor, /onChange\?\.\(\)/);
+  // исходное состояние строки хранится в разметке - по нему считается разница
+  assert.match(services, /label\.dataset\.initialEnabled/);
+  assert.match(services, /label\.dataset\.initialDuration/);
+  // сохранение карточки отправляет только изменённые услуги
+  assert.match(team, /const serviceChanges = collectServiceChanges/);
+  assert.match(team, /await saveServiceChanges\(id, serviceChanges\)/);
 });

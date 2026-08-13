@@ -33,11 +33,13 @@ export function wireMasterServiceEditors(staffRole, services, masterServices) {
     // Карточку защищённого владельца управляющий не редактирует - renderTeam помечает
     // её data-locked-owner, здесь читаем ту же метку, чтобы оба пути совпадали
     const lockedOwner = container.closest('[data-locked-owner]') != null;
-    renderMasterServiceEditor(container, container.dataset.masterId, canEdit && !offDuty && !lockedOwner, services, masterServices);
+    renderMasterServiceEditor(container, container.dataset.masterId, canEdit && !offDuty && !lockedOwner, services, masterServices, () => {
+      container.closest('.team-editor-card')?.dispatchEvent(new CustomEvent('crm:card-dirty', { bubbles: true }));
+    });
   });
 }
 
-export function renderMasterServiceEditor(container, masterId, canEdit, services, masterServices) {
+export function renderMasterServiceEditor(container, masterId, canEdit, services, masterServices, onChange) {
   container.innerHTML = '';
   container.classList.toggle('readonly', !canEdit);
   const assigned = new Map(masterServices.filter((r) => r.masterId === masterId).map((r) => [r.serviceId, r]));
@@ -49,6 +51,12 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
     const row = assigned.get(service.id);
     const label = document.createElement('label');
     label.className = 'service-check';
+    // Исходное состояние строки: по нему saveServiceChanges понимает, что реально
+    // изменили, и отправляет только эти услуги (13.08.2026 - услуги уехали под общую
+    // кнопку "Сохранить изменения" вместе с остальной карточкой)
+    label.dataset.serviceId = service.id;
+    label.dataset.initialEnabled = row ? '1' : '0';
+    label.dataset.initialDuration = String(row ? row.durationMin : service.durationMin);
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = Boolean(row);
@@ -87,31 +95,45 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
 
     if (!canEdit) continue;
 
-    async function save(enabled) {
-      const body = enabled ? { enabled: true, durationMin: Number(durationInput.value) || service.durationMin } : { enabled: false };
-      try {
-        const res = await fetch(`${API}/master-services/${encodeURIComponent(masterId)}/${encodeURIComponent(service.id)}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) throw new Error(`master-services → ${res.status}`);
-        note.hidden = true;
-      } catch (err) {
-        input.checked = !enabled; // откат чекбокса, если сервер/сеть отказали
-        durationInput.disabled = !canEdit || !input.checked;
-        note.hidden = false;
-        note.textContent = `Не удалось сохранить «${service.name}»: ${err.message}`;
-      }
-    }
-
     input.addEventListener('change', () => {
       durationInput.disabled = !input.checked;
-      save(input.checked);
+      onChange?.();
     });
-    durationInput.addEventListener('change', () => {
-      if (input.checked) save(true);
-    });
+    durationInput.addEventListener('input', () => onChange?.());
+    durationInput.addEventListener('change', () => onChange?.());
   }
   container.appendChild(note);
+}
+
+// Что в этом блоке отличается от загруженного с сервера. Пустой массив = сохранять
+// нечего, поэтому кнопка карточки остаётся неактивной.
+export function collectServiceChanges(container) {
+  if (!container) return [];
+  const changes = [];
+  container.querySelectorAll('.service-check[data-service-id]').forEach((label) => {
+    const input = label.querySelector('input[type="checkbox"]');
+    const durationInput = label.querySelector('.sc-duration-input');
+    const enabled = Boolean(input?.checked);
+    const duration = Number(durationInput?.value) || Number(label.dataset.initialDuration);
+    const wasEnabled = label.dataset.initialEnabled === '1';
+    const wasDuration = Number(label.dataset.initialDuration);
+    if (enabled === wasEnabled && (!enabled || duration === wasDuration)) return;
+    changes.push({ serviceId: label.dataset.serviceId, enabled, durationMin: duration });
+  });
+  return changes;
+}
+
+// Отправляет только изменённые услуги. Возвращает имя первой не сохранившейся - карточка
+// покажет его в своей строке статуса, отдельного текста внутри блока услуг больше нет.
+export async function saveServiceChanges(masterId, changes) {
+  for (const change of changes) {
+    const body = change.enabled ? { enabled: true, durationMin: change.durationMin } : { enabled: false };
+    const res = await fetch(`${API}/master-services/${encodeURIComponent(masterId)}/${encodeURIComponent(change.serviceId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return change.serviceId;
+  }
+  return null;
 }
