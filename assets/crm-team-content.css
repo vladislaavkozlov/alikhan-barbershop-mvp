@@ -19,6 +19,24 @@
 .crm-navigation-ui .team-editor-section:first-child { padding-top: 4px; }
 .crm-navigation-ui .team-editor-section:last-of-type { border-bottom: 0; padding-bottom: 22px; }
 
+/* Сотрудник снят с приёма клиентов (13.08.2026): услуги и график остаются
+   настроенными и редактируемыми - их не стирают ради временной паузы - но сейчас
+   не действуют, поэтому блок читается как выключенный. Приглушаем содержимое, а
+   заголовок с пояснением оставляем в полную силу, чтобы причина была видна сразу.
+   Не opacity на всю секцию и не pointer-events:none: настройки должны оставаться
+   доступными, чтобы владелец мог подготовить их к возвращению мастера */
+.crm-navigation-ui .team-section-offduty > *:not(.team-section-head) {
+  opacity: 0.45;
+  filter: grayscale(1);
+  transition: opacity 160ms ease, filter 160ms ease;
+}
+.crm-navigation-ui .team-section-offduty:hover > *:not(.team-section-head),
+.crm-navigation-ui .team-section-offduty:focus-within > *:not(.team-section-head) {
+  opacity: 1;
+  filter: none;
+}
+.crm-navigation-ui .team-section-offduty .team-section-head p { color: var(--warn, #d08b2c); }
+
 .crm-navigation-ui .team-section-head {
   display: flex;
   align-items: flex-start;

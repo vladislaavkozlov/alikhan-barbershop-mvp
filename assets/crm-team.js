@@ -18,7 +18,7 @@ const roleLabel = { owner: 'Владелец', manager: 'Управляющий'
 const editableRoles = ['master', 'admin', 'manager'];
 let lastCreatedCredentials = null;
 const esc = (value = '') => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const section = (title, description, icon, content) => `<section class="team-editor-section"><header class="team-section-head"><span class="team-section-icon" aria-hidden="true">${icon}</span><div><h3>${title}</h3><p>${description}</p></div></header>${content}</section>`;
+const section = (title, description, icon, content, modifier = '') => `<section class="team-editor-section${modifier ? ` ${modifier}` : ''}"><header class="team-section-head"><span class="team-section-icon" aria-hidden="true">${icon}</span><div><h3>${title}</h3><p>${description}</p></div></header>${content}</section>`;
 const today = () => new Date().toISOString().slice(0, 10);
 
 function toggleControl({ name, title, description, checked, disabled = false }) {
@@ -73,15 +73,21 @@ function staffCard(staff, viewerRole, locations, viewerId) {
   // (guardAccountLockout), здесь тумблер просто не даёт нажать.
   const isSelf = viewerId != null && staff.id === viewerId;
   const employmentLocked = locked || staff.protectedOwner || isSelf;
+  // Снят с приёма клиентов - услуги и график остаются настроенными (их не стирают
+  // ради временной паузы), но не действуют: в календаре такого сотрудника нет и
+  // записать к нему нельзя (второй рубеж в POST /bookings). Приглушаем оба блока,
+  // чтобы настройка не выглядела активной - жалоба Влада 13.08.2026.
+  const offDuty = staff.providesServices === false;
+  const offDutyClass = offDuty ? 'team-section-offduty' : '';
   const employmentNote = staff.protectedOwner
     ? 'Владельца нельзя снять с состава - защита от блокировки самого себя'
     : isSelf ? 'Свой статус изменить нельзя - защита от блокировки самого себя'
       : 'Сотрудник остаётся в активном составе';
-  return `<details class="staff-card team-editor-card" data-staff-id="${id}" ${locked ? 'data-locked-owner' : ''}><summary><div class="avatar">${esc(staff.name).slice(0, 2)}</div><div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
+  return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary><div class="avatar">${esc(staff.name).slice(0, 2)}</div><div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
   ${section('Основное', 'Контакты и рабочий статус', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" value="${esc(staff.name)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" value="${esc(staff.phone)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" value="${esc(staff.email)}" ${locked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: employmentNote, checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: locked })}</div>`)}
   ${section('Профиль на сайте', 'Фото и информация для клиентов', ICON_PUBLIC, mediaMarkup(staff))}
-  ${section('Услуги и время', 'Выберите услуги и укажите длительность', ICON_SERVICES, `<div class="service-picker" data-master-id="${id}"><span class="note">Загружаю услуги…</span></div>`)}
-  ${section('График', 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}"><span class="note">Загружаю график…</span></div>${exceptionEditor(staff.id)}`)}
+  ${section('Услуги и время', offDuty ? 'Сейчас не оказываются - сотрудник снят с приёма клиентов' : 'Выберите услуги и укажите длительность', ICON_SERVICES, `<div class="service-picker" data-master-id="${id}"><span class="note">Загружаю услуги…</span></div>`, offDutyClass)}
+  ${section('График', offDuty ? 'Не действует - сотрудник снят с приёма клиентов' : 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}"><span class="note">Загружаю график…</span></div>${exceptionEditor(staff.id)}`, offDutyClass)}
   ${/* Тумблер "Разрешить вход в CRM" убран 13.08.2026 по решению владельца: он дублировал
        "Работает в компании" в глазах салона и создавал риск случайно отрезать себе вход.
        Вход теперь есть у каждого, кто числится в составе; колонка has_system_access в схеме
@@ -113,6 +119,7 @@ async function saveCard(card) {
   const id = card.dataset.staffId;
   showNote(card, 'Сохраняю…');
   const value = (name) => cardValue(card, name);
+  const providesServicesChanged = value('providesServices').checked !== (card.dataset.providesServices === '1');
   const main = await apiSend(`/staff/${encodeURIComponent(id)}`, 'PUT', {
     name: value('name').value,
     phone: value('phone').value,
@@ -137,6 +144,18 @@ async function saveCard(card) {
     if (!roleResult.ok) return showNote(card, 'Данные сохранены, но роль не изменилась. Повторите попытку');
   }
   showNote(card, 'Сохранено');
+  // Смена "Принимает клиентов" перестраивает состав колонок в Расписании, а тот
+  // список собирается один раз при инициализации страницы (mastersOf в
+  // wireScheduleViews) - повторный renderTeam его не трогает, и снятый с приёма
+  // мастер оставался бы в календаре кликабельным до ручного F5 (жалоба Влада
+  // 13.08.2026). Полная перезагрузка вместо точечной перерисовки сознательно:
+  // renderLiveProof повторно звать нельзя, он задваивает обработчики (см.
+  // crm-dashboard.js), а смена этого флага - редкая операция, не ежедневная.
+  if (providesServicesChanged) {
+    showNote(card, 'Сохранено. Обновляю расписание…');
+    window.location.reload();
+    return;
+  }
   await renderTeam();
 }
 

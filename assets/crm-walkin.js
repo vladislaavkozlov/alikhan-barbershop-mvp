@@ -548,6 +548,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     overlap: 'на это время у мастера уже есть другая запись - выберите свободное',
     schedule_blocked: 'у мастера в это время перерыв или выходной',
     master_not_bookable: 'у этого мастера ещё не настроен график работы',
+    master_not_accepting: 'этот сотрудник сейчас не принимает клиентов',
     past_time: 'нельзя перенести в прошлое',
   };
   const RESCHEDULE_ERROR_TEXT = {
@@ -684,6 +685,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
             schedule_blocked: 'у мастера в это время перерыв или выходной',
             past_time: 'нельзя записать в прошлое',
             master_not_bookable: 'у мастера ещё не настроен график',
+            master_not_accepting: 'этот сотрудник сейчас не принимает клиентов',
           };
           throw new Error(REASON_TEXT[data.reason] || data.error || `HTTP ${res.status}`);
         }

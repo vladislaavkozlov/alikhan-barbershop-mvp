@@ -87,6 +87,19 @@ export async function mastersWithWorkingSchedule(client, masterIds) {
   return new Set(res.rows.map((r) => r.master_id));
 }
 
+// Второй, независимый критерий бронируемости: сотрудник вообще принимает клиентов
+// (staff.provides_services). График и приём клиентов - разные вещи: у администратора
+// или у мастера, временно снятого с приёма, недельный график остаётся заполненным,
+// поэтому проверка выше его пропускает. Живой repro 13.08.2026: у Мамедхана снят
+// "Принимает клиентов", а POST /bookings на его id отвечал 200 и создавал запись.
+export async function masterAcceptsClients(client, masterId) {
+  const res = await client.query(
+    'SELECT 1 FROM staff WHERE id = $1 AND employed = true AND provides_services = true',
+    [masterId]
+  );
+  return res.rowCount > 0;
+}
+
 // Единое представление "занятого" времени дня - до начала смены, после конца смены
 // и сами перерывы - как один список интервалов. Позволяет и createBookingTx, и
 // findScheduleConflicts проверять пересечение брони с ЛЮБОЙ причиной блокировки

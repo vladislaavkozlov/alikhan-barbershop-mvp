@@ -7,7 +7,7 @@ import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { BOOKING_OPERATOR_ROLES } from '../lib/permissions.js';
 import { addMinutes, dateColToStr, intervalsOverlap, shopNow, toMinutes } from '../lib/time.js';
-import { mastersWithWorkingSchedule, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
+import { mastersWithWorkingSchedule, masterAcceptsClients, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
 import { notifyStaff } from '../lib/notify-core.js';
 
 // Админы точки - адресаты уведомлений о её записях (Окно 14: Мамедхан управляет
@@ -78,6 +78,12 @@ export async function checkSlotAvailability(client, { masterId, date, startTime,
   const workingSet = await mastersWithWorkingSchedule(client, [masterId]);
   if (!workingSet.has(masterId)) {
     return { status: 409, body: { ok: false, reason: 'master_not_bookable' } };
+  }
+  // Второй рубеж (13.08.2026): график заполнен, но сотрудник снят с приёма клиентов -
+  // отдельная причина и отдельный текст, иначе владелец увидит "не настроен график"
+  // там, где график как раз настроен, и пойдёт чинить не то.
+  if (!await masterAcceptsClients(client, masterId)) {
+    return { status: 409, body: { ok: false, reason: 'master_not_accepting' } };
   }
 
   const { date: today, time: nowTime } = shopNow();

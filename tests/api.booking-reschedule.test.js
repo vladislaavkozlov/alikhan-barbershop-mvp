@@ -27,7 +27,11 @@ import { checkSlotAvailability, resolveRescheduleDuration, planRescheduleNotific
 const FUTURE = '2099-01-05';
 const PAST = '2000-01-05';
 
-function makeFakeClient({ workingMasters = ['master-1'], bookings = [], shiftRows = [], weeklyRow = null } = {}) {
+function makeFakeClient({ workingMasters = ['master-1'], acceptingMasters = null, bookings = [], shiftRows = [], weeklyRow = null } = {}) {
+  // acceptingMasters=null - "принимают все, у кого есть график": сценарии про
+  // overlap/schedule писались до появления второго рубежа (provides_services,
+  // 13.08.2026) и не должны знать о нём, чтобы проверять ровно свою причину.
+  const accepting = acceptingMasters ?? workingMasters;
   const calls = [];
   return {
     calls,
@@ -39,6 +43,9 @@ function makeFakeClient({ workingMasters = ['master-1'], bookings = [], shiftRow
       if (sql.includes('DISTINCT master_id')) {
         const ids = params[0].filter((id) => workingMasters.includes(id));
         return { rows: ids.map((master_id) => ({ master_id })) };
+      }
+      if (sql.includes('provides_services = true')) {
+        return { rows: accepting.includes(params[0]) ? [{ '?column?': 1 }] : [], rowCount: accepting.includes(params[0]) ? 1 : 0 };
       }
       if (sql.includes('FROM schedule_shifts')) return { rows: shiftRows };
       if (sql.includes('FROM master_weekly_schedule')) return { rows: weeklyRow ? [weeklyRow] : [] };
@@ -151,6 +158,34 @@ test('перенос на мастера без единого рабочего 
     masterId: 'master-new', date: FUTURE, startTime: '12:00', endTime: '12:40', isStaff: true,
   });
   assert.deepEqual(blocked, { status: 409, body: { ok: false, reason: 'master_not_bookable' } });
+});
+
+// Живой repro 13.08.2026: у Мамедхана снят "Принимает клиентов", график остался -
+// POST /bookings отвечал 200 и создавал запись, потому что рубеж был только про график.
+test('мастер с графиком, но снятый с приёма клиентов - 409 master_not_accepting', async () => {
+  const client = makeFakeClient({ workingMasters: ['master-2'], acceptingMasters: [] });
+  const blocked = await checkSlotAvailability(client, {
+    masterId: 'master-2', date: FUTURE, startTime: '12:00', endTime: '13:00', isStaff: true,
+  });
+  assert.deepEqual(blocked, { status: 409, body: { ok: false, reason: 'master_not_accepting' } });
+});
+
+test('причина отказа различает пустой график и снятие с приёма - чинить надо разное', async () => {
+  const noSchedule = await checkSlotAvailability(makeFakeClient({ workingMasters: [] }), {
+    masterId: 'master-new', date: FUTURE, startTime: '12:00', endTime: '13:00', isStaff: true,
+  });
+  const notAccepting = await checkSlotAvailability(makeFakeClient({ workingMasters: ['master-2'], acceptingMasters: [] }), {
+    masterId: 'master-2', date: FUTURE, startTime: '12:00', endTime: '13:00', isStaff: true,
+  });
+  assert.notEqual(noSchedule.body.reason, notAccepting.body.reason);
+});
+
+test('снятие с приёма проверяется ДО пересечений - к нему не должно быть записей вовсе', async () => {
+  const client = makeFakeClient({ workingMasters: ['master-2'], acceptingMasters: [], bookings: [{ start_time: '12:00', end_time: '13:00' }] });
+  await checkSlotAvailability(client, {
+    masterId: 'master-2', date: FUTURE, startTime: '12:00', endTime: '13:00', isStaff: true,
+  });
+  assert.equal(client.calls.filter((c) => c.sql.includes('FROM bookings')).length, 0);
 });
 
 test('порядок рубежей сохранён: master_not_bookable проверяется ДО пересечений (ни одного запроса к bookings)', async () => {
