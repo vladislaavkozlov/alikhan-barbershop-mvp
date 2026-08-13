@@ -48,16 +48,16 @@ function roleControl(staff, viewerRole) {
 function mediaMarkup(staff) {
   const media = staff.media ?? [];
   // Снят с приёма - профиля на сайте нет в любом случае: /public/masters отбирает
-  // только тех, кто оказывает услуги. Тумблер в таком состоянии обещал бы то, чего
-  // не происходит, поэтому он неактивен, а своё значение сохраняет - вернут мастера
-  // на приём, витрина включится обратно сама (жалоба Влада 13.08.2026).
+  // только тех, кто оказывает услуги. Тумблер поэтому неактивен (состояние читается
+  // по самому контролу, без текстовых пояснений - правка Влада 13.08.2026), своё
+  // значение он сохраняет: вернут мастера на приём, витрина включится обратно сама.
   const offDuty = staff.providesServices === false;
   return `<div class="team-media-upload"><div><strong>Фото профиля</strong><small>Квадратное фото будет смотреться лучше</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Выбрать фото</span><input class="team-file-native" name="avatar" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
   <div class="team-editor-grid"><div class="field"><label>Стаж</label><input name="experience" value="${esc(staff.experienceText)}" placeholder="Например, 6 лет"></div><div class="field"><label>Сильные стороны</label><input name="strengths" value="${esc(staff.strengthsText)}" placeholder="Например, фейды и борода"></div></div>
   <div class="field"><label>Курсы и сертификаты</label><textarea name="certificates" placeholder="Название курса или сертификата">${esc(staff.certificatesText)}</textarea></div>
   <div class="team-media-upload"><div><strong>Портфолио</strong><small>До 20 фото в JPEG, PNG или WebP, каждое до 8 МБ</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Добавить работы</span><input class="team-file-native" name="portfolio" type="file" multiple accept="image/jpeg,image/png,image/webp"></label></div>
   <div class="team-media-list" data-media-list data-staff-id="${esc(staff.id)}">${media.map((item) => mediaItem(item, media.filter((entry) => entry.kind === 'portfolio').findIndex((entry) => entry.id === item.id), media)).join('')}</div>
-  ${toggleControl({ name: 'publicProfileEnabled', title: 'Показывать профиль на сайте', description: offDuty ? 'Недоступно: сотрудник снят с приёма клиентов, на сайте его нет' : 'Профиль появится после настройки услуг и графика', checked: staff.publicProfileEnabled, disabled: offDuty })}`;
+  ${toggleControl({ name: 'publicProfileEnabled', title: 'Показывать профиль на сайте', description: 'Профиль появится после настройки услуг и графика', checked: staff.publicProfileEnabled, disabled: offDuty })}`;
 }
 
 function mediaItem(media, index, all) {
@@ -78,21 +78,11 @@ function staffCard(staff, viewerRole, locations, viewerId) {
   // (guardAccountLockout), здесь тумблер просто не даёт нажать.
   const isSelf = viewerId != null && staff.id === viewerId;
   const employmentLocked = locked || staff.protectedOwner || isSelf;
-  // Снят с приёма клиентов - услуги и график остаются настроенными (их не стирают
-  // ради временной паузы), но не действуют: в календаре такого сотрудника нет и
-  // записать к нему нельзя (второй рубеж в POST /bookings). Приглушаем оба блока,
-  // чтобы настройка не выглядела активной - жалоба Влада 13.08.2026.
-  const offDuty = staff.providesServices === false;
-  const offDutyClass = offDuty ? 'team-section-offduty' : '';
-  const employmentNote = staff.protectedOwner
-    ? 'Владельца нельзя снять с состава - защита от блокировки самого себя'
-    : isSelf ? 'Свой статус изменить нельзя - защита от блокировки самого себя'
-      : 'Сотрудник остаётся в активном составе';
   return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary><div class="avatar">${esc(staff.name).slice(0, 2)}</div><div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
-  ${section('Основное', 'Контакты и рабочий статус', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" value="${esc(staff.name)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" value="${esc(staff.phone)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" value="${esc(staff.email)}" ${locked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: employmentNote, checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: locked })}</div>`)}
+  ${section('Основное', 'Контакты и рабочий статус', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" value="${esc(staff.name)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" value="${esc(staff.phone)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" value="${esc(staff.email)}" ${locked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: 'Сотрудник остаётся в активном составе', checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: locked })}</div>`)}
   ${section('Профиль на сайте', 'Фото и информация для клиентов', ICON_PUBLIC, mediaMarkup(staff))}
-  ${section('Услуги и время', offDuty ? 'Сейчас не оказываются - сотрудник снят с приёма клиентов' : 'Выберите услуги и укажите длительность', ICON_SERVICES, `<div class="service-picker" data-master-id="${id}"><span class="note">Загружаю услуги…</span></div>`, offDutyClass)}
-  ${section('График', offDuty ? 'Не действует - сотрудник снят с приёма клиентов' : 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}"><span class="note">Загружаю график…</span></div>${exceptionEditor(staff.id)}`, offDutyClass)}
+  ${section('Услуги и время', 'Выберите услуги и укажите длительность', ICON_SERVICES, `<div class="service-picker" data-master-id="${id}"><span class="note">Загружаю услуги…</span></div>`)}
+  ${section('График', 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}"><span class="note">Загружаю график…</span></div>${exceptionEditor(staff.id)}`)}
   ${/* Тумблер "Разрешить вход в CRM" убран 13.08.2026 по решению владельца: он дублировал
        "Работает в компании" в глазах салона и создавал риск случайно отрезать себе вход.
        Вход теперь есть у каждого, кто числится в составе; колонка has_system_access в схеме
@@ -314,8 +304,13 @@ export async function renderTeam() {
     openStaffIds.forEach((staffId) => host.querySelector(`.team-editor-card[data-staff-id="${CSS.escape(staffId)}"]`)?.setAttribute('open', ''));
     const canEdit = ['owner', 'manager'].includes(me.staff.role);
     rows.forEach((staff) => {
-      renderMasterServiceEditor(host.querySelector(`.service-picker[data-master-id="${staff.id}"]`), staff.id, canEdit && !(me.staff.role === 'manager' && staff.protectedOwner), services, masterServices);
-      wireWeeklyScheduleEditor(staff.id, canEdit && !(me.staff.role === 'manager' && staff.protectedOwner), fetchJson);
+      // Услуги снятого с приёма не выбираются вовсе (canEdit=false отключает чекбоксы
+      // и поля длительности штатным путём). График сознательно НЕ отключаем: он есть и
+      // у администратора - человеку нужно видеть и менять свои смены и выходные, даже
+      // когда он не появляется в расписании записи (правка Влада 13.08.2026).
+      const staffCanEdit = canEdit && !(me.staff.role === 'manager' && staff.protectedOwner);
+      renderMasterServiceEditor(host.querySelector(`.service-picker[data-master-id="${staff.id}"]`), staff.id, staffCanEdit && staff.providesServices !== false, services, masterServices);
+      wireWeeklyScheduleEditor(staff.id, staffCanEdit, fetchJson);
     });
     wire(host);
     initCrmNavigationPanels();

@@ -29,18 +29,31 @@ test('оба контура объясняют отказ человечески
   assert.match(widget, /master_not_accepting: 'Этот мастер сейчас не принимает записи/);
 });
 
-test('снятый с приёма сотрудник показывает услуги и график приглушёнными', async () => {
+test('услуги снятого с приёма не выбираются, график остаётся рабочим', async () => {
   const root = new URL('../', import.meta.url);
   const [team, css] = await Promise.all([
     readFile(new URL('assets/crm-team.js', root), 'utf8'),
     readFile(new URL('assets/crm-team-content.css', root), 'utf8'),
   ]);
-  assert.match(team, /const offDuty = staff\.providesServices === false/);
-  assert.match(team, /team-section-offduty/);
-  assert.match(team, /снят с приёма клиентов/);
-  assert.match(css, /\.team-section-offduty > \*:not\(\.team-section-head\)/);
-  // заголовок с причиной не глушим - иначе непонятно, почему блок бледный
-  assert.match(css, /\.team-section-offduty \.team-section-head p/);
+  // редактор услуг получает canEdit=false - чекбоксы и длительности отключаются штатно
+  assert.match(team, /renderMasterServiceEditor\([\s\S]{0,160}staffCanEdit && staff\.providesServices !== false/);
+  // график НЕ зависит от приёма клиентов: у администратора он свой и нужен ему самому
+  assert.match(team, /wireWeeklyScheduleEditor\(staff\.id, staffCanEdit, fetchJson\)/);
+  assert.doesNotMatch(team, /wireWeeklyScheduleEditor\([^)]*providesServices/);
+  // отключённый чекбокс услуги виден неактивным - он нарисован сам, браузер его не гасит
+  assert.match(css, /\.service-check:has\(input\[type="checkbox"\]:disabled\)/);
+});
+
+test('состояние читается по контролам, без текстовых пояснений в карточке', async () => {
+  const root = new URL('../', import.meta.url);
+  const [team, css] = await Promise.all([
+    readFile(new URL('assets/crm-team.js', root), 'utf8'),
+    readFile(new URL('assets/crm-team-content.css', root), 'utf8'),
+  ]);
+  for (const phrase of ['снят с приёма клиентов', 'Не действует', 'Недоступно:', 'защита от блокировки самого себя']) {
+    assert.ok(!team.split('\n').filter((line) => !line.trimStart().startsWith('//')).join('\n').includes(phrase), `подсказка осталась в интерфейсе: ${phrase}`);
+  }
+  assert.doesNotMatch(css, /team-section-offduty/);
 });
 
 test('смена приёма клиентов перестраивает страницу - календарь собирает состав один раз', async () => {
@@ -53,13 +66,12 @@ test('смена приёма клиентов перестраивает стр
 // Жалоба Влада 13.08.2026: на сайте снятого с приёма нет (бэкенд отбирает только
 // оказывающих услуги), а тумблер витрины в карточке стоял включённым и выглядел
 // рабочим - обещал то, чего не происходит.
-test('тумблер витрины неактивен у снятого с приёма и объясняет причину', async () => {
+test('тумблер витрины неактивен у снятого с приёма', async () => {
   const root = new URL('../', import.meta.url);
   const team = await readFile(new URL('assets/crm-team.js', root), 'utf8');
   const markup = team.slice(team.indexOf('function mediaMarkup'), team.indexOf('function mediaItem'));
   assert.match(markup, /const offDuty = staff\.providesServices === false/);
   assert.match(markup, /name: 'publicProfileEnabled'[\s\S]*disabled: offDuty/);
-  assert.match(markup, /Недоступно: сотрудник снят с приёма клиентов/);
 });
 
 test('профиль на сайте отбирается по приёму клиентов, а не по одному тумблеру', async () => {
