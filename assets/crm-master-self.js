@@ -16,7 +16,7 @@ import { wireScheduleRequestForm } from './crm-schedule-request-form.js';
 // подключён к реальным данным (отдельная крупная задача, см.
 // ТЗ-готовность-к-продакшену, Блок В), эта функция чинит только то, что видно ДО
 // открытия любой записи.
-export function wireMasterSelfView(staff, pctOf) {
+export function wireMasterSelfView(staff) {
   const badge = el('selfNameBadge');
   if (badge) badge.textContent = staff.name;
 
@@ -25,9 +25,6 @@ export function wireMasterSelfView(staff, pctOf) {
 
   const nameHeadEl = el('selfNameHead');
   if (nameHeadEl) nameHeadEl.textContent = `${staff.name} (вы)`;
-
-  const bkMaster = el('bk-master');
-  if (bkMaster) bkMaster.value = staff.name;
 
   // На crm-master.html весь календарь - это ТОЛЬКО записи залогиненного (у мастера
   // нет вкладок с другими сотрудниками) - все appt-карточки в статичном примере были
@@ -42,15 +39,11 @@ export function wireMasterSelfView(staff, pctOf) {
     });
   }
 
-  const noteEl = el('bk-commission-note');
-  if (noteEl) {
-    if (staff.role === 'owner') {
-      noteEl.textContent = `${staff.name} - владелец, комиссию самому себе не платит, вся сумма услуги и так остаётся в бизнесе`;
-    } else {
-      const pct = pctOf(staff.id);
-      noteEl.textContent = `${pct}% от суммы услуги (ваша ставка) - показано для примера-записи выше, у реальной записи сумма своя`;
-    }
-  }
+  // Комиссия за запись переехала 13.08.2026 в общую форму записи (#wfCommission,
+  // assets/crm-walkin.js renderCommission) вместе с переносом карточки мастера с
+  // макета #bd-1 - см. spec 2026-08-13-master-booking-card.md. Здесь её больше нет:
+  // раньше это была подпись под примером-записью, теперь цифра считается по РЕАЛЬНОМУ
+  // составу услуг открытой записи и той же ставке pctOf.
 }
 
 // Задача 2 (Окно 14, 02.08.2026) - вкладка "Личные данные" на crm-master.html:

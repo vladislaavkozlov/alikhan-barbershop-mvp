@@ -286,8 +286,11 @@ export async function renderLiveProof(staff) {
       wireScheduleEditor(masterId, fetchJson);
       wireWeeklyScheduleEditor(masterId, staff.role === 'owner', fetchJson);
     });
-    wireWalkIn(staff, services, masterServices, staffList);
-    wireMasterSelfView(staff, pctOf);
+    // pctOf (13.08.2026) - ставка мастера из master_payroll_settings: в кабинете
+    // мастера форма записи показывает его комиссию за открытую запись. На
+    // owner/admin-страницах блока комиссии нет, аргумент там просто не используется.
+    wireWalkIn(staff, services, masterServices, staffList, pctOf);
+    wireMasterSelfView(staff);
     wireMasterSelfDataTab(staff, services, masterServices, pctOf);
     wireAdminSelfData(staff, staffList);
     wireMasterServiceEditors(staff.role, services, masterServices);

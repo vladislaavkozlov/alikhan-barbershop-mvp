@@ -31,10 +31,20 @@ test('отдельного блока "Добавить услугу к запи
   }
 });
 
-test('мастер сохраняет свой блок добавления услуги - другой страницы для этого у него нет', async () => {
-  const html = await source('crm-master.html');
-  assert.match(html, /<summary>Добавить услугу к записи<\/summary>/);
-  assert.match(html, /id="bkServiceEditPicker"/);
+// 13.08.2026 (spec 2026-08-13-master-booking-card.md): отдельный блок был у мастера
+// ровно потому, что общей формы записи на его странице не существовало - он открывал
+// старую карточку #bd-1. Теперь форма у него есть, и список услуг в ней тот же самый,
+// что у владельца с админом. Второй интерфейс для той же операции больше не нужен.
+test('отдельного блока "Добавить услугу к записи" не осталось НИ НА ОДНОЙ странице', async () => {
+  for (const page of [...OPERATOR_PAGES, 'crm-master.html']) {
+    const html = await source(page);
+    assert.doesNotMatch(html, /<summary>Добавить услугу к записи<\/summary>/, page);
+    assert.doesNotMatch(html, /id="bkServiceEditPicker"|id="bkServiceEditSave"/, page);
+  }
+  // Общий список услуг в форме - теперь на всех трёх
+  for (const page of [...OPERATOR_PAGES, 'crm-master.html']) {
+    assert.match(await source(page), /id="wfServicePicker"/, page);
+  }
 });
 
 test('фактическая сумма - без "если отличается", без стрелок шага, с комментарием рядом', async () => {

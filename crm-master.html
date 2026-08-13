@@ -193,85 +193,77 @@
           </div>
         </div>
 
-        <details class="booking-detail" id="bd-1" open>
-          <summary><strong id="bd-now">Клиент А · Стрижка · 10:00–10:40</strong></summary>
-          <div class="booking-detail-body">
-            <div class="walkin-banner" id="bk-walkin-banner" hidden>
-              <span class="ico">★</span>
-              <span>Клиент без предварительной записи - впишите имя и услугу вручную. Время прихода и статус уже проставлены автоматически</span>
-            </div>
-            <div class="status-row">
+        <!-- Карточка записи мастера (13.08.2026, spec 2026-08-13-master-booking-card.md).
+             Старая #bd-1 удалена целиком: её радио статуса были декоративны
+             (wireBookingStatusRadios выходит по раннему return без #bk-status-note,
+             которого на этой странице не было), "Клиент подтвердил запись" не имеет
+             роута вообще, комментарии по клиенту рисовались в DOM и никуда не
+             сохранялись (addComment в assets/mockup-crm.js), а день рождения и "клиент
+             с нами с" были литералами в разметке. Теперь мастер работает в ТОЙ ЖЕ
+             форме, что владелец и админ (Окно 55), но в границах своих прав.
+
+             data-booking-view="master" - единственный переключатель режима
+             (assets/crm-walkin.js): без переноса и без создания записи, состав услуг
+             уезжает PATCH-ом (только добавление - PUT /bookings/:id/services закрыт за
+             BOOKING_OPERATOR_ROLES, api/routes/bookings.js). Блоки, которые бэкенд
+             мастеру запрещает (#wfMasterRow, #wfDateTimeRow, #wfEditExtras,
+             #wfDangerZone, #bkDeleteRow, #bkActualPrice), в эту разметку сознательно НЕ
+             попадают: соответствующие wire-функции без своих элементов - тихий no-op,
+             тот же приём опциональности, что уже держит owner/admin-разметку. -->
+        <div class="walkin-form" id="walkinForm" data-booking-view="master" hidden>
+          <h3><span id="wfModeLabel">Запись</span> · <span id="wfMasterName" class="wf-master-name"></span></h3>
+          <div class="field-grid">
+            <div class="field"><label>Когда</label><input id="wfBookingWhen" type="text" readonly></div>
+            <div class="field"><label>Клиент</label><input id="wfClientName" type="text" readonly></div>
+          </div>
+          <!-- Телефон клиента не приходит мастеру уже с сервера (GET /bookings отдаёт
+               его только владельцу и администратору) - поле есть, потому что общая
+               форма на него опирается, но оно честно объясняет, почему пустое, а не
+               делает вид, что номера нет. -->
+          <div class="field-grid">
+            <div class="field phone-hidden"><label>Телефон</label><input id="wfClientPhone" type="tel" value="—" readonly><span class="why">скрыто - доступно только владельцу и администратору</span></div>
+          </div>
+          <details class="service-edit" open>
+            <summary>Услуги</summary>
+            <p class="section-hint" id="wfServiceEditHint" hidden>Отмеченные услуги уже записаны за визитом и не снимаются - отметьте новую, если сделали клиенту что-то ещё</p>
+            <div class="service-picker" id="wfServicePicker"></div>
+          </details>
+          <p class="wf-summary" id="wfSummary">Выберите хотя бы одну услугу</p>
+          <!-- Комиссия за эту запись. В старой карточке она считалась по захардкоженным
+               именам мастеров (MASTER_COMMISSION_PCT, assets/mockup-crm.js) - здесь по
+               реальной ставке из master_payroll_settings, тем же pctOf, которым считается
+               "Моя зарплата". -->
+          <div class="field">
+            <label>Моя комиссия за запись</label>
+            <input id="wfCommission" type="text" readonly>
+            <p class="commission-note" id="wfCommissionNote"></p>
+          </div>
+          <div class="wf-edit-controls" id="wfEditControls" hidden>
+            <div class="status-row" id="wfStatusRow">
               <input type="radio" name="bstatus" id="st-wait">
-              <input type="radio" name="bstatus" id="st-came" checked>
+              <input type="radio" name="bstatus" id="st-came">
               <input type="radio" name="bstatus" id="st-no">
               <label for="st-wait">Ожидание</label>
               <label for="st-came">Пришёл</label>
               <label for="st-no">Не пришёл</label>
             </div>
-            <div class="confirm-row">
-              <input type="checkbox" id="bconfirm" checked>
-              <label for="bconfirm">Клиент подтвердил запись</label>
-            </div>
-            <!-- Правка 03.08.2026: текст больше не пример - реальная история неявок
-                 клиента (data-noshow-streak/data-requires-prepayment), заполняет
-                 updateNoShowUi() в assets/mockup-crm.js. -->
+            <!-- Тот самый элемент, которого странице не хватало: без него
+                 wireBookingStatusRadios() (assets/crm-booking-status.js) считала
+                 страницу "не той" и не привязывала обработчик - радио выше меняли
+                 картинку и ничего не сохраняли. PATCH /bookings/:id/status мастеру по
+                 своей записи разрешён (api/routes/bookings.js:498,514). -->
+            <p class="commission-note" id="bk-status-note" hidden></p>
             <div class="noshow-banner" id="bk-noshow-banner" hidden>
               <span class="ico">⚠</span>
               <span></span>
             </div>
-            <div class="birthday-banner">
-              <span class="ico">🎂</span>
-              <span>Пример: день рождения клиента - 15 августа, через 6 дней. Настройку скидки заранее делает владелец в разделе «Акции», здесь только видно</span>
-            </div>
-            <div class="field-grid">
-              <input type="hidden" id="bk-master" value="Алиовсад">
-              <div class="field"><label>Клиент</label><input id="bk-client" value="Клиент А" readonly></div>
-              <div class="field phone-hidden"><label>Телефон</label><input value="—" readonly><span class="why">скрыто - доступно только владельцу и администратору</span></div>
-              <div class="field"><label>Услуга</label><input id="bk-service" value="Стрижка · 2000₽" readonly></div>
-              <div class="field"><label>Дата рождения клиента</label><input value="15.08" readonly></div>
-              <div class="field"><label>Клиент с нами с</label><input value="03.02.2025" readonly></div>
-              <div class="field"><label>Плановое время</label><input id="bk-planned" value="10:00–10:40" readonly></div>
-              <div class="field"><label>Длительность услуги у этого мастера</label><input id="bk-duration" value="40 мин" readonly></div>
-              <div class="field">
-                <label>Статус визита</label>
-                <button id="bk-noshow-btn" class="btn btn-ghost btn-sm" type="button" onclick="toggleNoShow(this)">Клиент не пришёл</button>
-                <p class="commission-note" id="bk-noshow-note" hidden></p>
-              </div>
-              <div class="field">
-                <label>Моя комиссия за запись</label>
-                <input id="bk-commission" value="Не начисляется" readonly>
-                <p class="commission-note" id="bk-commission-note">Вы владелец (Алиовсад), комиссию самому себе не платите - вся сумма услуги и так остаётся в бизнесе</p>
-              </div>
-            </div>
-
-            <details class="service-edit">
-              <summary>Добавить услугу к записи</summary>
-              <!-- Правка 08.08.2026 (жалоба Влада) - раньше статичный макет без
-                   сохранения (см. историю в assets/mockup-crm.js pickServiceForBooking).
-                   Реальные данные - window.renderBookingServiceEdit/
-                   assets/crm-booking-status.js (wireBookingServiceEdit), вызывается из
-                   openBooking(). Уже оказанные услуги отмечены и заблокированы - это
-                   ДОБАВЛЕНИЕ к визиту, не редактирование задним числом. -->
-              <p class="section-hint">Уже отмеченные услуги оказаны и зафиксированы - отметьте новую, если клиенту сделали что-то ещё</p>
-              <div class="service-picker" id="bkServiceEditPicker"></div>
-              <button type="button" class="btn btn-primary btn-sm" id="bkServiceEditSave" disabled>Сохранить услугу</button>
-              <p class="wf-result" id="bkServiceEditResult" hidden></p>
-            </details>
-
-            <div class="field">
-              <label>Комментарии по клиенту <span class="badge badge-todo">видна вся история, не только эта запись</span></label>
-              <div class="comment-thread" id="bk-comment-thread">
-                <div class="comment-item"><div class="ci-meta">12.07.2026 · Мамедхан</div><div class="ci-text">Аллергия на определённый шампунь - использовать гипоаллергенную линейку (пример)</div></div>
-                <div class="comment-item"><div class="ci-meta">03.06.2026 · Алиовсад</div><div class="ci-text">Просит стричь покороче, не любит долго ждать (пример)</div></div>
-              </div>
-              <div class="comment-add-row">
-                <input type="text" id="bk-comment-new" placeholder="Новый комментарий">
-                <button class="btn btn-ghost btn-sm" type="button" onclick="addComment(this)">Добавить</button>
-              </div>
-              <p class="commission-note">Хранится по клиенту, видно при открытии любой его записи. Срок хранения - открытый вопрос, отдельно считать сколько места потянет база (не решено в этом окне)</p>
-            </div>
           </div>
-        </details>
+          <div class="wf-actions">
+            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить изменения</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Закрыть</button>
+          </div>
+          <p class="wf-result" id="wfResult" hidden></p>
+        </div>
       </section>
     </div>
 

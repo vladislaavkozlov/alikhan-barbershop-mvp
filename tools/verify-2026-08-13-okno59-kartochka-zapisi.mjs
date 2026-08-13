@@ -405,30 +405,30 @@ try {
         const masterApptExists = await s.eval(`!!document.querySelector(${JSON.stringify(masterSel)})`);
         check('мастер видит свою запись дня', masterApptExists === true, `есть=${masterApptExists}`);
         if (masterApptExists) {
-          // ВАЖНО: здесь запись открывается программно (window.openBooking), а не
-          // живым кликом. Причина - не в правках этого окна: на crm-master.html точка
-          // центра карточки записи в дне перекрыта телом уже открытой карточки-
-          // просмотра #bd-1 (elementFromPoint в этой точке возвращает
-          // DIV.booking-detail-body), то есть живой клик туда физически не проходит.
-          // Это отдельная находка по вёрстке страницы мастера, её эта проверка не
-          // чинит и не маскирует - здесь проверяется только то, что общие модули
-          // (crm-booking-status.js / crm-walkin.js), которые окно правило, не сломали
-          // мастеру добавление услуги к записи.
-          await s.eval(`window.openBooking(document.querySelector(${JSON.stringify(masterSel)}))`);
+          // 13.08.2026 (позже в тот же день, spec 2026-08-13-master-booking-card.md):
+          // карточка #bd-1 у мастера удалена, запись открывается ТОЙ ЖЕ общей формой,
+          // что у владельца с админом. Заодно ушла причина, по которой этот блок
+          // кликал программно: раньше центр карточки записи в дне был перекрыт телом
+          // всегда открытой #bd-1 (elementFromPoint возвращал DIV.booking-detail-body),
+          // теперь форма скрыта до клика и настоящий клик мышью проходит - что и
+          // проверяет отдельный прогон tools/verify-2026-08-13-master-booking-card.mjs.
+          await s.eval(`document.querySelector(${JSON.stringify(masterSel)}).click()`);
           await sleep(800);
           const masterCard = await s.eval(`(function(){
-            const picker = document.getElementById('bkServiceEditPicker');
+            const form = document.getElementById('walkinForm');
+            const picker = document.getElementById('wfServicePicker');
             const rows = picker ? [...picker.querySelectorAll('input[type=checkbox]')].map((i)=>({id:i.value,checked:i.checked,disabled:i.disabled})) : null;
             return {
-              cardOpen: !!document.getElementById('bd-1')?.open,
-              hasBlock: !!picker,
+              formOpen: !!form && form.hidden === false,
+              oldCard: !!document.getElementById('bd-1'),
+              oldBlock: !!document.getElementById('bkServiceEditPicker'),
               rows,
               hasActualPrice: !!document.getElementById('bkActualPrice'),
-              saveDisabled: document.getElementById('bkServiceEditSave')?.disabled,
             };
           })()`);
-          check('мастер: карточка записи наполняется данными, блок добавления услуги на месте',
-            masterCard.cardOpen === true && masterCard.hasBlock === true, JSON.stringify(masterCard));
+          check('мастер: запись открывается общей формой, старой карточки больше нет',
+            masterCard.formOpen === true && masterCard.oldCard === false && masterCard.oldBlock === false,
+            JSON.stringify(masterCard));
           check('мастер: уже оказанная услуга заблокирована, новую можно отметить',
             Array.isArray(masterCard.rows)
             && masterCard.rows.some((r) => r.id === 'strizhka' && r.checked && r.disabled)
@@ -437,20 +437,13 @@ try {
           check('мастер: фактическая сумма ему по-прежнему не показывается',
             masterCard.hasActualPrice === false, `есть=${masterCard.hasActualPrice}`);
 
-          // Клики здесь тоже программные, и по той же причине, что и открытие
-          // карточки выше: в точке центра чекбокса услуги на crm-master.html лежит
-          // чужой элемент (DIV.ci-meta - строка блока комментариев клиента), живой
-          // клик туда не проходит. Проверено на ветке main ДО правок этого окна тем же
-          // замером elementFromPoint - результат идентичный, значит вёрстка мастера
-          // была такой и раньше, это не регресс сегодняшних изменений. Отдельная
-          // находка для своего окна; здесь проверяется только сохранность логики.
-          await s.click('#bkServiceEditPicker input[value="vosk"]');
+          await s.click('#wfServicePicker input[value="vosk"]');
           await sleep(300);
-          await s.click('#bkServiceEditSave');
+          await s.click('#wfSubmit');
           await sleep(1500);
-          const masterSaveResult = await s.eval(`document.getElementById('bkServiceEditResult')?.textContent.trim()`);
+          const masterSaveResult = await s.eval(`document.getElementById('wfResult')?.textContent.trim()`);
           check('мастер: добавление услуги к записи по-прежнему сохраняется',
-            /добавлена/i.test(masterSaveResult || ''), `результат="${masterSaveResult}"`);
+            /добавлен/i.test(masterSaveResult || ''), `результат="${masterSaveResult}"`);
         }
       });
     });
