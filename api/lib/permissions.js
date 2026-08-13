@@ -1,5 +1,14 @@
 export const MANAGEMENT_ROLES = ['owner', 'manager'];
 export const BOOKING_OPERATOR_ROLES = ['owner', 'manager', 'admin'];
+// Операторы записи ПЛЮС мастер: роуты, которые мастер тоже вызывает, но только по
+// своей записи/своему клиенту (проверка "своё" живёт дальше в самом обработчике,
+// auth.role === 'master' && booking.master_id !== auth.id → 403).
+// Заведено 13.08.2026: четыре таких роута остались с руками написанным
+// ['owner','admin','master'] и не получили роль manager, когда её вводило Окно 57 -
+// управляющий ловил 401 на смене статуса визита прямо в карточке записи (нашёл Влад
+// на проде). Литерал в этих местах и был причиной: список ролей, размноженный
+// копией, расходится с общим при первой же новой роли.
+export const BOOKING_STAFF_ROLES = [...BOOKING_OPERATOR_ROLES, 'master'];
 export const ASSIGNABLE_ROLES = ['master', 'admin', 'manager'];
 
 export const canManageStaff = (auth) => !!auth && MANAGEMENT_ROLES.includes(auth.role);

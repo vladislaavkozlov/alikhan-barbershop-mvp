@@ -5,7 +5,7 @@ import { sendJson } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { mastersWithWorkingSchedule } from '../lib/schedule-core.js';
-import { canManageStaff } from '../lib/permissions.js';
+import { canManageStaff, BOOKING_STAFF_ROLES } from '../lib/permissions.js';
 import { findMastersMissingSchedule } from '../lib/notify-core.js';
 
 // Окно 39 (06.08.2026) - индикатор риска ухода клиента. no_show_streak уже
@@ -287,7 +287,7 @@ export async function handleOwnerAlerts(req, res) {
 // 404 client_not_found = "новый клиент" для Окна 55.
 export async function handleClientsAtRisk(req, res, url) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner', 'admin', 'master'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, BOOKING_STAFF_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
   const query = resolveClientsQueryMode(url.searchParams);
   if (query.mode === 'invalid') return sendJson(res, 400, { error: 'missing_fields' });
   if (query.mode === 'phone') {
@@ -311,7 +311,7 @@ export async function handleClientsAtRisk(req, res, url) {
 // для несуществующего id одинаков для всех ролей, не палит своей/чужой доступ.
 export async function handleClientCard(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner', 'admin', 'master'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, BOOKING_STAFF_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
   const clientId = decodeURIComponent(parts[1]);
   const card = await getClientCard(pool, clientId);
   if (!card) return sendJson(res, 404, { error: 'client_not_found' });

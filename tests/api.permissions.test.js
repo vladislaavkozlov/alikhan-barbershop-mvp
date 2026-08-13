@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   ASSIGNABLE_ROLES,
   BOOKING_OPERATOR_ROLES,
+  BOOKING_STAFF_ROLES,
   MANAGEMENT_ROLES,
   canManageStaff,
   canMutateProtectedOwner,
@@ -17,6 +18,20 @@ test('manager является управляющей ролью, но owner н�
   assert.deepEqual(ASSIGNABLE_ROLES, ['master', 'admin', 'manager']);
   assert.equal(isAssignableRole('owner'), false);
   assert.equal(isAssignableRole('manager'), true);
+});
+
+// Баг с прода 13.08.2026: управляющий получал 401 на смене статуса визита. Четыре
+// роута (статус визита, добавление услуг, карточка клиента, клиенты в зоне риска)
+// держали список ролей литералом ['owner','admin','master'] и не получили manager,
+// когда роль вводило Окно 57. Тест держит два условия: общий список ролей знает
+// управляющего, и в роутах нет литералов, мимо которых проедет следующая роль.
+test('роуты записи и клиентов пускают управляющего наравне с владельцем', async () => {
+  assert.deepEqual(BOOKING_STAFF_ROLES, ['owner', 'manager', 'admin', 'master']);
+  const root = new URL('../', import.meta.url);
+  for (const file of ['api/routes/bookings.js', 'api/routes/clients.js']) {
+    const src = await readFile(new URL(file, root), 'utf8');
+    assert.doesNotMatch(src, /requireRole\(auth, \[/, `${file}: список ролей должен идти из permissions.js, не литералом`);
+  }
 });
 
 test('только owner и manager получают управляющие права', () => {

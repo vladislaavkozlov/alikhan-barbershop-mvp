@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
-import { BOOKING_OPERATOR_ROLES } from '../lib/permissions.js';
+import { BOOKING_OPERATOR_ROLES, BOOKING_STAFF_ROLES } from '../lib/permissions.js';
 import { addMinutes, dateColToStr, intervalsOverlap, shopNow, toMinutes } from '../lib/time.js';
 import { mastersWithWorkingSchedule, masterAcceptsClients, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
 import { notifyStaff } from '../lib/notify-core.js';
@@ -495,7 +495,7 @@ export async function handleBookingCancel(req, res, parts) {
 // проверку.
 export async function handleBookingStatus(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner', 'admin', 'master'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, BOOKING_STAFF_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
   const body = await readBody(req);
   const allowedStatuses = ['planned', 'done', 'no_show'];
   if (!allowedStatuses.includes(body.status)) {
@@ -567,7 +567,7 @@ export async function handleBookingStatus(req, res, parts) {
 // даёт верную статистику без отдельного пересчёта.
 export async function handleBookingAddServices(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, ['owner', 'admin', 'master'])) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, BOOKING_STAFF_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
   const body = await readBody(req);
   const newServiceIds = Array.isArray(body.serviceIds) ? [...new Set(body.serviceIds)] : [];
   if (newServiceIds.length === 0) return sendJson(res, 400, { error: 'missing_fields' });
