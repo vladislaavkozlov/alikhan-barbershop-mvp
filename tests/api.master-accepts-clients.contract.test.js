@@ -49,3 +49,21 @@ test('смена приёма клиентов перестраивает стр
   assert.match(team, /providesServicesChanged/);
   assert.match(team, /window\.location\.reload\(\)/);
 });
+
+// Жалоба Влада 13.08.2026: на сайте снятого с приёма нет (бэкенд отбирает только
+// оказывающих услуги), а тумблер витрины в карточке стоял включённым и выглядел
+// рабочим - обещал то, чего не происходит.
+test('тумблер витрины неактивен у снятого с приёма и объясняет причину', async () => {
+  const root = new URL('../', import.meta.url);
+  const team = await readFile(new URL('assets/crm-team.js', root), 'utf8');
+  const markup = team.slice(team.indexOf('function mediaMarkup'), team.indexOf('function mediaItem'));
+  assert.match(markup, /const offDuty = staff\.providesServices === false/);
+  assert.match(markup, /name: 'publicProfileEnabled'[\s\S]*disabled: offDuty/);
+  assert.match(markup, /Недоступно: сотрудник снят с приёма клиентов/);
+});
+
+test('профиль на сайте отбирается по приёму клиентов, а не по одному тумблеру', async () => {
+  const root = new URL('../', import.meta.url);
+  const route = await readFile(new URL('api/routes/public-masters.js', root), 'utf8');
+  assert.match(route, /s\.provides_services=true/);
+});

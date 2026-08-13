@@ -47,12 +47,17 @@ function roleControl(staff, viewerRole) {
 
 function mediaMarkup(staff) {
   const media = staff.media ?? [];
+  // Снят с приёма - профиля на сайте нет в любом случае: /public/masters отбирает
+  // только тех, кто оказывает услуги. Тумблер в таком состоянии обещал бы то, чего
+  // не происходит, поэтому он неактивен, а своё значение сохраняет - вернут мастера
+  // на приём, витрина включится обратно сама (жалоба Влада 13.08.2026).
+  const offDuty = staff.providesServices === false;
   return `<div class="team-media-upload"><div><strong>Фото профиля</strong><small>Квадратное фото будет смотреться лучше</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Выбрать фото</span><input class="team-file-native" name="avatar" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
   <div class="team-editor-grid"><div class="field"><label>Стаж</label><input name="experience" value="${esc(staff.experienceText)}" placeholder="Например, 6 лет"></div><div class="field"><label>Сильные стороны</label><input name="strengths" value="${esc(staff.strengthsText)}" placeholder="Например, фейды и борода"></div></div>
   <div class="field"><label>Курсы и сертификаты</label><textarea name="certificates" placeholder="Название курса или сертификата">${esc(staff.certificatesText)}</textarea></div>
   <div class="team-media-upload"><div><strong>Портфолио</strong><small>До 20 фото в JPEG, PNG или WebP, каждое до 8 МБ</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Добавить работы</span><input class="team-file-native" name="portfolio" type="file" multiple accept="image/jpeg,image/png,image/webp"></label></div>
   <div class="team-media-list" data-media-list data-staff-id="${esc(staff.id)}">${media.map((item) => mediaItem(item, media.filter((entry) => entry.kind === 'portfolio').findIndex((entry) => entry.id === item.id), media)).join('')}</div>
-  ${toggleControl({ name: 'publicProfileEnabled', title: 'Показывать профиль на сайте', description: 'Профиль появится после настройки услуг и графика', checked: staff.publicProfileEnabled })}`;
+  ${toggleControl({ name: 'publicProfileEnabled', title: 'Показывать профиль на сайте', description: offDuty ? 'Недоступно: сотрудник снят с приёма клиентов, на сайте его нет' : 'Профиль появится после настройки услуг и графика', checked: staff.publicProfileEnabled, disabled: offDuty })}`;
 }
 
 function mediaItem(media, index, all) {
