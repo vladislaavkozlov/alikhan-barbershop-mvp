@@ -15,6 +15,7 @@ import { collectServiceChanges, renderMasterServiceEditor, saveServiceChanges } 
 import { hasWeeklyScheduleChanges, saveWeeklySchedule, wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 import { PHONE_PLACEHOLDER, formatStoredPhone, wirePhoneFields } from './crm-phone.js';
 import { todayStr } from './crm-shared.js';
+import { scheduleExceptionLabel } from './crm-schedule-shared.js';
 import { dateSelectValue, renderDateSelect, renderTimeSelect, timeSelectValue } from './crm-widgets.js';
 
 const roleLabel = { owner: 'Владелец', manager: 'Управляющий', admin: 'Администратор', master: 'Мастер' };
@@ -265,8 +266,7 @@ async function loadExceptions(root) {
     const shifts = await fetchJson(`/schedule?masterId=${encodeURIComponent(id)}`);
     const upcoming = shifts.filter((shift) => shift.date >= today()).sort((a, b) => a.date.localeCompare(b.date));
     list.innerHTML = upcoming.length ? upcoming.map((shift) => {
-      const isDayOff = shift.breaks?.some((item) => item.startTime === shift.startTime && item.endTime === shift.endTime);
-      const label = isDayOff ? 'Выходной' : `Перерыв ${shift.breaks?.map((item) => `${item.startTime}-${item.endTime}`).join(', ') || 'без перерыва'}`;
+      const label = scheduleExceptionLabel(shift);
       return `<div class="team-exception-item"><span>${esc(humanDate(shift.date))} - ${esc(label)}</span><button type="button" data-exception-delete="${esc(shift.date)}">Удалить</button></div>`;
     }).join('') : '<span class="note">Нет запланированных изменений</span>';
   } catch { list.innerHTML = '<span class="note">Не удалось загрузить изменения. Повторите попытку</span>'; }

@@ -4,7 +4,7 @@
 // schedule-views.navigation.test.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isDayOffShift, dayStatusDot } from '../assets/crm-schedule-shared.js';
+import { isDayOffShift, dayStatusDot, scheduleExceptionLabel } from '../assets/crm-schedule-shared.js';
 
 test('isDayOffShift: перерыв во всю смену - выходной, при стандартной смене 10:00-20:00', () => {
   assert.equal(
@@ -40,6 +40,41 @@ test('isDayOffShift: смены на этот день нет вовсе - не 
   assert.equal(isDayOffShift(undefined), false);
   assert.equal(isDayOffShift(null), false);
   assert.equal(isDayOffShift({ startTime: '10:00', endTime: '20:00' }), false); // ответ без поля breaks
+});
+
+// Регрессия 13.08.2026: список "Команда → мастер → График" печатал "Перерыв без
+// перерыва" на разовой правке ЧАСОВ работы (смена без перерывов) - подпись, которую
+// нельзя истолковать ни календарю, ни клиентской записи.
+test('scheduleExceptionLabel: смена без перерывов - это правка часов, а не "Перерыв без перерыва"', () => {
+  const label = scheduleExceptionLabel({ startTime: '09:00', endTime: '18:00', breaks: [] });
+  assert.equal(label, 'Рабочий день 09:00-18:00');
+  assert.doesNotMatch(label, /без перерыва/);
+  assert.equal(scheduleExceptionLabel({ startTime: '10:00', endTime: '20:00' }), 'Рабочий день 10:00-20:00');
+});
+
+test('scheduleExceptionLabel: перерыв показан временем, выходной - словом', () => {
+  assert.equal(
+    scheduleExceptionLabel({ startTime: '10:00', endTime: '20:00', breaks: [{ startTime: '13:00', endTime: '14:00' }] }),
+    'Перерыв 13:00-14:00'
+  );
+  assert.equal(
+    scheduleExceptionLabel({ startTime: '10:00', endTime: '20:00', breaks: [{ startTime: '12:00', endTime: '13:00' }, { startTime: '16:00', endTime: '16:30' }] }),
+    'Перерыв 12:00-13:00, 16:00-16:30'
+  );
+  assert.equal(
+    scheduleExceptionLabel({ startTime: '10:00', endTime: '20:00', breaks: [{ startTime: '10:00', endTime: '20:00' }] }),
+    'Выходной'
+  );
+});
+
+test('scheduleExceptionLabel: выходной с окном ШИРЕ смены (отгул, праздник) - тоже "Выходной"', () => {
+  // fullDayOffWindow закрывает день объединением смены и дефолта 10:00-20:00: у смены
+  // 09:00-18:00 перерыв выходного 09:00-20:00. Старая проверка равенством границ читала
+  // это как обычный длинный перерыв.
+  assert.equal(
+    scheduleExceptionLabel({ startTime: '09:00', endTime: '18:00', breaks: [{ startTime: '09:00', endTime: '20:00' }] }),
+    'Выходной'
+  );
 });
 
 test('dayStatusDot: кружок вместо эмодзи, со словесной подписью для каждого статуса', () => {
