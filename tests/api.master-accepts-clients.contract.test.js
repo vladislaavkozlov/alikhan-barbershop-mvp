@@ -79,3 +79,21 @@ test('профиль на сайте отбирается по приёму кл
   const route = await readFile(new URL('api/routes/public-masters.js', root), 'utf8');
   assert.match(route, /s\.provides_services=true/);
 });
+
+// Живой repro Влада 13.08.2026: услуги снятого с приёма кликались, хотя прогон
+// показывал их заблокированными - два рендерера рисуют одни и те же чекбоксы, и
+// wireMasterServiceEditors (из renderLiveProof) перерисовывал их зная только роль.
+test('оба рендерера услуг учитывают приём клиентов - иначе перерисовка их оживляет', async () => {
+  const root = new URL('../', import.meta.url);
+  const [team, services] = await Promise.all([
+    readFile(new URL('assets/crm-team.js', root), 'utf8'),
+    readFile(new URL('assets/crm-master-services.js', root), 'utf8'),
+  ]);
+  // путь 1 - карточка команды, признак из данных
+  assert.match(team, /staffCanEdit && staff\.providesServices !== false/);
+  // путь 2 - массовая перерисовка по DOM, признак из карточки
+  assert.match(services, /data-provides-services="0"/);
+  assert.match(services, /canEdit && !offDuty/);
+  // и сам признак действительно попадает в разметку карточки
+  assert.match(team, /data-provides-services="\$\{staff\.providesServices \? '1' : '0'\}"/);
+});
