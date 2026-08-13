@@ -1,4 +1,5 @@
 import { API, apiSend, fetchJson, getToken } from './crm-auth.js';
+import { mediaUrl } from '../storage.js';
 import {
   ICON_ACCESS,
   ICON_ADD,
@@ -59,7 +60,7 @@ function mediaItem(media, index, all) {
   const move = media.kind === 'portfolio'
     ? `<div class="team-media-actions"><button type="button" data-media-left="${esc(media.id)}" aria-label="Переместить фотографию назад" ${index === 0 ? 'disabled' : ''}>Назад</button><button type="button" data-media-right="${esc(media.id)}" aria-label="Переместить фотографию вперёд" ${index === all.filter((item) => item.kind === 'portfolio').length - 1 ? 'disabled' : ''}>Вперёд</button></div>`
     : '';
-  return `<figure class="team-media-item" data-media-id="${esc(media.id)}" data-media-kind="${esc(media.kind)}"><img src="${esc(media.url)}" alt="${name}"><figcaption><span>${name}</span>${move}<button class="team-media-delete" type="button" data-media-delete="${esc(media.id)}" aria-label="Удалить ${name.toLowerCase()}">Удалить</button></figcaption></figure>`;
+  return `<figure class="team-media-item" data-media-id="${esc(media.id)}" data-media-kind="${esc(media.kind)}"><img src="${esc(mediaUrl(API, media.url))}" alt="${name}"><figcaption><span>${name}</span>${move}<button class="team-media-delete" type="button" data-media-delete="${esc(media.id)}" aria-label="Удалить ${name.toLowerCase()}">Удалить</button></figcaption></figure>`;
 }
 
 function staffCard(staff, viewerRole, locations, viewerId) {

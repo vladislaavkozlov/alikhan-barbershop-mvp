@@ -224,10 +224,25 @@ export function getMasters() {
   return MASTERS;
 }
 
+// Фото сотрудников лежат на бэкенде, а страницы - на GitHub Pages (два разных
+// домена). API отдаёт относительный `/media/<ключ>`, и браузер по нему идёт на
+// github.io, где такого файла нет - аватар и работы молча не грузятся, 404 виден
+// только во вкладке "Сеть". Приклеиваем базу API в одном месте на оба контура,
+// публичный сайт и CRM, чтобы они не разъехались (найдено живьём 13.08.2026).
+export function mediaUrl(apiBaseUrl, url) {
+  if (!url || /^(https?:)?\/\//.test(url) || url.startsWith('data:')) return url;
+  return `${String(apiBaseUrl ?? '').replace(/\/+$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 export async function loadPublicMasters(apiBaseUrl) {
   const res = await fetch(`${apiBaseUrl}/public/masters`);
   if (!res.ok) throw new Error(`storage.js: GET /public/masters → ${res.status}`);
-  return res.json();
+  const rows = await res.json();
+  return rows.map((master) => ({
+    ...master,
+    photoUrl: mediaUrl(apiBaseUrl, master.photoUrl),
+    portfolio: (master.portfolio ?? []).map((item) => ({ ...item, url: mediaUrl(apiBaseUrl, item.url) })),
+  }));
 }
 
 // Задача C промпта Окна 29 (05.08.2026) - мастер без единого рабочего дня в
