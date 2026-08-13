@@ -97,3 +97,37 @@ test('оба рендерера услуг учитывают приём кли�
   // и сам признак действительно попадает в разметку карточки
   assert.match(team, /data-provides-services="\$\{staff\.providesServices \? '1' : '0'\}"/);
 });
+
+// Скриншот Влада 13.08.2026: в разделе "Доступ" не подсвечена текущая роль. Радио
+// группируются по name в пределах документа, а name был общий - все карточки команды
+// и форма добавления оказывались ОДНОЙ группой, отмеченной оставалась одна на странице.
+test('у каждой карточки своя группа радиокнопок роли', async () => {
+  const root = new URL('../', import.meta.url);
+  const team = await readFile(new URL('assets/crm-team.js', root), 'utf8');
+  assert.match(team, /rolePicker\(staff\.role, `role-\$\{staff\.id\}`\)/);
+  assert.match(team, /rolePicker\('master', 'role-new'\)/);
+  // и у rolePicker больше нет общего имени по умолчанию, которое можно случайно получить
+  assert.doesNotMatch(team, /function rolePicker\(selectedRole, name = 'role'\)/);
+});
+
+test('роль читается внутри своей карточки, а не по общему имени группы', async () => {
+  const root = new URL('../', import.meta.url);
+  const team = await readFile(new URL('assets/crm-team.js', root), 'utf8');
+  assert.doesNotMatch(team, /\[name="role"\]:checked/);
+  assert.equal((team.match(/\.team-role-picker input\[type="radio"\]:checked/g) ?? []).length, 2);
+});
+
+test('владелец показан подсвеченной карточкой роли, а не строкой текста', async () => {
+  const root = new URL('../', import.meta.url);
+  const [team, css] = await Promise.all([
+    readFile(new URL('assets/crm-team.js', root), 'utf8'),
+    readFile(new URL('assets/crm-team-content.css', root), 'utf8'),
+  ]);
+  assert.match(team, /function roleBadge\(role\)/);
+  assert.match(team, /team-role-picker-single/);
+  assert.match(team, /<input type="radio" checked disabled>/);
+  assert.doesNotMatch(team, /team-role-static/);
+  assert.match(css, /\.team-role-picker-single \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+  // подсветка выбранного варианта - та же, что у обычных карточек ролей
+  assert.match(css, /\.team-role-option input:checked \+ span/);
+});

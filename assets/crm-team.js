@@ -36,13 +36,25 @@ const roleDescription = {
   manager: 'Команда, график и финансы',
 };
 
-function rolePicker(selectedRole, name = 'role') {
+// name у радиокнопок обязан быть уникальным НА КАРТОЧКУ: радио группируются по имени
+// в пределах всего документа, поэтому общий name="role" делал из всех карточек команды
+// и формы добавления одну группу - отмеченной оставалась ровно одна роль на странице,
+// и текущая роль сотрудника не подсвечивалась (найдено 13.08.2026 по скриншоту Влада).
+function rolePicker(selectedRole, name) {
   return `<fieldset class="team-role-picker" data-role><legend>Роль сотрудника</legend>${editableRoles.map((role) => `<label class="team-role-option"><input type="radio" name="${name}" value="${role}" ${selectedRole === role ? 'checked' : ''}><span><strong>${roleLabel[role]}</strong><small>${roleDescription[role]}</small></span></label>`).join('')}</fieldset>`;
 }
 
+// Роль, которую этот зритель менять не может (владелец всегда, чужие роли для
+// управляющего) - показываем той же карточкой, что и выбираемые, только подсвеченной
+// и неактивной: одинаковый язык интерфейса вместо отдельной текстовой строки.
+function roleBadge(role) {
+  const description = role === 'owner' ? 'Полный доступ и защищённая учётная запись' : roleDescription[role] ?? '';
+  return `<fieldset class="team-role-picker team-role-picker-single" data-role><legend>Роль сотрудника</legend><label class="team-role-option"><input type="radio" checked disabled><span><strong>${roleLabel[role] ?? esc(role)}</strong><small>${description}</small></span></label></fieldset>`;
+}
+
 function roleControl(staff, viewerRole) {
-  if (staff.role === 'owner' || viewerRole !== 'owner') return `<div class="team-role-static"><span>Роль сотрудника</span><strong>${roleLabel[staff.role] ?? staff.role}</strong>${staff.role === 'owner' ? '<small>Защищённая учётная запись</small>' : ''}</div>`;
-  return rolePicker(staff.role);
+  if (staff.role === 'owner' || viewerRole !== 'owner') return roleBadge(staff.role);
+  return rolePicker(staff.role, `role-${staff.id}`);
 }
 
 function mediaMarkup(staff) {
@@ -98,7 +110,7 @@ function exceptionEditor(staffId) {
 function addCard(locations) {
   const empty = { locationId: locations[0]?.id ?? '' };
   const credentials = lastCreatedCredentials;
-  return `<details class="staff-card team-add-card" ${credentials ? 'open' : ''}><summary><div class="avatar-icon" aria-hidden="true">${ICON_ADD}</div><div class="summary-meta"><div class="name">Добавить сотрудника</div><div class="role">Создать доступ в CRM</div></div><span class="chevron">▸</span></summary><div class="staff-card-body"><div class="team-add-intro"><span aria-hidden="true">${ICON_PROFILE}</span><div><h3>Новый сотрудник</h3><p>Заполните данные для первого входа. Профиль для сайта настроите после создания</p></div></div><div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name"></div><div class="field"><label>Телефон</label><input name="phone" autocomplete="tel"></div><div class="field"><label>Email для входа</label><input name="email" type="email" autocomplete="email"></div>${locationControl(empty, locations)}</div>${rolePicker('master')}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Услуги и график нужно настроить отдельно', checked: false })}<div class="team-editor-actions"><button class="btn btn-primary" type="button" data-create>Создать сотрудника</button><p class="payroll-note" data-card-note aria-live="polite"></p></div><div class="team-create-result" data-create-result ${credentials ? '' : 'hidden'}><strong>Данные для первого входа</strong><span>${credentials ? esc(credentials.name) : ''} сможет войти по email и временному PIN</span><code data-temporary-pin>${credentials ? esc(credentials.pin) : ''}</code><button class="btn btn-ghost btn-sm" type="button" data-copy-pin>Скопировать PIN</button></div></div></details>`;
+  return `<details class="staff-card team-add-card" ${credentials ? 'open' : ''}><summary><div class="avatar-icon" aria-hidden="true">${ICON_ADD}</div><div class="summary-meta"><div class="name">Добавить сотрудника</div><div class="role">Создать доступ в CRM</div></div><span class="chevron">▸</span></summary><div class="staff-card-body"><div class="team-add-intro"><span aria-hidden="true">${ICON_PROFILE}</span><div><h3>Новый сотрудник</h3><p>Заполните данные для первого входа. Профиль для сайта настроите после создания</p></div></div><div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name"></div><div class="field"><label>Телефон</label><input name="phone" autocomplete="tel"></div><div class="field"><label>Email для входа</label><input name="email" type="email" autocomplete="email"></div>${locationControl(empty, locations)}</div>${rolePicker('master', 'role-new')}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Услуги и график нужно настроить отдельно', checked: false })}<div class="team-editor-actions"><button class="btn btn-primary" type="button" data-create>Создать сотрудника</button><p class="payroll-note" data-card-note aria-live="polite"></p></div><div class="team-create-result" data-create-result ${credentials ? '' : 'hidden'}><strong>Данные для первого входа</strong><span>${credentials ? esc(credentials.name) : ''} сможет войти по email и временному PIN</span><code data-temporary-pin>${credentials ? esc(credentials.pin) : ''}</code><button class="btn btn-ghost btn-sm" type="button" data-copy-pin>Скопировать PIN</button></div></div></details>`;
 }
 
 function cardValue(card, name) {
@@ -133,7 +145,7 @@ async function saveCard(card) {
     publicProfileEnabled: value('publicProfileEnabled').checked,
   });
   if (!profile.ok) return showNote(card, 'Основное сохранено, профиль не сохранился. Повторите попытку');
-  const role = card.querySelector('[name="role"]:checked');
+  const role = card.querySelector('.team-role-picker input[type="radio"]:checked');
   if (role) {
     const roleResult = await apiSend(`/staff/${encodeURIComponent(id)}/role`, 'PUT', { role: role.value });
     if (!roleResult.ok) return showNote(card, 'Данные сохранены, но роль не изменилась. Повторите попытку');
@@ -284,7 +296,7 @@ function wire(root) {
     const card = create.closest('details');
     const value = (name) => cardValue(card, name);
     showNote(card, 'Создаю…');
-    const out = await apiSend('/staff', 'POST', { name: value('name').value, phone: value('phone').value, email: value('email').value, locationId: value('locationId')?.value || null, role: value('role').value, providesServices: value('providesServices').checked });
+    const out = await apiSend('/staff', 'POST', { name: value('name').value, phone: value('phone').value, email: value('email').value, locationId: value('locationId')?.value || null, role: card.querySelector('.team-role-picker input[type="radio"]:checked')?.value, providesServices: value('providesServices').checked });
     if (!out.ok) return showNote(card, 'Не удалось создать. Проверьте поля и повторите попытку');
     lastCreatedCredentials = { name: value('name').value.trim(), pin: out.data.temporaryPin };
     await renderTeam();

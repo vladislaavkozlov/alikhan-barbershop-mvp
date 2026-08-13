@@ -218,6 +218,9 @@
   padding: 0;
   border: 0;
 }
+/* Роль, которую не выбирают (владелец, чужая роль для управляющего) - одна карточка
+   во всю ширину вместо трети: это статус, а не вариант выбора (13.08.2026) */
+.crm-navigation-ui .team-role-picker-single { grid-template-columns: minmax(0, 1fr); }
 .crm-navigation-ui .team-role-picker legend,
 .crm-navigation-ui .team-exception-types legend {
   grid-column: 1 / -1;
