@@ -100,7 +100,7 @@ function staffCard(staff, viewerRole, locations, viewerId) {
        Вход теперь есть у каждого, кто числится в составе; колонка has_system_access в схеме
        осталась и по-прежнему проверяется при входе, но через интерфейс не выключается. */''}
   ${section('Доступ', 'Роль сотрудника и её права', ICON_ACCESS, roleControl(staff, viewerRole))}
-  <div class="team-editor-actions"><button class="btn btn-primary" type="button" data-save ${locked ? 'disabled' : ''}>Сохранить изменения</button><p class="payroll-note" data-card-note aria-live="polite"></p></div></div></details>`;
+  <div class="team-editor-actions"><button class="btn btn-primary" type="button" data-save disabled>Сохранить изменения</button><p class="payroll-note" data-card-note aria-live="polite"></p></div></div></details>`;
 }
 
 function exceptionEditor(staffId) {
@@ -251,6 +251,48 @@ async function saveException(root) {
   }
 }
 
+// Поля, которые уезжают на сервер по кнопке "Сохранить изменения". Услуги, график и
+// фотографии сохраняются сами по себе, отдельными запросами - их правка кнопку не
+// касается, поэтому в снимок они не входят.
+const SAVED_FIELDS = ['name', 'phone', 'email', 'locationId', 'employed', 'providesServices', 'publicProfileEnabled', 'experience', 'strengths', 'certificates'];
+
+function cardSnapshot(card) {
+  const values = SAVED_FIELDS.map((name) => {
+    const field = card.querySelector(`[name="${name}"]`);
+    if (!field) return '';
+    return field.type === 'checkbox' ? String(field.checked) : String(field.value);
+  });
+  values.push(card.querySelector('.team-role-picker input[type="radio"]:checked')?.value ?? '');
+  return values.join('\u0000');
+}
+
+// Кнопка сохранения активна только когда в карточке реально что-то изменили: до
+// этого нажимать нечего, и активная кнопка вводит в заблуждение (правка Влада
+// 13.08.2026). Снимок снимается при отрисовке, сравнение - на каждый ввод.
+function updateSaveState(card) {
+  const button = card.querySelector('[data-save]');
+  if (!button || card.dataset.lockedOwner !== undefined) return;
+  button.disabled = cardSnapshot(card) === card.dataset.snapshot;
+}
+
+function wireDirtyTracking(root) {
+  root.querySelectorAll('.team-editor-card').forEach((card) => {
+    card.dataset.snapshot = cardSnapshot(card);
+    updateSaveState(card);
+  });
+  // renderTeam перерисовывает содержимое host многократно, а сам host остаётся -
+  // делегированные слушатели вешаем ровно один раз, иначе они копятся с каждой
+  // перерисовкой (тот же класс бага, о котором предупреждает crm-dashboard.js).
+  if (root.dataset.dirtyWired) return;
+  root.dataset.dirtyWired = '1';
+  const onEdit = (event) => {
+    const card = event.target.closest?.('.team-editor-card');
+    if (card) updateSaveState(card);
+  };
+  root.addEventListener('input', onEdit);
+  root.addEventListener('change', onEdit);
+}
+
 function wire(root) {
   root.querySelectorAll('[data-save]').forEach((button) => button.addEventListener('click', () => saveCard(button.closest('[data-staff-id]'))));
   root.querySelectorAll('input[type=file]').forEach((input) => input.addEventListener('change', () => uploadMedia(input.closest('[data-staff-id]'), input)));
@@ -325,6 +367,7 @@ export async function renderTeam() {
       wireWeeklyScheduleEditor(staff.id, staffCanEdit, fetchJson);
     });
     wire(host);
+    wireDirtyTracking(host);
     initCrmNavigationPanels();
   } catch {
     host.innerHTML = '<p class="note">Не удалось загрузить команду. Повторите попытку</p>';

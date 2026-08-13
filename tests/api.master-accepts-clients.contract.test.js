@@ -114,7 +114,8 @@ test('роль читается внутри своей карточки, а н�
   const root = new URL('../', import.meta.url);
   const team = await readFile(new URL('assets/crm-team.js', root), 'utf8');
   assert.doesNotMatch(team, /\[name="role"\]:checked/);
-  assert.equal((team.match(/\.team-role-picker input\[type="radio"\]:checked/g) ?? []).length, 2);
+  // сохранение, создание и снимок изменений - все читают роль внутри своей карточки
+  assert.ok((team.match(/\.team-role-picker input\[type="radio"\]:checked/g) ?? []).length >= 2);
 });
 
 test('владелец показан подсвеченной карточкой роли, а не строкой текста', async () => {
@@ -154,4 +155,21 @@ test('заблокированный тумблер видно - он нарис
   assert.match(css, /\.team-toggle-row:has\(\.switch input:disabled\)/);
   assert.match(css, /\.switch input:disabled ~ \.track/);
   assert.match(css, /\.switch input:disabled \{ cursor: not-allowed; \}/);
+});
+
+// Правка Влада 13.08.2026: кнопка "Сохранить изменения" была активна всегда, даже
+// когда в карточке ничего не трогали.
+test('кнопка сохранения включается только при реальных изменениях в карточке', async () => {
+  const root = new URL('../', import.meta.url);
+  const team = await readFile(new URL('assets/crm-team.js', root), 'utf8');
+  assert.match(team, /data-save disabled/);                       // стартует неактивной
+  assert.match(team, /function cardSnapshot\(card\)/);            // снимок исходных значений
+  assert.match(team, /button\.disabled = cardSnapshot\(card\) === card\.dataset\.snapshot/);
+  // снимок покрывает ровно то, что уезжает по кнопке; услуги и фото сохраняются сами
+  for (const field of ['name', 'phone', 'email', 'employed', 'providesServices', 'publicProfileEnabled']) {
+    assert.ok(team.includes(`'${field}'`), `поле ${field} не отслеживается`);
+  }
+  assert.match(team, /team-role-picker input\[type="radio"\]:checked/);
+  // делегированные слушатели вешаются один раз - renderTeam зовут многократно
+  assert.match(team, /root\.dataset\.dirtyWired/);
 });
