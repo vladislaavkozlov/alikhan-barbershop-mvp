@@ -328,10 +328,15 @@ export function todayStr() {
 // строим по факту ответа /staff, а не по количеству узлов, которые были в макете.
 // Экспортирована (Окно 18) - Неделя/Месяц (assets/crm-schedule-views.js) строят
 // переключатель мастера по тому же списку, что и "Мой день", а не своему.
+// Порядок колонок дня (и переключателя мастера в Неделе/Месяце) = порядок, в котором
+// сотрудники пришли с сервера, то есть по времени появления в салоне: слева самые
+// давние, справа новые (Влад, 13.08.2026). Раньше здесь стояла сортировка по id -
+// она была осмысленной, пока id проставлялись руками (master-1, master-2, master-3),
+// но аккаунты из интерфейса получают случайный staff-<hex>, и такой порядок стал
+// произвольным. Сортировка теперь одна на всё приложение и живёт в SQL (GET /staff,
+// ORDER BY created_at, id) - фильтр её сохраняет.
 export function mastersOf(staffList) {
-  return staffList
-    .filter((s) => s.providesServices && s.hasWorkingSchedule !== false)
-    .sort((a, b) => a.id.localeCompare(b.id));
+  return staffList.filter((s) => s.providesServices && s.hasWorkingSchedule !== false);
 }
 
 export async function renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson, date }) {

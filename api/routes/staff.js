@@ -25,6 +25,12 @@ export async function handleStaffList(req, res) {
     params.push(auth.id);
     query += ` AND id = $${params.length}`;
   }
+  // Порядок появления в салоне: кто заведён раньше - выше в списке команды и левее
+  // в колонках дня (Влад, 13.08.2026). Без ORDER BY Postgres отдавал строки в порядке
+  // физического хранения, а он меняется при каждом UPDATE - список тасовался сам по
+  // себе после любой правки карточки. id второй ключ, он разбирает ничью у строк,
+  // заведённых до появления created_at (см. миграцию 047).
+  query += ' ORDER BY created_at, id';
   const result = await pool.query(query, params);
   const mapped = result.rows.map((r) => ({
     id: r.id,
