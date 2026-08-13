@@ -8,7 +8,7 @@ import { escapeHtml } from './crm-schedule-shared.js';
 import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } from './crm-widgets.js';
 import { API, getToken } from './crm-auth.js';
 import { renderLiveProof } from './crm-dashboard.js';
-import { RADIO_ID_TO_STATUS } from './crm-booking-status.js';
+import { RADIO_ID_TO_STATUS, applyNoShowStreakAfterStatus } from './crm-booking-status.js';
 import { mergeServiceCombos, isServiceBlockedByCombo } from '../storage.js';
 
 // Задача Влада (01.08.2026): "Клиент без предварительной записи" была рисунком -
@@ -78,18 +78,18 @@ let lockedServices = new Set();
 // Правка 13.08.2026 (Влад: "кнопка должна быть неактивна до внесения изменений и
 // должна учитывать изменения всех полей во вкладке"). Раньше она была активна всегда,
 // когда в записи есть хоть одна услуга - нажатие без единой правки уходило в сеть и
-// отвечало "Изменений не было".
+// отвечало, что менять нечего.
 // editBaseline - снимок ВСЕХ сохраняемых полей на момент открытия записи (и заново
 // после каждого успешного сохранения). Сравнение идёт с ним, а не с editBooking:
 // сумма и комментарий в editBooking не живут, а именно они чаще всего и меняются.
 // На уровне модуля - по той же причине, что и всё состояние выше: обработчики
 // привязаны один раз (dataset.wired) и читают модульные переменные, не своё замыкание.
 // Статус визита в снимок ВХОДИТ (правка того же дня, Влад: "меняешь статус, жмёшь
-// сохранить - пишет 'Изменений не было', хотя статус реально поменялся"). Сам PATCH
-// /bookings/:id/status уходит сразу по клику радио (assets/crm-booking-status.js),
-// но для карточки это такое же изменение записи, как остальные: кнопка обязана
-// ожить, а результат - сказать "Сохранено", а не отрицать сделанное. Если мгновенный
-// PATCH почему-то не прошёл, submitEdit досылает его сам - см. ниже.
+// сохранить - а система отвечает, что менять было нечего"). С вечера 13.08.2026 он
+// в базу мимо этой кнопки вообще не уходит: клик по радио только переключает выбор,
+// а PATCH /bookings/:id/status шлёт submitEdit наравне с услугами, переносом и
+// суммой (Влад: "изменения должны вступать в силу только при нажатии на кнопку
+// 'Сохранить изменения'").
 // Имя и телефон клиента в снимок НЕ входят: у существующей записи бэкенд их менять
 // не умеет (роута нет), и включать их в признак "есть что сохранить" значило бы
 // обещать сохранение, которого не произойдёт.
@@ -808,15 +808,17 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         if (!priceOut.ok) throw new Error(priceOut.error);
       }
 
-      // Статус визита (правка 13.08.2026, Влад: "меняешь статус, жмёшь сохранить -
-      // пишет 'Изменений не было', хотя статус реально меняется"). Обычно он уже
-      // уехал сам, по клику радио (wireBookingStatusRadios) - тогда realStatus на
-      // форме уже равен выбранному и второй запрос не нужен. Досылаем только
-      // расхождение: клик по радио мог не сохраниться (сеть), и тогда общая кнопка
-      // остаётся вторым честным шансом, а не молча рапортует об успехе.
-      const statusChanged = !!editBaseline && editBaseline.status !== checkedStatusRadioId();
+      // Статус визита (правка 13.08.2026, вторая итерация - Влад: "изменения должны
+      // вступать в силу только при нажатии на кнопку 'Сохранить изменения'"). Раньше
+      // PATCH уходил сразу по клику радио (wireBookingStatusRadios), и здесь только
+      // досылалось расхождение. Теперь клик по радио в сеть не ходит вовсе - статус
+      // сохраняется ровно отсюда, наравне с услугами, переносом и суммой. Сравнение
+      // идёт с РЕАЛЬНЫМ статусом записи (form.dataset.realStatus), а не со снимком:
+      // снимок хранит id радио и служит только кнопке, а на сервер должно уехать
+      // именно то, что в базе ещё не так.
+      const prevStatus = form.dataset.realStatus || editBooking.status || 'planned';
       const wantedStatus = RADIO_ID_TO_STATUS[checkedStatusRadioId()];
-      if (wantedStatus && wantedStatus !== (form.dataset.realStatus || editBooking.status)) {
+      if (wantedStatus && wantedStatus !== prevStatus) {
         const str = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/status`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
@@ -825,24 +827,23 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         if (!str.ok) throw new Error(`статус визита: HTTP ${str.status}`);
         form.dataset.realStatus = wantedStatus;
         editBooking.status = wantedStatus;
+        // Счётчик неявок клиента сервер уже пересчитал - зеркалим его же арифметику,
+        // чтобы баннер "у этого клиента N неявок" не врал до перезагрузки страницы.
+        applyNoShowStreakAfterStatus(form, prevStatus, wantedStatus);
       }
 
       // Запись сохранена целиком - новая точка отсчёта для кнопки: она снова гаснет
       // до следующей правки.
       editBaseline = editStateSnapshot();
-      // Что именно сохранено - словами. Раньше здесь была одна строка на все случаи
-      // ("Сохранено: мастер, дата время"), а всё, что не перенос и не новые услуги,
-      // отвечало "Изменений не было" - неверно для статуса, снятой услуги и суммы.
-      const savedParts = [];
-      if (added.length || removed.length) savedParts.push('услуги');
-      if (moved) savedParts.push('перенос');
-      if (priceChanged) savedParts.push('сумма и комментарий');
-      if (statusChanged) savedParts.push('статус визита');
+      // Одно слово на любой успешный результат (правка 13.08.2026, Влад: "оставь
+      // только 'Сохранено', остальной текст убери"). Перечисление что именно уехало
+      // ("Сохранено: услуги, сумма и комментарий - Алиовсад, 2026-08-13 11:15")
+      // пересказывало карточку, которая и так на экране. Ветки "Изменений не было"
+      // здесь больше нет: кнопка неактивна, пока в записи ничего не меняли
+      // (updateSubmitState), нажать её без единой правки физически нельзя.
       resultEl.hidden = false;
       resultEl.className = 'wf-result wf-result--ok';
-      resultEl.textContent = savedParts.length
-        ? `Сохранено: ${savedParts.join(', ')} - ${nameLabel.textContent}, ${date} ${startTime}`
-        : 'Изменений не было';
+      resultEl.textContent = 'Сохранено';
       renderLiveProof(staff); // перерисовать календарь: слот освободился/занялся
     } catch (err) {
       resultEl.hidden = false;

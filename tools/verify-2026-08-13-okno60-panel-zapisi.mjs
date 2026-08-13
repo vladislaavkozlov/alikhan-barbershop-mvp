@@ -211,8 +211,10 @@ try {
         await clickCenter(s, '#wfSubmit');
         await sleep(2000);
         const afterSave = await s.eval(PANEL_SNAPSHOT);
+        // Текст результата с 13.08.2026 (вечер) - одно слово "Сохранено" без
+        // перечисления полей (правка Влада), факт сохранения проверяем по базе ниже
         check('п.5: сумма и комментарий сохранились общей кнопкой',
-          /Сохранено/.test(afterSave.result) && /сумма и комментарий/.test(afterSave.result),
+          afterSave.result === 'Сохранено',
           `результат="${afterSave.result}"`);
         const inDb = await fetchBooking();
         check('п.5: в базе сумма 1700 и комментарий из формы',
@@ -263,9 +265,8 @@ try {
         await clickCenter(s, '#wfSubmit');
         await sleep(2000);
         const afterStatus = await s.eval(PANEL_SNAPSHOT);
-        check('п.9: результат говорит "Сохранено: статус визита", а не "Изменений не было"',
-          /Сохранено/.test(afterStatus.result) && /статус визита/.test(afterStatus.result)
-          && !/Изменений не было/.test(afterStatus.result),
+        check('п.9: результат говорит "Сохранено", а не "Изменений не было"',
+          afterStatus.result === 'Сохранено',
           `результат="${afterStatus.result}"`);
         const statusInDb = await fetchBooking();
         check('п.9: статус в базе действительно "пришёл"',

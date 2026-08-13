@@ -50,58 +50,52 @@ function bookingPanel() {
 // чтобы кнопка "Сохранить изменения" знала про статус визита - см. там же. Вторая
 // копия маппинга в другом файле разъехалась бы при первом же новом статусе.
 export const RADIO_ID_TO_STATUS = { 'st-wait': 'planned', 'st-came': 'done', 'st-no': 'no_show' };
+
+// Правка 13.08.2026 (Влад: "изменения должны вступать в силу только при нажатии на
+// кнопку 'Сохранить изменения'"). До этого клик по радио уходил в сеть НЕМЕДЛЕННО -
+// статус визита был единственным полем карточки, которое записывалось в базу мимо
+// общей кнопки: отметил неявку случайно - откатить можно было только вторым кликом,
+// который уже уехал на сервер (а счётчик неявок клиента успевал дёрнуться туда и
+// обратно). Теперь радио - обычное поле формы: клик только переключает выбор и
+// поднимает признак "есть что сохранить" (updateSubmitState через общий слушатель
+// change на форме, assets/crm-walkin.js wireDirtyWatchers). Сам PATCH
+// /bookings/:id/status шлёт submitEdit вместе с остальными правками, и он же
+// показывает результат в общей строке #wfResult - отдельная строка-ошибка под
+// статусом (#bk-status-note) больше не нужна и гасится здесь.
+// Функция остаётся точкой входа (её зовёт crm-dashboard.js на каждый renderLiveProof)
+// и по-прежнему привязывается один раз - dataset.wired, см.
+// reference_barbershop-dataset-wired-refresh-konventsiya.
 export function wireBookingStatusRadios() {
-  if (!document.getElementById('bk-status-note')) return; // не owner-страница - no-op
-  const radios = document.querySelectorAll('input[name="bstatus"]');
-  radios.forEach((radio) => {
+  if (!document.getElementById('bk-status-note')) return; // не owner/admin-страница - no-op
+  document.querySelectorAll('input[name="bstatus"]').forEach((radio) => {
     if (radio.dataset.wired) return;
     radio.dataset.wired = '1';
-    radio.addEventListener('change', async () => {
-      const panel = bookingPanel();
-      const bookingId = panel?.dataset.bookingId;
+    radio.addEventListener('change', () => {
       const note = document.getElementById('bk-status-note');
       if (note) note.hidden = true;
-      const prevStatus = panel?.dataset.realStatus || 'planned';
-      const nextStatus = RADIO_ID_TO_STATUS[radio.id];
-      if (!panel || !bookingId) return; // пример-заглушка без реальной брони, см. openBooking
-
-      document.querySelectorAll('input[name="bstatus"]').forEach((r) => (r.disabled = true));
-      try {
-        const res = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/status`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ status: nextStatus }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        panel.dataset.realStatus = nextStatus;
-        // Сервер уже применил счётчик неявок (see server.mjs, /bookings/:id/status) -
-        // зеркалим ТОЧНО ТУ ЖЕ if/else-if очерёдность локально, чтобы баннер обновился
-        // без перезагрузки страницы (несовпадающий порядок дал бы неверную цифру на
-        // переходах вроде no_show → done).
-        const prevStreak = parseInt(panel.dataset.noshowStreak, 10) || 0;
-        let streak = prevStreak;
-        if (nextStatus === 'no_show' && prevStatus !== 'no_show') {
-          streak = prevStreak + 1;
-        } else if (nextStatus === 'planned' && prevStatus === 'no_show') {
-          streak = Math.max(prevStreak - 1, 0);
-        } else if (nextStatus === 'done') {
-          streak = 0;
-        }
-        panel.dataset.noshowStreak = String(streak);
-        if (typeof window.updateNoShowUi === 'function') window.updateNoShowUi();
-      } catch (err) {
-        const prevRadioId = Object.keys(RADIO_ID_TO_STATUS).find((id) => RADIO_ID_TO_STATUS[id] === prevStatus);
-        const prevRadio = prevRadioId && document.getElementById(prevRadioId);
-        if (prevRadio) prevRadio.checked = true;
-        if (note) {
-          note.hidden = false;
-          note.textContent = `Не удалось сохранить: ${err.message}`;
-        }
-      } finally {
-        document.querySelectorAll('input[name="bstatus"]').forEach((r) => (r.disabled = false));
-      }
     });
   });
+}
+
+// Счётчик неявок клиента после УСПЕШНО сохранённого статуса. Сервер уже применил
+// свою арифметику (server.mjs, PATCH /bookings/:id/status) - зеркалим ТОЧНО ТУ ЖЕ
+// if/else-if очерёдность локально, чтобы баннер обновился без перезагрузки страницы
+// (несовпадающий порядок дал бы неверную цифру на переходах вроде no_show → done).
+// Вынесено из обработчика радио, когда сохранение статуса переехало в общую кнопку:
+// зовёт submitEdit (assets/crm-walkin.js) ПОСЛЕ ответа сервера, не по клику.
+export function applyNoShowStreakAfterStatus(panel, prevStatus, nextStatus) {
+  if (!panel) return;
+  const prevStreak = parseInt(panel.dataset.noshowStreak, 10) || 0;
+  let streak = prevStreak;
+  if (nextStatus === 'no_show' && prevStatus !== 'no_show') {
+    streak = prevStreak + 1;
+  } else if (nextStatus === 'planned' && prevStatus === 'no_show') {
+    streak = Math.max(prevStreak - 1, 0);
+  } else if (nextStatus === 'done') {
+    streak = 0;
+  }
+  panel.dataset.noshowStreak = String(streak);
+  if (typeof window.updateNoShowUi === 'function') window.updateNoShowUi();
 }
 
 // Правка 03.08.2026: кнопка "Клиент не пришёл" в bd-1 (assets/mockup-crm.js,
@@ -365,8 +359,25 @@ export function wireBookingDelete() {
 // Модульное состояние, не замыкание внутри wireBookingActualPrice() - функция
 // вызывается заново на каждый renderLiveProof(), а обработчик клика привязан к первой
 // версии (dataset.wired), см. reference_barbershop-dataset-wired-refresh-konventsiya.
+//
+// Баг, найденный Владом 13.08.2026: "добавляешь услугу - сумма растёт, убираешь -
+// не уменьшается". Причина - priceTouched поднимался от ЛЮБОЙ непустой сохранённой
+// суммы (`actualPrice != null`), а она есть у записи всегда, как только её один раз
+// сохранили: сумма подставляется автоматически и уезжает в базу вместе с составом.
+// После первого же сохранения поле замерзало навсегда - и вверх, и вниз (рост Влад
+// видел только на записи, которую ещё ни разу не сохраняли).
+// Признак теперь честно значит "сумму скорректировали РУКАМИ": сохранённая сумма
+// считается ручной, только если она расходится с составом услуг (та самая скидка от
+// владельца, ради которой поле и заводилось). Совпала с составом - это просто его
+// отражение, и она обязана следовать за составом дальше.
 let priceTouched = false;
 let lastServicesTotal = null;
+// Что лежит в самой записи, и решён ли уже вопрос "это ручная корректировка или
+// повтор состава". Решить его в момент renderBookingActualPrice нельзя: состав услуг
+// туда не передан, он приходит следующим шагом (syncBookingActualPrice из
+// openForWalkin, assets/crm-walkin.js).
+let savedActualPrice = null;
+let savedPriceChecked = true;
 
 export function wireBookingActualPrice() {
   const input = document.getElementById('bkActualPrice');
@@ -382,9 +393,11 @@ export function wireBookingActualPrice() {
   const commentEl = document.getElementById('bkStaffComment');
 
   window.renderBookingActualPrice = function renderBookingActualPrice(actualPrice, staffComment = '') {
-    // Сохранённая фактическая сумма - это уже осознанно вписанная цифра (скидка),
-    // поэтому она считается "тронутой": подстановка суммы услуг её не перебьёт.
-    priceTouched = actualPrice != null;
+    // Ручная это корректировка или просто отражение состава - решает первый же
+    // syncBookingActualPrice, которому известна сумма услуг записи (см. ниже).
+    savedActualPrice = actualPrice ?? null;
+    savedPriceChecked = false;
+    priceTouched = false;
     input.value = actualPrice ?? '';
     if (commentEl) commentEl.value = staffComment ?? '';
     if (resultEl) resultEl.hidden = true;
@@ -395,6 +408,13 @@ export function wireBookingActualPrice() {
   // бесплатно"), и путать эти два состояния нельзя.
   window.syncBookingActualPrice = function syncBookingActualPrice(servicesTotal) {
     lastServicesTotal = servicesTotal;
+    if (!savedPriceChecked) {
+      savedPriceChecked = true;
+      // Сохранённая сумма расходится с составом - это вписанная руками скидка,
+      // её автоподстановка не трогает. Совпадает - обычное отражение состава,
+      // и дальше поле идёт за составом (в том числе ВНИЗ, при снятии услуги).
+      priceTouched = savedActualPrice != null && savedActualPrice !== servicesTotal;
+    }
     if (priceTouched) return;
     input.value = servicesTotal == null ? '' : String(servicesTotal);
   };
@@ -444,9 +464,13 @@ export function wireBookingActualPrice() {
       if (!res.ok || data.ok === false) {
         return { ok: false, error: ACTUAL_PRICE_ERROR_TEXT[data.error] || data.error || `HTTP ${res.status}` };
       }
-      // Сохранённая сумма становится "тронутой" (её больше нельзя молча перебить
-      // автоподстановкой), сброс на пустое - наоборот, снова следует за услугами.
-      priceTouched = actualPrice != null;
+      // После сохранения признак пересчитывается по тому же правилу, что и при
+      // открытии записи: ручной остаётся только сумма, расходящаяся с составом
+      // услуг. Иначе первое же сохранение замораживало бы поле навсегда - ровно
+      // баг "убираешь услугу, а сумма не уменьшается" (Влад, 13.08.2026).
+      savedActualPrice = actualPrice;
+      savedPriceChecked = true;
+      priceTouched = actualPrice != null && actualPrice !== lastServicesTotal;
       return { ok: true, actualPrice, comment };
     } catch (err) {
       return { ok: false, error: err.message };

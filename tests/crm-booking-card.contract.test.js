@@ -143,20 +143,67 @@ test('кнопка "Сохранить изменения" гаснет, пок�
 });
 
 // 13.08.2026 (Влад): "меняешь статус и нажимаешь сохранить - всплывает 'Изменений не
-// было', хотя статус реально меняется". Статус входит в снимок наравне с остальным, а
-// результат перечисляет, что именно сохранено, вместо одной строки на все случаи.
-test('смена статуса визита не отвечает "Изменений не было"', async () => {
+// было', хотя статус реально меняется". Статус входит в снимок наравне с остальным.
+test('смена статуса визита поднимает кнопку сохранения', async () => {
   const walkin = await source('assets/crm-walkin.js');
   const status = await source('assets/crm-booking-status.js');
   // Один общий маппинг радио → статус, не вторая копия в другом файле
   assert.match(status, /export const RADIO_ID_TO_STATUS/);
-  assert.match(walkin, /import \{ RADIO_ID_TO_STATUS \} from '\.\/crm-booking-status\.js'/);
+  assert.match(walkin, /import \{ RADIO_ID_TO_STATUS, applyNoShowStreakAfterStatus \} from '\.\/crm-booking-status\.js'/);
   assert.match(walkin, /status: checkedStatusRadioId\(\)/);
   assert.match(walkin, /if \(e\.target\?\.name === 'bstatus'\) updateSubmitState\(\)/);
-  // Текст результата собирается из того, что реально изменилось
-  for (const part of ['услуги', 'перенос', 'сумма и комментарий', 'статус визита']) {
-    assert.match(walkin, new RegExp(`savedParts\\.push\\('${part}'\\)`), part);
+});
+
+// 13.08.2026, вторая итерация (Влад): "важно, чтобы при корректировке записи
+// изменения вступали в силу только при нажатии на кнопку 'Сохранить изменения'".
+// Статус визита был единственным полем карточки, которое уезжало в базу сразу по
+// клику - откатить случайную отметку неявки можно было только вторым запросом.
+test('статус визита сохраняется общей кнопкой, а не кликом по радио', async () => {
+  const status = await source('assets/crm-booking-status.js');
+  const walkin = await source('assets/crm-walkin.js');
+  // В обработчике радио не осталось ни одного запроса на изменение
+  const radioWiring = status.slice(status.indexOf('export function wireBookingStatusRadios'), status.indexOf('export function applyNoShowStreakAfterStatus'));
+  assert.doesNotMatch(radioWiring, /fetch\(/);
+  assert.doesNotMatch(radioWiring, /method: 'PATCH'/);
+  // Сам PATCH статуса живёт в общем сохранении карточки и сравнивается с реальным
+  // статусом записи, а не со снимком для кнопки
+  assert.match(walkin, /const prevStatus = form\.dataset\.realStatus \|\| editBooking\.status \|\| 'planned'/);
+  assert.match(walkin, /if \(wantedStatus && wantedStatus !== prevStatus\)[\s\S]{0,400}\/status`/);
+  // Счётчик неявок пересчитывается ПОСЛЕ ответа сервера, не по клику
+  assert.match(status, /export function applyNoShowStreakAfterStatus/);
+  assert.match(walkin, /applyNoShowStreakAfterStatus\(form, prevStatus, wantedStatus\)/);
+});
+
+// 13.08.2026 (Влад): "из надписи 'Сохранено: услуги, сумма и комментарий - Алиовсад,
+// 2026-08-13 11:15' оставь только 'Сохранено'". Перечисление пересказывало карточку,
+// которая и так на экране.
+test('успешное сохранение записи отвечает одним словом', async () => {
+  const walkin = await source('assets/crm-walkin.js');
+  assert.match(walkin, /resultEl\.textContent = 'Сохранено';/);
+  assert.doesNotMatch(walkin, /savedParts/);
+  assert.doesNotMatch(walkin, /'Изменений не было'/);
+  // Ошибка остаётся на том же месте и в красной рамке (.wf-result--err)
+  assert.match(walkin, /resultEl\.className = 'wf-result wf-result--err'/);
+  const css = await source('assets/mockup-crm.css');
+  assert.match(css, /\.wf-result--err \{[^}]*border: 1px solid var\(--danger\)/);
+});
+
+// 13.08.2026 (Влад): "Пришёл" → "Обслужен" (клиент пришёл, подстригся, оплатил -
+// сделка завершена), а цвет выбранного статуса - тот же, что у его записи в
+// календаре "День": ожидание акцентное, обслужен зелёный, неявка красная.
+test('статусы записи названы по смыслу и покрашены как записи в календаре', async () => {
+  for (const page of OPERATOR_PAGES) {
+    const html = await source(page);
+    assert.match(html, /<label for="st-came">Обслужен<\/label>/, page);
+    assert.doesNotMatch(html, /<label for="st-came">Пришёл<\/label>/, page);
   }
+  const css = await source('assets/mockup-crm.css');
+  assert.match(css, /#st-wait:checked ~ label\[for="st-wait"\] \{[^}]*border-color: var\(--accent\)/);
+  assert.match(css, /#st-came:checked ~ label\[for="st-came"\] \{[^}]*border-color: var\(--success\)/);
+  assert.match(css, /#st-no:checked ~ label\[for="st-no"\] \{[^}]*border-color: var\(--danger\)/);
+  // Одно и то же название статуса на всех страницах CRM
+  assert.match(await source('assets/crm-master-booking.js'), /done: 'Обслужен'/);
+  assert.match(await source('assets/crm-clients.js'), /done: 'обслужен'/);
 });
 
 test('удаление записи - в самом низу карточки, ниже кнопок сохранения', async () => {
@@ -182,6 +229,18 @@ test('сумма подтягивается из состава услуг и н
   assert.match(walkin, /window\.syncBookingActualPrice\?\.\(totalPrice\)/);
   assert.match(status, /window\.syncBookingActualPrice = function/);
   assert.match(status, /if \(priceTouched\) return;/);
+});
+
+// 13.08.2026 (Влад): "добавляешь услугу - фактическая сумма растёт, а убираешь -
+// сумма не уменьшается". Сохранённая сумма поднимала признак "правили руками" сама
+// по себе, а она есть у любой уже сохранённой записи - поле замерзало навсегда.
+test('фактическая сумма следует за составом услуг в обе стороны', async () => {
+  const status = await source('assets/crm-booking-status.js');
+  // Признак "ручная правка" - расхождение с составом, а не сам факт непустой суммы
+  assert.doesNotMatch(status, /priceTouched = actualPrice != null;/);
+  assert.match(status, /priceTouched = savedActualPrice != null && savedActualPrice !== servicesTotal/);
+  // И то же правило после сохранения - иначе первое сохранение снова заморозит поле
+  assert.match(status, /priceTouched = actualPrice != null && actualPrice !== lastServicesTotal/);
 });
 
 test('услуги записи редактируются целиком: снятая галочка уезжает на сервер', async () => {

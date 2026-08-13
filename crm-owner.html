@@ -354,8 +354,15 @@
               <input type="radio" name="bstatus" id="st-wait">
               <input type="radio" name="bstatus" id="st-came">
               <input type="radio" name="bstatus" id="st-no">
+              <!-- Правка 13.08.2026 (Влад) - "Пришёл" переименован в "Обслужен":
+                   статус done значит не "клиент вошёл в дверь", а завершённую сделку
+                   (пришёл, подстригся, заплатил) - именно этот визит попадает в
+                   выручку и в зарплату мастера. Цвет обводки выбранного статуса
+                   совпадает с цветом записи в календаре "День" (.appt--status-*,
+                   assets/mockup-crm.css) - один и тот же язык цвета на карточке и
+                   в расписании. -->
               <label for="st-wait">Ожидание</label>
-              <label for="st-came">Пришёл</label>
+              <label for="st-came">Обслужен</label>
               <label for="st-no">Не пришёл</label>
             </div>
             <p class="commission-note" id="bk-status-note" hidden></p>

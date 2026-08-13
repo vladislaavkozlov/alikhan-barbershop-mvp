@@ -87,6 +87,20 @@ const ROLE_CONFIG = {
   },
 };
 
+// Подпись профиля в самом низу боковой панели. Отдельная от ROLE_CONFIG таблица,
+// потому что конфиг описывает НАБОР РАЗДЕЛОВ страницы (их три: owner/admin/master),
+// а подпись - РОЛЬ ВОШЕДШЕГО СОТРУДНИКА, и это разные вещи с Окна 57: управляющий
+// (`manager`) работает на странице владельца, то есть с owner-набором разделов, но
+// владельцем не является. Баг найден Владом 13.08.2026: вход Мамедханом показывал
+// "Управляющий" в шапке (там подпись идёт от реальной роли, crm-auth.js reveal) и
+// "Владелец" в боковой панели - два разных ответа на один вопрос на одном экране.
+const ROLE_PROFILE_LABEL = {
+  owner: 'Владелец',
+  manager: 'Управляющий',
+  admin: 'Администратор',
+  master: 'Мастер',
+};
+
 let activeConfig = ROLE_CONFIG.owner;
 let currentSection = activeConfig.defaultSection;
 
@@ -199,6 +213,18 @@ export function initAppShell(role = 'owner') {
   }
   new MutationObserver(sync).observe(main, { attributes: true, attributeFilter: ['hidden'] });
   sync();
+
+  // Реальная роль известна только после входа - до него в панели стоит подпись по
+  // набору разделов страницы (для owner-страницы "Владелец"), и для управляющего
+  // она неверна. Слушаем то же событие, которым crm-auth.js раздаёт вошедшего
+  // сотрудника остальным модулям (reveal → 'crm:authenticated'), а не заводим свой
+  // запрос /me: второй источник правды о роли разошёлся бы с шапкой ровно так же,
+  // как разошёлся хардкод.
+  document.addEventListener('crm:authenticated', (e) => {
+    const label = ROLE_PROFILE_LABEL[e.detail?.role];
+    const profileEl = el('appShellProfile');
+    if (label && profileEl) profileEl.textContent = label;
+  });
 
   goToSection(activeConfig.defaultSection);
 }

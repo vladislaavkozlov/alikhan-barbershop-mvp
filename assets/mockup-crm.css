@@ -703,9 +703,16 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
   font-size: 0.8rem; font-weight: 600; color: var(--text-muted);
 }
 .status-row input[type="radio"] { display: none; }
-#st-wait:checked ~ label[for="st-wait"],
-#st-came:checked ~ label[for="st-came"],
-#st-no:checked ~ label[for="st-no"] { background: var(--accent); color: var(--leather); border-color: var(--accent); }
+/* Правка 13.08.2026 (Влад) - выбранный статус визита красится ТЕМ ЖЕ цветом, что
+   его запись в календаре "День" (.appt--status-planned/done/noshow выше): ожидание -
+   акцент, обслужен - зелёный, не пришёл - красный. Раньше все три статуса в
+   выбранном состоянии были одинаково золотыми - по цвету нельзя было отличить
+   завершённый визит от неявки, хотя в расписании они разного цвета. Обводка +
+   тон текста, а не сплошная заливка: заливка золотом читалась как кнопка действия,
+   а это переключатель состояния. */
+#st-wait:checked ~ label[for="st-wait"] { background: rgba(198,161,91,0.16); color: var(--accent); border-color: var(--accent); }
+#st-came:checked ~ label[for="st-came"] { background: rgba(111,174,124,0.16); color: var(--success); border-color: var(--success); }
+#st-no:checked ~ label[for="st-no"] { background: rgba(193,85,74,0.16); color: var(--danger); border-color: var(--danger); }
 .status-legend { color: var(--text-muted); font-size: 0.76rem; line-height: 1.55; margin: -8px 0 16px; }
 
 .field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 14px; margin-bottom: 14px; }

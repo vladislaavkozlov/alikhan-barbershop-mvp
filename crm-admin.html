@@ -158,8 +158,12 @@
               <input type="radio" name="bstatus" id="st-wait">
               <input type="radio" name="bstatus" id="st-came">
               <input type="radio" name="bstatus" id="st-no">
+              <!-- Правка 13.08.2026 (Влад) - "Пришёл" переименован в "Обслужен":
+                   статус done значит завершённую сделку (пришёл, подстригся,
+                   заплатил), а не просто явку. Цвет обводки выбранного статуса -
+                   тот же, что у записи в календаре "День" (.appt--status-*). -->
               <label for="st-wait">Ожидание</label>
-              <label for="st-came">Пришёл</label>
+              <label for="st-came">Обслужен</label>
               <label for="st-no">Не пришёл</label>
             </div>
             <p class="commission-note" id="bk-status-note" hidden></p>
