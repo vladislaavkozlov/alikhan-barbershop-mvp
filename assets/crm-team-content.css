@@ -91,6 +91,16 @@
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
+/* Тумблер нарисован вручную (.track/.knob поверх скрытого input), поэтому браузер
+   не гасит его при disabled - выглядел полностью рабочим там, где нажать нельзя
+   (свой рабочий статус, статус владельца). Рисуем состояние сами (13.08.2026) */
+.crm-navigation-ui .team-toggle-row:has(.switch input:disabled) { opacity: .55; }
+.crm-navigation-ui .team-toggle-row .switch input:disabled { cursor: not-allowed; }
+.crm-navigation-ui .team-toggle-row .switch input:disabled ~ .track {
+  background: var(--surface-3);
+  border-style: dashed;
+}
+.crm-navigation-ui .team-toggle-row .switch input:disabled ~ .knob { background: var(--text-muted); }
 
 /* Услуги: собственная золотая галочка вместо синего системного checkbox */
 .crm-navigation-ui .team-editor-section .service-picker {

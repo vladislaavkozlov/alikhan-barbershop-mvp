@@ -131,3 +131,27 @@ test('владелец показан подсвеченной карточко�
   // подсветка выбранного варианта - та же, что у обычных карточек ролей
   assert.match(css, /\.team-role-option input:checked \+ span/);
 });
+
+// Живой repro Влада 13.08.2026 под управляющим: галки на месте, а услуги не
+// меняются ни у кого. wireMasterServiceEditors осталась с проверкой "только
+// владелец" со времён, когда роли управляющего ещё не было.
+test('услуги редактирует и управляющий - как разрешает сервер', async () => {
+  const root = new URL('../', import.meta.url);
+  const [services, server] = await Promise.all([
+    readFile(new URL('assets/crm-master-services.js', root), 'utf8'),
+    readFile(new URL('api/server.mjs', root), 'utf8'),
+  ]);
+  assert.match(services, /staffRole === 'owner' \|\| staffRole === 'manager'/);
+  // право на сервере - management, то есть owner+manager
+  assert.match(server, /path: 'master-services\/:masterId\/:serviceId', auth: 'management'/);
+  // но карточку защищённого владельца управляющий по-прежнему не трогает
+  assert.match(services, /data-locked-owner/);
+});
+
+test('заблокированный тумблер видно - он нарисован вручную и браузером не гасится', async () => {
+  const root = new URL('../', import.meta.url);
+  const css = await readFile(new URL('assets/crm-team-content.css', root), 'utf8');
+  assert.match(css, /\.team-toggle-row:has\(\.switch input:disabled\)/);
+  assert.match(css, /\.switch input:disabled ~ \.track/);
+  assert.match(css, /\.switch input:disabled \{ cursor: not-allowed; \}/);
+});

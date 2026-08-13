@@ -21,11 +21,19 @@ import { API, getToken } from './crm-auth.js';
 // последним, тот и определял результат. Признак берём из карточки, в которой лежит
 // контейнер (data-provides-services ставит renderTeam) - один источник правды на
 // обоих путях, вместо второго набора данных здесь.
+// Роль управляющего появилась позже этой функции, а она осталась с проверкой
+// "только владелец" - под управляющим услуги были недоступны у ВСЕХ сотрудников,
+// хотя карточка команды их разрешала, а PUT /master-services/:masterId/:serviceId
+// на сервере открыт роли management (owner+manager). Живой repro Влада 13.08.2026:
+// зашёл управляющим, галки на месте, а услуги не меняются.
 export function wireMasterServiceEditors(staffRole, services, masterServices) {
-  const canEdit = staffRole === 'owner';
+  const canEdit = staffRole === 'owner' || staffRole === 'manager';
   document.querySelectorAll('.service-picker[data-master-id]').forEach((container) => {
     const offDuty = container.closest('[data-provides-services="0"]') != null;
-    renderMasterServiceEditor(container, container.dataset.masterId, canEdit && !offDuty, services, masterServices);
+    // Карточку защищённого владельца управляющий не редактирует - renderTeam помечает
+    // её data-locked-owner, здесь читаем ту же метку, чтобы оба пути совпадали
+    const lockedOwner = container.closest('[data-locked-owner]') != null;
+    renderMasterServiceEditor(container, container.dataset.masterId, canEdit && !offDuty && !lockedOwner, services, masterServices);
   });
 }
 
