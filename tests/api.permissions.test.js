@@ -7,6 +7,7 @@ import {
   MANAGEMENT_ROLES,
   canManageStaff,
   canMutateProtectedOwner,
+  guardAccountLockout,
   isAssignableRole,
 } from '../api/lib/permissions.js';
 
@@ -25,10 +26,34 @@ test('только owner и manager получают управляющие пр
   assert.equal(canManageStaff({ role: 'master' }), false);
 });
 
-test('защищённый owner не изменяется никакой управляющей ролью', () => {
+test('роль защищённого owner не изменяется никакой управляющей ролью', () => {
   assert.equal(canMutateProtectedOwner({ role: 'owner' }, { protectedOwner: true }), false);
   assert.equal(canMutateProtectedOwner({ role: 'manager' }, { protectedOwner: true }), false);
   assert.equal(canMutateProtectedOwner({ role: 'owner' }, { protectedOwner: false }), true);
+});
+
+// Регрессия 13.08.2026: замок стоял на всём PUT /staff/:id, и владелец не мог
+// сохранить собственную карточку вообще - CRM отвечала "Не удалось сохранить".
+test('защищённого owner нельзя уволить и отрезать от системы никакой ролью', () => {
+  const requested = { employed: false, hasSystemAccess: false };
+  assert.deepEqual(guardAccountLockout({ protectedOwner: true }, requested), { employed: true, hasSystemAccess: true });
+  assert.deepEqual(guardAccountLockout({ protectedOwner: true, isSelf: false }, requested), { employed: true, hasSystemAccess: true });
+});
+
+test('никто не снимает рабочий статус и доступ сам с себя - защита от самоблокировки', () => {
+  const requested = { employed: false, hasSystemAccess: false };
+  assert.deepEqual(guardAccountLockout({ isSelf: true }, requested), { employed: true, hasSystemAccess: true });
+  assert.deepEqual(guardAccountLockout({ protectedOwner: false, isSelf: true }, requested), { employed: true, hasSystemAccess: true });
+});
+
+test('чужую карточку обычного сотрудника управляющий по-прежнему может закрыть', () => {
+  const requested = { employed: false, hasSystemAccess: false };
+  assert.deepEqual(guardAccountLockout({ protectedOwner: false, isSelf: false }, requested), { employed: false, hasSystemAccess: false });
+});
+
+test('замок не трогает поля, которые никого не запирают', () => {
+  const requested = { employed: true, hasSystemAccess: true, name: 'Алиовсад', publicProfileEnabled: true };
+  assert.deepEqual(guardAccountLockout({ protectedOwner: true }, requested), requested);
 });
 
 test('сервер проверяет актуальный доступ и CRM перечитывает /auth/me', async () => {

@@ -62,15 +62,30 @@ function mediaItem(media, index, all) {
   return `<figure class="team-media-item" data-media-id="${esc(media.id)}" data-media-kind="${esc(media.kind)}"><img src="${esc(media.url)}" alt="${name}"><figcaption><span>${name}</span>${move}<button class="team-media-delete" type="button" data-media-delete="${esc(media.id)}" aria-label="Удалить ${name.toLowerCase()}">Удалить</button></figcaption></figure>`;
 }
 
-function staffCard(staff, viewerRole, locations) {
+function staffCard(staff, viewerRole, locations, viewerId) {
   const id = esc(staff.id);
   const locked = viewerRole === 'manager' && staff.protectedOwner;
+  // Рабочий статус нельзя снять с владельца и с самого себя (13.08.2026): выключенный
+  // тумблер убирает человека с сайта и обрывает его сессии - для владельца это то же
+  // самозапирание, от которого защищена его роль, для управляющего это способ случайно
+  // выкинуть себя из CRM без пути назад. Бэкенд форсит это независимо от интерфейса
+  // (guardAccountLockout), здесь тумблер просто не даёт нажать.
+  const isSelf = viewerId != null && staff.id === viewerId;
+  const employmentLocked = locked || staff.protectedOwner || isSelf;
+  const employmentNote = staff.protectedOwner
+    ? 'Владельца нельзя снять с состава - защита от блокировки самого себя'
+    : isSelf ? 'Свой статус изменить нельзя - защита от блокировки самого себя'
+      : 'Сотрудник остаётся в активном составе';
   return `<details class="staff-card team-editor-card" data-staff-id="${id}" ${locked ? 'data-locked-owner' : ''}><summary><div class="avatar">${esc(staff.name).slice(0, 2)}</div><div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
-  ${section('Основное', 'Контакты и рабочий статус', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" value="${esc(staff.name)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" value="${esc(staff.phone)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" value="${esc(staff.email)}" ${locked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: 'Сотрудник остаётся в активном составе', checked: staff.employed, disabled: locked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: locked })}</div>`)}
+  ${section('Основное', 'Контакты и рабочий статус', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" value="${esc(staff.name)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" value="${esc(staff.phone)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" value="${esc(staff.email)}" ${locked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: employmentNote, checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: locked })}</div>`)}
   ${section('Профиль на сайте', 'Фото и информация для клиентов', ICON_PUBLIC, mediaMarkup(staff))}
   ${section('Услуги и время', 'Выберите услуги и укажите длительность', ICON_SERVICES, `<div class="service-picker" data-master-id="${id}"><span class="note">Загружаю услуги…</span></div>`)}
   ${section('График', 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}"><span class="note">Загружаю график…</span></div>${exceptionEditor(staff.id)}`)}
-  ${section('Доступ', 'Роль и возможность входа в CRM', ICON_ACCESS, `${roleControl(staff, viewerRole)}${toggleControl({ name: 'hasSystemAccess', title: 'Разрешить вход в CRM', description: 'При отключении открытые сессии завершатся', checked: staff.hasSystemAccess, disabled: locked })}`)}
+  ${/* Тумблер "Разрешить вход в CRM" убран 13.08.2026 по решению владельца: он дублировал
+       "Работает в компании" в глазах салона и создавал риск случайно отрезать себе вход.
+       Вход теперь есть у каждого, кто числится в составе; колонка has_system_access в схеме
+       осталась и по-прежнему проверяется при входе, но через интерфейс не выключается. */''}
+  ${section('Доступ', 'Роль сотрудника и её права', ICON_ACCESS, roleControl(staff, viewerRole))}
   <div class="team-editor-actions"><button class="btn btn-primary" type="button" data-save ${locked ? 'disabled' : ''}>Сохранить изменения</button><p class="payroll-note" data-card-note aria-live="polite"></p></div></div></details>`;
 }
 
@@ -104,7 +119,8 @@ async function saveCard(card) {
     locationId: value('locationId')?.value || null,
     employed: value('employed').checked,
     providesServices: value('providesServices').checked,
-    hasSystemAccess: value('hasSystemAccess').checked,
+    // hasSystemAccess намеренно не отправляется - тумблера больше нет, сервер
+    // сохраняет текущее значение колонки (см. handleStaffUpdate)
   });
   if (!main.ok) return showNote(card, 'Не удалось сохранить. Повторите попытку');
   const profile = await apiSend(`/staff/${encodeURIComponent(id)}/portfolio`, 'PUT', {
@@ -269,7 +285,7 @@ export async function renderTeam() {
     const [rows, services, masterServices, me, locations] = await Promise.all([
       fetchJson('/staff'), fetchJson('/services'), fetch(`${API}/master-services`).then((response) => response.json()), fetchJson('/auth/me'), fetchJson('/locations'),
     ]);
-    host.innerHTML = rows.map((staff) => staffCard(staff, me.staff.role, locations)).join('') + addCard(locations);
+    host.innerHTML = rows.map((staff) => staffCard(staff, me.staff.role, locations, me.staff.id)).join('') + addCard(locations);
     openStaffIds.forEach((staffId) => host.querySelector(`.team-editor-card[data-staff-id="${CSS.escape(staffId)}"]`)?.setAttribute('open', ''));
     const canEdit = ['owner', 'manager'].includes(me.staff.role);
     rows.forEach((staff) => {
