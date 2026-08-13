@@ -106,18 +106,20 @@
                assets/crm-walkin.js) открывает эту форму с датой/временем места клика,
                без ограничения snizu (см. renderDateSelect без 4-го аргумента) - тот же
                способ, каким теперь пользуется owner. -->
-          <div class="field-grid" id="wfDateTimeRow" hidden>
-            <div class="field"><label>Дата</label><div id="wfDate-slot"></div></div>
-            <div class="field"><label>Время</label><div id="wfTime-slot"></div></div>
-          </div>
           <!-- Окно 55, Задача C (10.08.2026) - режим "редактирование существующей
                записи", тот же контракт, что на crm-owner.html. Мастера в этом режиме
                можно СМЕНИТЬ (PATCH /bookings/:id/reschedule, Окно 54) - администратор
                допущен к этому роуту наравне с владельцем, но только в пределах своей
                точки (handleBookingReschedule проверяет location_id с обеих сторон).
-               Список мастеров рисует assets/crm-walkin.js по реальному /staff. -->
-          <div class="field-grid" id="wfMasterRow" hidden>
-            <div class="field field--wide"><label>Мастер</label><div id="wfMaster-slot"></div></div>
+               Список мастеров рисует assets/crm-walkin.js по реальному /staff.
+               Правка 13.08.2026 (Влад: "слайд выбранного мастера странно смотрится на
+               длину всей панели") - поле переехало в общую строку с датой и временем
+               вместо своей строки с field--wide (span 2 = во всю ширину панели), тот
+               же разбор и тот же порядок, что на crm-owner.html. -->
+          <div class="field-grid" id="wfDateTimeRow" hidden>
+            <div class="field"><label>Дата</label><div id="wfDate-slot"></div></div>
+            <div class="field"><label>Время</label><div id="wfTime-slot"></div></div>
+            <div class="field" id="wfMasterRow" hidden><label>Мастер</label><div id="wfMaster-slot"></div></div>
           </div>
           <div class="field-grid">
             <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
@@ -129,17 +131,14 @@
                блок, что на crm-owner.html - для администратора он даже важнее, именно
                он записывает клиентов (решение Влада 08.08.2026). -->
           <p class="wf-client-hint" id="wfClientHint" hidden></p>
-          <!-- Правка 13.08.2026 (Влад) - пояснение в скобках убрано из заголовка, тот
-               же разбор, что на crm-owner.html: несколько чекбоксов видно и так, а
-               "список только этого мастера" - внутренняя механика (master_services).
-               Подсказка про уже оказанные услуги появляется только в режиме
-               редактирования (#wfServiceEditHint, assets/crm-walkin.js). -->
-          <details class="service-edit" open>
-            <summary>Услуги</summary>
-            <p class="section-hint" id="wfServiceEditHint" hidden>Отметьте, что мастер сделал по факту - услугу можно снять или добавить, сумма и длительность пересчитаются</p>
+          <!-- Правка 13.08.2026, вторая итерация (Влад) - заголовок "Услуги", подсказка
+               про факт оказанных услуг и строка итога (#wfSummary) убраны, список
+               остался в той же пунктирной рамке и не сворачивается. Тот же разбор, что
+               на crm-owner.html: цены и минуты видны в самом списке, а "услуг не
+               выбрано" показывает неактивная кнопка сохранения. -->
+          <div class="service-edit service-edit--flat">
             <div class="service-picker" id="wfServicePicker"></div>
-          </details>
-          <p class="wf-summary" id="wfSummary">Выберите хотя бы одну услугу</p>
+          </div>
 
           <!-- Окно 55, Задача C - блоки, живущие ТОЛЬКО в режиме edit: статус визита,
                фактическая сумма, комментарий, удаление. Перенесены сюда из карточки-
@@ -177,22 +176,24 @@
                выбранных услуг и правится вручную; комментарий объясняет отличие и
                едет тем же PATCH /bookings/:id/actual-price (миграция 048,
                bookings.staff_comment). type="text" + inputmode="numeric" вместо
-               type="number" - у number-поля справа стрелки шага в 1 ₽. -->
+               type="number" - у number-поля справа стрелки шага в 1 ₽.
+
+               Вторая итерация 13.08.2026 (Влад): подписи под полями и отдельная кнопка
+               "Сохранить сумму и комментарий" убраны - сумма и комментарий уезжают
+               общей кнопкой "Сохранить изменения" (submitEdit, assets/crm-walkin.js →
+               window.saveBookingActualPrice), тем же PATCH /bookings/:id/actual-price.
+               Тот же разбор, что на crm-owner.html. -->
           <div class="wf-edit-extras" id="wfEditExtras" hidden>
             <div class="field-grid">
               <div class="field">
                 <label for="bkActualPrice">Фактическая сумма, ₽</label>
                 <input id="bkActualPrice" type="text" inputmode="numeric" autocomplete="off" placeholder="как по услугам">
-                <p class="section-hint">Подставлена сумма выбранных услуг - поправьте, если с клиента взяли другую</p>
               </div>
               <div class="field field--wide">
                 <label for="bkStaffComment">Комментарий к записи</label>
                 <input id="bkStaffComment" type="text" maxlength="500" autocomplete="off" placeholder="например: владелец дал скидку постоянному клиенту">
-                <p class="section-hint">Сохраняется в записи - будет видно и через месяц, в карточке клиента тоже</p>
               </div>
             </div>
-            <button type="button" class="btn btn-ghost btn-sm" id="bkActualPriceSave">Сохранить сумму и комментарий</button>
-            <p class="wf-result" id="bkActualPriceResult" hidden></p>
           </div>
 
           <div class="wf-actions">

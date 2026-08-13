@@ -15,11 +15,54 @@ const root = new URL('../', import.meta.url);
 const source = (path) => readFile(new URL(path, root), 'utf8');
 const OPERATOR_PAGES = ['crm-owner.html', 'crm-admin.html'];
 
-test('заголовок списка услуг - без пояснения в скобках', async () => {
+// Вторая итерация правок 13.08.2026: заголовка у списка услуг больше нет вовсе
+// ("надпись 'Услуги' убираем, сами услуги оставляем в такой же пунктирной рамке на
+// виду, сворачивать их не нужно"), поэтому и пояснению в скобках взяться неоткуда.
+// Рамка осталась (.service-edit), но блок больше не <details> - разворачивать нечего.
+test('список услуг - без заголовка и без сворачивания, в той же пунктирной рамке', async () => {
   for (const page of OPERATOR_PAGES) {
     const html = await source(page);
-    assert.match(html, /<summary>Услуги<\/summary>/, page);
+    assert.doesNotMatch(html, /<summary>Услуги<\/summary>/, page);
     assert.doesNotMatch(html, /можно выбрать несколько/, page);
+    assert.match(html, /<div class="service-edit service-edit--flat">\s*<div class="service-picker" id="wfServicePicker">/, page);
+  }
+  // Рамка та же самая, что была у <details> - отдельный класс только добавляет
+  // верхний отступ вместо ушедшего заголовка
+  const css = await source('assets/mockup-crm.css');
+  assert.match(css, /\.service-edit \{[^}]*border: 1px dashed/);
+  assert.match(css, /\.service-edit--flat \{[^}]*padding:/);
+});
+
+// 13.08.2026 (Влад): "Выбрано услуг: 1 · итого 60 мин · 3 500 ₽" и "Выберите хотя бы
+// одну услугу" - обе строки убраны как избыточные ("и так понятно визуально"): цена и
+// длительность каждой услуги видны в самом списке, а "услуг не выбрано" показывает
+// неактивная кнопка сохранения.
+test('строки итога по услугам в карточке нет', async () => {
+  for (const page of OPERATOR_PAGES) {
+    const html = await source(page);
+    // Именно разметка, не упоминание в комментарии-объяснении рядом
+    assert.doesNotMatch(html, /<p class="wf-summary"/, page);
+    assert.doesNotMatch(html, /Выберите хотя бы одну услугу<\/p>/, page);
+  }
+  // Форма обязана работать и без этого элемента - иначе его удаление выключило бы
+  // всю запись целиком (summary исключён из списка обязательных элементов)
+  const walkin = await source('assets/crm-walkin.js');
+  assert.doesNotMatch(walkin, /if \(!form \|\| !picker \|\| !summary/);
+  assert.match(walkin, /if \(summary\) summary\.textContent/);
+});
+
+// "Мастер" стоял отдельной строкой .field-grid с field--wide (span 2) - дропдаун во
+// всю ширину панели в пустой строке (Влад: "слайд выбранного мастера странно смотрится
+// на длину всей панели"). Теперь это обычное поле в одной строке с датой и временем.
+test('мастер - поле в строке даты и времени, не отдельная строка во всю ширину', async () => {
+  for (const page of OPERATOR_PAGES) {
+    const html = await source(page);
+    assert.doesNotMatch(html, /<div class="field-grid" id="wfMasterRow"/, page);
+    assert.match(
+      html,
+      /id="wfDateTimeRow"[\s\S]{0,400}<div class="field" id="wfMasterRow" hidden><label>Мастер<\/label>/,
+      page,
+    );
   }
 });
 
@@ -49,14 +92,70 @@ test('отдельного блока "Добавить услугу к запи
   assert.match(await source('crm-master.html'), /id="mbServices"/);
 });
 
-test('фактическая сумма - без "если отличается", без стрелок шага, с комментарием рядом', async () => {
+test('фактическая сумма - без подписей-пояснений, без стрелок шага, с комментарием рядом', async () => {
   for (const page of OPERATOR_PAGES) {
     const html = await source(page);
     assert.doesNotMatch(html, /если отличается от суммы услуг выше/, page);
     // type="number" рисует спиннер с шагом 1 - ровно то, на что жаловался Влад
     assert.match(html, /id="bkActualPrice" type="text" inputmode="numeric"/, page);
     assert.match(html, /id="bkStaffComment"/, page);
-    assert.match(html, /Подставлена сумма выбранных услуг/, page);
+    // Вторая итерация 13.08.2026: обе подписи под полями убраны ("и так всё понятно")
+    assert.doesNotMatch(html, /Подставлена сумма выбранных услуг/, page);
+    assert.doesNotMatch(html, /Сохраняется в записи - будет видно и через месяц/, page);
+  }
+});
+
+// 13.08.2026 (Влад): "кнопка 'Сохранить сумму и комментарий' как будто бы не нужна,
+// т.к. уже есть кнопка 'Сохранить изменения'". Кнопок сохранения на одной карточке
+// было две, и какая что сохраняет, приходилось угадывать.
+test('своей кнопки у суммы и комментария нет - их сохраняет общая кнопка карточки', async () => {
+  for (const page of OPERATOR_PAGES) {
+    const html = await source(page);
+    assert.doesNotMatch(html, /<button[^>]*id="bkActualPriceSave"/, page);
+    assert.doesNotMatch(html, /Сохранить сумму и комментарий<\/button>/, page);
+  }
+  const status = await source('assets/crm-booking-status.js');
+  const walkin = await source('assets/crm-walkin.js');
+  // Сам PATCH никуда не делся - он вынесен в функцию, которую зовёт общая кнопка
+  assert.match(status, /window\.saveBookingActualPrice = async function/);
+  assert.match(status, /\/actual-price/);
+  assert.match(walkin, /await window\.saveBookingActualPrice\(\)/);
+  // и только когда сумма или комментарий реально изменились
+  assert.match(walkin, /const priceChanged = /);
+});
+
+// 13.08.2026 (Влад): "кнопка 'Сохранить изменения' должна быть неактивна до внесения
+// изменений и должна учитывать изменения всех полей во вкладке"
+test('кнопка "Сохранить изменения" гаснет, пока в записи ничего не изменили', async () => {
+  const walkin = await source('assets/crm-walkin.js');
+  // Снимок всех сохраняемых полей: мастер, дата, время, услуги, сумма, комментарий
+  for (const field of ['masterId:', 'date:', 'startTime:', 'services:', 'actualPrice:', 'comment:']) {
+    assert.match(walkin, new RegExp(`editStateSnapshot[\\s\\S]{0,600}${field}`), field);
+  }
+  assert.match(walkin, /function isEditDirty/);
+  assert.match(walkin, /btn\.disabled = editMode\s*\n?\s*\? selected\.size === 0 \|\| !isEditDirty\(\)/);
+  // Снимок берётся при открытии записи и заново после успешного сохранения
+  assert.match(walkin, /editBaseline = editStateSnapshot\(\);/);
+  // Поля, которые меняются мимо списка услуг, тоже поднимают признак изменения
+  assert.match(walkin, /form\.addEventListener\('customselect:change', updateSubmitState\)/);
+  assert.match(walkin, /form\.addEventListener\('customdate:change', updateSubmitState\)/);
+  assert.match(walkin, /for \(const id of \['bkActualPrice', 'bkStaffComment'\]\)/);
+});
+
+// 13.08.2026 (Влад): "меняешь статус и нажимаешь сохранить - всплывает 'Изменений не
+// было', хотя статус реально меняется". Статус входит в снимок наравне с остальным, а
+// результат перечисляет, что именно сохранено, вместо одной строки на все случаи.
+test('смена статуса визита не отвечает "Изменений не было"', async () => {
+  const walkin = await source('assets/crm-walkin.js');
+  const status = await source('assets/crm-booking-status.js');
+  // Один общий маппинг радио → статус, не вторая копия в другом файле
+  assert.match(status, /export const RADIO_ID_TO_STATUS/);
+  assert.match(walkin, /import \{ RADIO_ID_TO_STATUS \} from '\.\/crm-booking-status\.js'/);
+  assert.match(walkin, /status: checkedStatusRadioId\(\)/);
+  assert.match(walkin, /if \(e\.target\?\.name === 'bstatus'\) updateSubmitState\(\)/);
+  // Текст результата собирается из того, что реально изменилось
+  for (const part of ['услуги', 'перенос', 'сумма и комментарий', 'статус визита']) {
+    assert.match(walkin, new RegExp(`savedParts\\.push\\('${part}'\\)`), part);
   }
 });
 
@@ -71,10 +170,9 @@ test('удаление записи - в самом низу карточки, �
   }
 });
 
-test('кнопки сохранения разведены по вертикали, а не слиплись', async () => {
+test('кнопки сохранения отделены воздухом от полей записи', async () => {
   const css = await source('assets/mockup-crm.css');
   assert.match(css, /\.wf-actions \{[^}]*margin-top: 26px/);
-  assert.match(css, /\.wf-edit-extras > \.btn \{[^}]*margin-top: 14px/);
 });
 
 test('сумма подтягивается из состава услуг и не затирает ручную правку', async () => {
@@ -91,11 +189,14 @@ test('услуги записи редактируются целиком: сн�
   // Полный состав, а не только добавленные - иначе снятие услуги ничего не меняло бы
   assert.match(walkin, /method: 'PUT'[\s\S]{0,200}serviceIds: \[\.\.\.selected\]/);
   assert.match(walkin, /const removed = \[\.\.\.was\]\.filter/);
+  // Подсказка "Отметьте, что мастер сделал по факту…" убрана 13.08.2026 (вторая
+  // итерация правок Влада) - на саму механику снятия услуги это не влияет, но
+  // элемента #wfServiceEditHint в разметке больше нет, и код обязан это переживать
   for (const page of OPERATOR_PAGES) {
     const html = await source(page);
-    assert.match(html, /id="wfServiceEditHint"/, page);
-    assert.match(html, /услугу можно снять или добавить/, page);
+    assert.doesNotMatch(html, /id="wfServiceEditHint"/, page);
   }
+  assert.match(walkin, /if \(serviceEditHint\) serviceEditHint\.hidden/);
 });
 
 test('цвет записи в календаре говорит об исходе визита', async () => {

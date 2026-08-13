@@ -713,6 +713,12 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
    .field-grid{display:grid} и атрибут [hidden] равны по специфичности, класс ниже в
    каскаде выигрывает - без явного правила #wfDateTimeRow остался бы виден с hidden. */
 #wfDateTimeRow[hidden] { display: none; }
+/* Поле "Мастер" (#wfMasterRow) с 13.08.2026 живёт ВНУТРИ этой строки обычным .field
+   (раньше было отдельной строкой .field-grid во всю ширину - Влад: "слайд выбранного
+   мастера странно смотрится на длину всей панели"). Своего [hidden]-правила ему не
+   нужно: глобальное `[hidden] { display: none !important }` в начале файла (13.08.2026)
+   перебивает .field{display:flex} и прямо перечисляет #wfMasterRow как один из
+   случаев, ради которых заведено. */
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 0.76rem; color: var(--text-muted); }
 /* поле с бейджем в лейбле (например "Закреплён за мастером") шире обычного столбца -
@@ -1259,18 +1265,15 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .walkin-form[hidden] { display: none; }
 .walkin-form h3 { margin: 0 0 12px; font-size: 1rem; display: flex; align-items: baseline; gap: 8px; }
 .wf-master-name { color: var(--accent); font-weight: 700; }
-.wf-summary { font-size: 0.82rem; color: var(--text-muted); margin: 0 0 14px; }
 /* Правка 13.08.2026 (Влад: "расстояние по высоте между кнопками нужно увеличить") -
-   "Сохранить сумму и комментарий", "Сохранить изменения" и "Отмена" стояли почти
-   вплотную и читались как один блок, хотя первая кнопка сохраняет ДРУГОЕ и другим
-   запросом (PATCH /actual-price против PATCH /services + /reschedule). Разводим их
-   по вертикали: отступ сверху у ряда основных кнопок + воздух под блоком суммы.
-   Горизонтальный gap 10px между "Сохранить изменения" и "Отмена" оставлен как был -
-   это одна пара действий одного шага. */
+   кнопки сохранения стояли почти вплотную и читались как один блок. Отступ сверху у
+   ряда основных кнопок остаётся и после того, как вторая кнопка ("Сохранить сумму и
+   комментарий") в тот же день убрана вовсе (вторая итерация Влада: сумма и
+   комментарий сохраняются общей кнопкой) - воздух между блоком суммы и кнопками
+   нужен и сам по себе. Горизонтальный gap 10px между "Сохранить изменения" и
+   "Отмена" - одна пара действий одного шага. */
 .wf-actions { display: flex; gap: 10px; margin-top: 26px; }
 .wf-edit-extras { margin-top: 18px; }
-.wf-edit-extras > .btn { margin-top: 14px; }
-.wf-edit-extras .section-hint { margin: 6px 0 0; }
 
 /* Числовые поля сумм (13.08.2026, Влад: "справа дурацкие стрелочки, которые добавляют
    по 1 единичке - мне что, 3500 раз кликать?") - у type="number" браузер рисует
@@ -1343,6 +1346,11 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .service-edit summary::before { content: '✎'; }
 .service-edit .section-hint { margin: 0 0 12px; }
 .service-edit .service-picker { margin-bottom: 14px; }
+/* Правка 13.08.2026 (Влад: "надпись 'Услуги' убираем, сами услуги оставляем в такой же
+   пунктирной рамке на виду, сворачивать не нужно") - вариант той же рамки без summary:
+   раскрывать нечего, поэтому это обычный <div>, а не <details>. Верхний padding
+   компенсирует ушедший заголовок (у варианта с summary воздух сверху давал он сам). */
+.service-edit--flat { padding: 14px 14px 0; }
 
 /* ---------- комиссия мастера ---------- */
 .field .commission-note { color: var(--wood); font-size: 0.72rem; font-style: italic; margin: 4px 0 0; }

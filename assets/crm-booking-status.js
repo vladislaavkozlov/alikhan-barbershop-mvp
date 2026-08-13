@@ -46,7 +46,10 @@ function bookingPanel() {
 // просто клик по нему никуда не отправлялся. На owner-странице радио теперь
 // единственный контрол статуса (кнопка убрана из crm-owner.html), и он полнее
 // прежней кнопки (все 3 статуса из схемы, не только planned/no_show).
-const RADIO_ID_TO_STATUS = { 'st-wait': 'planned', 'st-came': 'done', 'st-no': 'no_show' };
+// Экспортируется с 13.08.2026: тот же маппинг нужен submitEdit (assets/crm-walkin.js),
+// чтобы кнопка "Сохранить изменения" знала про статус визита - см. там же. Вторая
+// копия маппинга в другом файле разъехалась бы при первом же новом статусе.
+export const RADIO_ID_TO_STATUS = { 'st-wait': 'planned', 'st-came': 'done', 'st-no': 'no_show' };
 export function wireBookingStatusRadios() {
   if (!document.getElementById('bk-status-note')) return; // не owner-страница - no-op
   const radios = document.querySelectorAll('input[name="bstatus"]');
@@ -367,9 +370,15 @@ let lastServicesTotal = null;
 
 export function wireBookingActualPrice() {
   const input = document.getElementById('bkActualPrice');
+  // Правка 13.08.2026, вторая итерация (Влад: "кнопка 'Сохранить сумму и комментарий'
+  // как будто бы не нужна, т.к. уже есть кнопка 'Сохранить изменения'"). Своя кнопка
+  // и своя строка результата убраны из разметки owner/admin - оба элемента стали
+  // опциональными, а само сохранение вынесено в window.saveBookingActualPrice, которое
+  // зовёт submitEdit (assets/crm-walkin.js) вместе с услугами и переносом. Проверка
+  // на существование осталась только у самого поля: без него сохранять нечего.
   const saveBtn = document.getElementById('bkActualPriceSave');
   const resultEl = document.getElementById('bkActualPriceResult');
-  if (!input || !saveBtn || !resultEl) return; // страница без этого блока (crm-master.html) - no-op
+  if (!input) return; // страница без этого блока (crm-master.html) - no-op
   const commentEl = document.getElementById('bkStaffComment');
 
   window.renderBookingActualPrice = function renderBookingActualPrice(actualPrice, staffComment = '') {
@@ -378,7 +387,7 @@ export function wireBookingActualPrice() {
     priceTouched = actualPrice != null;
     input.value = actualPrice ?? '';
     if (commentEl) commentEl.value = staffComment ?? '';
-    resultEl.hidden = true;
+    if (resultEl) resultEl.hidden = true;
   };
 
   // Сумма выбранных услуг из формы. null - услуг не выбрано, поле оставляем пустым
@@ -400,57 +409,69 @@ export function wireBookingActualPrice() {
     });
   }
 
-  if (!saveBtn.dataset.wired) {
+  // Сохранение суммы и комментария. Раньше жило прямо в обработчике своей кнопки,
+  // теперь - отдельная функция на window: её зовёт submitEdit (assets/crm-walkin.js)
+  // из общей кнопки "Сохранить изменения". Переопределяется на каждый вызов
+  // wireBookingActualPrice() (паттерн А, как renderBookingActualPrice выше) - всё
+  // изменяемое состояние (priceTouched) живёт на уровне модуля, поэтому вызывающий
+  // всегда попадает в актуальную версию, см.
+  // reference_barbershop-dataset-wired-refresh-konventsiya.
+  // Возвращает { ok, error, actualPrice } вместо throw: у вызывающего своя строка
+  // результата (#wfResult), и он сам решает, как показать ошибку.
+  window.saveBookingActualPrice = async function saveBookingActualPrice() {
+    const panel = bookingPanel();
+    const bookingId = panel?.dataset.bookingId;
+    if (!bookingId) return { ok: false, error: 'запись не открыта' };
+    // Пустое поле - явный сброс на null ("фактическая = как по услугам"), а не 0
+    // (0 ₽ - это тоже валидный кейс, "постригли бесплатно", отличается от "не
+    // указано вообще").
+    const raw = input.value.trim();
+    const actualPrice = raw === '' ? null : Number(raw);
+    if (actualPrice !== null && (!Number.isFinite(actualPrice) || actualPrice < 0)) {
+      return { ok: false, error: 'сумма должна быть числом от 0' };
+    }
+    const comment = commentEl ? commentEl.value.trim() : null;
+    try {
+      const res = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/actual-price`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        // Поле comment шлём только со страниц, где оно есть: без него бэкенд
+        // сознательно НЕ трогает уже сохранённый комментарий (handleBookingActualPrice),
+        // и старая разметка не стирала бы чужое объяснение молча.
+        body: JSON.stringify(commentEl ? { actualPrice, comment } : { actualPrice }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) {
+        return { ok: false, error: ACTUAL_PRICE_ERROR_TEXT[data.error] || data.error || `HTTP ${res.status}` };
+      }
+      // Сохранённая сумма становится "тронутой" (её больше нельзя молча перебить
+      // автоподстановкой), сброс на пустое - наоборот, снова следует за услугами.
+      priceTouched = actualPrice != null;
+      return { ok: true, actualPrice, comment };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  };
+
+  // Своя кнопка осталась только там, где она ещё есть в разметке (её убрали с
+  // owner/admin 13.08.2026). Без неё блок работает целиком через submitEdit.
+  if (saveBtn && resultEl && !saveBtn.dataset.wired) {
     saveBtn.dataset.wired = '1';
     saveBtn.addEventListener('click', async () => {
-      const panel = bookingPanel();
-      const bookingId = panel?.dataset.bookingId;
-      if (!bookingId) return;
-      // Пустое поле - явный сброс на null ("фактическая = как по услугам"), а не 0
-      // (0 ₽ - это тоже валидный кейс, "постригли бесплатно", отличается от "не
-      // указано вообще").
-      const raw = input.value.trim();
-      const actualPrice = raw === '' ? null : Number(raw);
-      if (actualPrice !== null && (!Number.isFinite(actualPrice) || actualPrice < 0)) {
-        resultEl.hidden = false;
-        resultEl.className = 'wf-result wf-result--err';
-        resultEl.textContent = 'Сумма должна быть числом от 0';
-        return;
-      }
-      const comment = commentEl ? commentEl.value.trim() : null;
       const originalLabel = saveBtn.textContent;
       saveBtn.disabled = true;
       saveBtn.textContent = 'Сохраняю…';
       resultEl.hidden = true;
-      try {
-        const res = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/actual-price`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          // Поле comment шлём только со страниц, где оно есть: без него бэкенд
-          // сознательно НЕ трогает уже сохранённый комментарий (handleBookingActualPrice),
-          // и старая разметка не стирала бы чужое объяснение молча.
-          body: JSON.stringify(commentEl ? { actualPrice, comment } : { actualPrice }),
-        });
-        const data = await res.json();
-        if (!res.ok || data.ok === false) throw new Error(ACTUAL_PRICE_ERROR_TEXT[data.error] || data.error || `HTTP ${res.status}`);
-        // Сохранённая сумма становится "тронутой" (её больше нельзя молча перебить
-        // автоподстановкой), сброс на пустое - наоборот, снова следует за услугами.
-        priceTouched = actualPrice != null;
-        resultEl.hidden = false;
-        resultEl.className = 'wf-result wf-result--ok';
-        resultEl.textContent = actualPrice === null
+      const out = await window.saveBookingActualPrice();
+      resultEl.hidden = false;
+      resultEl.className = out.ok ? 'wf-result wf-result--ok' : 'wf-result wf-result--err';
+      resultEl.textContent = out.ok
+        ? (out.actualPrice === null
           ? 'Сохранено - сумма считается по услугам'
-          : comment
-            ? 'Сохранено: сумма и комментарий'
-            : 'Сохранено';
-      } catch (err) {
-        resultEl.hidden = false;
-        resultEl.className = 'wf-result wf-result--err';
-        resultEl.textContent = `Не удалось сохранить: ${err.message}`;
-      } finally {
-        saveBtn.disabled = false;
-        saveBtn.textContent = originalLabel;
-      }
+          : out.comment ? 'Сохранено: сумма и комментарий' : 'Сохранено')
+        : `Не удалось сохранить: ${out.error}`;
+      saveBtn.disabled = false;
+      saveBtn.textContent = originalLabel;
     });
   }
 }

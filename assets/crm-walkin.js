@@ -8,6 +8,7 @@ import { escapeHtml } from './crm-schedule-shared.js';
 import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } from './crm-widgets.js';
 import { API, getToken } from './crm-auth.js';
 import { renderLiveProof } from './crm-dashboard.js';
+import { RADIO_ID_TO_STATUS } from './crm-booking-status.js';
 import { mergeServiceCombos, isServiceBlockedByCombo } from '../storage.js';
 
 // Задача Влада (01.08.2026): "Клиент без предварительной записи" была рисунком -
@@ -73,6 +74,80 @@ let editBooking = null;
 // функций, см. комментарий у currentMasterId).
 let lockedServices = new Set();
 
+// ── Кнопка "Сохранить изменения" неактивна, пока ничего не изменили ──────────
+// Правка 13.08.2026 (Влад: "кнопка должна быть неактивна до внесения изменений и
+// должна учитывать изменения всех полей во вкладке"). Раньше она была активна всегда,
+// когда в записи есть хоть одна услуга - нажатие без единой правки уходило в сеть и
+// отвечало "Изменений не было".
+// editBaseline - снимок ВСЕХ сохраняемых полей на момент открытия записи (и заново
+// после каждого успешного сохранения). Сравнение идёт с ним, а не с editBooking:
+// сумма и комментарий в editBooking не живут, а именно они чаще всего и меняются.
+// На уровне модуля - по той же причине, что и всё состояние выше: обработчики
+// привязаны один раз (dataset.wired) и читают модульные переменные, не своё замыкание.
+// Статус визита в снимок ВХОДИТ (правка того же дня, Влад: "меняешь статус, жмёшь
+// сохранить - пишет 'Изменений не было', хотя статус реально поменялся"). Сам PATCH
+// /bookings/:id/status уходит сразу по клику радио (assets/crm-booking-status.js),
+// но для карточки это такое же изменение записи, как остальные: кнопка обязана
+// ожить, а результат - сказать "Сохранено", а не отрицать сделанное. Если мгновенный
+// PATCH почему-то не прошёл, submitEdit досылает его сам - см. ниже.
+// Имя и телефон клиента в снимок НЕ входят: у существующей записи бэкенд их менять
+// не умеет (роута нет), и включать их в признак "есть что сохранить" значило бы
+// обещать сохранение, которого не произойдёт.
+let editBaseline = null;
+
+function checkedStatusRadioId() {
+  return document.querySelector('input[name="bstatus"]:checked')?.id || '';
+}
+
+function editStateSnapshot() {
+  return {
+    masterId: currentMasterId || '',
+    date: dateSelectValue('wfDateValue') || '',
+    startTime: timeSelectValue('wfTimeValue') || '',
+    services: [...selected].sort().join(','),
+    actualPrice: (el('bkActualPrice')?.value ?? '').trim(),
+    comment: (el('bkStaffComment')?.value ?? '').trim(),
+    status: checkedStatusRadioId(),
+  };
+}
+
+function isEditDirty() {
+  if (!editBaseline) return false;
+  const now = editStateSnapshot();
+  return Object.keys(editBaseline).some((key) => editBaseline[key] !== now[key]);
+}
+
+// Единственное место, где решается, доступна ли кнопка сохранения. В режиме создания
+// правило прежнее (нужна хотя бы одна услуга), в режиме редактирования добавляется
+// "и хоть что-то изменилось".
+function updateSubmitState() {
+  const btn = el('wfSubmit');
+  if (!btn) return;
+  btn.disabled = editMode
+    ? selected.size === 0 || !isEditDirty()
+    : selected.size === 0;
+}
+
+// Поля, которые меняются мимо renderSummary: дата (customdate:change), время и мастер
+// (customselect:change - оба виджета шлют его, см. mockup-crm.js), сумма и комментарий
+// (обычный input). Слушатели вешаются один раз на статичные узлы, а зовут модульную
+// updateSubmitState - поэтому повторный вызов wireWalkIn() из renderLiveProof() их не
+// задваивает и не оставляет на устаревшем замыкании.
+function wireDirtyWatchers() {
+  const form = el('walkinForm');
+  if (!form || form.dataset.dirtyWired) return;
+  form.dataset.dirtyWired = '1';
+  form.addEventListener('customselect:change', updateSubmitState);
+  form.addEventListener('customdate:change', updateSubmitState);
+  for (const id of ['bkActualPrice', 'bkStaffComment']) {
+    el(id)?.addEventListener('input', updateSubmitState);
+  }
+  // Статус визита - обычные radio внутри формы, change всплывает
+  form.addEventListener('change', (e) => {
+    if (e.target?.name === 'bstatus') updateSubmitState();
+  });
+}
+
 // Та же нормализация, что на бэкенде (normalizePhoneKey, api/routes/clients.js) -
 // последние 10 цифр. Дублируется намеренно: тянуть серверный модуль во фронтенд ради
 // одной строки нельзя (это ES-модуль бэкенда с зависимостями на pg), а расхождение
@@ -111,9 +186,14 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
   const nameLabel = el('wfMasterName');
   const clientNameEl = el('wfClientName');
   const clientPhoneEl = el('wfClientPhone');
-  if (!form || !picker || !summary || !submitBtn || !cancelBtn || !resultEl || !nameLabel || !clientNameEl || !clientPhoneEl) {
+  // summary (#wfSummary, строка "Выбрано услуг: N · итого M мин · сумма") с 13.08.2026
+  // опционален: на owner/admin его убрали (Влад: "и так понятно визуально", вместе с
+  // "Выберите хотя бы одну услугу"), состав виден по самим чекбоксам. Обязательным он
+  // остаться не мог - иначе его удаление из разметки выключило бы всю форму целиком.
+  if (!form || !picker || !submitBtn || !cancelBtn || !resultEl || !nameLabel || !clientNameEl || !clientPhoneEl) {
     return; // страница без этого блока (или он ещё не дошёл до нужной страницы)
   }
+  wireDirtyWatchers();
   // Окно 39 (06.08.2026) - "Записать снова" (карточка клиента) открывает ту же форму
   // в режиме будущей записи: дата/время выбираются виджетами (не "прямо сейчас"), после
   // сохранения статус остаётся 'planned' (не форсируется 'done' - клиента физически ещё
@@ -265,18 +345,17 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
   function renderSummary() {
     const rows = servicesFor(currentMasterId).filter((r) => selected.has(r.serviceId));
     if (rows.length === 0) {
-      summary.textContent = 'Выберите хотя бы одну услугу';
-      submitBtn.disabled = true;
+      if (summary) summary.textContent = 'Выберите хотя бы одну услугу';
       // Услуг нет - сумма услуг равна нулю, но подставлять "0 ₽" в фактическую сумму
       // нельзя: 0 - это реальный кейс "постригли бесплатно", а здесь состав ещё не
       // собран. Пустое значение = "как по услугам", тот же смысл, что и раньше.
       window.syncBookingActualPrice?.(null);
+      updateSubmitState();
       return;
     }
     const totalMin = rows.reduce((s, r) => s + r.durationMin, 0);
     const totalPrice = rows.reduce((s, r) => s + r.price, 0);
-    summary.textContent = `Выбрано услуг: ${rows.length} · итого ${totalMin} мин · ${formatMoney(totalPrice)}`;
-    submitBtn.disabled = false;
+    if (summary) summary.textContent = `Выбрано услуг: ${rows.length} · итого ${totalMin} мин · ${formatMoney(totalPrice)}`;
     // Правка 13.08.2026 (Влад: "почему если отличается?") - фактическая сумма больше
     // не пустое поле-загадка: в неё подтягивается сумма выбранных услуг, а
     // администратор правит её руками, когда с клиента взяли другую (скидка от
@@ -285,6 +364,9 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     // уже правил вручную, эта синхронизация не трогает (dirty-признак в
     // assets/crm-booking-status.js).
     window.syncBookingActualPrice?.(totalPrice);
+    // Строго ПОСЛЕ автоподстановки суммы: она сама меняет поле "Фактическая сумма",
+    // и состояние кнопки должно считаться уже по новому значению.
+    updateSubmitState();
   }
 
   function renderPicker(masterId) {
@@ -541,7 +623,13 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         window.renderBookingActualPrice?.(editBooking.actualPrice ?? null, editBooking.staffComment ?? '');
         window.syncBookingActualPrice?.(currentServicesTotal());
         window.updateNoShowUi?.();
+        // Снимок "как было" - последним шагом, когда все поля записи уже отрисованы
+        // (дата/время выше, услуги в renderPicker, сумма и комментарий строкой выше).
+        // До этого момента любой промежуточный снимок был бы неполным, и кнопка
+        // "Сохранить изменения" ожила бы сама собой сразу после открытия записи.
+        editBaseline = editStateSnapshot();
       } else {
+        editBaseline = null;
         delete form.dataset.bookingId;
         delete form.dataset.bookingMasterId;
         delete form.dataset.realStatus;
@@ -549,6 +637,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         delete form.dataset.requiresPrepayment;
       }
     }
+    updateSubmitState();
     const bookingCard = form.closest('details.booking-create-card');
     if (bookingCard && !bookingCard.open) bookingCard.open = true;
     form.hidden = false;
@@ -703,10 +792,56 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         editBooking.startTime = startTime;
       }
 
+      // Фактическая сумма и комментарий (13.08.2026, вторая итерация - Влад: "кнопка
+      // 'Сохранить сумму и комментарий' как будто бы не нужна"). Тот же PATCH
+      // /bookings/:id/actual-price, что был у своей кнопки - логика целиком осталась в
+      // assets/crm-booking-status.js (window.saveBookingActualPrice), здесь только
+      // вызов. ПОСЛЕДНИМ шагом: состав услуг выше мог изменить автоподставленную сумму,
+      // и на сервер должно уехать финальное значение поля. Шлём, только если сумма или
+      // комментарий реально изменились - лишний PATCH переписывал бы запись без нужды.
+      const priceChanged = !!editBaseline && (
+        editBaseline.actualPrice !== (el('bkActualPrice')?.value ?? '').trim() ||
+        editBaseline.comment !== (el('bkStaffComment')?.value ?? '').trim()
+      );
+      if (priceChanged && typeof window.saveBookingActualPrice === 'function') {
+        const priceOut = await window.saveBookingActualPrice();
+        if (!priceOut.ok) throw new Error(priceOut.error);
+      }
+
+      // Статус визита (правка 13.08.2026, Влад: "меняешь статус, жмёшь сохранить -
+      // пишет 'Изменений не было', хотя статус реально меняется"). Обычно он уже
+      // уехал сам, по клику радио (wireBookingStatusRadios) - тогда realStatus на
+      // форме уже равен выбранному и второй запрос не нужен. Досылаем только
+      // расхождение: клик по радио мог не сохраниться (сеть), и тогда общая кнопка
+      // остаётся вторым честным шансом, а не молча рапортует об успехе.
+      const statusChanged = !!editBaseline && editBaseline.status !== checkedStatusRadioId();
+      const wantedStatus = RADIO_ID_TO_STATUS[checkedStatusRadioId()];
+      if (wantedStatus && wantedStatus !== (form.dataset.realStatus || editBooking.status)) {
+        const str = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ status: wantedStatus }),
+        });
+        if (!str.ok) throw new Error(`статус визита: HTTP ${str.status}`);
+        form.dataset.realStatus = wantedStatus;
+        editBooking.status = wantedStatus;
+      }
+
+      // Запись сохранена целиком - новая точка отсчёта для кнопки: она снова гаснет
+      // до следующей правки.
+      editBaseline = editStateSnapshot();
+      // Что именно сохранено - словами. Раньше здесь была одна строка на все случаи
+      // ("Сохранено: мастер, дата время"), а всё, что не перенос и не новые услуги,
+      // отвечало "Изменений не было" - неверно для статуса, снятой услуги и суммы.
+      const savedParts = [];
+      if (added.length || removed.length) savedParts.push('услуги');
+      if (moved) savedParts.push('перенос');
+      if (priceChanged) savedParts.push('сумма и комментарий');
+      if (statusChanged) savedParts.push('статус визита');
       resultEl.hidden = false;
       resultEl.className = 'wf-result wf-result--ok';
-      resultEl.textContent = moved || added.length
-        ? `Сохранено: ${nameLabel.textContent}, ${date} ${startTime}`
+      resultEl.textContent = savedParts.length
+        ? `Сохранено: ${savedParts.join(', ')} - ${nameLabel.textContent}, ${date} ${startTime}`
         : 'Изменений не было';
       renderLiveProof(staff); // перерисовать календарь: слот освободился/занялся
     } catch (err) {
@@ -714,7 +849,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       resultEl.className = 'wf-result wf-result--err';
       resultEl.textContent = `Не удалось сохранить: ${err.message}`;
     } finally {
-      submitBtn.disabled = selected.size === 0;
+      updateSubmitState();
       submitBtn.textContent = originalLabel;
     }
   }
@@ -796,7 +931,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         resultEl.className = 'wf-result wf-result--err';
         resultEl.textContent = `Не удалось сохранить: ${err.message}`;
       } finally {
-        submitBtn.disabled = selected.size === 0;
+        updateSubmitState();
         submitBtn.textContent = originalLabel;
       }
     });

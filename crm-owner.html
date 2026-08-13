@@ -298,10 +298,6 @@
                запросы) прошлую дату по-прежнему не даёт выбрать вообще - разграничение
                держит бэкенд (createBookingTx, isStaff по РЕАЛЬНОЙ аутентификации, не по
                полю из тела запроса), не фронт. -->
-          <div class="field-grid" id="wfDateTimeRow" hidden>
-            <div class="field"><label>Дата</label><div id="wfDate-slot"></div></div>
-            <div class="field"><label>Время</label><div id="wfTime-slot"></div></div>
-          </div>
           <!-- Окно 55, Задача C (10.08.2026) - режим "редактирование существующей
                записи". Мастера в этом режиме можно СМЕНИТЬ (перенос к другому мастеру,
                PATCH /bookings/:id/reschedule, контракт Окна 54) - поэтому здесь
@@ -309,9 +305,20 @@
                Кастомный .custom-select, не нативный <select> - КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-
                ЭЛЕМЕНТЫ.md. Список мастеров заполняет assets/crm-walkin.js по реальному
                /staff, здесь только пустой контейнер. Виден только в режиме edit:
-               при СОЗДАНИИ записи мастер уже выбран кликом по его колонке календаря. -->
-          <div class="field-grid" id="wfMasterRow" hidden>
-            <div class="field field--wide"><label>Мастер</label><div id="wfMaster-slot"></div></div>
+               при СОЗДАНИИ записи мастер уже выбран кликом по его колонке календаря.
+               Правка 13.08.2026 (Влад: "слайд выбранного мастера странно смотрится на
+               длину всей панели") - поле переехало ИЗ своей строки .field-grid с
+               field--wide (span 2 = дропдаун во всю ширину панели, один в пустой
+               строке) в общую строку с датой и временем: три равных поля в ряд,
+               ширина как у соседей. Своя строка была нужна, только пока поле
+               растягивалось на span 2. Мастер виден строго тогда же, когда видна
+               дата/время (masterRow.hidden ⊆ dateTimeRow.hidden, assets/crm-walkin.js
+               openForWalkin) - поэтому объединение не прячет и не открывает ничего
+               лишнего. id #wfMasterRow сохранён: по нему видимость и ставит JS. -->
+          <div class="field-grid" id="wfDateTimeRow" hidden>
+            <div class="field"><label>Дата</label><div id="wfDate-slot"></div></div>
+            <div class="field"><label>Время</label><div id="wfTime-slot"></div></div>
+            <div class="field" id="wfMasterRow" hidden><label>Мастер</label><div id="wfMaster-slot"></div></div>
           </div>
           <div class="field-grid">
             <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
@@ -323,18 +330,18 @@
                пока номер не введён - пустой признак "новый клиент" на пустом поле был
                бы враньём: клиента ещё не искали. -->
           <p class="wf-client-hint" id="wfClientHint" hidden></p>
-          <!-- Правка 13.08.2026 (Влад) - пояснение в скобках убрано из заголовка:
-               и так видно, что чекбоксов несколько, а "список только этого мастера" -
-               внутренняя механика (master_services), а не то, что сотруднику нужно
-               читать при каждой записи. Подсказка про уже оказанные услуги в режиме
-               редактирования живёт ниже отдельной строкой (#wfServiceEditHint) и
-               появляется только там, где имеет смысл. -->
-          <details class="service-edit" open>
-            <summary>Услуги</summary>
-            <p class="section-hint" id="wfServiceEditHint" hidden>Отметьте, что мастер сделал по факту - услугу можно снять или добавить, сумма и длительность пересчитаются</p>
+          <!-- Правка 13.08.2026, вторая итерация (Влад) - заголовок "Услуги" и подсказка
+               "Отметьте, что мастер сделал по факту…" убраны: список чекбоксов с ценами
+               в пунктирной рамке и так читается как услуги, а сворачивать его не нужно
+               (был <details open>, стал обычный блок - разворачивать/сворачивать нечего).
+               Строка итога (#wfSummary: "Выбрано услуг: N · итого M мин · сумма" и
+               "Выберите хотя бы одну услугу") убрана там же - цены и минуты видны в
+               самом списке, а состояние "услуг не выбрано" показывает неактивная кнопка
+               сохранения. assets/crm-walkin.js оба элемента считает опциональными
+               (renderSummary пишет в #wfSummary только если он есть). -->
+          <div class="service-edit service-edit--flat">
             <div class="service-picker" id="wfServicePicker"></div>
-          </details>
-          <p class="wf-summary" id="wfSummary">Выберите хотя бы одну услугу</p>
+          </div>
           <!-- Окно 55, Задача C - статус визита и удаление ПЕРЕНЕСЕНЫ сюда из старой
                карточки #bd-1 (радио bstatus и #bkDeleteRow там же). Механика роутов не
                менялась (PATCH /bookings/:id/status, DELETE /bookings/:id) - поменялся
@@ -376,22 +383,27 @@
                (миграция 048, bookings.staff_comment) и остаётся виден на записи и в
                истории визитов клиента спустя месяцы. type="text" + inputmode="numeric"
                вместо type="number" - у number-поля справа стрелки шага в 1 ₽,
-               бесполезные на суммах в тысячи (жалоба Влада 13.08.2026). -->
+               бесполезные на суммах в тысячи (жалоба Влада 13.08.2026).
+
+               Вторая итерация 13.08.2026 (Влад): обе подписи под полями и отдельная
+               кнопка "Сохранить сумму и комментарий" убраны. Кнопок сохранения на
+               карточке было две ("…сумму и комментарий" + "Сохранить изменения"), и
+               какая что сохраняет, приходилось угадывать. Теперь сумма и комментарий
+               уезжают тем же PATCH /bookings/:id/actual-price, но из общей кнопки
+               "Сохранить изменения" (submitEdit, assets/crm-walkin.js →
+               window.saveBookingActualPrice, assets/crm-booking-status.js) - вместе с
+               услугами и переносом, одним действием. -->
           <div class="wf-edit-extras" id="wfEditExtras" hidden>
             <div class="field-grid">
               <div class="field">
                 <label for="bkActualPrice">Фактическая сумма, ₽</label>
                 <input id="bkActualPrice" type="text" inputmode="numeric" autocomplete="off" placeholder="как по услугам">
-                <p class="section-hint">Подставлена сумма выбранных услуг - поправьте, если с клиента взяли другую</p>
               </div>
               <div class="field field--wide">
                 <label for="bkStaffComment">Комментарий к записи</label>
                 <input id="bkStaffComment" type="text" maxlength="500" autocomplete="off" placeholder="например: владелец дал скидку постоянному клиенту">
-                <p class="section-hint">Сохраняется в записи - будет видно и через месяц, в карточке клиента тоже</p>
               </div>
             </div>
-            <button type="button" class="btn btn-ghost btn-sm" id="bkActualPriceSave">Сохранить сумму и комментарий</button>
-            <p class="wf-result" id="bkActualPriceResult" hidden></p>
           </div>
           <div class="wf-actions">
             <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить запись</button>
