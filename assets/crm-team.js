@@ -12,7 +12,7 @@ import {
 } from './crm-icons.js';
 import { initCrmNavigationPanels } from './crm-navigation-panels.js';
 import { collectServiceChanges, renderMasterServiceEditor, saveServiceChanges } from './crm-master-services.js';
-import { wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
+import { hasWeeklyScheduleChanges, saveWeeklySchedule, wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 import { PHONE_PLACEHOLDER, formatStoredPhone, wirePhoneFields } from './crm-phone.js';
 import { todayStr } from './crm-shared.js';
 import { dateSelectValue, renderDateSelect, renderTimeSelect, timeSelectValue } from './crm-widgets.js';
@@ -164,6 +164,18 @@ async function saveCard(card) {
   if (serviceChanges.length) {
     const failedService = await saveServiceChanges(id, serviceChanges);
     if (failedService) return showNote(card, 'Не удалось сохранить услуги. Повторите попытку');
+  }
+  // График уезжает той же кнопкой (13.08.2026). Своя кнопка «Сохранить график» под
+  // блоком убрана: две кнопки сохранения в одной карточке путали - общая их не
+  // видела и оставалась серой, пока правишь график. Отправляем до остальных полей,
+  // потому что именно здесь возможен отказ сервера из-за живых записей клиентов.
+  if (hasWeeklyScheduleChanges(id)) {
+    const scheduleResult = await saveWeeklySchedule(id);
+    if (!scheduleResult.ok) {
+      return showNote(card, scheduleResult.conflict
+        ? 'График не сохранён: на это время уже есть записи, они показаны в блоке «График»'
+        : 'Не удалось сохранить график. Повторите попытку');
+    }
   }
   const main = await apiSend(`/staff/${encodeURIComponent(id)}`, 'PUT', {
     name: value('name').value,
@@ -321,7 +333,8 @@ function updateSaveState(card) {
   if (!button || card.dataset.lockedOwner !== undefined) return;
   const fieldsChanged = cardSnapshot(card) !== card.dataset.snapshot;
   const servicesChanged = collectServiceChanges(card.querySelector('.service-picker')).length > 0;
-  button.disabled = !fieldsChanged && !servicesChanged;
+  const scheduleChanged = hasWeeklyScheduleChanges(card.dataset.staffId);
+  button.disabled = !fieldsChanged && !servicesChanged && !scheduleChanged;
 }
 
 function wireDirtyTracking(root) {
@@ -341,6 +354,9 @@ function wireDirtyTracking(root) {
   root.addEventListener('input', onEdit);
   root.addEventListener('change', onEdit);
   root.addEventListener('crm:card-dirty', onEdit);
+  // Время в графике и перерывах выбирается своим дропдауном - нативного change он
+  // не шлёт, только это событие (assets/mockup-crm.js, pickCustomSelectOption)
+  root.addEventListener('customselect:change', onEdit);
 }
 
 // Наполняет слоты разового изменения кастомными виджетами. Даты начинаются с

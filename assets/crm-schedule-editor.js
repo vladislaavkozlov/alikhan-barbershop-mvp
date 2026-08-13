@@ -283,7 +283,7 @@ function wireWeekdayIconStrip(prefix) {
 // Окно 27 (04.08.2026, Задача 2) - копирует перерыв (время начала/конца) дня sourceWd
 // на все ОСТАЛЬНЫЕ рабочие дни недели этого мастера. Дни-выходные пропускает (для
 // них перерыв не имеет смысла). Не сохраняет на сервер сама - это делает общая кнопка
-// "Сохранить график" (el(`${prefix}-save`)), поэтому применённые значения можно потом
+// "Сохранить изменения" всей карточки (assets/crm-team.js), поэтому значения можно потом
 // вручную переопределить на конкретный день перед сохранением. Возвращает число дней,
 // на которые реально скопировано (для короткой обратной связи в UI).
 function applyBreakToAllDays(prefix, sourceWd) {
@@ -335,6 +335,9 @@ function wireWeeklyDayRow(prefix, wd, day) {
   if (applyAllBtn) {
     applyAllBtn.addEventListener('click', () => {
       const n = applyBreakToAllDays(prefix, wd);
+      // Копирование перерыва меняет поля программно - браузерных событий при этом
+      // нет, и общая кнопка карточки осталась бы серой, хотя правки уже внесены
+      applyAllBtn.dispatchEvent(new CustomEvent('crm:card-dirty', { bubbles: true }));
       const originalLabel = applyAllBtn.textContent;
       applyAllBtn.textContent = n > 0 ? `Скопировано на ${n} дн.` : 'Нет других рабочих дней';
       setTimeout(() => {
@@ -380,6 +383,65 @@ export function formatScheduleConflicts(conflictsByDate) {
 // тому, что подтвердил сервер. При 409 (конфликт с живой бронью, см. server.mjs
 // PUT-обработчик) форма не считает сохранение успешным и показывает список
 // конфликтов - тот же принцип блокировки, что уже действует у разовой правки дня.
+// Состояние недельного графика по мастеру: снимок «как было» на момент загрузки и
+// ссылка на перезагрузку формы. Нужно с 13.08.2026, когда своя кнопка «Сохранить
+// график» убрана из карточки: график теперь уезжает общей кнопкой «Сохранить
+// изменения» (assets/crm-team.js), а она обязана понимать, есть ли тут правки -
+// раньше она их просто не видела, и владелец нажимал не ту кнопку.
+const weeklyEditors = new Map();
+
+function readWeeklySchedule(prefix) {
+  return [1, 2, 3, 4, 5, 6, 7].map((wd) => readWeeklyDayRow(prefix, wd));
+}
+
+// Редактор мог не успеть загрузиться (или карточка read-only) - тогда изменений нет
+// по определению, а не «неизвестно»: проверяем наличие реального поля формы.
+function weeklyEditorReady(state) {
+  return !!(state && el(`${state.prefix}-1-working`));
+}
+
+export function hasWeeklyScheduleChanges(masterId) {
+  const state = weeklyEditors.get(masterId);
+  if (!weeklyEditorReady(state)) return false;
+  return JSON.stringify(readWeeklySchedule(state.prefix)) !== state.initial;
+}
+
+// Сохранение недельного графика для общей кнопки карточки. Возвращает результат
+// словами, а не бросает: вызывающий показывает свою строку под кнопкой.
+// Конфликт с живой бронью (409) по-прежнему рисуется списком прямо в блоке графика -
+// это самая важная часть ответа сервера, и место ей рядом с самим графиком.
+export async function saveWeeklySchedule(masterId) {
+  const state = weeklyEditors.get(masterId);
+  if (!weeklyEditorReady(state)) return { ok: true, skipped: true };
+  const { prefix } = state;
+  const note = el(`${prefix}-note`);
+  const conflictsEl = el(`${prefix}-conflicts`);
+  if (conflictsEl) conflictsEl.hidden = true;
+  if (note) note.textContent = '';
+  try {
+    const { ok, status, data } = await apiSend('/master-weekly-schedule', 'PUT', {
+      masterId,
+      weeklyChanges: readWeeklySchedule(prefix),
+    });
+    if (status === 409 && data?.error === 'schedule_conflict') {
+      if (note) note.textContent = 'Нельзя сохранить, пока не разберётесь с этими записями:';
+      if (conflictsEl) {
+        conflictsEl.innerHTML = formatScheduleConflicts(data.conflicts);
+        conflictsEl.hidden = false;
+      }
+      return { ok: false, conflict: true };
+    }
+    if (!ok) throw new Error(`HTTP ${status}`);
+    // Дыра №1 (Окно 18): форма НЕ доверяет тому, что ввёл владелец - перезапрашивает
+    // сервер и перерисовывает поля его ответом, даже если ответ тот же самый.
+    await state.reload();
+    return { ok: true };
+  } catch (err) {
+    if (note) note.textContent = `Не удалось сохранить график: ${err.message}`;
+    return { ok: false, conflict: false };
+  }
+}
+
 export function wireWeeklyScheduleEditor(masterId, canEdit, fetchJson) {
   const container = el(`weeklyEditor-${masterId}`);
   if (!container || container.dataset.wired) return;
@@ -413,46 +475,14 @@ export function wireWeeklyScheduleEditor(masterId, canEdit, fetchJson) {
       `<div class="weekly-panels">${days
         .map((d, i) => `<div class="weekly-day-panel" id="${prefix}-${i + 1}-panel">${buildWeeklyDayRow(prefix, i + 1, d, true)}</div>`)
         .join('')}</div>` +
-      `<button class="btn btn-ghost btn-sm" type="button" id="${prefix}-save" style="margin-top:10px">Сохранить график</button>
-       <p class="payroll-note" id="${prefix}-note"></p>
+      `<p class="payroll-note" id="${prefix}-note"></p>
        <div class="conflict-list" id="${prefix}-conflicts" hidden></div>`;
     days.forEach((d, i) => wireWeeklyDayRow(prefix, i + 1, d));
     wireWeekdayIconStrip(prefix);
+    // Снимок «как было» - по нему общая кнопка карточки понимает, что в графике
+    // что-то поменяли. Снимаем ПОСЛЕ отрисовки полей: до неё читать нечего.
+    weeklyEditors.set(masterId, { prefix, initial: JSON.stringify(readWeeklySchedule(prefix)), reload: load });
 
-    el(`${prefix}-save`).addEventListener('click', async () => {
-      const weeklyChanges = [1, 2, 3, 4, 5, 6, 7].map((wd) => readWeeklyDayRow(prefix, wd));
-      const btn = el(`${prefix}-save`);
-      const note = el(`${prefix}-note`);
-      const conflictsEl = el(`${prefix}-conflicts`);
-      btn.disabled = true;
-      const originalLabel = btn.textContent;
-      btn.textContent = 'Сохраняю…';
-      conflictsEl.hidden = true;
-      note.textContent = '';
-      try {
-        const { ok, status, data } = await apiSend('/master-weekly-schedule', 'PUT', { masterId, weeklyChanges });
-        if (status === 409 && data?.error === 'schedule_conflict') {
-          note.textContent = 'Нельзя сохранить, пока не разберётесь с этими записями:';
-          conflictsEl.innerHTML = formatScheduleConflicts(data.conflicts);
-          conflictsEl.hidden = false;
-          return;
-        }
-        if (!ok) throw new Error(`HTTP ${status}`);
-        // Дыра №1: форма НЕ доверяет тому, что ввёл владелец - перезапрашивает
-        // сервер и перерисовывает поля его ответом (load() ниже), даже если сервер
-        // вернул ровно то же самое - гарантия важнее одного лишнего запроса.
-        await load();
-        const freshNote = el(`${prefix}-note`);
-        if (freshNote) freshNote.textContent = 'Сохранено и подтверждено сервером';
-      } catch (err) {
-        note.textContent = `Не удалось сохранить: ${err.message}`;
-      } finally {
-        if (btn.isConnected) {
-          btn.disabled = false;
-          btn.textContent = originalLabel;
-        }
-      }
-    });
   }
 
   load();
