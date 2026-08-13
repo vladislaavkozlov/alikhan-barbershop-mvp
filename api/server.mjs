@@ -61,7 +61,7 @@ export { isLastOwnerDemotion } from './routes/staff.js';
 import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
 import { handleBookings, handleBookingCancel, handleBookingStatus, handleBookingAddServices, handleBookingReschedule, handleBookingActualPrice, handleBookingDelete, handleSales } from './routes/bookings.js';
 // Ре-экспорт для tests/api.booking-reschedule.test.js (Окно 54, Задача B и C).
-export { checkSlotAvailability, resolveRescheduleDuration, planRescheduleNotifications, formatMoveSlot } from './routes/bookings.js';
+export { checkSlotAvailability, resolveRescheduleDuration, planRescheduleNotifications, formatMoveSlot, normalizeStaffComment, BOOKING_COMMENT_MAX_LEN } from './routes/bookings.js';
 import {
   handleSchedule,
   handleScheduleExceptions,

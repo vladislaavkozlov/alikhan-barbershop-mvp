@@ -129,27 +129,31 @@
                блок, что на crm-owner.html - для администратора он даже важнее, именно
                он записывает клиентов (решение Влада 08.08.2026). -->
           <p class="wf-client-hint" id="wfClientHint" hidden></p>
+          <!-- Правка 13.08.2026 (Влад) - пояснение в скобках убрано из заголовка, тот
+               же разбор, что на crm-owner.html: несколько чекбоксов видно и так, а
+               "список только этого мастера" - внутренняя механика (master_services).
+               Подсказка про уже оказанные услуги появляется только в режиме
+               редактирования (#wfServiceEditHint, assets/crm-walkin.js). -->
           <details class="service-edit" open>
-            <summary>Услуги (можно выбрать несколько - список только этого мастера)</summary>
+            <summary>Услуги</summary>
+            <p class="section-hint" id="wfServiceEditHint" hidden>Уже отмеченные услуги оказаны и зафиксированы - снять их нельзя, можно отметить новую, если клиенту сделали что-то ещё</p>
             <div class="service-picker" id="wfServicePicker"></div>
           </details>
           <p class="wf-summary" id="wfSummary">Выберите хотя бы одну услугу</p>
-          <div class="wf-actions">
-            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить запись</button>
-            <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Отмена</button>
-          </div>
-          <p class="wf-result" id="wfResult" hidden></p>
 
           <!-- Окно 55, Задача C - блоки, живущие ТОЛЬКО в режиме edit: статус визита,
-               добавление услуги к записи, фактическая сумма, удаление. Перенесены сюда
-               из карточки-просмотра #bd-1 один в один, вместе с id, потому что их
-               читают уже существующие модули (assets/crm-booking-status.js:
-               wireBookingStatusRadios / wireBookingServiceEdit / wireBookingActualPrice
-               / wireBookingDelete) - механику PATCH /status, PATCH /services,
-               PATCH /actual-price и DELETE это окно не меняет, только переселяет UI.
+               фактическая сумма, комментарий, удаление. Перенесены сюда из карточки-
+               просмотра #bd-1 один в один, вместе с id, потому что их читают уже
+               существующие модули (assets/crm-booking-status.js:
+               wireBookingStatusRadios / wireBookingActualPrice / wireBookingDelete).
                Кнопка "Клиент не пришёл" (toggleNoShow) НЕ переносится: на admin она
                делала ровно то же, что радио ниже, двумя похожими контролами - тот же
-               разбор, что Окно 36 уже провело на owner. -->
+               разбор, что Окно 36 уже провело на owner.
+               Правка 13.08.2026 - порядок блоков приведён к crm-owner.html: сначала
+               содержимое записи (статус, сумма, комментарий), потом кнопки
+               сохранения, в самом низу удаление. Раньше "Сохранить запись"/"Отмена"
+               стояли ВЫШЕ статуса и суммы - на одной и той же карточке два разных
+               порядка на двух страницах, сотрудник переучивался при переходе. -->
           <div class="wf-edit-controls" id="wfEditControls" hidden>
             <div class="status-row" id="wfStatusRow">
               <input type="radio" name="bstatus" id="st-wait">
@@ -164,27 +168,38 @@
               <span class="ico">⚠</span>
               <span></span>
             </div>
-            <div class="bk-delete-row" id="bkDeleteRow"></div>
           </div>
 
+          <!-- Правка 13.08.2026 (Влад) - блок "Добавить услугу к записи" убран, его
+               работу делают чекбоксы "Услуги" выше (тот же PATCH /bookings/:id/services
+               из submitEdit, assets/crm-walkin.js), а блокировку уже оказанных услуг
+               перенял сам верхний список. Фактическая сумма подтягивает сумму
+               выбранных услуг и правится вручную; комментарий объясняет отличие и
+               едет тем же PATCH /bookings/:id/actual-price (миграция 048,
+               bookings.staff_comment). type="text" + inputmode="numeric" вместо
+               type="number" - у number-поля справа стрелки шага в 1 ₽. -->
           <div class="wf-edit-extras" id="wfEditExtras" hidden>
-            <details class="service-edit">
-              <summary>Добавить услугу к записи</summary>
-              <p class="section-hint">Уже отмеченные услуги оказаны и зафиксированы - отметьте новую, если клиенту сделали что-то ещё</p>
-              <div class="service-picker" id="bkServiceEditPicker"></div>
-              <button type="button" class="btn btn-primary btn-sm" id="bkServiceEditSave" disabled>Сохранить услугу</button>
-              <p class="wf-result" id="bkServiceEditResult" hidden></p>
-            </details>
-
             <div class="field-grid">
               <div class="field">
-                <label>Фактическая сумма <span class="badge badge-example">если отличается от суммы услуг выше</span></label>
-                <input id="bkActualPrice" type="number" min="0" placeholder="как по услугам">
+                <label for="bkActualPrice">Фактическая сумма, ₽</label>
+                <input id="bkActualPrice" type="text" inputmode="numeric" autocomplete="off" placeholder="как по услугам">
+                <p class="section-hint">Подставлена сумма выбранных услуг - поправьте, если с клиента взяли другую</p>
+              </div>
+              <div class="field field--wide">
+                <label for="bkStaffComment">Комментарий к записи</label>
+                <input id="bkStaffComment" type="text" maxlength="500" autocomplete="off" placeholder="например: владелец дал скидку постоянному клиенту">
+                <p class="section-hint">Сохраняется в записи - будет видно и через месяц, в карточке клиента тоже</p>
               </div>
             </div>
-            <button type="button" class="btn btn-ghost btn-sm" id="bkActualPriceSave">Сохранить фактическую сумму</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="bkActualPriceSave">Сохранить сумму и комментарий</button>
             <p class="wf-result" id="bkActualPriceResult" hidden></p>
           </div>
+
+          <div class="wf-actions">
+            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить запись</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Отмена</button>
+          </div>
+          <p class="wf-result" id="wfResult" hidden></p>
 
           <div class="wf-sale" id="wfSaleForm" hidden>
             <h4 style="margin-top:18px">Добавить продажу к этой записи</h4>
@@ -194,6 +209,13 @@
             </div>
             <button class="btn btn-ghost btn-sm" type="button" id="wfSaleSubmit">Добавить продажу</button>
             <p class="wf-result" id="wfSaleResult" hidden></p>
+          </div>
+
+          <!-- Правка 13.08.2026 (Влад: "кнопку удалить запись нужно перенести вниз") -
+               та же зона и та же механика, что на crm-owner.html: #bkDeleteRow +
+               wireBookingDelete + DELETE /bookings/:id, видимость по режиму edit. -->
+          <div class="wf-danger-zone" id="wfDangerZone" hidden>
+            <div class="bk-delete-row" id="bkDeleteRow"></div>
           </div>
         </div>
 

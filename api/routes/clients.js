@@ -47,7 +47,7 @@ export async function getClientCard(client, clientId) {
 
   const visitsRes = await client.query(
     `SELECT b.id, b.date, b.start_time, b.end_time, b.status, b.master_id, b.location_id,
-            st.name AS master_name
+            b.staff_comment, st.name AS master_name
      FROM bookings b LEFT JOIN staff st ON st.id = b.master_id
      WHERE b.client_id = $1
      ORDER BY b.date DESC, b.start_time DESC`,
@@ -79,6 +79,11 @@ export async function getClientCard(client, clientId) {
     masterName: r.master_name,
     locationId: r.location_id,
     services: servicesByBooking.get(r.id) ?? [],
+    // Комментарий сотрудника к визиту (13.08.2026, миграция 048) - "почему сумма
+    // отличалась". Именно история клиента - место, где его смотрят спустя время,
+    // поэтому поле едет вместе с визитом. Мастеру срезается в
+    // shapeClientCardForViewer, тем же уровнем видимости, что и actual_price.
+    staffComment: r.staff_comment ?? null,
   }));
 
   return {
@@ -174,10 +179,15 @@ export function resolveClientsQueryMode(searchParams) {
 // отличие от handleClientCard: там просмотр чужой карточки, здесь опознание
 // клиента перед записью.
 export function shapeClientCardForViewer(card, auth) {
-  const visits =
+  const scoped =
     auth.role === 'admin' ? card.visits.filter((v) => v.locationId === auth.locationId)
     : auth.role === 'master' ? card.visits.filter((v) => v.masterId === auth.id)
     : card.visits;
+  // staffComment (13.08.2026) - тот же уровень видимости, что у actual_price в
+  // /bookings: мастер не видит ни фактическую сумму, ни объяснение к ней (обычно
+  // это "владелец дал скидку" - разговор владельца с администратором, не рабочая
+  // информация мастера). Срезаем поле, а не весь визит: сам визит мастеру нужен.
+  const visits = auth.role === 'master' ? scoped.map(({ staffComment, ...rest }) => rest) : scoped;
   const shaped = { ...card, visits, lastVisit: lastVisitOf(visits) };
   if (auth.role === 'master') {
     const { phone, ...withoutPhone } = shaped;
@@ -312,8 +322,17 @@ export async function handleClientCard(req, res, parts) {
     return sendJson(res, 403, { error: 'forbidden' });
   }
   if (auth.role === 'master') {
+    // Найдено живым прогоном 13.08.2026: этот роут (в отличие от опознания клиента
+    // по телефону, shapeClientCardForViewer) срезает мастеру только телефон, список
+    // визитов отдаёт целиком - осознанное старое решение (мастеру полезна вся история
+    // клиента, см. комментарий у shapeClientCardForViewer). Но комментарий сотрудника
+    // к визиту (миграция 048) - тот же уровень видимости, что фактическая сумма, к
+    // которой он написан: owner/admin. Срезаем именно поле, историю не трогаем.
     const { phone, ...cardWithoutPhone } = card;
-    return sendJson(res, 200, cardWithoutPhone);
+    return sendJson(res, 200, {
+      ...cardWithoutPhone,
+      visits: cardWithoutPhone.visits.map(({ staffComment, ...visit }) => visit),
+    });
   }
   return sendJson(res, 200, card);
 }

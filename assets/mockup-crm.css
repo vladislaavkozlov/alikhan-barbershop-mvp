@@ -1253,7 +1253,36 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .walkin-form h3 { margin: 0 0 12px; font-size: 1rem; display: flex; align-items: baseline; gap: 8px; }
 .wf-master-name { color: var(--accent); font-weight: 700; }
 .wf-summary { font-size: 0.82rem; color: var(--text-muted); margin: 0 0 14px; }
-.wf-actions { display: flex; gap: 10px; }
+/* Правка 13.08.2026 (Влад: "расстояние по высоте между кнопками нужно увеличить") -
+   "Сохранить сумму и комментарий", "Сохранить изменения" и "Отмена" стояли почти
+   вплотную и читались как один блок, хотя первая кнопка сохраняет ДРУГОЕ и другим
+   запросом (PATCH /actual-price против PATCH /services + /reschedule). Разводим их
+   по вертикали: отступ сверху у ряда основных кнопок + воздух под блоком суммы.
+   Горизонтальный gap 10px между "Сохранить изменения" и "Отмена" оставлен как был -
+   это одна пара действий одного шага. */
+.wf-actions { display: flex; gap: 10px; margin-top: 26px; }
+.wf-edit-extras { margin-top: 18px; }
+.wf-edit-extras > .btn { margin-top: 14px; }
+.wf-edit-extras .section-hint { margin: 6px 0 0; }
+
+/* Числовые поля сумм (13.08.2026, Влад: "справа дурацкие стрелочки, которые добавляют
+   по 1 единичке - мне что, 3500 раз кликать?") - у type="number" браузер рисует
+   спиннер с шагом 1, бесполезный на суммах в тысячах. Поля сумм в карточке записи
+   переведены на type="text" + inputmode="numeric" (цифровая клавиатура на телефоне
+   остаётся), а это правило гасит спиннер у оставшихся number-полей формы - например
+   "Сумма, ₽" у продажи, где ровно та же боль. */
+.walkin-form input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.walkin-form input[type="number"]::-webkit-outer-spin-button,
+.walkin-form input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Зона удаления записи - в самом низу карточки (Влад, 13.08.2026), отделена воздухом
+   от кнопок сохранения, чтобы "Удалить" не оказалась соседкой "Сохранить". */
+.wf-danger-zone { margin-top: 10px; }
+.wf-danger-zone[hidden] { display: none; }
+
+/* Комментарий сотрудника в истории визитов клиента (13.08.2026, миграция 048) -
+   отдельной строкой под визитом, приглушённо: это пояснение, не заголовок. */
+.visit-comment { display: block; margin-top: 3px; color: var(--text-muted); font-style: italic; }
 .wf-result { margin: 12px 0 0; font-size: 0.84rem; padding: 8px 12px; border-radius: 8px; }
 .wf-result[hidden] { display: none; }
 .wf-result--ok { background: rgba(111,174,124,0.14); border: 1px solid var(--success); color: var(--text); }

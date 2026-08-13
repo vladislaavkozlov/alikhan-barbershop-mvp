@@ -351,16 +351,52 @@ export function wireBookingDelete() {
 // это отдельной политикой ("Финансы" → "Управление скидками", assets/crm-payroll.js
 // wireDiscountSettings) - здесь только сама цифра визита, PATCH
 // /bookings/:id/actual-price (handleBookingActualPrice, owner/admin).
+// Правка 13.08.2026 (Влад: "почему если отличается? пусть подтягивается сумма услуг,
+// а администратор скорректирует, если владелец дал скидку"). Поле больше не пустое:
+// сумму выбранных услуг в него кладёт syncBookingActualPrice, которую зовёт
+// renderSummary (assets/crm-walkin.js) на каждое изменение состава. Ручная правка
+// поднимает priceTouched - после неё автоподстановка молчит, иначе она затирала бы
+// только что вписанную скидку при любом пересчёте.
+// Модульное состояние, не замыкание внутри wireBookingActualPrice() - функция
+// вызывается заново на каждый renderLiveProof(), а обработчик клика привязан к первой
+// версии (dataset.wired), см. reference_barbershop-dataset-wired-refresh-konventsiya.
+let priceTouched = false;
+let lastServicesTotal = null;
+
 export function wireBookingActualPrice() {
   const input = document.getElementById('bkActualPrice');
   const saveBtn = document.getElementById('bkActualPriceSave');
   const resultEl = document.getElementById('bkActualPriceResult');
   if (!input || !saveBtn || !resultEl) return; // страница без этого блока (crm-master.html) - no-op
+  const commentEl = document.getElementById('bkStaffComment');
 
-  window.renderBookingActualPrice = function renderBookingActualPrice(actualPrice) {
+  window.renderBookingActualPrice = function renderBookingActualPrice(actualPrice, staffComment = '') {
+    // Сохранённая фактическая сумма - это уже осознанно вписанная цифра (скидка),
+    // поэтому она считается "тронутой": подстановка суммы услуг её не перебьёт.
+    priceTouched = actualPrice != null;
     input.value = actualPrice ?? '';
+    if (commentEl) commentEl.value = staffComment ?? '';
     resultEl.hidden = true;
   };
+
+  // Сумма выбранных услуг из формы. null - услуг не выбрано, поле оставляем пустым
+  // ("как по услугам"), а не пишем 0: ноль - валидная фактическая сумма ("постригли
+  // бесплатно"), и путать эти два состояния нельзя.
+  window.syncBookingActualPrice = function syncBookingActualPrice(servicesTotal) {
+    lastServicesTotal = servicesTotal;
+    if (priceTouched) return;
+    input.value = servicesTotal == null ? '' : String(servicesTotal);
+  };
+
+  if (!input.dataset.touchWired) {
+    input.dataset.touchWired = '1';
+    input.addEventListener('input', () => {
+      // Поле стёрли полностью - это снова "как по услугам", а не ручная сумма:
+      // возвращаем автоподстановку, чтобы пустым поле не оставалось по недосмотру.
+      priceTouched = input.value.trim() !== '';
+      if (!priceTouched) input.value = lastServicesTotal == null ? '' : String(lastServicesTotal);
+    });
+  }
 
   if (!saveBtn.dataset.wired) {
     saveBtn.dataset.wired = '1';
@@ -379,6 +415,7 @@ export function wireBookingActualPrice() {
         resultEl.textContent = 'Сумма должна быть числом от 0';
         return;
       }
+      const comment = commentEl ? commentEl.value.trim() : null;
       const originalLabel = saveBtn.textContent;
       saveBtn.disabled = true;
       saveBtn.textContent = 'Сохраняю…';
@@ -387,13 +424,23 @@ export function wireBookingActualPrice() {
         const res = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/actual-price`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ actualPrice }),
+          // Поле comment шлём только со страниц, где оно есть: без него бэкенд
+          // сознательно НЕ трогает уже сохранённый комментарий (handleBookingActualPrice),
+          // и старая разметка не стирала бы чужое объяснение молча.
+          body: JSON.stringify(commentEl ? { actualPrice, comment } : { actualPrice }),
         });
         const data = await res.json();
-        if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+        if (!res.ok || data.ok === false) throw new Error(ACTUAL_PRICE_ERROR_TEXT[data.error] || data.error || `HTTP ${res.status}`);
+        // Сохранённая сумма становится "тронутой" (её больше нельзя молча перебить
+        // автоподстановкой), сброс на пустое - наоборот, снова следует за услугами.
+        priceTouched = actualPrice != null;
         resultEl.hidden = false;
         resultEl.className = 'wf-result wf-result--ok';
-        resultEl.textContent = actualPrice === null ? 'Сброшено - считается по услугам' : 'Сохранено';
+        resultEl.textContent = actualPrice === null
+          ? 'Сохранено - сумма считается по услугам'
+          : comment
+            ? 'Сохранено: сумма и комментарий'
+            : 'Сохранено';
       } catch (err) {
         resultEl.hidden = false;
         resultEl.className = 'wf-result wf-result--err';
@@ -405,3 +452,13 @@ export function wireBookingActualPrice() {
     });
   }
 }
+
+// Ошибки комментария от бэкенда (normalizeStaffComment, api/routes/bookings.js) -
+// человеческим языком: "comment_too_long" в интерфейсе сотруднику ничего не говорит.
+const ACTUAL_PRICE_ERROR_TEXT = {
+  comment_too_long: 'комментарий слишком длинный - до 500 знаков',
+  invalid_comment: 'комментарий должен быть текстом',
+  invalid_actual_price: 'сумма должна быть числом от 0',
+  booking_not_found: 'запись не найдена - возможно, её уже удалили',
+  forbidden: 'нет прав менять эту запись (другая точка)',
+};

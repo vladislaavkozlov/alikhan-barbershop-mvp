@@ -251,7 +251,7 @@ async function listBookingsForRequest(url, auth) {
   // прямо с брони, вместо молчаливой потери (найдено 09.08.2026, Окно 53).
   let query = `SELECT b.id, b.master_id, b.service_id, b.date, b.start_time, b.end_time, b.status,
                       b.client_confirmed, b.location_id, b.requires_prepayment, b.review_request_pending,
-                      b.actual_price,
+                      b.actual_price, b.staff_comment,
                       COALESCE(c.name, b.walkin_name) AS client_name, c.phone AS client_phone,
                       c.birthday AS client_birthday, c.no_show_streak AS client_no_show_streak
                FROM bookings b LEFT JOIN clients c ON c.id = b.client_id WHERE 1=1`;
@@ -339,6 +339,11 @@ async function listBookingsForRequest(url, auth) {
         // уровнем доступа, что и сама возможность её редактировать
         // (handleBookingActualPrice) - мастеру эта цифра не нужна для работы.
         actualPrice: r.actual_price,
+        // staffComment (13.08.2026, миграция 048) - объяснение, почему фактическая
+        // сумма отличается от прайса ("владелец дал скидку"). Тот же уровень
+        // видимости, что и сама сумма: мастер её не видит, значит и объяснение
+        // к ней ему не показываем.
+        staffComment: r.staff_comment ?? null,
       };
     }
     return { ...base, clientName: r.client_name, clientBirthday }; // master: имя и ДР видно, телефон - нет
@@ -928,6 +933,23 @@ export async function handleBookingReschedule(req, res, parts) {
 // скидку отменили/ошиблись при вводе), не только положительное число. Влияет ли
 // это на зарплату мастера - решает discount_settings (handleDiscountSettings),
 // не эта ручка - здесь только фиксация факта, не расчёт.
+// Комментарий сотрудника к записи (13.08.2026, миграция 048) едет тем же запросом,
+// что и сумма: в карточке это одно действие ("сумма 1500 вместо 2000, потому что
+// владелец дал скидку"), и разводить его по двум роутам значило бы уметь сохранить
+// объяснение без цифры, которую оно объясняет. Чистая функция ради офлайн-теста:
+// вся валидация тут, роут ниже только применяет результат.
+export const BOOKING_COMMENT_MAX_LEN = 500;
+export function normalizeStaffComment(raw) {
+  if (raw === null || raw === undefined) return { value: null };
+  if (typeof raw !== 'string') return { error: 'invalid_comment' };
+  const trimmed = raw.trim();
+  // Пустая строка = "комментария нет", не пустой текст в базе: иначе история визитов
+  // показывала бы пустые строки-призраки там, где сотрудник просто стёр объяснение.
+  if (trimmed === '') return { value: null };
+  if (trimmed.length > BOOKING_COMMENT_MAX_LEN) return { error: 'comment_too_long' };
+  return { value: trimmed };
+}
+
 export async function handleBookingActualPrice(req, res, parts) {
   const auth = await authenticate(req);
   if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
@@ -942,8 +964,30 @@ export async function handleBookingActualPrice(req, res, parts) {
   if (body.actualPrice !== null && (typeof body.actualPrice !== 'number' || body.actualPrice < 0)) {
     return sendJson(res, 400, { error: 'invalid_actual_price' });
   }
-  await pool.query('UPDATE bookings SET actual_price = $1 WHERE id = $2', [body.actualPrice, bookingId]);
-  return sendJson(res, 200, { ok: true, actualPrice: body.actualPrice });
+  // Поля comment в теле нет вообще - старый контракт (только сумма), комментарий не
+  // трогаем. Это важно для обратной совместимости: прежние клиенты/скрипты, которые
+  // шлют одну цифру, не должны молча стирать уже написанное объяснение.
+  const hasComment = Object.prototype.hasOwnProperty.call(body, 'comment');
+  let comment = null;
+  if (hasComment) {
+    const parsed = normalizeStaffComment(body.comment);
+    if (parsed.error) return sendJson(res, 400, { error: parsed.error });
+    comment = parsed.value;
+  }
+  if (hasComment) {
+    await pool.query('UPDATE bookings SET actual_price = $1, staff_comment = $2 WHERE id = $3', [
+      body.actualPrice,
+      comment,
+      bookingId,
+    ]);
+  } else {
+    await pool.query('UPDATE bookings SET actual_price = $1 WHERE id = $2', [body.actualPrice, bookingId]);
+  }
+  return sendJson(res, 200, {
+    ok: true,
+    actualPrice: body.actualPrice,
+    ...(hasComment ? { comment } : {}),
+  });
 }
 
 // ── /sales - продажа (косметика и т.п.), привязана к визиту (разд.14.3 п.2) ──

@@ -127,7 +127,14 @@ export async function openClientCard(clientId) {
       visitsEl.innerHTML = card.visits
         .map((v) => {
           const services = v.services.map((s) => escapeHtml(s.name)).join(', ') || '—';
-          return `<div class="break-row"><span>${formatVisitDate(v.date)} ${escapeHtml(v.startTime)}</span><span class="note">${services} · ${escapeHtml(v.masterName || '')} · ${STATUS_LABEL[v.status] || escapeHtml(v.status)}</span></div>`;
+          // Комментарий сотрудника к визиту (13.08.2026, миграция 048) - "почему сумма
+          // отличалась от прайса". Именно история клиента - место, где это читают
+          // спустя месяцы, поэтому строка идёт прямо под визитом. Мастеру поле не
+          // приходит вовсе (shapeClientCardForViewer), у него строки просто не будет.
+          const comment = v.staffComment
+            ? `<span class="visit-comment">💬 ${escapeHtml(v.staffComment)}</span>`
+            : '';
+          return `<div class="break-row"><span>${formatVisitDate(v.date)} ${escapeHtml(v.startTime)}</span><span class="note">${services} · ${escapeHtml(v.masterName || '')} · ${STATUS_LABEL[v.status] || escapeHtml(v.status)}${comment}</span></div>`;
         })
         .join('');
     }

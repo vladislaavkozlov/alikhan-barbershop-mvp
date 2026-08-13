@@ -134,7 +134,7 @@ function buildApptCard(booking, { masterName, services, priceOf }) {
        data-date="${escapeHtml(booking.date || '')}" data-start-time="${escapeHtml(booking.startTime)}"
        data-status="${dataStatus}" data-real-status="${escapeHtml(booking.status)}" data-confirmed="${booking.clientConfirmed ? 'true' : 'false'}" data-noshow="${isNoShow ? 'true' : 'false'}"
        data-noshow-streak="${booking.clientNoShowStreak ?? 0}" data-requires-prepayment="${booking.requiresPrepayment ? 'true' : 'false'}"
-       data-actual-price="${booking.actualPrice ?? ''}">
+       data-actual-price="${booking.actualPrice ?? ''}" data-staff-comment="${escapeHtml(booking.staffComment || '')}">
     <span class="t">${escapeHtml(planned)}</span><span class="c">${warn}${escapeHtml(clientName)} · ${escapeHtml(nameLabel)}</span>
   </div>`;
 }

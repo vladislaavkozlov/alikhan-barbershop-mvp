@@ -63,6 +63,16 @@ let lookupPhoneKey = null;
 let editMode = false;
 let editBooking = null;
 
+// Правка 13.08.2026 - услуги, УЖЕ сохранённые в открытой записи. Раньше их
+// блокировал отдельный блок "Добавить услугу к записи" (собственный чекбокс-лист),
+// теперь он убран (Влад: "зачем, выше уже есть Услуги") и блокировку держит сам
+// верхний список. Блокировка не косметика: PATCH /bookings/:id/services умеет ТОЛЬКО
+// добавление (handleBookingAddServices), снятая галочка ничего не удалила бы -
+// интерфейс не должен обещать того, чего бэкенд не делает. На уровне модуля - по той
+// же причине, что и всё состояние выше (обработчики привязаны к первой версии
+// функций, см. комментарий у currentMasterId).
+let lockedServices = new Set();
+
 // Та же нормализация, что на бэкенде (normalizePhoneKey, api/routes/clients.js) -
 // последние 10 цифр. Дублируется намеренно: тянуть серверный модуль во фронтенд ради
 // одной строки нельзя (это ES-модуль бэкенда с зависимостями на pg), а расхождение
@@ -123,6 +133,13 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
   const editControls = el('wfEditControls');
   const editExtras = el('wfEditExtras');
   const statusNote = el('bk-status-note');
+  // Правка 13.08.2026 - зона удаления переехала в самый низ формы (Влад), поэтому её
+  // видимостью управляем отдельным элементом, а не тем, что #bkDeleteRow лежит внутри
+  // #wfEditControls. Подсказка про уже оказанные услуги живёт у верхнего списка услуг
+  // и показывается только в режиме edit. Оба опциональны - страница без них (старая
+  // разметка/crm-master.html) просто работает как раньше.
+  const dangerZone = el('wfDangerZone');
+  const serviceEditHint = el('wfServiceEditHint');
   const hasEditUi = !!(hasRebookUi && masterRow && editControls);
 
   // Отображаемый статус → id радио. Обратная к RADIO_ID_TO_STATUS в
@@ -213,10 +230,23 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
   function syncCheckboxes() {
     for (const [serviceId, input] of checkboxByService) {
       const isSelected = selected.has(serviceId);
-      input.checked = isSelected;
-      input.disabled = !isSelected && isServiceBlockedByCombo(serviceId, selected);
+      // Уже оказанная услуга открытой записи: отмечена и не снимается (снятие бэкенд
+      // не умеет, см. lockedServices выше). Проверка идёт первой - комбо-логика ниже
+      // не должна её перебить.
+      const isLocked = lockedServices.has(serviceId);
+      input.checked = isSelected || isLocked;
+      input.disabled = isLocked || (!isSelected && isServiceBlockedByCombo(serviceId, selected));
       input.closest('.service-check')?.classList.toggle('service-check--blocked', input.disabled);
     }
+  }
+
+  // Сумма выбранных услуг по прайсу ТЕКУЩЕГО мастера (у мастеров цены разные,
+  // master_services). null - услуг не выбрано вообще: это не "0 ₽", а "считать не из
+  // чего", см. renderSummary ниже.
+  function currentServicesTotal() {
+    const rows = servicesFor(currentMasterId).filter((r) => selected.has(r.serviceId));
+    if (rows.length === 0) return null;
+    return rows.reduce((s, r) => s + r.price, 0);
   }
 
   function renderSummary() {
@@ -224,12 +254,24 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     if (rows.length === 0) {
       summary.textContent = 'Выберите хотя бы одну услугу';
       submitBtn.disabled = true;
+      // Услуг нет - сумма услуг равна нулю, но подставлять "0 ₽" в фактическую сумму
+      // нельзя: 0 - это реальный кейс "постригли бесплатно", а здесь состав ещё не
+      // собран. Пустое значение = "как по услугам", тот же смысл, что и раньше.
+      window.syncBookingActualPrice?.(null);
       return;
     }
     const totalMin = rows.reduce((s, r) => s + r.durationMin, 0);
     const totalPrice = rows.reduce((s, r) => s + r.price, 0);
     summary.textContent = `Выбрано услуг: ${rows.length} · итого ${totalMin} мин · ${formatMoney(totalPrice)}`;
     submitBtn.disabled = false;
+    // Правка 13.08.2026 (Влад: "почему если отличается?") - фактическая сумма больше
+    // не пустое поле-загадка: в неё подтягивается сумма выбранных услуг, а
+    // администратор правит её руками, когда с клиента взяли другую (скидка от
+    // владельца). Пересчёт идёт и при изменении состава услуг - иначе добавленная
+    // услуга молча оставляла бы в поле старую цифру. Значение, которое администратор
+    // уже правил вручную, эта синхронизация не трогает (dirty-признак в
+    // assets/crm-booking-status.js).
+    window.syncBookingActualPrice?.(totalPrice);
   }
 
   function renderPicker(masterId) {
@@ -393,6 +435,11 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     nameLabel.textContent = masterName;
     editMode = hasEditUi && !!options.edit;
     editBooking = editMode ? { ...options.booking, masterId } : null;
+    // Блокируем ровно то, что уже сохранено в записи (не то, что отмечено сейчас) -
+    // set пересобирается на каждое открытие формы, иначе прошлая запись блокировала бы
+    // услуги в следующей.
+    lockedServices = new Set(editMode ? editBooking.serviceIds || [] : []);
+    if (serviceEditHint) serviceEditHint.hidden = !editMode || lockedServices.size === 0;
     rebookMode = hasRebookUi && !!(options.rebook || options.slot || options.manual || editMode);
     resultEl.hidden = true;
     clearHint();
@@ -444,6 +491,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       masterRow.hidden = !(editMode || options.manual);
       editControls.hidden = !editMode;
       if (editExtras) editExtras.hidden = !editMode;
+      if (dangerZone) dangerZone.hidden = !editMode;
       submitBtn.textContent = editMode ? 'Сохранить изменения' : 'Сохранить запись';
       if (editMode || options.manual) {
         renderMasterSelect(masterId, { manual: !!options.manual });
@@ -461,11 +509,19 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         const radio = el(STATUS_TO_RADIO_ID[editBooking.status] || 'st-wait');
         if (radio) radio.checked = true;
         if (statusNote) statusNote.hidden = true;
-        // Те же три рендерера, что раньше звала openBooking() - блоки переехали в
-        // форму вместе со своими id, обработчики не переписывались.
+        // Те же рендереры, что раньше звала openBooking() - блоки переехали в форму
+        // вместе со своими id, обработчики не переписывались. renderBookingServiceEdit
+        // остаётся вызовом-опцией: на crm-master.html отдельный блок "Добавить услугу
+        // к записи" ещё живёт (там нет общей формы), на owner/admin он убран правкой
+        // 13.08.2026 и функция просто не зарегистрирована.
         window.renderBookingServiceEdit?.(masterId, editBooking.serviceIds || []);
         window.renderBookingDeleteRow?.();
-        window.renderBookingActualPrice?.(editBooking.actualPrice ?? null);
+        // Комментарий сотрудника (13.08.2026, миграция 048) идёт вместе с суммой -
+        // это одна мысль: "взяли столько, потому что вот почему". Сумма подставится
+        // следом сама: renderPicker выше уже посчитал состав услуг, а сохранённая
+        // фактическая сумма (если она есть) перебивает автоподстановку.
+        window.renderBookingActualPrice?.(editBooking.actualPrice ?? null, editBooking.staffComment ?? '');
+        window.syncBookingActualPrice?.(currentServicesTotal());
         window.updateNoShowUi?.();
       } else {
         delete form.dataset.bookingId;
@@ -821,6 +877,10 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
           noShowStreak: parseInt(d.noshowStreak, 10) || 0,
           requiresPrepayment: d.requiresPrepayment === 'true',
           actualPrice: d.actualPrice ? Number(d.actualPrice) : null,
+          // Комментарий к записи (13.08.2026) - едет с карточки календаря тем же
+          // приёмом, что и actualPrice: поле уже приходит с /bookings, отдельный
+          // запрос за той же бронью не нужен.
+          staffComment: d.staffComment || '',
         },
       });
     };

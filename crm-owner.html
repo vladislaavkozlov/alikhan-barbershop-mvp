@@ -323,8 +323,15 @@
                пока номер не введён - пустой признак "новый клиент" на пустом поле был
                бы враньём: клиента ещё не искали. -->
           <p class="wf-client-hint" id="wfClientHint" hidden></p>
+          <!-- Правка 13.08.2026 (Влад) - пояснение в скобках убрано из заголовка:
+               и так видно, что чекбоксов несколько, а "список только этого мастера" -
+               внутренняя механика (master_services), а не то, что сотруднику нужно
+               читать при каждой записи. Подсказка про уже оказанные услуги в режиме
+               редактирования живёт ниже отдельной строкой (#wfServiceEditHint) и
+               появляется только там, где имеет смысл. -->
           <details class="service-edit" open>
-            <summary>Услуги (можно выбрать несколько - список только этого мастера)</summary>
+            <summary>Услуги</summary>
+            <p class="section-hint" id="wfServiceEditHint" hidden>Уже отмеченные услуги оказаны и зафиксированы - снять их нельзя, можно отметить новую, если клиенту сделали что-то ещё</p>
             <div class="service-picker" id="wfServicePicker"></div>
           </details>
           <p class="wf-summary" id="wfSummary">Выберите хотя бы одну услугу</p>
@@ -349,33 +356,41 @@
               <span class="ico">⚠</span>
               <span></span>
             </div>
-            <div class="bk-delete-row" id="bkDeleteRow"></div>
           </div>
 
-          <!-- Окно 55, Задача C - "Добавить услугу к записи" и "Фактическая сумма"
-               перенесены из #bd-1 сюда БЕЗ изменения механики: те же id, те же роуты
-               (PATCH /bookings/:id/services, PATCH /bookings/:id/actual-price), те же
-               обработчики assets/crm-booking-status.js. Оба блока имеют смысл только у
-               существующей записи, поэтому лежат внутри #wfEditControls (скрыт при
-               создании новой). Выбор услуг ВЫШЕ (wfServicePicker) и этот блок - разные
-               вещи по смыслу: там состав будущей записи, здесь дозаказ к уже
-               оказанному визиту с блокировкой уже проведённых услуг. -->
-          <div class="wf-edit-extras" id="wfEditExtras" hidden>
-            <details class="service-edit">
-              <summary>Добавить услугу к записи</summary>
-              <p class="section-hint">Уже отмеченные услуги оказаны и зафиксированы - отметьте новую, если клиенту сделали что-то ещё</p>
-              <div class="service-picker" id="bkServiceEditPicker"></div>
-              <button type="button" class="btn btn-primary btn-sm" id="bkServiceEditSave" disabled>Сохранить услугу</button>
-              <p class="wf-result" id="bkServiceEditResult" hidden></p>
-            </details>
+          <!-- Правка 13.08.2026 (Влад) - отдельный блок "Добавить услугу к записи"
+               убран: он делал ровно то же, что чекбоксы "Услуги" выше (тот же роут
+               PATCH /bookings/:id/services - в режиме edit его зовёт submitEdit,
+               assets/crm-walkin.js), только вторым интерфейсом на том же экране.
+               Единственное, что он умел сверх верхнего списка - показывать уже
+               оказанные услуги заблокированными; это переехало в сам верхний список
+               (lockedServices там же), поэтому обещание "снять услугу" по-прежнему
+               нигде не даётся - бэкенд снятие не поддерживает. Разметка блока
+               (#bkServiceEditPicker и т.п.) осталась только на crm-master.html, где
+               общей формы записи нет вообще; wireBookingServiceEdit
+               (assets/crm-booking-status.js) без этих элементов сам становится no-op.
 
+               Фактическая сумма (13.08.2026): подтягивается сумма выбранных услуг,
+               администратор правит её вручную, если владелец дал скидку, и объясняет
+               отличие комментарием - тот уезжает тем же PATCH /bookings/:id/actual-price
+               (миграция 048, bookings.staff_comment) и остаётся виден на записи и в
+               истории визитов клиента спустя месяцы. type="text" + inputmode="numeric"
+               вместо type="number" - у number-поля справа стрелки шага в 1 ₽,
+               бесполезные на суммах в тысячи (жалоба Влада 13.08.2026). -->
+          <div class="wf-edit-extras" id="wfEditExtras" hidden>
             <div class="field-grid">
               <div class="field">
-                <label>Фактическая сумма <span class="badge badge-example">если отличается от суммы услуг выше</span></label>
-                <input id="bkActualPrice" type="number" min="0" placeholder="как по услугам">
+                <label for="bkActualPrice">Фактическая сумма, ₽</label>
+                <input id="bkActualPrice" type="text" inputmode="numeric" autocomplete="off" placeholder="как по услугам">
+                <p class="section-hint">Подставлена сумма выбранных услуг - поправьте, если с клиента взяли другую</p>
+              </div>
+              <div class="field field--wide">
+                <label for="bkStaffComment">Комментарий к записи</label>
+                <input id="bkStaffComment" type="text" maxlength="500" autocomplete="off" placeholder="например: владелец дал скидку постоянному клиенту">
+                <p class="section-hint">Сохраняется в записи - будет видно и через месяц, в карточке клиента тоже</p>
               </div>
             </div>
-            <button type="button" class="btn btn-ghost btn-sm" id="bkActualPriceSave">Сохранить фактическую сумму</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="bkActualPriceSave">Сохранить сумму и комментарий</button>
             <p class="wf-result" id="bkActualPriceResult" hidden></p>
           </div>
           <div class="wf-actions">
@@ -392,6 +407,19 @@
             </div>
             <button class="btn btn-ghost btn-sm" type="button" id="wfSaleSubmit">Добавить продажу</button>
             <p class="wf-result" id="wfSaleResult" hidden></p>
+          </div>
+
+          <!-- Правка 13.08.2026 (Влад: "кнопку удалить запись нужно перенести вниз") -
+               "Удалить запись" стояла в середине карточки, между статусом визита и
+               суммой, то есть на пути обычной работы. Теперь она в самом низу формы,
+               отдельной зоной под чертой - последнее, что видно, а не то, во что
+               упираешься по дороге. Механика не менялась: тот же #bkDeleteRow, тот же
+               wireBookingDelete (assets/crm-booking-status.js) и DELETE /bookings/:id;
+               видимостью зоны управляет тот же признак режима edit, что и
+               #wfEditControls (assets/crm-walkin.js) - у ещё не созданной записи
+               удалять нечего. -->
+          <div class="wf-danger-zone" id="wfDangerZone" hidden>
+            <div class="bk-delete-row" id="bkDeleteRow"></div>
           </div>
         </div>
 
