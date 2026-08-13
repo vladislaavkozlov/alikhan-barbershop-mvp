@@ -14,10 +14,18 @@ import { API, getToken } from './crm-auth.js';
 // реально включает/выключает услугу и меняет длительность (`canEdit`) -
 // администратор/просмотр видят то же самое read-only, тот же уровень доступа, что
 // уже есть у wireMasterSelfDataTab для самого мастера.
+// 13.08.2026 - гонка двух рендереров одних и тех же чекбоксов: renderTeam
+// (crm-team.js) рисует их с учётом "принимает клиентов", а эта функция вызывается
+// из renderLiveProof и перерисовывала их заново, зная только роль зрителя - и
+// возвращала услуги снятого с приёма в редактируемое состояние. Кто отработал
+// последним, тот и определял результат. Признак берём из карточки, в которой лежит
+// контейнер (data-provides-services ставит renderTeam) - один источник правды на
+// обоих путях, вместо второго набора данных здесь.
 export function wireMasterServiceEditors(staffRole, services, masterServices) {
   const canEdit = staffRole === 'owner';
   document.querySelectorAll('.service-picker[data-master-id]').forEach((container) => {
-    renderMasterServiceEditor(container, container.dataset.masterId, canEdit, services, masterServices);
+    const offDuty = container.closest('[data-provides-services="0"]') != null;
+    renderMasterServiceEditor(container, container.dataset.masterId, canEdit && !offDuty, services, masterServices);
   });
 }
 
