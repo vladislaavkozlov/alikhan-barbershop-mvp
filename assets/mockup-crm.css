@@ -379,7 +379,12 @@ button, .btn {
   display: inline-block; text-decoration: none;
   transition: background 160ms var(--ease-out), color 160ms var(--ease-out), transform 160ms var(--ease-out);
 }
-button:hover:not(:disabled), .btn:hover:not(:disabled) { background: var(--accent); color: var(--leather); }
+/* Триггеры виджетов даты/времени - технически <button>, но ведут себя как ПОЛЯ ввода
+   (см. .custom-date-trigger/.custom-select-trigger ниже): золотая заливка кнопки на
+   них неуместна, а шорткат background здесь ещё и стирал бы у списка времени стрелку,
+   нарисованную background-image (13.08.2026). Исключаем их из общего правила кнопок */
+button:hover:not(:disabled):not(.custom-select-trigger):not(.custom-date-trigger),
+.btn:hover:not(:disabled) { background: var(--accent); color: var(--leather); }
 button:active:not(:disabled), .btn:active:not(:disabled) { transform: scale(0.96); }
 button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-primary { background: var(--accent); color: var(--leather); }
@@ -768,6 +773,23 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
 }
 .custom-date-trigger:focus { outline: none; border-color: var(--accent); }
 .custom-date.open .custom-date-trigger { border-color: var(--accent); }
+/* Триггеры обоих виджетов - технически <button>, поэтому глобальные правила выше
+   (button:hover заливает золотом, button:active сжимает на 4%) вели ПОЛЕ ВЫБОРА так,
+   будто это кнопка действия: наведение мышью красило дату/время сплошным золотом
+   (найдено живым прогоном 13.08.2026 - именно это Влад видел как "форма не в стиле"),
+   клик дёргал поле. Соседний <input> в той же строке формы так себя не ведёт -
+   возвращаем полю язык полей: фон и текст не меняются, реагирует рамка. */
+/* background-COLOR, не шорткат background: у .custom-select-trigger стрелка нарисована
+   background-image в том же шоткате - "background: var(--surface)" стирал бы её на
+   время наведения (поймано на скриншоте живого прогона 13.08.2026) */
+.custom-date-trigger:hover:not(:disabled),
+.custom-select-trigger:hover:not(:disabled) {
+  background-color: var(--surface);
+  color: var(--text);
+  border-color: var(--accent);
+}
+.custom-date-trigger:active:not(:disabled),
+.custom-select-trigger:active:not(:disabled) { transform: none; }
 .custom-date-panel {
   position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; width: 260px;
   background: var(--popup-bg); border: 1px solid var(--border); border-radius: 10px;
@@ -807,6 +829,11 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
 
 /* ---------- единый блок "График работы" (Окно 16, 03.08.2026) - одна строка на
    день недели вместо разрозненных "Рабочее время"/"Перерыв стандартный". ---------- */
+/* Ширина пары полей времени в строке дня. Раньше стояла инлайном в разметке
+   (assets/crm-schedule-editor.js) - инлайн нельзя перебить из скоупа раздела, а в
+   карточке команды эта пара обязана занимать те же две колонки, что соседние формы
+   (13.08.2026). Значение и внешний вид вне карточки не изменились. */
+.weekly-time-grid { max-width: 420px; }
 .weekly-day-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
 .weekly-day-row:last-of-type { border-bottom: none; }
 .weekly-day-row .toggle-row { border-bottom: none; padding: 0 0 8px; }
@@ -815,6 +842,11 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
    себе не давал понять, что день стал выходным - строка выглядела так же, только
    без полей ниже. Добавлен явный бейдж "Выходной" + приглушение строки. */
 .day-off-badge { color: var(--wood); font-size: 0.74rem; font-style: italic; font-weight: 600; }
+/* Заголовок дня в раскрытой панели графика: название дня и под ним словами то, что
+   означает ползунок справа (13.08.2026 - "непонятно, что означает ползунок напротив Пн") */
+.weekly-day-title { display: grid; gap: 2px; min-width: 0; }
+.weekly-day-title .tr-label { font-weight: 600; }
+.weekly-day-title .tr-sub { color: var(--text-muted); font-size: 0.76rem; line-height: 1.35; }
 .weekly-day-row.is-off { background: var(--surface-2); border-radius: 8px; padding-left: 10px; padding-right: 10px; }
 .weekly-day-row.is-off .tr-label { color: var(--text-muted); }
 

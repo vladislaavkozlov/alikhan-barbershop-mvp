@@ -13,21 +13,37 @@ import {
 import { initCrmNavigationPanels } from './crm-navigation-panels.js';
 import { collectServiceChanges, renderMasterServiceEditor, saveServiceChanges } from './crm-master-services.js';
 import { wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
+import { PHONE_PLACEHOLDER, formatStoredPhone, wirePhoneFields } from './crm-phone.js';
+import { todayStr } from './crm-shared.js';
+import { dateSelectValue, renderDateSelect, renderTimeSelect, timeSelectValue } from './crm-widgets.js';
 
 const roleLabel = { owner: 'Владелец', manager: 'Управляющий', admin: 'Администратор', master: 'Мастер' };
 const editableRoles = ['master', 'admin', 'manager'];
 let lastCreatedCredentials = null;
 const esc = (value = '') => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const section = (title, description, icon, content, modifier = '') => `<section class="team-editor-section${modifier ? ` ${modifier}` : ''}"><header class="team-section-head"><span class="team-section-icon" aria-hidden="true">${icon}</span><div><h3>${title}</h3><p>${description}</p></div></header>${content}</section>`;
-const today = () => new Date().toISOString().slice(0, 10);
+// Локальная дата салона, не UTC: new Date().toISOString() ночью (в MSK это 00:00-03:00)
+// отдаёт ещё вчерашнее число - календарь тогда предлагал бы "сегодня" вчерашним днём,
+// а список разовых изменений показывал бы уже прошедший день. Тот же todayStr(), что
+// использует весь остальной фронтенд (crm-shared.js).
+const today = todayStr;
+// Список уже добавленных изменений показывал дату машинным "2026-08-15" - на экране
+// салона это читается хуже, чем привычные "15.08.2026" (тот же вид, что на кнопке
+// самого календаря-виджета).
+const humanDate = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso ?? '') ? iso.split('-').reverse().join('.') : String(iso ?? ''));
 
 function toggleControl({ name, title, description, checked, disabled = false }) {
   return `<label class="toggle-row team-toggle-row"><span><span class="tr-label">${title}</span><span class="tr-sub">${description}</span></span><span class="switch"><input name="${name}" type="checkbox" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span class="track"></span><span class="knob"></span></span></label>`;
 }
 
+// Выбор точки работы убран из интерфейса 13.08.2026 по решению Влада: салон один,
+// а в справочнике locations с самого первого сида лежат две записи - поле показывало
+// выбор, которого в жизни нет, и предлагало ошибиться. Значение по-прежнему уезжает
+// на сервер (контракт PUT /staff и POST /staff не меняется), просто скрытым полем:
+// у существующего сотрудника - его текущая точка, у нового - первая из справочника.
+// Появится вторая настоящая точка - вернуть сюда <select> из истории этого файла.
 function locationControl(staff, locations) {
-  if (locations.length < 2) return `<input type="hidden" name="locationId" value="${esc(staff.locationId ?? locations[0]?.id ?? '')}">`;
-  return `<div class="field"><label>Точка работы</label><select name="locationId">${locations.map((location) => `<option value="${esc(location.id)}" ${String(location.id) === String(staff.locationId) ? 'selected' : ''}>${esc(location.name)}</option>`).join('')}</select></div>`;
+  return `<input type="hidden" name="locationId" value="${esc(staff.locationId ?? locations[0]?.id ?? '')}">`;
 }
 
 const roleDescription = {
@@ -91,7 +107,7 @@ function staffCard(staff, viewerRole, locations, viewerId) {
   const isSelf = viewerId != null && staff.id === viewerId;
   const employmentLocked = locked || staff.protectedOwner || isSelf;
   return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary><div class="avatar">${esc(staff.name).slice(0, 2)}</div><div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
-  ${section('Основное', 'Контакты и рабочий статус', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" value="${esc(staff.name)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" value="${esc(staff.phone)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" value="${esc(staff.email)}" ${locked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: 'Сотрудник остаётся в активном составе', checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: locked })}</div>`)}
+  ${section('Основное', 'Контакты и рабочий статус', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${locked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: 'Сотрудник остаётся в активном составе', checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: locked })}</div>`)}
   ${section('Профиль на сайте', 'Фото и информация для клиентов', ICON_PUBLIC, mediaMarkup(staff))}
   ${section('Услуги и время', 'Выберите услуги и укажите длительность', ICON_SERVICES, `<div class="service-picker" data-master-id="${id}"><span class="note">Загружаю услуги…</span></div>`)}
   ${section('График', 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}"><span class="note">Загружаю график…</span></div>${exceptionEditor(staff.id)}`)}
@@ -103,14 +119,29 @@ function staffCard(staff, viewerRole, locations, viewerId) {
   <div class="team-editor-actions"><button class="btn btn-primary" type="button" data-save disabled>Сохранить изменения</button><p class="payroll-note" data-card-note aria-live="polite"></p></div></div></details>`;
 }
 
+// Даты и время здесь - слоты под кастомные виджеты проекта (.custom-date /
+// .custom-select), а не нативные <input type="date">/<input type="time">.
+// Нативные рисует ОС своим системным календарём мимо темы CRM - ровно то, что
+// запрещает КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md и что Влад увидел живьём 13.08.2026.
+// Виджеты наполняются в wireExceptionPickers после вставки разметки в DOM
+// (renderDateSelect/renderTimeSelect ищут слот по id), значения читаются через
+// dateSelectValue/timeSelectValue - у виджета значение в dataset.value, не в .value.
+const exceptionFieldIds = (staffId) => ({
+  from: `teamExcFrom-${staffId}`,
+  to: `teamExcTo-${staffId}`,
+  breakStart: `teamExcBreakStart-${staffId}`,
+  breakEnd: `teamExcBreakEnd-${staffId}`,
+});
+
 function exceptionEditor(staffId) {
-  return `<div class="team-schedule-exception" data-schedule-exception data-staff-id="${esc(staffId)}"><div class="team-exception-head"><div><h4>Разовое изменение</h4><p>Добавьте выходной или отдельный перерыв, не меняя рабочую неделю</p></div></div><div class="team-editor-grid"><div class="field"><label>С даты</label><input name="dateFrom" type="date" min="${today()}"></div><div class="field"><label>По дату</label><input name="dateTo" type="date" min="${today()}"></div></div><fieldset class="team-exception-types"><legend>Тип изменения</legend><label><input type="radio" name="exceptionType" value="dayOff" checked><span><strong>Выходной</strong><small>Закрыть весь день</small></span></label><label><input type="radio" name="exceptionType" value="break"><span><strong>Перерыв</strong><small>Закрыть часть дня</small></span></label></fieldset><div class="team-break-fields" data-break-fields hidden><div class="field"><label>С</label><input name="breakStart" type="time" value="13:00"></div><div class="field"><label>До</label><input name="breakEnd" type="time" value="14:00"></div></div><button class="btn btn-ghost" type="button" data-exception-save>Добавить изменение</button><p class="payroll-note" data-exception-note aria-live="polite"></p><div class="team-exception-list" data-exception-list><span class="note">Загружаю изменения…</span></div></div>`;
+  const ids = exceptionFieldIds(staffId);
+  return `<div class="team-schedule-exception" data-schedule-exception data-staff-id="${esc(staffId)}"><div class="team-exception-head"><div><h4>Разовое изменение</h4><p>Добавьте выходной или отдельный перерыв, не меняя рабочую неделю</p></div></div><div class="team-editor-grid"><div class="field"><label>С даты</label><div id="${esc(ids.from)}-slot"></div></div><div class="field"><label>По дату</label><div id="${esc(ids.to)}-slot"></div></div></div><fieldset class="team-exception-types"><legend>Тип изменения</legend><label><input type="radio" name="exceptionType-${esc(staffId)}" value="dayOff" checked><span><strong>Выходной</strong><small>Закрыть весь день</small></span></label><label><input type="radio" name="exceptionType-${esc(staffId)}" value="break"><span><strong>Перерыв</strong><small>Закрыть часть дня</small></span></label></fieldset><div class="team-break-fields" data-break-fields hidden><div class="field"><label>Перерыв с</label><div id="${esc(ids.breakStart)}-slot"></div></div><div class="field"><label>До</label><div id="${esc(ids.breakEnd)}-slot"></div></div></div><button class="btn btn-ghost" type="button" data-exception-save>Добавить изменение</button><p class="payroll-note" data-exception-note aria-live="polite"></p><div class="team-exception-list" data-exception-list><span class="note">Загружаю изменения…</span></div></div>`;
 }
 
 function addCard(locations) {
   const empty = { locationId: locations[0]?.id ?? '' };
   const credentials = lastCreatedCredentials;
-  return `<details class="staff-card team-add-card" ${credentials ? 'open' : ''}><summary><div class="avatar-icon" aria-hidden="true">${ICON_ADD}</div><div class="summary-meta"><div class="name">Добавить сотрудника</div><div class="role">Создать доступ в CRM</div></div><span class="chevron">▸</span></summary><div class="staff-card-body"><div class="team-add-intro"><span aria-hidden="true">${ICON_PROFILE}</span><div><h3>Новый сотрудник</h3><p>Заполните данные для первого входа. Профиль для сайта настроите после создания</p></div></div><div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name"></div><div class="field"><label>Телефон</label><input name="phone" autocomplete="tel"></div><div class="field"><label>Email для входа</label><input name="email" type="email" autocomplete="email"></div>${locationControl(empty, locations)}</div>${rolePicker('master', 'role-new')}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Услуги и график нужно настроить отдельно', checked: false })}<div class="team-editor-actions"><button class="btn btn-primary" type="button" data-create>Создать сотрудника</button><p class="payroll-note" data-card-note aria-live="polite"></p></div><div class="team-create-result" data-create-result ${credentials ? '' : 'hidden'}><strong>Данные для первого входа</strong><span>${credentials ? esc(credentials.name) : ''} сможет войти по email и временному PIN</span><code data-temporary-pin>${credentials ? esc(credentials.pin) : ''}</code><button class="btn btn-ghost btn-sm" type="button" data-copy-pin>Скопировать PIN</button></div></div></details>`;
+  return `<details class="staff-card team-add-card" ${credentials ? 'open' : ''}><summary><div class="avatar-icon" aria-hidden="true">${ICON_ADD}</div><div class="summary-meta"><div class="name">Добавить сотрудника</div><div class="role">Создать доступ в CRM</div></div><span class="chevron">▸</span></summary><div class="staff-card-body"><div class="team-add-intro"><span aria-hidden="true">${ICON_PROFILE}</span><div><h3>Новый сотрудник</h3><p>Заполните данные для первого входа. Профиль для сайта настроите после создания</p></div></div><div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия"></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}"></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com"></div>${locationControl(empty, locations)}</div>${rolePicker('master', 'role-new')}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Услуги и график нужно настроить отдельно', checked: false })}<div class="team-editor-actions"><button class="btn btn-primary" type="button" data-create>Создать сотрудника</button><p class="payroll-note" data-card-note aria-live="polite"></p></div><div class="team-create-result" data-create-result ${credentials ? '' : 'hidden'}><strong>Данные для первого входа</strong><span>${credentials ? esc(credentials.name) : ''} сможет войти по email и временному PIN</span><code data-temporary-pin>${credentials ? esc(credentials.pin) : ''}</code><button class="btn btn-ghost btn-sm" type="button" data-copy-pin>Скопировать PIN</button></div></div></details>`;
 }
 
 function cardValue(card, name) {
@@ -224,7 +255,7 @@ async function loadExceptions(root) {
     list.innerHTML = upcoming.length ? upcoming.map((shift) => {
       const isDayOff = shift.breaks?.some((item) => item.startTime === shift.startTime && item.endTime === shift.endTime);
       const label = isDayOff ? 'Выходной' : `Перерыв ${shift.breaks?.map((item) => `${item.startTime}-${item.endTime}`).join(', ') || 'без перерыва'}`;
-      return `<div class="team-exception-item"><span>${esc(shift.date)} - ${esc(label)}</span><button type="button" data-exception-delete="${esc(shift.date)}">Удалить</button></div>`;
+      return `<div class="team-exception-item"><span>${esc(humanDate(shift.date))} - ${esc(label)}</span><button type="button" data-exception-delete="${esc(shift.date)}">Удалить</button></div>`;
     }).join('') : '<span class="note">Нет запланированных изменений</span>';
   } catch { list.innerHTML = '<span class="note">Не удалось загрузить изменения. Повторите попытку</span>'; }
 }
@@ -237,18 +268,27 @@ function rangeDates(from, to) {
   return dates;
 }
 
+// Тип разового изменения. Радиокнопки получили уникальный на карточку name (см.
+// exceptionEditor) - искать их общим именем больше нельзя, ищем внутри своего
+// fieldset. Та же причина, что у ролей выше: одинаковый name склеивал бы карточки
+// всех мастеров в одну радиогруппу на весь документ.
+function exceptionTypeValue(root) {
+  return root.querySelector('.team-exception-types input[type="radio"]:checked')?.value ?? 'dayOff';
+}
+
 async function saveException(root) {
-  const from = cardValue(root, 'dateFrom').value;
-  const to = cardValue(root, 'dateTo').value || from;
+  const ids = exceptionFieldIds(root.dataset.staffId);
+  const from = dateSelectValue(ids.from);
+  const to = dateSelectValue(ids.to) || from;
   const note = root.querySelector('.payroll-note');
   if (!from || to < from) return showNote(root, 'Укажите корректную дату или диапазон');
   const dates = rangeDates(from, to);
   if (dates.length > 31) return showNote(root, 'Диапазон не может быть длиннее 31 дня');
-  const type = cardValue(root, 'exceptionType').value;
+  const type = exceptionTypeValue(root);
   try {
     const result = await apiSend('/schedule-exceptions', 'POST', {
       masterId: root.dataset.staffId, dateFrom: from, dateTo: to, type,
-      breakStart: cardValue(root, 'breakStart').value, breakEnd: cardValue(root, 'breakEnd').value,
+      breakStart: timeSelectValue(ids.breakStart), breakEnd: timeSelectValue(ids.breakEnd),
     });
     if (!result.ok) { note.textContent = result.status === 409 ? 'Есть конфликт с записью. Данные перечитаны' : 'Не удалось сохранить. Проверьте время и повторите попытку'; await loadExceptions(root); return; }
     note.textContent = 'Разовое изменение сохранено';
@@ -303,7 +343,22 @@ function wireDirtyTracking(root) {
   root.addEventListener('crm:card-dirty', onEdit);
 }
 
+// Наполняет слоты разового изменения кастомными виджетами. Даты начинаются с
+// сегодняшней и в прошлое не выбираются (minDate) - разовый выходной задним числом
+// смысла не имеет, а раньше это позволял нативный min="" (и то только на части
+// браузеров). Время - тот же дропдаун с шагом 15 минут в часах салона, что уже
+// стоит в недельном графике рядом.
+function wireExceptionPickers(editor) {
+  const ids = exceptionFieldIds(editor.dataset.staffId);
+  const start = today();
+  renderDateSelect(`${ids.from}-slot`, ids.from, start, start);
+  renderDateSelect(`${ids.to}-slot`, ids.to, start, start);
+  renderTimeSelect(`${ids.breakStart}-slot`, ids.breakStart, '13:00');
+  renderTimeSelect(`${ids.breakEnd}-slot`, ids.breakEnd, '14:00');
+}
+
 function wire(root) {
+  wirePhoneFields(root);
   root.querySelectorAll('[data-save]').forEach((button) => button.addEventListener('click', () => saveCard(button.closest('[data-staff-id]'))));
   root.querySelectorAll('input[type=file]').forEach((input) => input.addEventListener('change', () => uploadMedia(input.closest('[data-staff-id]'), input)));
   root.querySelectorAll('[data-media-list]').forEach((list) => list.addEventListener('click', async (event) => {
@@ -319,10 +374,11 @@ function wire(root) {
     if (button.dataset.mediaRight) return reorderMedia(card, button.dataset.mediaRight, 1);
   }));
   root.querySelectorAll('[data-schedule-exception]').forEach((editor) => {
+    wireExceptionPickers(editor);
     loadExceptions(editor);
     const breakFields = editor.querySelector('[data-break-fields]');
-    const syncType = () => { breakFields.hidden = cardValue(editor, 'exceptionType').value !== 'break'; };
-    editor.querySelectorAll('[name="exceptionType"]').forEach((input) => input.addEventListener('change', syncType));
+    const syncType = () => { breakFields.hidden = exceptionTypeValue(editor) !== 'break'; };
+    editor.querySelectorAll('.team-exception-types input[type="radio"]').forEach((input) => input.addEventListener('change', syncType));
     syncType();
     editor.querySelector('[data-exception-save]').addEventListener('click', () => saveException(editor));
     editor.querySelector('[data-exception-list]').addEventListener('click', async (event) => {

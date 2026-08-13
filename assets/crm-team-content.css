@@ -71,6 +71,15 @@
   min-width: 0;
 }
 .crm-navigation-ui .team-editor-card textarea { min-height: 86px; resize: vertical; }
+/* Дата и время в карточке - кастомные виджеты проекта (.custom-date/.custom-select),
+   а не нативные инпуты: внутри .field им нужна та же полная ширина колонки, что и
+   обычному полю, иначе кнопка-триггер жмётся по содержимому и строка выглядит рваной */
+.crm-navigation-ui .team-editor-card .field .custom-date,
+.crm-navigation-ui .team-editor-card .field .custom-select { width: 100%; min-width: 0; }
+/* Панель календаря шире узкой колонки сетки, поэтому у правого поля ("По дату") она
+   утыкается в край карточки. Своя ширина по месту (та же логика, что align-right в
+   openCustomDate) - панель остаётся внутри карточки на любой ширине экрана */
+.crm-navigation-ui .team-schedule-exception .custom-date-panel { max-width: min(260px, calc(100vw - 48px)); }
 .crm-navigation-ui .team-editor-card input::placeholder,
 .crm-navigation-ui .team-editor-card textarea::placeholder { color: color-mix(in srgb, var(--text-muted) 58%, transparent); }
 
@@ -279,6 +288,16 @@
 .crm-navigation-ui .team-role-static span,
 .crm-navigation-ui .team-role-static small { color: var(--text-muted); font-size: .74rem; }
 .crm-navigation-ui .team-role-static strong { font-size: .88rem; }
+
+/* Недельный график внутри карточки: «Работает с»/«до» вставали друг под другом
+   (глобальный .field-grid - auto-fit по 220px, а пара была ограничена 420px, две
+   колонки просто не помещались). Рядом с двухколоночным «Разовым изменением» это
+   читалось как разнобой - выравниваем по той же сетке, что у остальных форм карточки */
+.crm-navigation-ui .team-editor-section .weekly-time-grid {
+  max-width: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
 
 .crm-navigation-ui .team-schedule-exception {
   margin-top: 22px;

@@ -9,6 +9,11 @@ import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } 
 import { API, getToken, apiSend, fetchJson } from './crm-auth.js';
 
 export const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+// Полное имя дня в заголовке раскрытой панели: над ползунком "Пн" читалось как
+// подпись К ПОЛЗУНКУ ("что значит этот переключатель напротив Пн?" - Влад,
+// 13.08.2026), а рядом с поясняющей строкой "Рабочий день / Выходной" это уже
+// заголовок дня. Компактные круглые иконки над панелью остаются короткими.
+export const WEEKDAY_LONG = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 
 // Окно 46 (08.08.2026) - кнопка "Обновить данные" (crm-owner.html) должна обновлять
 // и карточки "Разовое изменение на дату"/"График работы" в "Команде", но
@@ -222,21 +227,24 @@ function buildWeeklyDayRow(prefix, wd, day, canEdit) {
   return `
     <div class="weekly-day-row${isWorking ? '' : ' is-off'}" id="${prefix}-${wd}-row" data-weekday="${wd}">
       <div class="toggle-row">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div class="tr-label">${WEEKDAY_SHORT[wd - 1]}</div>
-          <span class="day-off-badge" id="${prefix}-${wd}-offBadge" style="${isWorking ? 'display:none' : ''}">Выходной</span>
+        <div class="weekly-day-title">
+          <span class="tr-label">${WEEKDAY_LONG[wd - 1]}</span>
+          <span class="tr-sub" id="${prefix}-${wd}-offBadge">${isWorking ? 'Рабочий день' : 'Выходной, записи не будет'}</span>
         </div>
-        <label class="switch"><input type="checkbox" id="${prefix}-${wd}-working" ${isWorking ? 'checked' : ''}><span class="track"></span><span class="knob"></span></label>
+        <label class="switch" title="Рабочий день или выходной"><input type="checkbox" id="${prefix}-${wd}-working" ${isWorking ? 'checked' : ''} aria-label="${WEEKDAY_LONG[wd - 1]}: рабочий день"><span class="track"></span><span class="knob"></span></label>
       </div>
-      <div class="field-grid" id="${prefix}-${wd}-fields" style="max-width:420px;${isWorking ? '' : 'display:none'}">
+      <div class="field-grid weekly-time-grid" id="${prefix}-${wd}-fields" style="${isWorking ? '' : 'display:none'}">
         <div class="field"><label>Работает с</label><div id="${prefix}-${wd}-start-slot"></div></div>
         <div class="field"><label>до</label><div id="${prefix}-${wd}-end-slot"></div></div>
       </div>
       <div class="toggle-row" id="${prefix}-${wd}-breakToggleWrap" style="${isWorking ? '' : 'display:none'}">
-        <div class="tr-label">Перерыв</div>
-        <label class="switch"><input type="checkbox" id="${prefix}-${wd}-breakOn" ${hasBreak ? 'checked' : ''}><span class="track"></span><span class="knob"></span></label>
+        <div class="weekly-day-title">
+          <span class="tr-label">Перерыв</span>
+          <span class="tr-sub" id="${prefix}-${wd}-breakHint">${hasBreak ? 'В это время записи не будет' : 'Пока не задан, день без перерыва'}</span>
+        </div>
+        <label class="switch" title="Перерыв в середине дня"><input type="checkbox" id="${prefix}-${wd}-breakOn" ${hasBreak ? 'checked' : ''} aria-label="Перерыв в середине дня"><span class="track"></span><span class="knob"></span></label>
       </div>
-      <div class="field-grid" id="${prefix}-${wd}-breakFields" style="max-width:420px;${isWorking && hasBreak ? '' : 'display:none'}">
+      <div class="field-grid weekly-time-grid" id="${prefix}-${wd}-breakFields" style="${isWorking && hasBreak ? '' : 'display:none'}">
         <div class="field"><label>Перерыв с</label><div id="${prefix}-${wd}-breakStart-slot"></div></div>
         <div class="field"><label>до</label><div id="${prefix}-${wd}-breakEnd-slot"></div></div>
       </div>
@@ -313,7 +321,10 @@ function wireWeeklyDayRow(prefix, wd, day) {
   const syncWorking = () => {
     const working = workingEl.checked;
     rowEl.classList.toggle('is-off', !working);
-    offBadgeEl.style.display = working ? 'none' : '';
+    // Подписи под днём и перерывом объясняют состояние ползунков словами, а не только их видом
+    offBadgeEl.textContent = working ? 'Рабочий день' : 'Выходной, записи не будет';
+    const breakHintEl = el(`${prefix}-${wd}-breakHint`);
+    if (breakHintEl) breakHintEl.textContent = breakOnEl.checked ? 'В это время записи не будет' : 'Пока не задан, день без перерыва';
     fieldsEl.style.display = working ? '' : 'none';
     breakToggleWrap.style.display = working ? '' : 'none';
     breakFieldsEl.style.display = working && breakOnEl.checked ? '' : 'none';
