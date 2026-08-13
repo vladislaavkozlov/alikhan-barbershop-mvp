@@ -95,6 +95,35 @@ try {
         await sleep(350);
         await session.screenshot('/tmp/team-formy-novyy-sotrudnik.png');
 
+        // ── 2b. Фокус полей в теме салона, а не системная сине-белая обводка ──
+        // Фокус проверяем НАСТОЯЩИМ кликом мыши: программный input.focus() в Chrome
+        // не всегда включает :focus-visible, и замер соврал бы «кольца нет»
+        const nameBox = await session.eval(`(() => {
+          const input = ${cardOf(MASTER_A)}.querySelector('input[name="name"]');
+          input.scrollIntoView({ block: 'center' });
+          return true;
+        })()`);
+        await sleep(250);
+        const nameCoords = await session.eval(`(() => {
+          const r = ${cardOf(MASTER_A)}.querySelector('input[name="name"]').getBoundingClientRect();
+          return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+        })()`);
+        await session.clickAt(nameCoords.x, nameCoords.y);
+        await sleep(250);
+        const focusStyle = await session.eval(`(() => {
+          const card = ${cardOf(MASTER_A)};
+          const input = card.querySelector('input[name="name"]');
+          const cs = getComputedStyle(input);
+          const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+          const autofillRule = [...document.styleSheets].flatMap((sheet) => { try { return [...sheet.cssRules]; } catch { return []; } })
+            .some((rule) => rule.selectorText?.includes(':-webkit-autofill') && !rule.selectorText.includes('login-card'));
+          return { focused: document.activeElement === input, outlineColor: cs.outlineColor, outlineWidth: cs.outlineWidth, outlineStyle: cs.outlineStyle, borderColor: cs.borderColor, accent, autofillRule };
+        })()`);
+        const looksBlue = /rgb\(\s*(\d+),\s*(\d+),\s*(\d+)/.exec(focusStyle.outlineColor ?? '');
+        const isBlueRing = looksBlue ? Number(looksBlue[3]) > Number(looksBlue[1]) + 40 : false;
+        check('Поле в фокусе обведено золотом, а не системным сине-белым кольцом', focusStyle.focused && focusStyle.outlineStyle === 'solid' && !isBlueRing, JSON.stringify(focusStyle));
+        check('Автозаполнение Chrome не белит поля вне формы входа', focusStyle.autofillRule, JSON.stringify(focusStyle));
+
         // ── 3. Даты и время разового изменения - виджеты, не нативные поля ────
         const widgets = await session.eval(`(() => {
           const card = ${cardOf(MASTER_A)};

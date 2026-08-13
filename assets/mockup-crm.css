@@ -717,6 +717,53 @@ details.booking-detail[open] summary::before { transform: rotate(90deg); }
   background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
   color: var(--text); padding: 9px 12px; font-family: inherit; font-size: 0.88rem;
 }
+/* Фокус полей ввода. Браузер по умолчанию рисует свою сине-белую обводку - она из
+   чужой темы и спорит с золотом карточек (Влад увидел её на боевой CRM 13.08.2026).
+   Язык берём тот, что уже принят в форме входа (crm-navigation-panels.css): рамка
+   поля становится акцентной, а фокус дополнительно обводится золотым кольцом -
+   клавиатурная навигация остаётся видимой, просто в цветах салона. */
+.field input:focus,
+.field textarea:focus,
+input[type="text"]:focus,
+input[type="tel"]:focus,
+input[type="email"]:focus,
+input[type="number"]:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.field input:focus-visible,
+.field textarea:focus-visible,
+.field select:focus-visible,
+input[type="text"]:focus-visible,
+input[type="tel"]:focus-visible,
+input[type="email"]:focus-visible,
+input[type="number"]:focus-visible,
+textarea:focus-visible,
+.custom-date-trigger:focus-visible,
+.custom-select-trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 78%, white);
+  outline-offset: 2px;
+}
+
+/* Автозаполнение. Chrome рисует подставленное им значение своим светлым фоном и
+   чёрным текстом - поле телефона на тёмной карточке выглядело белой заплаткой
+   (Влад, 13.08.2026). Отменить фон напрямую нельзя, поэтому тот же приём, что уже
+   применён в форме входа (crm-navigation-panels.css): заливаем поле собственным
+   цветом через внутреннюю тень и принудительно задаём цвет текста и курсора. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  box-shadow: 0 0 0 1000px var(--surface) inset;
+  caret-color: var(--text);
+  border-color: var(--border);
+}
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill:focus { border-color: var(--accent); }
+
 /* Нативный <select> не наследует тему сам по себе (родная стрелка/чекбокс браузера
    остаются светлыми на тёмном фоне) - appearance:none снимает системный вид, стрелка
    рисуется вручную SVG в цвете акцента. Список опций при открытии всё равно рисует
@@ -1000,7 +1047,10 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
   font-weight: 600; text-align: center; transition: border-color 140ms var(--ease-out);
 }
 .sc-duration-input:hover:not(:disabled) { border-bottom-color: var(--wood); }
-.sc-duration-input:focus { outline: none; border-bottom-color: var(--accent); }
+/* Длительность услуги - узкая инлайн-цифра внутри строки, а не поле в рамке: общее
+   золотое кольцо фокуса вокруг неё выглядело бы деталью крупнее самой цифры, ей
+   достаточно подчёркивания */
+.sc-duration-input:focus, .sc-duration-input:focus-visible { outline: none; border-bottom-color: var(--accent); }
 .sc-duration-input:disabled { opacity: 0.55; cursor: not-allowed; border-bottom-style: dotted; }
 /* убираем стрелки-степпер у number - в узкой инлайн-цифре они не помещаются красиво */
 .sc-duration-input::-webkit-inner-spin-button, .sc-duration-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
