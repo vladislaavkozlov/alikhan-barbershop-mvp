@@ -233,3 +233,38 @@
      (radio + .panel-*) не трогается, скрываем только полосу лейблов. */
   body.app-shell-active .page-tabs .tab-bar { display: none; }
 }
+
+/* ── Карточка визита в кабинете мастера (13.08.2026) ──────────────────────────
+   Read-only панель открытой записи (assets/crm-master-booking.js). Мастер здесь
+   ничего не вводит, поэтому и стилей формы (рамка-акцент, поля, кнопки) у неё нет -
+   это плоский блок внутри общей карточки details.staff-card, как остальные разделы
+   расписания рядом. Токены те же, что у всей CRM (mockup-crm.css :root). */
+.master-booking-view { display: grid; gap: var(--space-3, 12px); }
+.master-booking-view .mb-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.master-booking-view .mb-when { font-size: 1.15rem; font-weight: 700; color: var(--accent); }
+.master-booking-view .mb-client { font-size: 0.95rem; color: var(--text); }
+.master-booking-view .mb-status {
+  font-size: 0.76rem; font-weight: 600; letter-spacing: 0.02em;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted);
+}
+.master-booking-view .mb-status--done { color: var(--success); border-color: var(--success); }
+.master-booking-view .mb-status--no_show,
+.master-booking-view .mb-status--cancelled { color: var(--danger); border-color: var(--danger); }
+.master-booking-view .mb-services { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.master-booking-view .mb-services li {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-bg-light);
+}
+.master-booking-view .mb-service-name { font-size: 0.9rem; }
+.master-booking-view .mb-service-meta { font-size: 0.82rem; color: var(--text-muted); white-space: nowrap; }
+.master-booking-view .mb-total { margin: 0; font-size: 0.85rem; color: var(--text-muted); }
+.master-booking-view .mb-commission {
+  border-top: 1px solid var(--border); padding-top: var(--space-3, 12px);
+  display: grid; gap: 4px;
+}
+.master-booking-view .mb-commission[hidden] { display: none; }
+.master-booking-view .mb-commission-label { font-size: 0.8rem; color: var(--text-muted); }
+.master-booking-view .mb-commission-value { font-size: 1.05rem; font-weight: 700; color: var(--accent); }
+.master-booking-view .mb-commission-note { margin: 0; font-size: 0.78rem; line-height: 1.45; color: var(--text-muted); }

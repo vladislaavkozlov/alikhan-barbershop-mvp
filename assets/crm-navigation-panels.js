@@ -67,6 +67,31 @@ export function upgradeScheduleViews(views, root = document) {
   legacy.replaceWith(list);
 }
 
+// Кабинет мастера (13.08.2026): та же карточка-обёртка, что у "День"/"Неделя"/
+// "Месяц" рядом, но для read-only панели визита (assets/crm-master-booking.js).
+// Отдельно от upgradeBookingPanel ниже, потому что там форма СОЗДАНИЯ записи: своя
+// иконка "+", подпись "Добавить клиента в расписание" и открытие пустой формы по
+// развороту карточки (openManualBooking) - мастеру не подходит ничего из этого.
+export function upgradeMasterBookingPanel(root = document) {
+  const view = root.getElementById('masterBookingView');
+  let list = root.querySelector('.panel-a .schedule-view-cards');
+  if (!view || root.getElementById('scheduleCard-booking-view')) return;
+  if (!list) {
+    list = document.createElement('div');
+    list.className = 'staff-list schedule-booking-card';
+    view.before(list);
+  }
+  const details = document.createElement('details');
+  details.className = 'staff-card schedule-view-card booking-view-card';
+  details.id = 'scheduleCard-booking-view';
+  details.innerHTML = `<summary><div class="avatar-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><path d="M8.5 14h7"/></svg></div><div class="summary-meta"><div class="name">Запись</div><div class="role">Детали выбранного визита</div></div><span class="chevron">▸</span></summary>`;
+  const body = document.createElement('div');
+  body.className = 'staff-card-body';
+  body.append(view);
+  details.append(body);
+  list.append(details);
+}
+
 export function upgradeBookingPanel(root = document) {
   const form = root.getElementById('walkinForm');
   let list = root.querySelector('.panel-a .schedule-view-cards');

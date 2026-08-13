@@ -1,26 +1,15 @@
-// Карточка записи в кабинете мастера переведена с макета #bd-1 на общую форму
-// #walkinForm (13.08.2026, spec 2026-08-13-master-booking-card.md). Здесь два слоя:
-// чистые хелперы (addedServiceIds/masterCommissionLabel - юниты без DOM) и контракт
-// разметки crm-master.html (тот же приём, что в crm-team-render.contract.test.js:
-// читаем файл и проверяем, что декоративные блоки ушли, а рабочие пришли).
+// Кабинет мастера: запись показывается read-only карточкой визита (13.08.2026,
+// spec 2026-08-13-master-booking-card.md, вторая итерация по правкам Влада - мастер
+// запись не ведёт вообще, всё редактирование у администратора). Два слоя: чистый
+// хелпер комиссии (юнит без DOM) и контракт разметки страницы.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { addedServiceIds, masterCommissionLabel } from '../assets/crm-shared.js';
+import { masterCommissionLabel } from '../assets/crm-shared.js';
 
 const root = new URL('../', import.meta.url);
-
-test('addedServiceIds: мастер может только ДОПИСАТЬ услугу, снятие не уезжает на сервер', () => {
-  // PATCH /bookings/:id/services умеет только добавление (handleBookingAddServices) -
-  // снятая галочка не должна превращаться в запрос, который ничего не сделает.
-  assert.deepEqual(addedServiceIds(['s1'], ['s1', 's2']), ['s2']);
-  assert.deepEqual(addedServiceIds(['s1', 's2'], ['s1']), []);
-  assert.deepEqual(addedServiceIds([], ['s1']), ['s1']);
-  assert.deepEqual(addedServiceIds(['s1'], ['s1']), []);
-  assert.deepEqual(addedServiceIds(undefined, undefined), []);
-  // Дубликаты в выборе не должны уехать дважды
-  assert.deepEqual(addedServiceIds(['s1'], ['s2', 's2']), ['s2']);
-});
+const source = (name) => readFile(new URL(name, root), 'utf8');
+const rx = (s) => new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 
 test('masterCommissionLabel: реальная ставка мастера, а не хардкод имён', () => {
   const paid = masterCommissionLabel({ total: 2000, pct: 40, isOwner: false });
@@ -41,52 +30,72 @@ test('masterCommissionLabel: нет услуг или нет ставки - че
 });
 
 test('crm-master.html: старая карточка #bd-1 и её бутафория удалены', async () => {
-  const html = await readFile(new URL('crm-master.html', root), 'utf8');
+  const html = await source('crm-master.html');
   assert.doesNotMatch(html, /id="bd-1"/);
-  // Ни одного контрола, который ничего не сохраняет, и ни одного выдуманного клиента
   for (const dead of [
     'id="bconfirm"',            // роута на client_confirmed нет нигде
-    'id="bk-noshow-btn"',       // второй контрол того же статуса рядом с радио
-    'id="bk-comment-thread"',   // addComment() рисует в DOM и никуда не сохраняет
+    'id="bk-noshow-btn"',       // статус "не пришёл" ставит администратор, не мастер
+    'id="bk-comment-thread"',   // addComment() рисовал в DOM и никуда не сохранял
     'birthday-banner',          // "день рождения 15 августа" - литерал в разметке
     'Клиент с нами с',
-    'id="bkServiceEditPicker"', // отдельный второй список услуг - его заменил общий
+    'id="bkServiceEditPicker"',
   ]) {
-    assert.doesNotMatch(html, new RegExp(dead.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `осталось: ${dead}`);
+    assert.doesNotMatch(html, rx(dead), `осталось: ${dead}`);
   }
 });
 
-test('crm-master.html: общая форма записи в режиме мастера, только разрешённые контролы', async () => {
-  const html = await readFile(new URL('crm-master.html', root), 'utf8');
-  assert.match(html, /id="walkinForm"/);
-  assert.match(html, /data-booking-view="master"/);
-  // Рабочие блоки
-  for (const alive of ['id="wfServicePicker"', 'id="wfSummary"', 'id="wfSubmit"', 'id="wfCancel"',
-    'id="wfResult"', 'id="bk-status-note"', 'name="bstatus"', 'id="wfBookingWhen"', 'id="wfCommission"']) {
-    assert.match(html, new RegExp(alive.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `нет: ${alive}`);
+test('crm-master.html: карточка визита только на просмотр, ни одного контрола', async () => {
+  const html = await source('crm-master.html');
+  for (const alive of ['id="masterBookingView"', 'id="mbWhen"', 'id="mbClient"', 'id="mbStatus"',
+    'id="mbServices"', 'id="mbTotal"', 'id="mbCommission"']) {
+    assert.match(html, rx(alive), `нет: ${alive}`);
   }
-  // Запрещённое мастеру бэкендом не должно существовать в его DOM вообще
-  for (const forbidden of ['id="wfMasterRow"', 'id="wfDateTimeRow"', 'id="wfEditExtras"',
-    'id="wfDangerZone"', 'id="bkDeleteRow"', 'id="bkActualPrice"', 'id="bkStaffComment"']) {
-    assert.doesNotMatch(html, new RegExp(forbidden.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `лишнее: ${forbidden}`);
+  // Формы записи у мастера нет вовсе - ни её самой, ни любого её контрола
+  for (const forbidden of ['id="walkinForm"', 'id="wfServicePicker"', 'id="wfSubmit"', 'id="wfCancel"',
+    'id="wfMasterRow"', 'id="wfDateTimeRow"', 'id="wfEditExtras"', 'id="wfDangerZone"', 'id="bkDeleteRow"',
+    'id="bkActualPrice"', 'id="bkStaffComment"', 'name="bstatus"', 'id="bk-status-note"']) {
+    assert.doesNotMatch(html, rx(forbidden), `лишнее: ${forbidden}`);
   }
+  // Телефон клиента и подпись про скрытый номер убраны совсем (правка Влада)
+  assert.doesNotMatch(html, /wfClientPhone|phone-hidden|скрыто - доступно только/);
+  // Подпись про отметку услуг тоже убрана - отмечать нечего
+  assert.doesNotMatch(html, /Отмеченные услуги уже записаны/);
+});
+
+test('crm-master.html: карточка визита обёрнута в тот же details, что День/Неделя/Месяц', async () => {
+  const html = await source('crm-master.html');
+  // Отступ между карточками и сворачивание даёт общий компонент панелей, а не свои стили
+  assert.match(html, /upgradeMasterBookingPanel/);
+  const js = await source('assets/crm-navigation-panels.js');
+  assert.match(js, /export function upgradeMasterBookingPanel/);
+  assert.match(js, /details\.className = 'staff-card schedule-view-card booking-view-card'/);
 });
 
 test('crm-owner.html / crm-admin.html: их форма записи не задета', async () => {
   for (const page of ['crm-owner.html', 'crm-admin.html']) {
-    const html = await readFile(new URL(page, root), 'utf8');
+    const html = await source(page);
     assert.match(html, /id="walkinForm"/, page);
-    assert.doesNotMatch(html, /data-booking-view="master"/, page);
-    for (const owned of ['id="wfMasterRow"', 'id="wfDateTimeRow"', 'id="wfEditExtras"', 'id="bkActualPrice"']) {
-      assert.match(html, new RegExp(owned.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${page}: пропал ${owned}`);
+    assert.doesNotMatch(html, /id="masterBookingView"/, page);
+    for (const owned of ['id="wfMasterRow"', 'id="wfDateTimeRow"', 'id="wfEditExtras"', 'id="bkActualPrice"',
+      'id="wfSubmit"', 'name="bstatus"']) {
+      assert.match(html, rx(owned), `${page}: пропал ${owned}`);
     }
   }
 });
 
-test('crm-walkin.js: режим мастера шлёт PATCH услуг и не зовёт reschedule', async () => {
-  const js = await readFile(new URL('assets/crm-walkin.js', root), 'utf8');
-  assert.match(js, /bookingView/);
-  assert.match(js, /addedServiceIds/);
-  // Перенос остаётся у owner/admin - но под явным запретом для режима мастера
-  assert.match(js, /masterView[\s\S]{0,400}reschedule|reschedule[\s\S]{0,400}masterView/);
+test('crm-master-booking.js: только чтение - ни одного запроса на изменение', async () => {
+  const js = await source('assets/crm-master-booking.js');
+  assert.doesNotMatch(js, /method:\s*'(POST|PATCH|PUT|DELETE)'/);
+  assert.doesNotMatch(js, /fetch\(/);
+  // Точка входа та же, что у общей формы - её зовёт календарь (buildApptCard)
+  assert.match(js, /window\.openBookingEdit/);
+  // Комиссия считается от фактической суммы, когда администратор её уже провёл
+  assert.match(js, /actualPrice/);
+});
+
+test('crm-walkin.js: ролевых веток кабинета мастера в форме записи не осталось', async () => {
+  const js = await source('assets/crm-walkin.js');
+  assert.doesNotMatch(js, /masterView|bookingView/);
+  // Но защита от свёртки в услугу, которой нет в прайсе мастера, остаётся - это общий фикс
+  assert.match(js, /mergeCombosFor/);
 });

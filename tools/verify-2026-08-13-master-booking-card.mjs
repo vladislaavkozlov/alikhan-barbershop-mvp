@@ -1,8 +1,8 @@
-// Живая проверка переноса карточки записи мастера с макета #bd-1 на общую форму
-// (13.08.2026, spec 2026-08-13-master-booking-card.md). Два сценария в ОДНОМ
-// withBrowser (порт отладки в cdp.mjs захардкожен, два подряд гонятся за него):
-//   1. мастер - открывает свою запись, видит состав/сумму/комиссию, дописывает услугу,
-//      меняет статус; переноса, удаления и фактической суммы у него нет вовсе;
+// Живая проверка карточки визита в кабинете мастера (13.08.2026, вторая итерация по
+// правкам Влада: мастер запись НЕ ведёт, у него только просмотр). Два сценария в
+// ОДНОМ withBrowser (порт отладки в cdp.mjs захардкожен, два подряд гонятся за него):
+//   1. мастер - клик по записи показывает время/клиента/услуги/сумму/комиссию,
+//      карточка сворачивается, ни одного контрола редактирования на странице нет;
 //   2. владелец - регресс: его форма по-прежнему умеет перенос, удаление и сумму.
 import { withBrowser } from './cdp.mjs';
 import { daysFromToday, hashPin, makeChecker, randomPin, withEphemeralServer, withStaticServer } from './verify-lib.mjs';
@@ -94,80 +94,75 @@ try {
         await sleep(700);
 
         const opened = await session.eval(`(() => {
-          const form = document.getElementById('walkinForm');
-          if (!form) return { formFound: false };
-          const checked = [...form.querySelectorAll('#wfServicePicker input[type=checkbox]')]
-            .map((i) => ({ id: i.value, checked: i.checked, disabled: i.disabled }));
+          const view = document.getElementById('masterBookingView');
+          const card = document.getElementById('scheduleCard-booking-view');
+          if (!view) return { viewFound: false };
           return {
-            formFound: true,
-            hidden: form.hidden,
-            bookingId: form.dataset.bookingId,
-            when: document.getElementById('wfBookingWhen')?.value ?? null,
-            client: document.getElementById('wfClientName')?.value ?? null,
-            summary: document.getElementById('wfSummary')?.textContent ?? '',
-            commission: document.getElementById('wfCommission')?.value ?? null,
-            commissionNote: document.getElementById('wfCommissionNote')?.textContent ?? '',
-            services: checked,
+            viewFound: true,
+            hidden: view.hidden,
+            cardOpen: !!card?.open,
+            when: document.getElementById('mbWhen')?.textContent ?? '',
+            client: document.getElementById('mbClient')?.textContent ?? '',
+            status: document.getElementById('mbStatus')?.textContent ?? '',
+            services: [...document.querySelectorAll('#mbServices li')].map((li) => li.textContent.trim()),
+            total: document.getElementById('mbTotal')?.textContent ?? '',
+            commission: document.getElementById('mbCommission')?.textContent ?? '',
+            commissionNote: document.getElementById('mbCommissionNote')?.textContent ?? '',
             oldCard: !!document.getElementById('bd-1'),
-            statusVisible: !document.getElementById('wfEditControls')?.hidden,
           };
         })()`);
         const raw = JSON.stringify(opened);
-        check('Клик по записи открывает ОБЩУЮ форму, а не старую карточку', opened.formFound && opened.hidden === false && !opened.oldCard, raw);
-        check('В форме именно эта запись', opened.bookingId === bookingId, raw);
-        check('Время записи показано подписью', /12:00/.test(opened.when || ''), raw);
-        check('Имя клиента подставлено', opened.client === 'Клиент Проверка', raw);
-        check('Состав услуг записи отмечен и заблокирован (снятие мастеру недоступно)',
-          opened.services.some((s) => s.id === 'strizhka' && s.checked && s.disabled), raw);
-        check('Свободная услуга остаётся доступной для добавления',
-          opened.services.some((s) => s.id === 'boroda' && !s.checked && !s.disabled), raw);
-        check('Сумма и длительность посчитаны по прайсу этого мастера', /40 мин/.test(opened.summary) && /2\s?000/.test(opened.summary), raw);
-        check('Комиссия по РЕАЛЬНОЙ ставке 40% от 2000 = 800', /800/.test(opened.commission || ''), raw);
-        check('Ставка объяснена словами', /40%/.test(opened.commissionNote), raw);
-        check('Блок статуса визита виден', opened.statusVisible === true, raw);
+        check('Клик по записи открывает карточку визита, старой #bd-1 нет', opened.viewFound && opened.hidden === false && !opened.oldCard, raw);
+        check('Карточка развёрнута сама, без лишнего клика', opened.cardOpen === true, raw);
+        check('Время записи показано', /12:00/.test(opened.when), raw);
+        check('Клиент показан', opened.client === 'Клиент Проверка', raw);
+        check('Статус визита виден словом', /Ожидание/.test(opened.status), raw);
+        check('Услуга записи показана с ценой и длительностью',
+          opened.services.length === 1 && /Стрижка/.test(opened.services[0]) && /2\s?000/.test(opened.services[0]) && /40 мин/.test(opened.services[0]), raw);
+        check('Итог по записи посчитан по прайсу этого мастера', /40 мин/.test(opened.total) && /2\s?000/.test(opened.total), raw);
+        check('Комиссия по РЕАЛЬНОЙ ставке 40% от 2000 = 800', /800/.test(opened.commission), raw);
+        check('Комиссия честно помечена предварительной, пока администратор не провёл сумму',
+          /предварительно/i.test(opened.commissionNote), raw);
 
+        // Ни одного контрола редактирования: всё это делает администратор
         const forbidden = await session.eval(`(() => ({
+          form: !!document.getElementById('walkinForm'),
+          servicePicker: !!document.getElementById('wfServicePicker'),
+          submit: !!document.getElementById('wfSubmit'),
+          statusRadios: document.querySelectorAll('input[name="bstatus"]').length,
           masterRow: !!document.getElementById('wfMasterRow'),
           dateTime: !!document.getElementById('wfDateTimeRow'),
-          extras: !!document.getElementById('wfEditExtras'),
-          danger: !!document.getElementById('wfDangerZone'),
           deleteRow: !!document.getElementById('bkDeleteRow'),
           actualPrice: !!document.getElementById('bkActualPrice'),
           oldServiceBlock: !!document.getElementById('bkServiceEditPicker'),
           noShowBtn: !!document.getElementById('bk-noshow-btn'),
-          confirmBox: !!document.getElementById('bconfirm'),
+          phoneField: !!document.getElementById('wfClientPhone'),
+          anyCheckbox: document.querySelectorAll('#masterBookingView input, #masterBookingView button').length,
         }))()`);
-        check('Мастеру не показан ни один запрещённый бэкендом контрол',
-          Object.values(forbidden).every((v) => v === false), JSON.stringify(forbidden));
+        check('В кабинете мастера не осталось ни одного контрола записи',
+          Object.values(forbidden).every((v) => v === false || v === 0), JSON.stringify(forbidden));
 
-        // Добавление услуги - PATCH /bookings/:id/services
-        await session.eval(`(() => {
-          const box = [...document.querySelectorAll('#wfServicePicker input[type=checkbox]')].find((i) => i.value === 'boroda');
-          box.click();
+        // Карточка сворачивается - правка Влада (раньше панель висела всегда открытой)
+        await session.eval(`document.querySelector('#scheduleCard-booking-view > summary').click()`);
+        await sleep(400);
+        const collapsed = await session.eval(`!!document.getElementById('scheduleCard-booking-view')?.open`);
+        check('Карточку записи можно свернуть', collapsed === false, `open=${collapsed}`);
+        await session.eval(`document.querySelector('#scheduleCard-booking-view > summary').click()`);
+        await sleep(400);
+
+        // Отступ до соседней карточки "Месяц" - тот же, что между остальными карточками
+        const gaps = await session.eval(`(() => {
+          const cards = [...document.querySelectorAll('.panel-a .schedule-view-cards > details.staff-card')];
+          const tops = cards.map((c) => c.getBoundingClientRect());
+          const gapList = tops.slice(1).map((r, i) => Math.round(r.top - tops[i].bottom));
+          return { count: cards.length, ids: cards.map((c) => c.id), gaps: gapList };
         })()`);
-        await sleep(300);
-        await session.click('#wfSubmit');
-        await sleep(1500);
-        const afterSave = await session.eval(`(() => ({
-          result: document.getElementById('wfResult')?.textContent ?? '',
-          err: (document.getElementById('wfResult')?.className ?? '').includes('err'),
-          beardLocked: [...document.querySelectorAll('#wfServicePicker input[type=checkbox]')]
-            .some((i) => i.value === 'boroda' && i.checked && i.disabled),
-        }))()`);
-        check('Добавленная услуга сохранена без ошибки', !afterSave.err && /добавлен/i.test(afterSave.result), JSON.stringify(afterSave));
-        const savedServices = await db.query('SELECT service_id FROM booking_services WHERE booking_id = $1 ORDER BY service_id', [bookingId]);
-        check('В базе у записи теперь ОБЕ услуги', savedServices.rows.map((r) => r.service_id).join(',') === 'boroda,strizhka',
-          JSON.stringify(savedServices.rows));
-        check('Только что добавленная услуга тоже стала неснимаемой', afterSave.beardLocked === true, JSON.stringify(afterSave));
+        check('Карточка визита стоит в одном ряду с День/Неделя/Месяц',
+          gaps.ids.includes('scheduleCard-booking-view') && gaps.count >= 4, JSON.stringify(gaps));
+        check('Отступы между всеми карточками одинаковые, вплотную ничего не прижато',
+          gaps.gaps.length > 0 && gaps.gaps.every((g) => g > 0 && g === gaps.gaps[0]), JSON.stringify(gaps));
 
-        // Статус визита - PATCH /bookings/:id/status (до правки радио были декоративны)
-        await session.eval(`document.getElementById('st-came').click()`);
-        await sleep(1200);
-        const statusRow = await db.query('SELECT status FROM bookings WHERE id = $1', [bookingId]);
-        check('Смена статуса реально доехала до базы (было "planned")', statusRow.rows[0].status === 'done',
-          JSON.stringify(statusRow.rows[0]));
-
-        await session.eval(`document.getElementById('walkinForm').scrollIntoView({ block: 'center' })`);
+        await session.eval(`document.getElementById('masterBookingView').scrollIntoView({ block: 'center' })`);
         await sleep(300);
         await session.screenshot('/tmp/master-card-master.png');
 
@@ -196,7 +191,9 @@ try {
         check('Владельцу по-прежнему доступны перенос (мастер + дата/время)', ownerForm.masterRow && ownerForm.dateTime, ownerRaw);
         check('Фактическая сумма и зона удаления на месте', ownerForm.extras && ownerForm.danger, ownerRaw);
         check('Владельцу услуги НЕ блокируются (у него PUT со снятием)', ownerForm.anyLocked === false, ownerRaw);
-        check('Сумма услуг подставлена в фактическую сумму', /3500|3 500/.test(String(ownerForm.actualPrice)), ownerRaw);
+        // 2000 - стрижка по прайсу этого мастера: состав записи мастер больше не
+        // меняет, дописывать услуги может только администратор этой же формой.
+        check('Сумма услуг подставлена в фактическую сумму', /2000|2 000/.test(String(ownerForm.actualPrice)), ownerRaw);
 
         await session.eval(`document.getElementById('walkinForm').scrollIntoView({ block: 'center' })`);
         await sleep(250);

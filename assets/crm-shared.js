@@ -44,23 +44,14 @@ export function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
-// ── Карточка записи в кабинете мастера (13.08.2026) ────────────────────────────
-// Мастер работает с записью в той же форме, что владелец и админ, но его права уже:
-// PATCH /bookings/:id/services умеет ТОЛЬКО добавление (handleBookingAddServices), а
-// полный состав (PUT, со снятием) закрыт за BOOKING_OPERATOR_ROLES. Поэтому на сервер
-// уезжают именно ДОПИСАННЫЕ услуги, а не весь набор чекбоксов: иначе снятая галочка
-// превратилась бы в запрос, который молча ничего не снимает.
-export function addedServiceIds(existingIds, selectedIds) {
-  const was = new Set(existingIds ?? []);
-  return [...new Set(selectedIds ?? [])].filter((id) => !was.has(id));
-}
-
-// Комиссия мастера за конкретную запись. Старая карточка #bd-1 считала её по ХАРДКОДУ
-// имён (MASTER_COMMISSION_PCT['Елизавета'] в assets/mockup-crm.js) - при смене ставки
-// или найме нового мастера цифра врала. Здесь ставка приходит из реальных
-// master_payroll_settings (pctOf, тот же источник, что и "Моя зарплата").
-// total === null - услуг не выбрано: это "считать не из чего", не "0 ₽" (тот же
-// принцип, что у currentServicesTotal в assets/crm-walkin.js).
+// ── Карточка визита в кабинете мастера (13.08.2026) ────────────────────────────
+// Комиссия мастера за конкретную запись (assets/crm-master-booking.js). Старая
+// карточка #bd-1 считала её по ХАРДКОДУ имён (MASTER_COMMISSION_PCT['Елизавета'] в
+// assets/mockup-crm.js) - при смене ставки или найме нового мастера цифра врала. Здесь
+// ставка приходит из реальных master_payroll_settings (pctOf, тот же источник, что и
+// "Моя зарплата"), а сумма - от фактической, если администратор её уже провёл.
+// total === null - считать не из чего: это не "0 ₽" (тот же принцип, что у
+// currentServicesTotal в assets/crm-walkin.js).
 export function masterCommissionLabel({ total, pct, isOwner }) {
   if (isOwner) return { amount: null, text: 'Не начисляется - вы владелец, вся сумма остаётся в бизнесе' };
   if (total == null || pct == null) return { amount: null, text: 'Выберите услуги, чтобы увидеть комиссию' };

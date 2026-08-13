@@ -41,10 +41,12 @@ test('отдельного блока "Добавить услугу к запи
     assert.doesNotMatch(html, /<summary>Добавить услугу к записи<\/summary>/, page);
     assert.doesNotMatch(html, /id="bkServiceEditPicker"|id="bkServiceEditSave"/, page);
   }
-  // Общий список услуг в форме - теперь на всех трёх
-  for (const page of [...OPERATOR_PAGES, 'crm-master.html']) {
+  // У владельца и админа услуги правятся общим списком формы; у мастера правки нет
+  // вообще (13.08.2026, вторая итерация) - он видит состав визита списком на просмотр.
+  for (const page of OPERATOR_PAGES) {
     assert.match(await source(page), /id="wfServicePicker"/, page);
   }
+  assert.match(await source('crm-master.html'), /id="mbServices"/);
 });
 
 test('фактическая сумма - без "если отличается", без стрелок шага, с комментарием рядом', async () => {

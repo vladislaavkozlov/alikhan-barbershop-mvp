@@ -26,8 +26,9 @@
   #zpmp-month:checked ~ .seg-bar label[for="zpmp-month"],
   #zpmp-period:checked ~ .seg-bar label[for="zpmp-period"] { background: var(--accent); color: var(--leather); }
 
-  .phone-hidden { color: var(--text-muted); }
-  .phone-hidden .why { display: block; font-size: 0.7rem; font-style: italic; margin-top: 2px; }
+  /* Стили скрытого телефона убраны 13.08.2026 вместе с самим полем: мастеру номер
+     клиента не показывается вообще, а пустая строка с пояснением "скрыто" была лишним
+     шумом в карточке визита (правка Влада). */
 </style>
 </head>
 <body class="crm-navigation-ui">
@@ -193,76 +194,31 @@
           </div>
         </div>
 
-        <!-- Карточка записи мастера (13.08.2026, spec 2026-08-13-master-booking-card.md).
-             Старая #bd-1 удалена целиком: её радио статуса были декоративны
-             (wireBookingStatusRadios выходит по раннему return без #bk-status-note,
-             которого на этой странице не было), "Клиент подтвердил запись" не имеет
-             роута вообще, комментарии по клиенту рисовались в DOM и никуда не
-             сохранялись (addComment в assets/mockup-crm.js), а день рождения и "клиент
-             с нами с" были литералами в разметке. Теперь мастер работает в ТОЙ ЖЕ
-             форме, что владелец и админ (Окно 55), но в границах своих прав.
+        <!-- Карточка визита мастера (13.08.2026, вторая итерация по правкам Влада).
+             Мастер запись НЕ ведёт: состав услуг, фактическую сумму, статус "не пришёл",
+             перенос и удаление делает администратор - у мастера ни одного контрола,
+             только то, что ему нужно знать перед клиентом: когда, кто, что делаем.
+             Поэтому это не форма (первая итерация была общей формой в режиме edit -
+             после снятия всех операций от неё осталась одна разметка), а read-only
+             панель: assets/crm-master-booking.js.
 
-             data-booking-view="master" - единственный переключатель режима
-             (assets/crm-walkin.js): без переноса и без создания записи, состав услуг
-             уезжает PATCH-ом (только добавление - PUT /bookings/:id/services закрыт за
-             BOOKING_OPERATOR_ROLES, api/routes/bookings.js). Блоки, которые бэкенд
-             мастеру запрещает (#wfMasterRow, #wfDateTimeRow, #wfEditExtras,
-             #wfDangerZone, #bkDeleteRow, #bkActualPrice), в эту разметку сознательно НЕ
-             попадают: соответствующие wire-функции без своих элементов - тихий no-op,
-             тот же приём опциональности, что уже держит owner/admin-разметку. -->
-        <div class="walkin-form" id="walkinForm" data-booking-view="master" hidden>
-          <h3><span id="wfModeLabel">Запись</span> · <span id="wfMasterName" class="wf-master-name"></span></h3>
-          <div class="field-grid">
-            <div class="field"><label>Когда</label><input id="wfBookingWhen" type="text" readonly></div>
-            <div class="field"><label>Клиент</label><input id="wfClientName" type="text" readonly></div>
+             Обёрнута в тот же details.staff-card, что "День"/"Неделя"/"Месяц" рядом
+             (upgradeMasterBookingPanel, assets/crm-navigation-panels.js) - оттуда и
+             отступ между карточками, и сворачивание, и участие в "Развернуть все". -->
+        <div class="master-booking-view" id="masterBookingView">
+          <p class="note" id="mbEmpty">Выберите запись в расписании - здесь появятся её детали</p>
+          <div class="mb-head">
+            <span class="mb-when" id="mbWhen"></span>
+            <span class="mb-status" id="mbStatus"></span>
           </div>
-          <!-- Телефон клиента не приходит мастеру уже с сервера (GET /bookings отдаёт
-               его только владельцу и администратору) - поле есть, потому что общая
-               форма на него опирается, но оно честно объясняет, почему пустое, а не
-               делает вид, что номера нет. -->
-          <div class="field-grid">
-            <div class="field phone-hidden"><label>Телефон</label><input id="wfClientPhone" type="tel" value="—" readonly><span class="why">скрыто - доступно только владельцу и администратору</span></div>
+          <div class="mb-client" id="mbClient"></div>
+          <ul class="mb-services" id="mbServices"></ul>
+          <p class="mb-total" id="mbTotal"></p>
+          <div class="mb-commission" id="mbCommissionRow" hidden>
+            <span class="mb-commission-label">Моя комиссия за запись</span>
+            <span class="mb-commission-value" id="mbCommission"></span>
+            <p class="commission-note mb-commission-note" id="mbCommissionNote"></p>
           </div>
-          <details class="service-edit" open>
-            <summary>Услуги</summary>
-            <p class="section-hint" id="wfServiceEditHint" hidden>Отмеченные услуги уже записаны за визитом и не снимаются - отметьте новую, если сделали клиенту что-то ещё</p>
-            <div class="service-picker" id="wfServicePicker"></div>
-          </details>
-          <p class="wf-summary" id="wfSummary">Выберите хотя бы одну услугу</p>
-          <!-- Комиссия за эту запись. В старой карточке она считалась по захардкоженным
-               именам мастеров (MASTER_COMMISSION_PCT, assets/mockup-crm.js) - здесь по
-               реальной ставке из master_payroll_settings, тем же pctOf, которым считается
-               "Моя зарплата". -->
-          <div class="field">
-            <label>Моя комиссия за запись</label>
-            <input id="wfCommission" type="text" readonly>
-            <p class="commission-note" id="wfCommissionNote"></p>
-          </div>
-          <div class="wf-edit-controls" id="wfEditControls" hidden>
-            <div class="status-row" id="wfStatusRow">
-              <input type="radio" name="bstatus" id="st-wait">
-              <input type="radio" name="bstatus" id="st-came">
-              <input type="radio" name="bstatus" id="st-no">
-              <label for="st-wait">Ожидание</label>
-              <label for="st-came">Пришёл</label>
-              <label for="st-no">Не пришёл</label>
-            </div>
-            <!-- Тот самый элемент, которого странице не хватало: без него
-                 wireBookingStatusRadios() (assets/crm-booking-status.js) считала
-                 страницу "не той" и не привязывала обработчик - радио выше меняли
-                 картинку и ничего не сохраняли. PATCH /bookings/:id/status мастеру по
-                 своей записи разрешён (api/routes/bookings.js:498,514). -->
-            <p class="commission-note" id="bk-status-note" hidden></p>
-            <div class="noshow-banner" id="bk-noshow-banner" hidden>
-              <span class="ico">⚠</span>
-              <span></span>
-            </div>
-          </div>
-          <div class="wf-actions">
-            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить изменения</button>
-            <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Закрыть</button>
-          </div>
-          <p class="wf-result" id="wfResult" hidden></p>
         </div>
       </section>
     </div>
@@ -406,9 +362,10 @@
 <script type="module">
   import { initCrmAuth } from './assets/crm-auth.js';
   import { initAppShell } from './assets/crm-app-shell.js';
-  import { initCrmNavigationPanels, upgradeScheduleViews } from './assets/crm-navigation-panels.js';
+  import { initCrmNavigationPanels, upgradeScheduleViews, upgradeMasterBookingPanel } from './assets/crm-navigation-panels.js';
   import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
   upgradeScheduleViews(['day', 'week', 'month']);
+  upgradeMasterBookingPanel();
   initCrmAuth('master');
   initAppShell('master');
   initCrmNavigationPanels();

@@ -3,7 +3,7 @@
 // предварительной записи + "Записать снова" из карточки клиента) + форма "Добавить
 // продажу" сразу после сохранения. Самая крупная отдельная функция файла. Код
 // перенесён 1в1, поведение не менялось.
-import { el, formatMoney, todayStr, pad2, addedServiceIds, masterCommissionLabel } from './crm-shared.js';
+import { el, formatMoney, todayStr, pad2 } from './crm-shared.js';
 import { escapeHtml } from './crm-schedule-shared.js';
 import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } from './crm-widgets.js';
 import { API, getToken } from './crm-auth.js';
@@ -101,7 +101,7 @@ function ruPluralVisits(n) {
 // мастера (клик по его колонке календаря), выбирать было не из чего. Передаётся из
 // assets/crm-dashboard.js, где список уже загружен для остальных виджетов - второго
 // запроса /staff не заводим.
-export function wireWalkIn(staff, services, masterServices, staffList = [], pctOf = null) {
+export function wireWalkIn(staff, services, masterServices, staffList = []) {
   const form = el('walkinForm');
   const picker = el('wfServicePicker');
   const summary = el('wfSummary');
@@ -140,17 +140,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = [], pctO
   // разметка/crm-master.html) просто работает как раньше.
   const dangerZone = el('wfDangerZone');
   const serviceEditHint = el('wfServiceEditHint');
-  // Режим кабинета мастера (13.08.2026, spec 2026-08-13-master-booking-card.md).
-  // crm-master.html получил ТУ ЖЕ форму вместо старой карточки #bd-1, но урезанную по
-  // правам: мастер не создаёт, не переносит и не удаляет записи, а состав услуг может
-  // только дополнять (PATCH /bookings/:id/services; PUT со снятием - owner/admin).
-  // Поэтому там нет ни #wfMasterRow, ни #wfDateTimeRow - и условие hasEditUi, которое
-  // до этого требовало оба, иначе выключило бы весь режим edit на его странице.
-  const masterView = form.dataset.bookingView === 'master';
-  const whenEl = el('wfBookingWhen');
-  const commissionEl = el('wfCommission');
-  const commissionNoteEl = el('wfCommissionNote');
-  const hasEditUi = masterView ? !!editControls : !!(hasRebookUi && masterRow && editControls);
+  const hasEditUi = !!(hasRebookUi && masterRow && editControls);
 
   // Отображаемый статус → id радио. Обратная к RADIO_ID_TO_STATUS в
   // assets/crm-booking-status.js (там же живёт сам PATCH /bookings/:id/status -
@@ -237,24 +227,14 @@ export function wireWalkIn(staff, services, masterServices, staffList = [], pctO
   // Правка 03.08.2026: та же логика комплекса "стрижка+борода", что теперь у
   // публичной записи (storage.js SERVICE_COMBOS) - выбор комплекса блокирует его
   // компоненты, отдельный выбор обоих компонентов сам сворачивается в комплекс.
-  // Свёртка "стрижка"+"борода" в комплекс - это ЗАМЕНА состава: обе услуги-компонента
-  // из набора удаляются, вместо них встаёт комбо (mergeServiceCombos, storage.js). В
-  // кабинете мастера такой операции не существует: PATCH /bookings/:id/services умеет
-  // только дописать услугу, снять уже оказанную мастер не может. Поймано живым
-  // прогоном 13.08.2026: мастер с записью "стрижка" отмечал бороду, набор молча
-  // сворачивался в комплекс, которого нет в его прайсе - форма показывала "выберите
-  // хотя бы одну услугу" и кнопка сохранения гасла, хотя пользователь только что
-  // отметил услугу. Мастер дописывает услуги по факту визита, они и уезжают по одной.
-  //
-  // Вторая половина той же проверки (тоже поймана живым прогоном 13.08.2026, уже на
-  // стороне ВЛАДЕЛЬЦА): свернуть можно только в услугу, которая реально есть в прайсе
-  // этого мастера. Иначе набор превращается в id, которого нет ни в одном чекбоксе -
-  // список услуг на экране становится пустым ("Выберите хотя бы одну услугу"), а
-  // фактическая сумма обнуляется, хотя у записи услуги есть. До появления карточки
-  // мастера такой состав было почти нечем создать (у всех сеяных мастеров комплекс в
-  // прайсе есть), теперь мастер может дописать вторую услугу-компонент сам.
+  // Свернуть "стрижка"+"борода" в комплекс можно только в услугу, которая реально
+  // есть в прайсе ЭТОГО мастера (mergeServiceCombos, storage.js, делает ЗАМЕНУ: оба
+  // компонента из набора удаляются, вместо них встаёт комбо). Иначе набор превращается
+  // в id, которого нет ни в одном чекбоксе - список услуг на экране становится пустым
+  // ("Выберите хотя бы одну услугу"), а фактическая сумма обнуляется, хотя услуги у
+  // записи есть. Поймано живым прогоном 13.08.2026 на записи, где услуги-компоненты
+  // проставлены по отдельности.
   function mergeCombosFor(ids) {
-    if (masterView) return new Set(ids);
     const merged = mergeServiceCombos(ids);
     const available = new Set(servicesFor(currentMasterId).map((r) => r.serviceId));
     return [...merged].every((id) => available.has(id)) ? merged : new Set(ids);
@@ -282,24 +262,8 @@ export function wireWalkIn(staff, services, masterServices, staffList = [], pctO
     return rows.reduce((s, r) => s + r.price, 0);
   }
 
-  // Комиссия мастера за открытую запись (только его кабинет - у владельца и админа
-  // этого блока в разметке нет, функция тогда no-op). Ставка реальная, из
-  // master_payroll_settings через pctOf - тот же источник, что у "Моей зарплаты";
-  // старая карточка #bd-1 считала её по захардкоженным именам мастеров.
-  function renderCommission(total) {
-    if (!commissionEl) return;
-    const { amount, text } = masterCommissionLabel({
-      total,
-      pct: pctOf ? pctOf(staff.id) : null,
-      isOwner: staff.role === 'owner',
-    });
-    commissionEl.value = amount == null ? '—' : formatMoney(amount);
-    if (commissionNoteEl) commissionNoteEl.textContent = text;
-  }
-
   function renderSummary() {
     const rows = servicesFor(currentMasterId).filter((r) => selected.has(r.serviceId));
-    renderCommission(rows.length === 0 ? null : rows.reduce((s, r) => s + r.price, 0));
     if (rows.length === 0) {
       summary.textContent = 'Выберите хотя бы одну услугу';
       submitBtn.disabled = true;
@@ -489,12 +453,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = [], pctO
     // блокируем: галочка снимается, состав сохраняется общей кнопкой. Блокировка
     // осталась только там, где снятие действительно недоступно - на странице
     // мастера (своя карточка, PATCH-только), её ставит wireBookingServiceEdit.
-    // Исключение - кабинет мастера: снятие ему бэкенд не даёт (PUT закрыт за
-    // BOOKING_OPERATOR_ROLES), поэтому уже записанные за визитом услуги отмечены и
-    // заблокированы, как это делал отдельный блок "Добавить услугу к записи" до
-    // перехода на общую форму. Обещать снятие галочкой, которая ничего не снимет,
-    // нельзя - ровно та бутафория, ради ухода от которой карточку и переносили.
-    lockedServices = editMode && masterView ? new Set(options.booking?.serviceIds || []) : new Set();
+    lockedServices = new Set();
     if (serviceEditHint) serviceEditHint.hidden = !editMode;
     rebookMode = hasRebookUi && !!(options.rebook || options.slot || options.manual || editMode);
     resultEl.hidden = true;
@@ -533,15 +492,9 @@ export function wireWalkIn(staff, services, masterServices, staffList = [], pctO
       }
     }
     clientNameEl.value = options.clientName || '';
-    // Мастеру телефон не приходит с сервера вовсе (GET /bookings отдаёт его только
-    // владельцу и админу) - пустое поле рядом с подписью "скрыто" читалось бы как
-    // "номера нет", хотя он есть. Прочерк, как было в старой карточке.
-    clientPhoneEl.value = options.clientPhone || (masterView ? '—' : '');
+    clientPhoneEl.value = options.clientPhone || '';
     renderPicker(masterId);
-    // Состав услуг открытой записи подставляем и в режиме мастера: там rebookMode
-    // всегда false (переносить нечем - виджетов даты/времени на его странице нет),
-    // а состав показать обязаны, иначе форма открылась бы пустой.
-    if ((rebookMode || editMode) && options.serviceIds?.length) {
+    if (rebookMode && options.serviceIds?.length) {
       const available = new Set(checkboxByService.keys());
       selected = new Set(options.serviceIds.filter((id) => available.has(id)));
       selected = mergeCombosFor(selected);
@@ -561,9 +514,6 @@ export function wireWalkIn(staff, services, masterServices, staffList = [], pctO
       if (masterRow && (editMode || options.manual)) {
         renderMasterSelect(masterId, { manual: !!options.manual });
       }
-      // "Когда" - плановое время записи текстом. Мастеру оно нужно для опознания
-      // записи, но менять его он не может, поэтому это подпись, а не виджеты.
-      if (whenEl) whenEl.value = editMode ? (options.booking?.planned || '') : '';
       if (editMode) {
         // id брони кладём на САМУ ФОРМУ: assets/crm-booking-status.js (статус,
         // удаление, услуги, фактическая сумма) читает его с элемента-панели. Раньше
@@ -691,41 +641,6 @@ export function wireWalkIn(staff, services, masterServices, staffList = [], pctO
     try {
       const bookingId = editBooking?.id;
       if (!bookingId) throw new Error('нет id записи');
-
-      // Кабинет мастера (13.08.2026): единственное, что он может изменить в записи -
-      // дописать услугу. PATCH, а не PUT: полный состав со снятием закрыт за
-      // BOOKING_OPERATOR_ROLES, а перенос (reschedule) мастеру запрещён вовсе - здесь
-      // его не только не шлём, но и нечем сформировать (виджетов даты/времени нет).
-      if (masterView) {
-        const added = addedServiceIds(editBooking.serviceIds, [...selected]);
-        if (added.length === 0) {
-          resultEl.hidden = false;
-          resultEl.className = 'wf-result wf-result--ok';
-          resultEl.textContent = 'Изменений не было';
-          return;
-        }
-        const sr = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/services`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ serviceIds: added }),
-        });
-        const sdata = await sr.json().catch(() => ({}));
-        if (!sr.ok || sdata.ok === false) {
-          throw new Error(RESCHEDULE_ERROR_TEXT[sdata.error] || sdata.error || `HTTP ${sr.status}`);
-        }
-        editBooking.serviceIds = sdata.booking?.serviceIds || [...new Set([...(editBooking.serviceIds || []), ...added])];
-        // Только что добавленная услуга тоже становится зафиксированной - снять её
-        // мастер не может, и галочка не должна делать вид, что может.
-        lockedServices = new Set(editBooking.serviceIds);
-        selected = new Set(editBooking.serviceIds);
-        syncCheckboxes();
-        renderSummary();
-        resultEl.hidden = false;
-        resultEl.className = 'wf-result wf-result--ok';
-        resultEl.textContent = added.length === 1 ? 'Услуга добавлена к записи' : 'Услуги добавлены к записи';
-        renderLiveProof(staff); // календарь перерисуется: у записи новая длительность
-        return;
-      }
 
       const date = dateSelectValue('wfDateValue');
       const startTime = timeSelectValue('wfTimeValue');
@@ -958,11 +873,9 @@ export function wireWalkIn(staff, services, masterServices, staffList = [], pctO
   // режиме редактирования. Глобальная функция, а не export, по той же причине, что у
   // двух соседок выше: карточки записей рисуются строкой HTML с onclick=, а
   // HTML-атрибут резолвится только через window (ограничение браузера).
-  // 13.08.2026: кабинет мастера тоже получил эту точку входа (data-booking-view=
-  // "master", spec 2026-08-13-master-booking-card.md) - до этого hasEditUi там был
-  // false и календарь звал старую карточку #bd-1 через openBooking(). Страница без
-  // #wfEditControls вообще (чужая/будущая разметка) по-прежнему не регистрирует
-  // функцию, и buildApptCard тихо падает на фолбэк.
+  // hasEditUi=false - страницы без формы записи (crm-master.html: мастер записи не
+  // создаёт и не правит, свою read-only панель визита ему рисует
+  // assets/crm-master-booking.js, она и регистрирует openBookingEdit).
   if (hasEditUi) {
     window.openBookingEdit = (el) => {
       const d = el.dataset;
@@ -993,9 +906,6 @@ export function wireWalkIn(staff, services, masterServices, staffList = [], pctO
           // приёмом, что и actualPrice: поле уже приходит с /bookings, отдельный
           // запрос за той же бронью не нужен.
           staffComment: d.staffComment || '',
-          // "10:00–10:40" уже посчитано календарём (data-planned) - в кабинете мастера
-          // это подпись "Когда" вместо виджетов даты/времени, менять их ему нечем.
-          planned: d.planned || '',
         },
       });
     };

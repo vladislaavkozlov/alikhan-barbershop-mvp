@@ -22,6 +22,7 @@ import { wireMasterSelfView, wireMasterSelfDataTab } from './crm-master-self.js'
 import { wireAdminSelfData } from './crm-admin-self.js';
 import { wireBookingStatusRadios, wireBookingServiceEdit, wireBookingDelete, wireBookingActualPrice } from './crm-booking-status.js';
 import { wireWalkIn } from './crm-walkin.js';
+import { wireMasterBookingView } from './crm-master-booking.js';
 
 // Живое доказательство, что это не рисунок - реальный запрос к Postgres на Amvera
 // при каждой загрузке страницы. /staff и /bookings уже сами фильтруют по роли на
@@ -286,10 +287,11 @@ export async function renderLiveProof(staff) {
       wireScheduleEditor(masterId, fetchJson);
       wireWeeklyScheduleEditor(masterId, staff.role === 'owner', fetchJson);
     });
-    // pctOf (13.08.2026) - ставка мастера из master_payroll_settings: в кабинете
-    // мастера форма записи показывает его комиссию за открытую запись. На
-    // owner/admin-страницах блока комиссии нет, аргумент там просто не используется.
-    wireWalkIn(staff, services, masterServices, staffList, pctOf);
+    wireWalkIn(staff, services, masterServices, staffList);
+    // Кабинет мастера (13.08.2026) - read-only панель открытого визита вместо формы
+    // записи, которой у него нет. pctOf нужен для комиссии за запись. На
+    // owner/admin-страницах элемента панели нет, функция там тихий no-op.
+    wireMasterBookingView(staff, services, masterServices, pctOf);
     wireMasterSelfView(staff);
     wireMasterSelfDataTab(staff, services, masterServices, pctOf);
     wireAdminSelfData(staff, staffList);
