@@ -225,11 +225,28 @@ export function wireScheduleViews(ctx) {
   // повторно). Перечитывает только карточки, которые СЕЙЧАС раскрыты - можно
   // раскрыть несколько (День+Неделя+Месяц) одновременно, обновляем все открытые,
   // закрытые не трогаем (нет смысла тянуть данные для того, что не видно).
-  async function refresh() {
+  // Правка 14.08.2026 - два уточнения к тому же механизму:
+  // 1. Карточки-details есть ТОЛЬКО на crm-owner.html; crm-admin.html/crm-master.html
+  //    показывают виды старыми radio-вкладками (#sp-day/#sp-week/#sp-month), где
+  //    el('scheduleCard-*') всегда null - до этой правки refresh() там был полным
+  //    no-op (пустой jobs), то есть "Обновить данные" на админке расписание не
+  //    трогала вовсе. Для таких страниц перечитываем АКТИВНЫЙ вид.
+  // 2. { all: true } - принудительно перечитать День+Неделю+Месяц независимо от того,
+  //    что сейчас раскрыто/активно. Нужно после операции, которая меняет сами данные
+  //    (удаление записи, crm-booking-status.js wireBookingDelete): закрытая карточка
+  //    держит в DOM УЖЕ ОТРИСОВАННУЮ разметку, а обработчик toggle раскрытия зовёт
+  //    setView только если вид сменился (scheduleViewState.view !== v) - свёрнутая
+  //    "Неделя", бывшая активным видом, после раскрытия показала бы старый рендер с
+  //    удалённой записью. Кнопка "Обновить данные" зовёт refresh() без аргументов и
+  //    работает как раньше (закрытое не тянем - незачем грузить невидимое).
+  async function refresh({ all = false } = {}) {
+    const hasCards = Boolean(el(DETAILS_ID_BY_VIEW.day));
+    const needs = (v) => all
+      || (hasCards ? Boolean(el(DETAILS_ID_BY_VIEW[v])?.open) : scheduleViewState.view === v);
     const jobs = [];
-    if (el(DETAILS_ID_BY_VIEW.day)?.open) jobs.push(view.loadDay(scheduleViewState.date));
-    if (el(DETAILS_ID_BY_VIEW.week)?.open) jobs.push(view.loadWeek());
-    if (el(DETAILS_ID_BY_VIEW.month)?.open) jobs.push(view.loadMonth());
+    if (needs('day')) jobs.push(view.loadDay(scheduleViewState.date));
+    if (needs('week')) jobs.push(view.loadWeek());
+    if (needs('month')) jobs.push(view.loadMonth());
     await Promise.all(jobs);
   }
 

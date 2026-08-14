@@ -329,6 +329,19 @@ export function wireBookingDelete() {
         }
       }
       row.innerHTML = '<span class="note">Запись удалена</span>';
+      // Баг 14.08.2026 (аудит Влада, P1) - удаление карточки из DOM выше чинило только
+      // вид "День": Неделя и Месяц рисуются СВОИМИ запросами (GET /schedule-range,
+      // crm-schedule-view-week.js / -month.js) и держали удалённую запись до перезагрузки
+      // страницы ("10:00 Тест Аудит" в неделе, "15 · 5% · 1 запись" в месяце) - владелец
+      // видел запись-призрак и мог планировать по неактуальному расписанию. { all: true }
+      // перечитывает все три вида, включая свёрнутые карточки (см. refresh() в
+      // crm-schedule-views.js). Отдельный try - запись на сервере уже удалена, и провал
+      // обновления не должен превратиться в сообщение "Не удалось удалить".
+      try {
+        await window.__refreshScheduleViews?.({ all: true });
+      } catch {
+        row.innerHTML = '<span class="note">Запись удалена. Обновите страницу, чтобы календарь пересчитался</span>';
+      }
     } catch (err) {
       row.innerHTML = `<span class="note" style="color:var(--danger)">Не удалось удалить: ${err.message}</span>`;
       const retry = document.createElement('button');
