@@ -5,6 +5,7 @@
 import { getMasters, getServices } from '../storage.js';
 import { wireNotifications } from './crm-notifications.js';
 import { el } from './crm-shared.js';
+import { describeError, showError } from './crm-toast.js';
 import { refreshRoleSnapshot, renderLiveProof } from './crm-dashboard.js';
 
 export const API = window.ALIKHAN_API_URL;
@@ -59,13 +60,34 @@ async function apiLogin(email, pin) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, pin }),
   });
-  if (!res.ok) throw new Error('Неверный email или PIN');
+  // Раньше любой отказ на входе объяснялся «Неверный email или PIN» - и лежащий
+  // сервер, и пропавшая сеть выглядели как ошибка в наборе PIN. Теперь причина
+  // берётся из ответа: 401 так и останется про email и PIN, 503 скажет про сервер
+  if (!res.ok) throw await requestError(res, '/auth/login');
   return res.json();
+}
+
+// Ошибка запроса, которую не стыдно показать человеку: message - готовая фраза
+// («Сессия закончилась. Войдите заново»), а машинные подробности лежат отдельными
+// полями. До 15.08.2026 message был `/staff → 500`, и десяток экранов печатал это
+// прямо в интерфейс - Влад справедливо назвал такое «просто код какой-то»
+async function requestError(res, path) {
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    // тело может быть пустым или не-JSON - причину тогда берём из статуса
+  }
+  const error = new Error(describeError({ status: res.status, data }) ?? `${path} → ${res.status}`);
+  error.code = data?.error ?? null;
+  error.status = res.status;
+  error.path = path;
+  return error;
 }
 
 export async function fetchJson(path) {
   const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  if (!res.ok) throw await requestError(res, path);
   return res.json();
 }
 
@@ -149,7 +171,9 @@ export function initCrmAuth(requiredRole) {
       setSession(data.token, data.staff);
       handleStaff(data.staff, true);
     } catch (err) {
-      errEl.textContent = err.message;
+      // Форма входа стоит по центру экрана - её собственной строки ошибки достаточно,
+      // всплывающее сообщение здесь только дублировало бы то же самое
+      errEl.textContent = describeError(err) ?? 'Не удалось войти. Повторите попытку';
       errEl.hidden = false;
     }
   });
@@ -165,7 +189,11 @@ export function initCrmAuth(requiredRole) {
     fetchJson('/auth/me').then((data) => {
       setSession(getToken(), data.staff);
       handleStaff(data.staff);
-    }).catch(() => {
+    }).catch((err) => {
+      // Просроченная сессия - штатный случай, человек просто входит заново. А вот
+      // лежащий сервер или пропавшая сеть выглядели точно так же (форма входа без
+      // объяснений) - теперь причина видна сообщением внизу экрана
+      if (err?.status !== 401) showError(describeError(err) ?? 'Не удалось проверить сессию. Войдите заново');
       clearSession();
       gate.hidden = false;
     });

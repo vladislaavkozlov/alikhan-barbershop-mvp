@@ -21,6 +21,7 @@ import { ICON_BELL } from './crm-icons.js';
 // дословно. Экранирование берём готовое из crm-schedule-shared.js - та же функция
 // уже защищает пять других CRM-файлов, своей копии не заводим.
 import { escapeHtml } from './crm-schedule-shared.js';
+import { errorMessage, showError } from './crm-toast.js';
 
 const TOKEN_KEY = 'alikhan-crm:token';
 const API = window.ALIKHAN_API_URL;
@@ -61,7 +62,7 @@ function getToken() {
 
 async function apiGet(path) {
   const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(path), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
   return res.json();
 }
 async function apiPost(path, body) {
@@ -70,7 +71,7 @@ async function apiPost(path, body) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(path), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
   return res.json();
 }
 async function apiPatch(path, body) {
@@ -79,7 +80,7 @@ async function apiPatch(path, body) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(path), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
   return res.json();
 }
 
@@ -188,12 +189,15 @@ export function wireNotifications(staff) {
             renderList();
             refreshBadge();
           } catch (err) {
-            btn.closest('.msg-actions').innerHTML = `Не удалось: ${err.message}`;
+            btn.closest('.msg-actions').textContent = errorMessage(err, 'Не удалось выполнить действие');
+            showError(errorMessage(err, 'Не удалось выполнить действие по уведомлению'));
           }
         });
       });
     } catch (err) {
-      list.innerHTML = `<div class="note" style="padding:10px">Не удалось загрузить: ${err.message}</div>`;
+      list.innerHTML = '<div class="note" style="padding:10px"></div>';
+      list.querySelector('.note').textContent = errorMessage(err, 'Не удалось загрузить уведомления');
+      showError(errorMessage(err, 'Не удалось загрузить уведомления'));
     }
   }
 

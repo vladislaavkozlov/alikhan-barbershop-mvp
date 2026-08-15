@@ -16,6 +16,7 @@
 // ниже сразу выходит по guard'у и ничего не делает на этой странице, сам модуль не
 // удалён и вернётся к полноценному рендеру, когда появится раздел "Клиенты".
 import { fetchJson } from './crm-auth.js';
+import { errorMessage, showError } from './crm-toast.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -69,7 +70,8 @@ export async function renderRiskList() {
       }
     }
   } catch (err) {
-    if (list) list.innerHTML = `<p class="payroll-note">Не удалось загрузить список: ${escapeHtml(err.message)}</p>`;
+    if (list) list.innerHTML = `<p class="payroll-note">${escapeHtml(errorMessage(err, 'Не удалось загрузить список клиентов'))}</p>`;
+    showError(errorMessage(err, 'Не удалось загрузить список клиентов'));
   }
 }
 
@@ -159,7 +161,8 @@ export async function openClientCard(clientId) {
       };
     }
   } catch (err) {
-    nameEl.textContent = 'Ошибка загрузки';
-    visitsEl.innerHTML = `<span class="note">${escapeHtml(err.message)}</span>`;
+    nameEl.textContent = 'Карточка не открылась';
+    visitsEl.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить карточку клиента'))}</span>`;
+    showError(errorMessage(err, 'Не удалось загрузить карточку клиента'));
   }
 }

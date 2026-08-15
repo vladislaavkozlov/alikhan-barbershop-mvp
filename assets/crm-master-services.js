@@ -178,21 +178,27 @@ export function markInvalidServiceDurations(container) {
   return invalid;
 }
 
-// Отправляет только изменённые услуги. Возвращает имя первой не сохранившейся - карточка
-// покажет его в своей строке статуса, отдельного текста внутри блока услуг больше нет.
+// Отправляет только изменённые услуги. Возвращает null при успехе, иначе описание
+// первой не сохранившейся услуги ({ serviceId, status, data }) - карточка покажет по
+// нему причину отказа, а не просто «не получилось» (правка Влада 15.08.2026).
 export async function saveServiceChanges(masterId, changes) {
   for (const change of changes) {
     // Страховка на случай, если валидацию когда-нибудь обойдут мимо кнопки карточки:
     // null-длительность на сервере молча подменилась бы каталожной, а владелец увидел
     // бы "Сохранено" с чужой цифрой
-    if (change.enabled && parseDurationValue(change.durationMin) == null) return change.serviceId;
+    if (change.enabled && parseDurationValue(change.durationMin) == null) {
+      return { serviceId: change.serviceId, status: 400, data: { error: 'invalid_duration' } };
+    }
     const body = change.enabled ? { enabled: true, durationMin: change.durationMin } : { enabled: false };
     const res = await fetch(`${API}/master-services/${encodeURIComponent(masterId)}/${encodeURIComponent(change.serviceId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
       body: JSON.stringify(body),
     });
-    if (!res.ok) return change.serviceId;
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      return { serviceId: change.serviceId, status: res.status, data };
+    }
   }
   return null;
 }

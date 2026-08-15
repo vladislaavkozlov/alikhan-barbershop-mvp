@@ -6,6 +6,8 @@ import { el, todayStr } from './crm-shared.js';
 import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } from './crm-widgets.js';
 import { API, getToken, fetchJson } from './crm-auth.js';
 import { WEEKDAY_SHORT } from './crm-schedule-editor.js';
+import { errorMessage, reportError, reportSuccess, showError } from './crm-toast.js';
+import { escapeHtml } from './crm-schedule-shared.js';
 
 // Форма "Разовое изменение на дату" (Задача 3, Окно 14, заголовок переименован
 // Окно 16 03.08.2026 - было "Запросить перерыв/выходной") - POST /schedule-requests,
@@ -45,7 +47,8 @@ export async function loadScheduleRequestHistory(staffId) {
       })
       .join('');
   } catch (err) {
-    historyEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+    historyEl.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить запросы'))}</span>`;
+    showError(errorMessage(err, 'Не удалось загрузить запросы'));
   }
 }
 export function formatWeeklyChangesSummary(rows) {
@@ -99,7 +102,7 @@ export function wireScheduleRequestForm(staff) {
     const category = categoryEl.value;
     const dateFrom = dateSelectValue('reqDateFrom');
     if (!dateFrom) {
-      resultEl.textContent = 'Укажите дату';
+      reportError(resultEl, 'Укажите дату');
       return;
     }
     // Баг Окна 19 (найден 04.08.2026): было `category === 'otgul' && fullDayEl?.checked` -
@@ -112,7 +115,7 @@ export function wireScheduleRequestForm(staff) {
     const startTime = requestType === 'break' ? timeSelectValue('reqStartTime') : null;
     const endTime = requestType === 'break' ? timeSelectValue('reqEndTime') : null;
     if (requestType === 'break' && (!startTime || !endTime)) {
-      resultEl.textContent = 'Укажите время (с и до)';
+      reportError(resultEl, 'Укажите время - с и до');
       return;
     }
     try {
@@ -129,12 +132,17 @@ export function wireScheduleRequestForm(staff) {
           masterComment: commentEl.value.trim() || null,
         }),
       });
-      if (!res.ok) throw new Error(`schedule-requests → ${res.status}`);
-      resultEl.textContent = 'Запрос отправлен, владелец увидит уведомление';
+      // Причину отказа знает сервер - забираем её код, иначе на экран уехало бы
+      // техническое «schedule-requests → 400» вместо объяснения
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw Object.assign(new Error('schedule-requests'), { status: res.status, code: data?.error ?? null });
+      }
+      reportSuccess(resultEl, 'Запрос отправлен, владелец увидит уведомление');
       commentEl.value = '';
       loadScheduleRequestHistory(staff.id);
     } catch (err) {
-      resultEl.textContent = `Не удалось отправить: ${err.message}`;
+      reportError(resultEl, err, 'Не удалось отправить заявку');
     }
   });
 }

@@ -5,6 +5,7 @@
 import { el, todayStr, formatMoney, bookingPrice, payrollBookingAmount, pad2 } from './crm-shared.js';
 import { renderDateSelect } from './crm-widgets.js';
 import { fetchJson, apiSend } from './crm-auth.js';
+import { errorMessage, reportError, showError } from './crm-toast.js';
 
 // Правка 03.08.2026 (Окно 16): "Задать период" в карточках ЗП (владелец/админ - по
 // мастеру, свой "Моя зарплата" у мастера) раньше был <input type="date"> без id,
@@ -47,7 +48,8 @@ export function wireMasterPayrollPeriod(staff) {
       const { payroll } = await fetchJson(`/payroll?masterId=${staff.id}&from=${from}&to=${to}`);
       amountEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально, период ${from}–${to}</span>`;
     } catch (err) {
-      amountEl.innerHTML = `— <span class="unsure">не удалось посчитать: ${err.message}</span>`;
+      amountEl.innerHTML = `— <span class="unsure">не удалось посчитать</span>`;
+      showError(errorMessage(err, 'Не удалось посчитать зарплату за период'));
     }
   });
 }
@@ -71,7 +73,7 @@ export async function wireDiscountSettings() {
     toggle.checked = !!payrollFromActualPrice;
     note.textContent = payrollFromActualPrice ? ON_TEXT : OFF_TEXT;
   } catch {
-    note.textContent = 'Не удалось загрузить текущую настройку';
+    reportError(note, 'Не удалось загрузить текущую настройку процента');
   }
 
   if (toggle.dataset.wired) return;
@@ -87,7 +89,7 @@ export async function wireDiscountSettings() {
       note.textContent = next ? ON_TEXT : OFF_TEXT;
     } catch (err) {
       toggle.checked = !next; // откат визуального состояния - сохранить не удалось
-      note.textContent = `Не удалось сохранить: ${err.message} (было: ${prevText})`;
+      reportError(note, err, `Не удалось сохранить процент (осталось прежнее: ${prevText})`);
     } finally {
       toggle.disabled = false;
     }
@@ -233,7 +235,7 @@ export async function renderStaffPayrollPeriods(priceOf, pctOf, ownerIds, payrol
       const amountEl = panel.querySelector('.payroll-sum .amount');
       const noteEl = panel.querySelector('.payroll-note');
       if (!from || !to) {
-        if (noteEl) noteEl.textContent = 'Укажите обе даты (с и по), чтобы задать период';
+        reportError(noteEl, 'Укажите обе даты - с какого и по какое число считать');
         return;
       }
       const rows = bookings.filter((b) => b.masterId === masterId && b.date >= from && b.date <= to);

@@ -10,6 +10,7 @@ import {
   WEEKDAY_SHORT, isoWeekdayOf, mondayOf, addDays, holidayNameOf, buildMasterSwitch, loadPercent, escapeHtml,
 } from './crm-schedule-shared.js';
 import { todayStr } from './crm-calendar.js';
+import { errorMessage, showError } from './crm-toast.js';
 
 // Компактный список - Неделя показывает 7 узких колонок одновременно, не резиновую
 // высоту на весь экран (это была бы уже замена Дня, не своя плотность). Дальше
@@ -97,7 +98,8 @@ export function wireWeekView(ctx) {
         cellBtn.addEventListener('click', () => setView('day', cellBtn.dataset.openDay));
       });
     } catch (err) {
-      grid.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+      grid.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить неделю'))}</span>`;
+      showError(errorMessage(err, 'Не удалось загрузить неделю'));
     }
   }
 

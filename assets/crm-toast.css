@@ -1,0 +1,114 @@
+/* Плавающие сообщения CRM (assets/crm-toast.js) - один шаблон для всех ролей.
+   Живут в том же нижнем слое интерфейса, что и кнопка "Свернуть все"
+   (.panel-group-controls, z-index 80), поэтому стоят выше неё по z-index и слева,
+   чтобы не перекрывать её на широком экране. Токены берутся из mockup-crm.css. */
+
+.crm-toasts {
+  position: fixed;
+  /* Отступ слева считается от края содержимого, а не от края экрана: на широком
+     экране там боковое меню, и окно ложилось бы прямо на него */
+  left: max(20px, env(safe-area-inset-left));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 90;
+  display: flex;
+  flex-direction: column-reverse; /* свежее сообщение ближе к низу экрана */
+  gap: 10px;
+  width: min(420px, calc(100vw - 40px));
+  pointer-events: none;
+}
+
+.crm-toast {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 10px;
+  padding: 12px 12px 12px 13px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-muted);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  pointer-events: auto;
+  animation: crm-toast-in 180ms var(--ease-out) both;
+}
+
+.crm-toast--error { border-left-color: var(--danger); }
+.crm-toast--success { border-left-color: var(--success); }
+.crm-toast--info { border-left-color: var(--accent); }
+
+.crm-toast__icon {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  flex: 0 0 20px;
+}
+.crm-toast__icon svg { width: 100%; height: 100%; }
+.crm-toast--error .crm-toast__icon { color: var(--danger); }
+.crm-toast--success .crm-toast__icon { color: var(--success); }
+.crm-toast--info .crm-toast__icon { color: var(--accent); }
+
+.crm-toast__text {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.crm-toast__close {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 140ms var(--ease-out), border-color 140ms var(--ease-out), background-color 140ms var(--ease-out);
+}
+.crm-toast__close:hover { color: var(--text); border-color: var(--border); background: var(--surface-2); }
+.crm-toast__close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Повторное то же сообщение не плодит копии - оживляем уже висящее */
+.crm-toast--pulse { animation: crm-toast-pulse 420ms var(--ease-out); }
+
+@keyframes crm-toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes crm-toast-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-toast, .crm-toast--pulse { animation: none; }
+}
+
+/* Боковое меню появляется только на широком экране (crm-app-shell.css) - там же
+   сдвигаем стопку, чтобы окно стояло над содержимым страницы, а не над меню.
+   Свёрнутое меню занимает меньше места - учитываем оба состояния */
+@media (min-width: 1024px) {
+  body.app-shell-active .crm-toasts {
+    left: calc(var(--sidebar-w-expanded) + 20px);
+  }
+  body.app-shell-active.app-shell-sidebar-collapsed .crm-toasts {
+    left: calc(var(--sidebar-w-collapsed) + 20px);
+  }
+}
+
+/* На узком экране кнопка "Свернуть все" стоит в том же нижнем углу - поднимаем стопку
+   сообщений над ней, иначе они перекрывают друг друга */
+@media (max-width: 640px) {
+  .crm-toasts {
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 54px);
+    width: auto;
+  }
+}

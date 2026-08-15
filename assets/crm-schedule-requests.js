@@ -17,6 +17,7 @@
 // импортирует из crm-auth.js уже экспортированные хелперы fetchJson/apiSend, как это
 // делает и crm-schedule-views.js.
 import { fetchJson, apiSend } from './crm-auth.js';
+import { errorMessage, showError } from './crm-toast.js';
 
 const CATEGORY_LABEL = { otgul: 'Отгул разовый', otpusk: 'Отпуск', grafik_standard: 'Постоянный график' };
 const STATUS_LABEL = {
@@ -107,7 +108,8 @@ export function initOwnerScheduleRequests() {
       listEl.innerHTML = rows.map(rowHtml).join('');
       wireCancelButtons();
     } catch (err) {
-      listEl.innerHTML = `<span class="note">Не удалось загрузить: ${escapeHtml(err.message)}</span>`;
+      listEl.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить заявки'))}</span>`;
+      showError(errorMessage(err, 'Не удалось загрузить заявки'));
     }
   }
 
@@ -147,8 +149,10 @@ export function initOwnerScheduleRequests() {
             ? 'постоянный график так не отменить - задайте новый в блоке «График работы»'
             : data?.error === 'not_approved'
               ? 'заявка уже не в статусе «Одобрено»'
-              : `HTTP ${status}`;
-        slot.innerHTML = `<span class="note">Не удалось: ${escapeHtml(reason)}</span>`;
+              // Причину знает словарь ошибок - лишь бы не показать человеку «HTTP 409»
+              : errorMessage({ status, data }) ;
+        slot.innerHTML = `<span class="note">${escapeHtml(errorMessage(reason, 'Не удалось обработать заявку'))}</span>`;
+        showError(errorMessage(reason, 'Не удалось обработать заявку'));
         return;
       }
       // Перечитываем список СВЕЖИМ запросом, а не правим строку оптимистично - тот же
@@ -156,7 +160,8 @@ export function initOwnerScheduleRequests() {
       // реально лежит в базе, а не то, что мы ожидали туда записать.
       await load();
     } catch (err) {
-      slot.innerHTML = `<span class="note">Не удалось: ${escapeHtml(err.message)}</span>`;
+      slot.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось обработать заявку'))}</span>`;
+      showError(errorMessage(err, 'Не удалось обработать заявку'));
     }
   }
 

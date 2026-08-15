@@ -15,6 +15,7 @@ import {
   fmtRu, loadPercent, toMinutes,
 } from './crm-schedule-shared.js';
 import { todayStr } from './crm-calendar.js';
+import { errorMessage, reportError, showError } from './crm-toast.js';
 
 export function monthModeHintState(mode) {
   return {
@@ -130,7 +131,7 @@ export function wireMonthView(ctx) {
       .catch((err) => {
         // Тело так и остаётся скрытым: не зная реального графика дня, форму показывать
         // нельзя - сохранение из неё молча перезаписало бы день значениями заглушки.
-        document.getElementById('dayEditNote').textContent = `Не удалось загрузить текущий график: ${err.message}`;
+        reportError(document.getElementById('dayEditNote'), err, 'Не удалось загрузить текущий график');
       });
   }
 
@@ -152,17 +153,17 @@ export function wireMonthView(ctx) {
     try {
       const { ok, status, data } = await apiSend('/schedule', 'POST', { masterId: scheduleViewState.masterId, date: editingDate, startTime, endTime, breaks });
       if (status === 409 && data?.error === 'schedule_conflict') {
-        note.textContent = 'Нельзя сохранить, пока не разберётесь с этими записями:';
+        reportError(note, 'Нельзя сохранить день: на это время уже есть записи, они перечислены ниже');
         conflictsEl.innerHTML = conflictListWithOpenButton(data.conflicts);
         conflictsEl.hidden = false;
         wireConflictOpenButtons(conflictsEl);
         return;
       }
-      if (!ok) throw new Error(`HTTP ${status}`);
+      if (!ok) throw Object.assign(new Error(`HTTP ${status}`), { status, code: data?.error ?? null });
       closeDayEditModal();
       await loadMonth(); // перерисовать ячейку СВЕЖИМ запросом, не оптимистичным обновлением (см. промпт Окна 18, Задача 3)
     } catch (err) {
-      note.textContent = `Не удалось сохранить: ${err.message}`;
+      reportError(note, err, 'Не удалось сохранить день');
     } finally {
       btn.disabled = false;
     }
@@ -175,11 +176,11 @@ export function wireMonthView(ctx) {
     note.textContent = '';
     try {
       const { ok, status } = await apiSend(`/schedule?masterId=${scheduleViewState.masterId}&date=${editingDate}`, 'DELETE');
-      if (!ok && status !== 404) throw new Error(`HTTP ${status}`);
+      if (!ok && status !== 404) throw Object.assign(new Error(`HTTP ${status}`), { status, code: data?.error ?? null });
       closeDayEditModal();
       await loadMonth();
     } catch (err) {
-      note.textContent = `Не удалось сбросить: ${err.message}`;
+      reportError(note, err, 'Не удалось сбросить день к обычному графику');
     } finally {
       btn.disabled = false;
     }
@@ -308,7 +309,8 @@ export function wireMonthView(ctx) {
         });
       });
     } catch (err) {
-      grid.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+      grid.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить месяц'))}</span>`;
+      showError(errorMessage(err, 'Не удалось загрузить месяц'));
     }
   }
 
@@ -384,7 +386,8 @@ export function wireMonthView(ctx) {
         cellEl.addEventListener('click', () => setView('day', cellEl.dataset.date));
       });
     } catch (err) {
-      grid.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+      grid.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить месяц'))}</span>`;
+      showError(errorMessage(err, 'Не удалось загрузить месяц'));
     }
   }
 

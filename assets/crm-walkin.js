@@ -10,6 +10,7 @@ import { API, getToken } from './crm-auth.js';
 import { renderLiveProof } from './crm-dashboard.js';
 import { RADIO_ID_TO_STATUS, applyNoShowStreakAfterStatus } from './crm-booking-status.js';
 import { mergeServiceCombos, isServiceBlockedByCombo } from '../storage.js';
+import { reportError, reportSuccess } from './crm-toast.js';
 
 // Задача Влада (01.08.2026): "Клиент без предварительной записи" была рисунком -
 // кнопка ничего не сохраняла, список услуг был одинаковый для любого мастера, поле
@@ -503,7 +504,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         setHint('new', 'Новый клиент - впишите имя');
         return;
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
       const card = await res.json();
       if (seq !== lookupSeq) return;
       // Имя автозаполняется, но остаётся editable (промпт: "Влад может поправить
@@ -824,7 +825,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
           body: JSON.stringify({ status: wantedStatus }),
         });
-        if (!str.ok) throw new Error(`статус визита: HTTP ${str.status}`);
+        if (!str.ok) throw Object.assign(new Error('статус визита'), { status: str.status, code: (await str.json().catch(() => null))?.error ?? null });
         form.dataset.realStatus = wantedStatus;
         editBooking.status = wantedStatus;
         // Счётчик неявок клиента сервер уже пересчитал - зеркалим его же арифметику,
@@ -843,12 +844,12 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       // (updateSubmitState), нажать её без единой правки физически нельзя.
       resultEl.hidden = false;
       resultEl.className = 'wf-result wf-result--ok';
-      resultEl.textContent = 'Сохранено';
+      reportSuccess(resultEl, 'Сохранено');
       renderLiveProof(staff); // перерисовать календарь: слот освободился/занялся
     } catch (err) {
       resultEl.hidden = false;
       resultEl.className = 'wf-result wf-result--err';
-      resultEl.textContent = `Не удалось сохранить: ${err.message}`;
+      reportError(resultEl, err, 'Не удалось сохранить');
     } finally {
       updateSubmitState();
       submitBtn.textContent = originalLabel;
@@ -930,7 +931,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       } catch (err) {
         resultEl.hidden = false;
         resultEl.className = 'wf-result wf-result--err';
-        resultEl.textContent = `Не удалось сохранить: ${err.message}`;
+        reportError(resultEl, err, 'Не удалось сохранить');
       } finally {
         updateSubmitState();
         submitBtn.textContent = originalLabel;
@@ -947,7 +948,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       if (!bookingId || !itemName || !Number.isFinite(amount) || amount <= 0) {
         saleResultEl.hidden = false;
         saleResultEl.className = 'wf-result wf-result--err';
-        saleResultEl.textContent = 'Укажите название товара и сумму больше нуля';
+        reportError(saleResultEl, 'Укажите название товара и сумму больше нуля');
         return;
       }
       const originalLabel = saleSubmitBtn.textContent;
@@ -959,7 +960,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
           body: JSON.stringify({ bookingId, itemName, amount }),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
         saleResultEl.hidden = false;
         saleResultEl.className = 'wf-result wf-result--ok';
         saleResultEl.textContent = `Продажа добавлена: ${itemName}, ${formatMoney(amount)}`;
@@ -968,7 +969,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       } catch (err) {
         saleResultEl.hidden = false;
         saleResultEl.className = 'wf-result wf-result--err';
-        saleResultEl.textContent = `Не удалось сохранить: ${err.message}`;
+        reportError(saleResultEl, err, 'Не удалось сохранить продажу');
       } finally {
         saleSubmitBtn.disabled = false;
         saleSubmitBtn.textContent = originalLabel;

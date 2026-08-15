@@ -4,6 +4,7 @@
 // перенесён 1в1, поведение не менялось.
 import { el } from './crm-shared.js';
 import { API, getToken } from './crm-auth.js';
+import { reportError, reportSuccess } from './crm-toast.js';
 
 // Задача 4 (Окно 13, 01.08.2026, разд.17.15 ТЗ) - портфолио мастера (стаж/сильные
 // стороны/сертификаты/фото "до-после"), самредактируемые владельцем поля в карточке
@@ -45,10 +46,10 @@ export function wirePortfolioEditors(staffList) {
             beforeAfterUrls: baEl.value.trim() || null,
           }),
         });
-        if (!res.ok) throw new Error(`staff/${masterId}/portfolio → ${res.status}`);
-        if (noteEl) noteEl.textContent = 'Сохранено';
+        if (!res.ok) throw Object.assign(new Error('portfolio'), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
+        reportSuccess(noteEl, 'Сохранено');
       } catch (err) {
-        if (noteEl) noteEl.textContent = `Не удалось сохранить: ${err.message}`;
+        reportError(noteEl, err, 'Не удалось сохранить');
       }
     });
   });
@@ -110,13 +111,13 @@ export function wireRoleEditors(staffList) {
           // объясняет тому, кто просто выбрал пункт в списке.
           throw new Error('в системе должен остаться хотя бы один владелец');
         }
-        if (!res.ok) throw new Error(`staff/${masterId}/role → ${res.status}`);
+        if (!res.ok) throw Object.assign(new Error('role'), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
         wrap.dataset.lastValue = nextValue;
-        if (noteEl) noteEl.textContent = 'Сохранено';
+        reportSuccess(noteEl, 'Сохранено');
         if (labelEl) labelEl.textContent = ROLE_SUMMARY_LABEL[nextValue] ?? nextValue;
       } catch (err) {
         setRoleSelectValue(wrap, prevValue);
-        if (noteEl) noteEl.textContent = `Не удалось сохранить: ${err.message}`;
+        reportError(noteEl, err, 'Не удалось сохранить');
       } finally {
         if (trigger) trigger.disabled = false;
       }

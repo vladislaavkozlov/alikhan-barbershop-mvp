@@ -6,6 +6,7 @@
 // должна перерисовать ту вкладку, что сейчас открыта), тот же приём, что и
 // renderLiveProof в crm-dashboard.js при декомпозиции crm-auth.js (Этап 1).
 import { groupHolidaysByMonth, groupDatesToRanges, ruPluralDate, escapeHtml, conflictListWithOpenButton } from './crm-schedule-shared.js';
+import { reportError } from './crm-toast.js';
 
 export function wireYearView(ctx) {
   const {
@@ -76,7 +77,7 @@ export function wireYearView(ctx) {
       const totals = { closed: 0, skipped: 0, conflicts: [] };
       for (const range of groupDatesToRanges(dates)) {
         const { ok, status, data } = await apiSend('/holidays/close', 'POST', range);
-        if (!ok) throw new Error(`HTTP ${status}`);
+        if (!ok) throw Object.assign(new Error(`HTTP ${status}`), { status, code: data?.error ?? null });
         totals.closed += data.closed.length;
         totals.skipped += data.skipped.length;
         totals.conflicts.push(...data.conflicts);
@@ -100,7 +101,7 @@ export function wireYearView(ctx) {
       if (scheduleViewState.view === 'month') await loadMonth();
       else if (scheduleViewState.view === 'week') await loadWeek();
     } catch (err) {
-      note.textContent = `Не удалось закрыть: ${err.message}`;
+      reportError(note, err, 'Не удалось закрыть день');
     } finally {
       syncYearCloseButton();
     }

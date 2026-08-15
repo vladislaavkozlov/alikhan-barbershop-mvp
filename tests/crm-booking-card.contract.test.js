@@ -179,7 +179,10 @@ test('статус визита сохраняется общей кнопкой
 // которая и так на экране.
 test('успешное сохранение записи отвечает одним словом', async () => {
   const walkin = await source('assets/crm-walkin.js');
-  assert.match(walkin, /resultEl\.textContent = 'Сохранено';/);
+  // 15.08.2026 - тот же одинокий текст теперь ещё и всплывает внизу экрана
+  // (reportSuccess, assets/crm-toast.js): строка результата живёт внизу длинной
+  // формы, и до неё приходилось листать
+  assert.match(walkin, /reportSuccess\(resultEl, 'Сохранено'\);/);
   assert.doesNotMatch(walkin, /savedParts/);
   assert.doesNotMatch(walkin, /'Изменений не было'/);
   // Ошибка остаётся на том же месте и в красной рамке (.wf-result--err)

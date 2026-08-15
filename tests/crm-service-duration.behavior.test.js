@@ -108,6 +108,8 @@ test('saveServiceChanges не отправляет запрос с неверн�
   let calls = 0;
   globalThis.fetch = async () => { calls += 1; return { ok: true }; };
   const failed = await saveServiceChanges('master-1', [{ serviceId: 'haircut', enabled: true, durationMin: null }]);
-  assert.equal(failed, 'haircut');
+  assert.equal(failed?.serviceId, 'haircut');
+  // причина возвращается вместе с услугой - карточка покажет её человеку, а не «не получилось»
+  assert.equal(failed?.data?.error, 'invalid_duration');
   assert.equal(calls, 0, 'ни одного PUT с пустой длительностью');
 });

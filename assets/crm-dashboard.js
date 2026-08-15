@@ -23,6 +23,7 @@ import { wireAdminSelfData } from './crm-admin-self.js';
 import { wireBookingStatusRadios, wireBookingServiceEdit, wireBookingDelete, wireBookingActualPrice } from './crm-booking-status.js';
 import { wireWalkIn } from './crm-walkin.js';
 import { wireMasterBookingView } from './crm-master-booking.js';
+import { reportError } from './crm-toast.js';
 
 // Живое доказательство, что это не рисунок - реальный запрос к Postgres на Amvera
 // при каждой загрузке страницы. /staff и /bookings уже сами фильтруют по роли на
@@ -122,10 +123,10 @@ function renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds, payrollFro
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
             body: JSON.stringify({ masterId: 'master-3', pct }),
           });
-          if (!res.ok) throw new Error(`payroll-settings → ${res.status}`);
+          if (!res.ok) throw Object.assign(new Error('payroll-settings'), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
           if (pctNote) pctNote.textContent = `Сохранено: ${pct}%. Обновите страницу, чтобы увидеть новую сумму в "Расчёт ЗП"`;
         } catch (err) {
-          if (pctNote) pctNote.textContent = `Не удалось сохранить: ${err.message}`;
+          reportError(pctNote, err, 'Не удалось сохранить процент');
         }
       });
     }

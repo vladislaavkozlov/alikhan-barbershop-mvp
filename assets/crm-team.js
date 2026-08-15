@@ -12,6 +12,7 @@ import {
 } from './crm-icons.js';
 import { initCrmNavigationPanels } from './crm-navigation-panels.js';
 import { collectServiceChanges, DURATION_ERROR, markInvalidServiceDurations, renderMasterServiceEditor, saveServiceChanges } from './crm-master-services.js';
+import { errorMessage, showError, showSuccess } from './crm-toast.js';
 import { hasWeeklyScheduleChanges, saveWeeklySchedule, wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 import { PHONE_PLACEHOLDER, formatStoredPhone, wirePhoneFields } from './crm-phone.js';
 import { todayStr } from './crm-shared.js';
@@ -153,6 +154,23 @@ function showNote(host, text) {
   const note = host.querySelector(selector) ?? host.querySelector('.payroll-note');
   if (note) note.textContent = text;
 }
+// Карточка сотрудника длинная - её строка статуса живёт в самом низу, и до неё нужно
+// листать (правка Влада 15.08.2026). Поэтому любое сообщение о результате дублируется
+// всплывающим окном внизу экрана: в карточке остаётся привязка к месту, на экране -
+// сам текст. noteFail для готовой фразы, noteApiFail - когда причину знает сервер
+function noteFail(host, text) {
+  showNote(host, text);
+  showError(text);
+  return text;
+}
+function noteApiFail(host, result, prefix) {
+  return noteFail(host, errorMessage(result, prefix));
+}
+function noteOk(host, text) {
+  showNote(host, text);
+  showSuccess(text);
+  return text;
+}
 
 async function saveCard(card) {
   const id = card.dataset.staffId;
@@ -163,7 +181,7 @@ async function saveCard(card) {
   const picker = card.querySelector('.service-picker');
   if (markInvalidServiceDurations(picker).length) {
     picker?.querySelector('.sc-duration-input.is-invalid')?.focus();
-    return showNote(card, DURATION_ERROR);
+    return noteFail(card, DURATION_ERROR);
   }
   showNote(card, 'Сохраняю…');
   const value = (name) => cardValue(card, name);
@@ -173,7 +191,7 @@ async function saveCard(card) {
   const serviceChanges = collectServiceChanges(picker);
   if (serviceChanges.length) {
     const failedService = await saveServiceChanges(id, serviceChanges);
-    if (failedService) return showNote(card, 'Не удалось сохранить услуги. Повторите попытку');
+    if (failedService) return noteApiFail(card, failedService, 'Не удалось сохранить услуги');
   }
   // График уезжает той же кнопкой (13.08.2026). Своя кнопка «Сохранить график» под
   // блоком убрана: две кнопки сохранения в одной карточке путали - общая их не
@@ -182,9 +200,9 @@ async function saveCard(card) {
   if (hasWeeklyScheduleChanges(id)) {
     const scheduleResult = await saveWeeklySchedule(id);
     if (!scheduleResult.ok) {
-      return showNote(card, scheduleResult.conflict
-        ? 'График не сохранён: на это время уже есть записи, они показаны в блоке «График»'
-        : 'Не удалось сохранить график. Повторите попытку');
+      return scheduleResult.conflict
+        ? noteFail(card, 'График не сохранён: на это время уже есть записи, они показаны в блоке «График»')
+        : noteApiFail(card, scheduleResult, 'Не удалось сохранить график');
     }
   }
   const main = await apiSend(`/staff/${encodeURIComponent(id)}`, 'PUT', {
@@ -197,20 +215,20 @@ async function saveCard(card) {
     // hasSystemAccess намеренно не отправляется - тумблера больше нет, сервер
     // сохраняет текущее значение колонки (см. handleStaffUpdate)
   });
-  if (!main.ok) return showNote(card, 'Не удалось сохранить. Повторите попытку');
+  if (!main.ok) return noteApiFail(card, main, 'Не удалось сохранить сотрудника');
   const profile = await apiSend(`/staff/${encodeURIComponent(id)}/portfolio`, 'PUT', {
     experienceText: value('experience').value.trim() || null,
     strengthsText: value('strengths').value.trim() || null,
     certificatesText: value('certificates').value.trim() || null,
     publicProfileEnabled: value('publicProfileEnabled').checked,
   });
-  if (!profile.ok) return showNote(card, 'Основное сохранено, профиль не сохранился. Повторите попытку');
+  if (!profile.ok) return noteApiFail(card, profile, 'Основное сохранено, а профиль для сайта - нет');
   const role = card.querySelector('.team-role-picker input[type="radio"]:checked');
   if (role) {
     const roleResult = await apiSend(`/staff/${encodeURIComponent(id)}/role`, 'PUT', { role: role.value });
-    if (!roleResult.ok) return showNote(card, 'Данные сохранены, но роль не изменилась. Повторите попытку');
+    if (!roleResult.ok) return noteApiFail(card, roleResult, 'Данные сохранены, а роль не изменилась');
   }
-  showNote(card, 'Сохранено');
+  noteOk(card, 'Сохранено');
   // Смена "Принимает клиентов" перестраивает состав колонок в Расписании, а тот
   // список собирается один раз при инициализации страницы (mastersOf в
   // wireScheduleViews) - повторный renderTeam его не трогает, и снятый с приёма
@@ -251,7 +269,7 @@ async function uploadMedia(card, input) {
     const file = files[index];
     if (file.size > 8 * 1024 * 1024) { note.textContent = `${file.name}: файл больше 8 МБ`; return; }
     const result = await uploadFile(card, file, kind, (percent) => { note.textContent = `Загружаю ${file.name}${percent == null ? '…' : `: ${percent}%`}`; });
-    if (!result.ok) { note.textContent = `${file.name}: не удалось загрузить. Повторите попытку`; return; }
+    if (!result.ok) { noteFail(card, errorMessage(result, `${file.name}: не удалось загрузить`)); return; }
   }
   note.textContent = 'Фотографии загружены';
   await renderTeam();
@@ -264,7 +282,7 @@ async function reorderMedia(card, mediaId, direction) {
   if (index < 0 || next < 0 || next >= portfolio.length) return;
   [portfolio[index], portfolio[next]] = [portfolio[next], portfolio[index]];
   const result = await apiSend(`/staff/${encodeURIComponent(card.dataset.staffId)}/media/order`, 'PUT', { mediaIds: portfolio.map((item) => item.id) });
-  if (!result.ok) return showNote(card, 'Не удалось изменить порядок. Повторите попытку');
+  if (!result.ok) return noteApiFail(card, result, 'Не удалось изменить порядок фотографий');
   await renderTeam();
 }
 
@@ -278,7 +296,7 @@ async function loadExceptions(root) {
       const label = scheduleExceptionLabel(shift);
       return `<div class="team-exception-item"><span>${esc(humanDate(shift.date))} - ${esc(label)}</span><button type="button" data-exception-delete="${esc(shift.date)}">Удалить</button></div>`;
     }).join('') : '<span class="note">Нет запланированных изменений</span>';
-  } catch { list.innerHTML = '<span class="note">Не удалось загрузить изменения. Повторите попытку</span>'; }
+  } catch (err) { list.innerHTML = '<span class="note">Не удалось загрузить изменения. Повторите попытку</span>'; showError(errorMessage(err, 'Не удалось загрузить разовые изменения')); }
 }
 
 function rangeDates(from, to) {
@@ -302,20 +320,20 @@ async function saveException(root) {
   const from = dateSelectValue(ids.from);
   const to = dateSelectValue(ids.to) || from;
   const note = root.querySelector('.payroll-note');
-  if (!from || to < from) return showNote(root, 'Укажите корректную дату или диапазон');
+  if (!from || to < from) return noteFail(root, 'Укажите дату начала - и дату конца не раньше неё');
   const dates = rangeDates(from, to);
-  if (dates.length > 31) return showNote(root, 'Диапазон не может быть длиннее 31 дня');
+  if (dates.length > 31) return noteFail(root, 'Диапазон не может быть длиннее 31 дня');
   const type = exceptionTypeValue(root);
   try {
     const result = await apiSend('/schedule-exceptions', 'POST', {
       masterId: root.dataset.staffId, dateFrom: from, dateTo: to, type,
       breakStart: timeSelectValue(ids.breakStart), breakEnd: timeSelectValue(ids.breakEnd),
     });
-    if (!result.ok) { note.textContent = result.status === 409 ? 'Есть конфликт с записью. Данные перечитаны' : 'Не удалось сохранить. Проверьте время и повторите попытку'; await loadExceptions(root); return; }
-    note.textContent = 'Разовое изменение сохранено';
+    if (!result.ok) { noteFail(root, result.status === 409 ? 'На это время уже есть запись - разовое изменение не сохранено' : errorMessage(result, 'Не удалось сохранить разовое изменение')); await loadExceptions(root); return; }
+    noteOk(root, 'Разовое изменение сохранено');
     await loadExceptions(root);
-  } catch {
-    note.textContent = 'Не удалось сохранить. Повторите попытку';
+  } catch (err) {
+    noteFail(root, errorMessage(err, 'Не удалось сохранить разовое изменение'));
   }
 }
 
@@ -392,7 +410,7 @@ function wire(root) {
     const card = list.closest('[data-staff-id]');
     if (button.dataset.mediaDelete) {
       const result = await apiSend(`/staff/${encodeURIComponent(card.dataset.staffId)}/media/${encodeURIComponent(button.dataset.mediaDelete)}`, 'DELETE');
-      if (!result.ok) return showNote(card, 'Не удалось удалить фотографию. Повторите попытку');
+      if (!result.ok) return noteApiFail(card, result, 'Не удалось удалить фотографию');
       return renderTeam();
     }
     if (button.dataset.mediaLeft) return reorderMedia(card, button.dataset.mediaLeft, -1);
@@ -410,7 +428,7 @@ function wire(root) {
       const button = event.target.closest('[data-exception-delete]');
       if (!button) return;
       const result = await apiSend(`/schedule?masterId=${encodeURIComponent(editor.dataset.staffId)}&date=${button.dataset.exceptionDelete}`, 'DELETE');
-      if (!result.ok) return showNote(editor, 'Не удалось удалить изменение. Повторите попытку');
+      if (!result.ok) return noteApiFail(editor, result, 'Не удалось удалить разовое изменение');
       await loadExceptions(editor);
     });
   });
@@ -423,6 +441,7 @@ function wire(root) {
       event.currentTarget.textContent = 'PIN скопирован';
     } catch {
       event.currentTarget.textContent = 'Не удалось скопировать';
+      showError('Не удалось скопировать PIN. Выделите его и скопируйте вручную');
     }
   });
   create?.addEventListener('click', async () => {
@@ -430,7 +449,7 @@ function wire(root) {
     const value = (name) => cardValue(card, name);
     showNote(card, 'Создаю…');
     const out = await apiSend('/staff', 'POST', { name: value('name').value, phone: value('phone').value, email: value('email').value, locationId: value('locationId')?.value || null, role: card.querySelector('.team-role-picker input[type="radio"]:checked')?.value, providesServices: value('providesServices').checked });
-    if (!out.ok) return showNote(card, 'Не удалось создать. Проверьте поля и повторите попытку');
+    if (!out.ok) return noteApiFail(card, out, 'Не удалось создать сотрудника');
     lastCreatedCredentials = { name: value('name').value.trim(), pin: out.data.temporaryPin };
     await renderTeam();
   });
@@ -463,8 +482,9 @@ export async function renderTeam() {
     wire(host);
     wireDirtyTracking(host);
     initCrmNavigationPanels();
-  } catch {
+  } catch (err) {
     host.innerHTML = '<p class="note">Не удалось загрузить команду. Повторите попытку</p>';
+    showError(errorMessage(err, 'Не удалось загрузить команду'));
   }
 }
 

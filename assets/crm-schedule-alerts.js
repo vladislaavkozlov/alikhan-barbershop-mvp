@@ -15,6 +15,7 @@
 // открыто видно ниже.
 import { fetchJson } from './crm-auth.js';
 import { goToSection } from './crm-app-shell.js';
+import { errorMessage, showError } from './crm-toast.js';
 
 function el(id) {
   return document.getElementById(id);
@@ -74,7 +75,8 @@ export async function renderOwnerAlerts() {
     // (assets/crm-clients.js).
     window.updateNotifBadge?.();
   } catch (err) {
-    scheduleEl.innerHTML = `<p class="payroll-note">Не удалось загрузить: ${escapeHtml(err.message)}</p>`;
+    scheduleEl.innerHTML = `<p class="payroll-note">${escapeHtml(errorMessage(err, 'Не удалось загрузить график'))}</p>`;
+    showError(errorMessage(err, 'Не удалось загрузить график'));
   }
 }
 

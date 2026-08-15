@@ -7,6 +7,8 @@
 import { el, todayStr } from './crm-shared.js';
 import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } from './crm-widgets.js';
 import { API, getToken, apiSend, fetchJson } from './crm-auth.js';
+import { errorMessage, reportError, showError } from './crm-toast.js';
+import { escapeHtml } from './crm-schedule-shared.js';
 
 export const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 // Полное имя дня в заголовке раскрытой панели: над ползунком "Пн" читалось как
@@ -71,7 +73,8 @@ export function wireScheduleEditor(masterId, fetchJson) {
           }
         })
         .catch((err) => {
-          currentEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+          currentEl.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить график'))}</span>`;
+          showError(errorMessage(err, 'Не удалось загрузить график'));
         });
     };
     loadReadOnlyToday();
@@ -123,12 +126,13 @@ export function wireScheduleEditor(masterId, fetchJson) {
             });
             loadCurrent();
           } catch (err) {
-            if (noteEl) noteEl.textContent = `Не удалось убрать: ${err.message}`;
+            reportError(noteEl, err, 'Не удалось убрать изменение');
           }
         });
       });
     } catch (err) {
-      currentEl.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+      currentEl.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить график'))}</span>`;
+      showError(errorMessage(err, 'Не удалось загрузить график'));
     }
   }
   loadCurrent();
@@ -152,7 +156,7 @@ export function wireScheduleEditor(masterId, fetchJson) {
     const breakStart = isDayOff ? '10:00' : timeSelectValue(`schedStart-${masterId}`);
     const breakEnd = isDayOff ? '20:00' : timeSelectValue(`schedEnd-${masterId}`);
     if (!isDayOff && (!breakStart || !breakEnd)) {
-      if (noteEl) noteEl.textContent = 'Укажите время перерыва (с и до)';
+      reportError(noteEl, 'Укажите время перерыва - с и до');
       return;
     }
     saveBtn.disabled = true;
@@ -174,7 +178,7 @@ export function wireScheduleEditor(masterId, fetchJson) {
             breaks: [{ startTime: breakStart, endTime: breakEnd }],
           }),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
         const data = await res.json();
         totalConflicts += data.conflicts || 0;
       }
@@ -185,7 +189,7 @@ export function wireScheduleEditor(masterId, fetchJson) {
       }
       loadCurrent();
     } catch (err) {
-      if (noteEl) noteEl.textContent = `Не удалось сохранить: ${err.message}`;
+      reportError(noteEl, err, 'Не удалось сохранить изменение графика');
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = originalLabel;
@@ -424,20 +428,20 @@ export async function saveWeeklySchedule(masterId) {
       weeklyChanges: readWeeklySchedule(prefix),
     });
     if (status === 409 && data?.error === 'schedule_conflict') {
-      if (note) note.textContent = 'Нельзя сохранить, пока не разберётесь с этими записями:';
+      if (note) reportError(note, 'Нельзя сохранить график: на это время уже есть записи, они перечислены ниже');
       if (conflictsEl) {
         conflictsEl.innerHTML = formatScheduleConflicts(data.conflicts);
         conflictsEl.hidden = false;
       }
       return { ok: false, conflict: true };
     }
-    if (!ok) throw new Error(`HTTP ${status}`);
+    if (!ok) throw Object.assign(new Error(`HTTP ${status}`), { status, code: data?.error ?? null });
     // Дыра №1 (Окно 18): форма НЕ доверяет тому, что ввёл владелец - перезапрашивает
     // сервер и перерисовывает поля его ответом, даже если ответ тот же самый.
     await state.reload();
     return { ok: true };
   } catch (err) {
-    if (note) note.textContent = `Не удалось сохранить график: ${err.message}`;
+    reportError(note, err, 'Не удалось сохранить график');
     return { ok: false, conflict: false };
   }
 }
@@ -459,7 +463,8 @@ export function wireWeeklyScheduleEditor(masterId, canEdit, fetchJson) {
     try {
       rows = await fetchJson(`/master-weekly-schedule?masterId=${masterId}`);
     } catch (err) {
-      container.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+      container.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить рабочую неделю'))}</span>`;
+      showError(errorMessage(err, 'Не удалось загрузить рабочую неделю'));
       return;
     }
     const byWeekday = new Map(rows.map((r) => [r.weekday, r]));
@@ -510,6 +515,7 @@ export function renderWeeklySelfReadOnly(staff) {
       container.innerHTML = `<div class="breaks-list">${days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, false)).join('')}</div>`;
     })
     .catch((err) => {
-      container.innerHTML = `<span class="note">Не удалось загрузить: ${err.message}</span>`;
+      container.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить рабочую неделю'))}</span>`;
+      showError(errorMessage(err, 'Не удалось загрузить рабочую неделю'));
     });
 }

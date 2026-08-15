@@ -5,6 +5,8 @@
 // перенесён 1в1, поведение не менялось.
 import { API, getToken } from './crm-auth.js';
 import { formatMoney } from './crm-shared.js';
+import { errorMessage, reportError, showError } from './crm-toast.js';
+import { escapeHtml } from './crm-schedule-shared.js';
 
 // Окно 55, Задача C (10.08.2026) - носитель id открытой записи. До этого окна им
 // всегда была карточка-просмотр #bd-1 (assets/mockup-crm.js openBooking писала туда
@@ -125,7 +127,7 @@ window.toggleNoShow = async function toggleNoShow(btn) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
       body: JSON.stringify({ status: nextStatus }),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
     panel.dataset.realStatus = nextStatus;
     // Сервер уже применил инкремент/декремент no_show_streak - отражаем ту же
     // арифметику локально, чтобы баннер обновился без перезагрузки страницы.
@@ -135,7 +137,7 @@ window.toggleNoShow = async function toggleNoShow(btn) {
   } catch (err) {
     if (note) {
       note.hidden = false;
-      note.textContent = `Не удалось сохранить: ${err.message}`;
+      reportError(note, err, 'Не удалось сохранить статус визита');
     }
   } finally {
     btn.disabled = false;
@@ -243,7 +245,7 @@ export function wireBookingServiceEdit(services, masterServices) {
       } catch (err) {
         resultEl.hidden = false;
         resultEl.className = 'wf-result wf-result--err';
-        resultEl.textContent = `Не удалось сохранить: ${err.message}`;
+        reportError(resultEl, err, 'Не удалось сохранить');
         saveBtn.textContent = originalLabel;
         saveBtn.disabled = false;
       }
@@ -343,7 +345,8 @@ export function wireBookingDelete() {
         row.innerHTML = '<span class="note">Запись удалена. Обновите страницу, чтобы календарь пересчитался</span>';
       }
     } catch (err) {
-      row.innerHTML = `<span class="note" style="color:var(--danger)">Не удалось удалить: ${err.message}</span>`;
+      row.innerHTML = `<span class="note" style="color:var(--danger)">${escapeHtml(errorMessage(err, 'Не удалось удалить запись'))}</span>`;
+      showError(errorMessage(err, 'Не удалось удалить запись'));
       const retry = document.createElement('button');
       retry.type = 'button';
       retry.className = 'btn btn-ghost btn-sm';
