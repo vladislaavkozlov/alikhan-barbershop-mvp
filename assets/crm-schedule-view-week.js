@@ -11,6 +11,7 @@ import {
 } from './crm-schedule-shared.js';
 import { todayStr } from './crm-calendar.js';
 import { errorMessage, showError } from './crm-toast.js';
+import { showSkeleton } from './crm-loading.js';
 
 // Компактный список - Неделя показывает 7 узких колонок одновременно, не резиновую
 // высоту на весь экран (это была бы уже замена Дня, не своя плотность). Дальше
@@ -78,7 +79,7 @@ export function wireWeekView(ctx) {
     const to = addDays(from, 6);
     // Подпись диапазона больше не живёт между стрелками: её роль взял общий якорь
     // под вкладками (Окно 25) - две одинаковые подписи на одном экране были шумом.
-    grid.innerHTML = '<p class="section-hint">Загружаю…</p>';
+    showSkeleton(grid, 5, { tall: true });
     try {
       const [rangeDays, bookingsRes, holidayMap] = await Promise.all([
         fetchJson(`/schedule-range?masterId=${scheduleViewState.masterId}&from=${from}&to=${to}`),

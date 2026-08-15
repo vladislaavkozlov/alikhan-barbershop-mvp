@@ -1,0 +1,162 @@
+/* Состояния загрузки CRM (assets/crm-loading.js) - один язык для всех ролей и всех
+   блоков. Правка Влада 15.08.2026: вместо голой надписи «Загружаю…» интерфейс
+   показывает форму того, что грузится (полосы-заготовки) или аккуратный индикатор.
+   Токены - из mockup-crm.css. */
+
+/* ── Полосы-заготовки: занимают место будущего содержимого, поэтому блок не
+   «прыгает», когда данные приходят ─────────────────────────────────────────── */
+.crm-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.crm-skeleton__row {
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(
+    100deg,
+    var(--surface-2) 30%,
+    color-mix(in srgb, var(--surface-2) 55%, var(--wood, #4A3B2A)) 48%,
+    var(--surface-2) 66%
+  );
+  background-size: 280% 100%;
+  animation: crm-skeleton-sweep 1400ms linear infinite;
+}
+
+/* Строки чуть разной длины - однородные полосы читаются как сломанная вёрстка,
+   а не как готовящийся текст */
+.crm-skeleton__row:nth-child(3n) { width: 72%; }
+.crm-skeleton__row:nth-child(3n + 2) { width: 88%; }
+.crm-skeleton__row--tall { height: 34px; border-radius: 10px; }
+
+@keyframes crm-skeleton-sweep {
+  from { background-position: 180% 0; }
+  to { background-position: -80% 0; }
+}
+
+/* ── Строка «идёт загрузка» там, где заготовки неуместны (узкие блоки) ──────── */
+.crm-loading-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.crm-spinner {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-top-color: var(--accent);
+  animation: crm-spin 780ms linear infinite;
+}
+.crm-spinner--lg { width: 30px; height: 30px; flex-basis: 30px; border-width: 2.5px; }
+
+@keyframes crm-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Первичная загрузка кабинета: экран между входом и готовым интерфейсом ──── */
+.crm-page-loader {
+  position: fixed;
+  inset: 0;
+  /* Ниже экрана входа (.login-gate, z-index 999) и выше всего рабочего интерфейса */
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--bg);
+  animation: crm-fade-in 150ms var(--ease-out) both;
+}
+
+/* Карточка ровно по актуальному образцу карточки входа
+   (.crm-navigation-ui .login-card, assets/crm-navigation-panels.css): те же ширина,
+   радиус, фон, подсвеченная рамка, тень и золотая полоса слева. Человек видит
+   продолжение экрана входа, а не чужой по стилю экран. Значения через те же
+   токены, поэтому смена темы панелей утащит за собой и этот экран */
+.crm-page-loader__card {
+  position: relative;
+  overflow: hidden;
+  width: min(420px, 100%);
+  padding: 36px 32px 30px;
+  border: 1px solid var(--owner-panel-border-active, var(--border));
+  border-radius: var(--owner-panel-radius, 14px);
+  background: var(--owner-panel-active, var(--surface-2));
+  box-shadow: 0 24px 64px -42px rgba(0, 0, 0, 0.9);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.crm-page-loader__card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+}
+
+.crm-page-loader[hidden] { display: none; }
+
+/* Ровно та же подача бренда, что на экране входа (.login-brand): Playfair Display,
+   тот же кегль и трекинг, тот же цвет текста. Экран загрузки - продолжение входа,
+   а не отдельный по стилю экран */
+.crm-page-loader__brand {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.7rem;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+
+/* Кикер - тот же, что над брендом на входе: акцентный, не приглушённый */
+.crm-page-loader__kicker {
+  margin: 0 0 -8px;
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.crm-page-loader__text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+/* Уходит плавно, чтобы готовый интерфейс не «вспыхивал» */
+.crm-page-loader--out { animation: crm-fade-out 150ms var(--ease-out) both; }
+
+@keyframes crm-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes crm-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ── Кнопка обновления крутится, ПОКА идёт перечитывание ───────────────────
+   В mockup-crm.css у неё разовый оборот на 500 мс - он был рассчитан на лёгкое
+   обновление календаря. Теперь кнопка перечитывает ещё и команду с личными
+   данными, поэтому вращение должно жить ровно столько, сколько живёт класс
+   is-refreshing. Селектор с body - чтобы правило выигрывало у старого независимо
+   от порядка подключения файлов */
+body #refreshBtn.is-refreshing svg {
+  animation: crm-spin 780ms linear infinite;
+  transform-origin: 50% 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-skeleton__row,
+  .crm-spinner,
+  .crm-page-loader,
+  .crm-page-loader--out,
+  body #refreshBtn.is-refreshing svg { animation: none; }
+  .crm-skeleton__row { background: var(--surface-2); }
+}

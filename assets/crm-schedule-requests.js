@@ -18,6 +18,7 @@
 // делает и crm-schedule-views.js.
 import { fetchJson, apiSend } from './crm-auth.js';
 import { errorMessage, showError } from './crm-toast.js';
+import { showSkeleton } from './crm-loading.js';
 
 const CATEGORY_LABEL = { otgul: 'Отгул разовый', otpusk: 'Отпуск', grafik_standard: 'Постоянный график' };
 const STATUS_LABEL = {
@@ -98,7 +99,7 @@ export function initOwnerScheduleRequests() {
   }
 
   async function load() {
-    listEl.innerHTML = '<span class="note">Загрузка…</span>';
+    showSkeleton(listEl, 2, { tall: true });
     try {
       const rows = await fetchJson('/schedule-requests');
       if (!rows.length) {

@@ -17,6 +17,7 @@
 // удалён и вернётся к полноценному рендеру, когда появится раздел "Клиенты".
 import { fetchJson } from './crm-auth.js';
 import { errorMessage, showError } from './crm-toast.js';
+import { showSkeleton } from './crm-loading.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -112,11 +113,11 @@ export async function openClientCard(clientId) {
   if (!modal || !nameEl || !phoneEl || !riskEl || !rebookBtn || !visitsEl) return;
 
   modal.hidden = false;
-  nameEl.textContent = 'Загрузка…';
+  nameEl.textContent = 'Загружаю…';
   phoneEl.textContent = '';
   riskEl.hidden = true;
   rebookBtn.hidden = true;
-  visitsEl.innerHTML = '<span class="note">Загрузка…</span>';
+  showSkeleton(visitsEl, 3);
 
   try {
     const card = await fetchJson(`/clients/${encodeURIComponent(clientId)}`);

@@ -16,6 +16,7 @@ import {
 } from './crm-schedule-shared.js';
 import { todayStr } from './crm-calendar.js';
 import { errorMessage, reportError, showError } from './crm-toast.js';
+import { showLoadingLine, showSkeleton } from './crm-loading.js';
 
 export function monthModeHintState(mode) {
   return {
@@ -100,7 +101,7 @@ export function wireMonthView(ctx) {
     if (!modal) return;
     editingDate = date;
     document.getElementById('dayEditTitle').textContent = fmtRu(date);
-    document.getElementById('dayEditNote').textContent = 'Загружаю текущий график…';
+    showLoadingLine(document.getElementById('dayEditNote'), 'Загружаю текущий график…');
     // Окно 28: пока график этого дня не приехал, тело модалки скрыто. Раньше в
     // разметке стоял статичный checked, и в это окно владелец видел включённый
     // "Рабочий день" на дне, который на самом деле выходной - заглушка, а не факт.
@@ -259,7 +260,7 @@ export function wireMonthView(ctx) {
     if (!grid || !scheduleViewState.masterId) return;
     renderMonthMasterSwitch();
     const { firstOfMonth, lastOfMonth } = monthRange();
-    grid.innerHTML = '<p class="section-hint">Загружаю…</p>';
+    showSkeleton(grid, 5, { tall: true });
     try {
       const [rangeDays, weeklyRows, bookingsRes, holidayMap] = await Promise.all([
         fetchJson(`/schedule-range?masterId=${scheduleViewState.masterId}&from=${firstOfMonth}&to=${lastOfMonth}`),
@@ -335,7 +336,7 @@ export function wireMonthView(ctx) {
       grid.innerHTML = '<p class="section-hint">Ни у одного мастера ещё не настроен рабочий график - переключитесь на «По одному» или настройте график в разделе «Команда»</p>';
       return;
     }
-    grid.innerHTML = '<p class="section-hint">Загружаю…</p>';
+    showSkeleton(grid, 5, { tall: true });
     try {
       const [schedulesByMaster, bookingsRes, holidayMap] = await Promise.all([
         Promise.all(bookableMasters.map((m) => fetchJson(`/schedule-range?masterId=${m.id}&from=${firstOfMonth}&to=${lastOfMonth}`))),

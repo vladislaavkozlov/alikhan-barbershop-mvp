@@ -13,6 +13,7 @@ import {
 import { initCrmNavigationPanels } from './crm-navigation-panels.js';
 import { collectServiceChanges, DURATION_ERROR, markInvalidServiceDurations, renderMasterServiceEditor, saveServiceChanges } from './crm-master-services.js';
 import { errorMessage, showError, showSuccess } from './crm-toast.js';
+import { skeletonMarkup } from './crm-loading.js';
 import { hasWeeklyScheduleChanges, saveWeeklySchedule, wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 import { PHONE_PLACEHOLDER, formatStoredPhone, wirePhoneFields } from './crm-phone.js';
 import { todayStr } from './crm-shared.js';
@@ -111,8 +112,8 @@ function staffCard(staff, viewerRole, locations, viewerId) {
   return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary><div class="avatar">${esc(staff.name).slice(0, 2)}</div><div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
   ${section('Основное', 'Контакты и рабочий статус', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${locked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: 'Сотрудник остаётся в активном составе', checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: locked })}</div>`)}
   ${section('Профиль на сайте', 'Фото и информация для клиентов', ICON_PUBLIC, mediaMarkup(staff))}
-  ${section('Услуги и время', 'Выберите услуги и укажите длительность', ICON_SERVICES, `<div class="service-picker" data-master-id="${id}"><span class="note">Загружаю услуги…</span></div>`)}
-  ${section('График', 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}"><span class="note">Загружаю график…</span></div>${exceptionEditor(staff.id)}`)}
+  ${section('Услуги и время', 'Выберите услуги и укажите длительность', ICON_SERVICES, `<div class="service-picker" data-master-id="${id}">${skeletonMarkup(4)}</div>`)}
+  ${section('График', 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}">${skeletonMarkup(3)}</div>${exceptionEditor(staff.id)}`)}
   ${/* Тумблер "Разрешить вход в CRM" убран 13.08.2026 по решению владельца: он дублировал
        "Работает в компании" в глазах салона и создавал риск случайно отрезать себе вход.
        Вход теперь есть у каждого, кто числится в составе; колонка has_system_access в схеме
@@ -137,7 +138,7 @@ const exceptionFieldIds = (staffId) => ({
 
 function exceptionEditor(staffId) {
   const ids = exceptionFieldIds(staffId);
-  return `<div class="team-schedule-exception" data-schedule-exception data-staff-id="${esc(staffId)}"><div class="team-exception-head"><div><h4>Разовое изменение</h4><p>Добавьте выходной или отдельный перерыв, не меняя рабочую неделю</p></div></div><div class="team-editor-grid"><div class="field"><label>С даты</label><div id="${esc(ids.from)}-slot"></div></div><div class="field"><label>По дату</label><div id="${esc(ids.to)}-slot"></div></div></div><fieldset class="team-exception-types"><legend>Тип изменения</legend><label><input type="radio" name="exceptionType-${esc(staffId)}" value="dayOff" checked><span><strong>Выходной</strong><small>Закрыть весь день</small></span></label><label><input type="radio" name="exceptionType-${esc(staffId)}" value="break"><span><strong>Перерыв</strong><small>Закрыть часть дня</small></span></label></fieldset><div class="team-break-fields" data-break-fields hidden><div class="field"><label>Перерыв с</label><div id="${esc(ids.breakStart)}-slot"></div></div><div class="field"><label>До</label><div id="${esc(ids.breakEnd)}-slot"></div></div></div><button class="btn btn-ghost" type="button" data-exception-save>Добавить изменение</button><p class="payroll-note" data-exception-note aria-live="polite"></p><div class="team-exception-list" data-exception-list><span class="note">Загружаю изменения…</span></div></div>`;
+  return `<div class="team-schedule-exception" data-schedule-exception data-staff-id="${esc(staffId)}"><div class="team-exception-head"><div><h4>Разовое изменение</h4><p>Добавьте выходной или отдельный перерыв, не меняя рабочую неделю</p></div></div><div class="team-editor-grid"><div class="field"><label>С даты</label><div id="${esc(ids.from)}-slot"></div></div><div class="field"><label>По дату</label><div id="${esc(ids.to)}-slot"></div></div></div><fieldset class="team-exception-types"><legend>Тип изменения</legend><label><input type="radio" name="exceptionType-${esc(staffId)}" value="dayOff" checked><span><strong>Выходной</strong><small>Закрыть весь день</small></span></label><label><input type="radio" name="exceptionType-${esc(staffId)}" value="break"><span><strong>Перерыв</strong><small>Закрыть часть дня</small></span></label></fieldset><div class="team-break-fields" data-break-fields hidden><div class="field"><label>Перерыв с</label><div id="${esc(ids.breakStart)}-slot"></div></div><div class="field"><label>До</label><div id="${esc(ids.breakEnd)}-slot"></div></div></div><button class="btn btn-ghost" type="button" data-exception-save>Добавить изменение</button><p class="payroll-note" data-exception-note aria-live="polite"></p><div class="team-exception-list" data-exception-list>${skeletonMarkup(2)}</div></div>`;
 }
 
 function addCard(locations) {
@@ -492,3 +493,17 @@ export async function renderTeam() {
 // корректно ничего не делает без токена, поэтому после успешной аутентификации
 // перерисовываем команду тем же источником данных, а не оставляем статичный макет
 document.addEventListener('crm:authenticated', () => { renderTeam(); });
+
+// Кнопка обновления в шапке (assets/crm-refresh-control.js) перечитывает карточки
+// команды этим хуком. Правка Влада 15.08.2026: раньше кнопка обновляла только
+// календарь, уведомления и сводку - карточка сотрудника оставалась с тем, что человек
+// набрал руками. Поменял длительность услуги с 40 на 20, не сохранил, нажал
+// «Обновить» - и на экране по-прежнему 20, хотя в базе 40. Теперь карточки рисуются
+// заново из ответа сервера, то есть показывают именно сохранённое.
+window.__refreshTeam = renderTeam;
+
+// Есть ли в команде правки, которые человек ещё не сохранил. Кнопка сохранения
+// карточки активна ровно тогда, когда снимок полей разошёлся с загруженным
+// (updateSaveState) - отдельного состояния для этого заводить не нужно
+window.__teamHasUnsavedChanges = () =>
+  document.querySelectorAll('.team-editor-card [data-save]:not([disabled])').length > 0;

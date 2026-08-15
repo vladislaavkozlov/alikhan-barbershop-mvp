@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="assets/crm-app-shell.css" />
 <link rel="stylesheet" href="assets/crm-navigation-panels.css" />
 <link rel="stylesheet" href="assets/crm-toast.css" />
+<link rel="stylesheet" href="assets/crm-loading.css" />
 <link rel="stylesheet" href="assets/crm-team-content.css" />
 <style>
   /* Окно 45 (08.08.2026) - День/Неделя/Месяц Расписания больше не radio-пилюли, а
@@ -269,7 +270,7 @@
 
         <!-- Уведомления идут после навигационных панелей, чтобы "Расписание" начиналось
              на той же высоте, что остальные разделы. Наполняет crm-schedule-alerts.js. -->
-        <div class="breaks-list" id="ownerAlertsSchedule"><span class="note">Загрузка…</span></div>
+        <div class="breaks-list" id="ownerAlertsSchedule"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
 
         <!-- Правка 07.08.2026 - форма walk-in/новой записи перенесена СЮДА, под календарь
              (была выше, перед .seg-tabs День/Неделя/Месяц) - в hidden-состоянии разницы не
@@ -485,7 +486,7 @@
             <p class="payroll-note" id="clientCardRisk" hidden></p>
             <button class="btn btn-primary btn-sm" type="button" id="clientCardRebook" hidden>Записать снова</button>
             <h4 style="margin-top:18px">История визитов</h4>
-            <div class="breaks-list" id="clientCardVisits"><span class="note">Загрузка…</span></div>
+            <div class="breaks-list" id="clientCardVisits"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
           </div>
         </div>
       </section>
@@ -1044,7 +1045,7 @@
               <span class="chevron">▸</span>
             </summary>
             <div class="staff-card-body">
-              <div id="ownerReqList" class="req-cards"><span class="note">Загрузка…</span></div>
+              <div id="ownerReqList" class="req-cards"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
               <div class="break-row" style="margin-top:10px">
                 <button class="btn btn-ghost btn-sm" type="button" id="ownerReqReload">Обновить список</button>
               </div>

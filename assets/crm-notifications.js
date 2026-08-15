@@ -22,6 +22,7 @@ import { ICON_BELL } from './crm-icons.js';
 // уже защищает пять других CRM-файлов, своей копии не заводим.
 import { escapeHtml } from './crm-schedule-shared.js';
 import { errorMessage, showError } from './crm-toast.js';
+import { skeletonMarkup } from './crm-loading.js';
 
 const TOKEN_KEY = 'alikhan-crm:token';
 const API = window.ALIKHAN_API_URL;
@@ -127,7 +128,7 @@ export function wireNotifications(staff) {
   }
 
   async function renderList() {
-    list.innerHTML = '<div class="note" style="padding:10px">Загрузка…</div>';
+    list.innerHTML = `<div style="padding:10px">${skeletonMarkup(3)}</div>`;
     try {
       const items = await apiGet('/notifications');
       if (!items.length) {

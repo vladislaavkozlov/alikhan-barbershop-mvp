@@ -6,6 +6,7 @@ import { getMasters, getServices } from '../storage.js';
 import { wireNotifications } from './crm-notifications.js';
 import { el } from './crm-shared.js';
 import { describeError, showError } from './crm-toast.js';
+import { hidePageLoader, showPageLoader } from './crm-loading.js';
 import { refreshRoleSnapshot, renderLiveProof } from './crm-dashboard.js';
 
 export const API = window.ALIKHAN_API_URL;
@@ -131,7 +132,12 @@ export function initCrmAuth(requiredRole) {
       if (isManagementIndicator) indicator.textContent = 'Управляющий';
     });
     window.__refreshRoleSnapshot = () => refreshRoleSnapshot(staff);
-    renderLiveProof(staff);
+    // Между входом и готовым рабочим столом идёт несколько запросов подряд - до этой
+    // правки (Влад, 15.08.2026) человек всё это время смотрел на полупустой каркас с
+    // надписями «Загружаю…». Экран снимаем, когда первичная загрузка данных
+    // закончилась - и при удаче, и при отказе: висеть вечно он не должен
+    showPageLoader();
+    Promise.resolve(renderLiveProof(staff)).finally(hidePageLoader);
     wireNotifications(staff);
     document.dispatchEvent(new CustomEvent('crm:authenticated', { detail: staff }));
   }

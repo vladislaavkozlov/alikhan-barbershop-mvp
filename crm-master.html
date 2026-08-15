@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="assets/crm-app-shell.css" />
 <link rel="stylesheet" href="assets/crm-navigation-panels.css" />
 <link rel="stylesheet" href="assets/crm-toast.css" />
+<link rel="stylesheet" href="assets/crm-loading.css" />
 <style>
   #sp-day:checked ~ .panel-sp-day, #sp-week:checked ~ .panel-sp-week,
   #sp-month:checked ~ .panel-sp-month, #sp-year:checked ~ .panel-sp-year { display: block; }
@@ -349,7 +350,7 @@
               <p class="payroll-note" id="reqResult"></p>
 
               <h4 style="margin-top:18px">Мои запросы</h4>
-              <div id="reqHistory" class="breaks-list"><span class="note">Загрузка…</span></div>
+              <div id="reqHistory" class="breaks-list"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
             </div>
           </details>
         </div>

@@ -3,7 +3,7 @@
 // (портфолио + роль), доступные владельцу в "Сотрудники" (crm-owner.html). Код
 // перенесён 1в1, поведение не менялось.
 import { el } from './crm-shared.js';
-import { API, getToken } from './crm-auth.js';
+import { API, fetchJson, getToken } from './crm-auth.js';
 import { reportError, reportSuccess } from './crm-toast.js';
 
 // Задача 4 (Окно 13, 01.08.2026, разд.17.15 ТЗ) - портфолио мастера (стаж/сильные
@@ -11,6 +11,33 @@ import { reportError, reportSuccess } from './crm-toast.js';
 // "Сотрудники" (crm-owner.html). Читает значения из уже загруженного /staff, пишет
 // через PUT /staff/:id/portfolio (owner-only на сервере). Кнопок может не быть на
 // странице (crm-admin.html/crm-master.html) - функция тогда no-op.
+function portfolioSnapshot(expEl, strEl, certEl, baEl) {
+  return [expEl.value, strEl.value, certEl.value, baEl.value].join('\u0000');
+}
+
+// Поля личных данных заполняются один раз (dataset.filled) - чтобы кнопка обновления
+// вернула в них сохранённое, снимаем этот флаг и просим перечитать состав с сервера.
+// Хук зовёт assets/crm-refresh-control.js, ответ берётся тем же GET /staff, что и при
+// первой отрисовке
+window.__refreshPortfolioFields = async () => {
+  const buttons = [...document.querySelectorAll('.portfolio-save')];
+  if (!buttons.length) return;
+  const rows = await fetchJson('/staff');
+  buttons.forEach((btn) => { delete btn.dataset.filled; });
+  wirePortfolioEditors(rows);
+};
+
+// Правил ли человек личные данные, не нажав «Сохранить»
+window.__portfolioHasUnsavedChanges = () =>
+  [...document.querySelectorAll('.portfolio-save')].some((btn) => {
+    if (btn.dataset.saved === undefined) return false;
+    const masterId = btn.dataset.masterId;
+    const nodes = ['portfolioExperience', 'portfolioStrengths', 'portfolioCertificates', 'portfolioBeforeAfter']
+      .map((prefix) => el(`${prefix}-${masterId}`));
+    if (nodes.some((node) => !node)) return false;
+    return portfolioSnapshot(...nodes) !== btn.dataset.saved;
+  });
+
 export function wirePortfolioEditors(staffList) {
   document.querySelectorAll('.portfolio-save').forEach((btn) => {
     const masterId = btn.dataset.masterId;
@@ -28,6 +55,9 @@ export function wirePortfolioEditors(staffList) {
         certEl.value = staff.certificatesText ?? '';
         baEl.value = staff.beforeAfterUrls ?? '';
       }
+      // Снимок сохранённого - по нему кнопка обновления понимает, что человек правил
+      // поля и не сохранил (правка Влада 15.08.2026)
+      btn.dataset.saved = portfolioSnapshot(expEl, strEl, certEl, baEl);
       btn.dataset.filled = '1';
     }
 
@@ -47,6 +77,9 @@ export function wirePortfolioEditors(staffList) {
           }),
         });
         if (!res.ok) throw Object.assign(new Error('portfolio'), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
+        // Сохранённое стало новой точкой отсчёта - иначе кнопка обновления считала бы
+        // эти же поля несохранёнными и предупреждала о сбросе на пустом месте
+        btn.dataset.saved = portfolioSnapshot(expEl, strEl, certEl, baEl);
         reportSuccess(noteEl, 'Сохранено');
       } catch (err) {
         reportError(noteEl, err, 'Не удалось сохранить');
