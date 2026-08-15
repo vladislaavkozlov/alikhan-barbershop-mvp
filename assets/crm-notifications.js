@@ -22,7 +22,7 @@ import { ICON_BELL } from './crm-icons.js';
 // уже защищает пять других CRM-файлов, своей копии не заводим.
 import { escapeHtml } from './crm-schedule-shared.js';
 import { errorMessage, showError } from './crm-toast.js';
-import { skeletonMarkup } from './crm-loading.js';
+import { showSpinner, skeletonMarkup } from './crm-loading.js';
 
 const TOKEN_KEY = 'alikhan-crm:token';
 const API = window.ALIKHAN_API_URL;
@@ -183,7 +183,9 @@ export function wireNotifications(staff) {
           const requestId = btn.dataset.req;
           const decision = btn.dataset.decide;
           const ntfId = btn.dataset.ntf;
-          btn.closest('.msg-actions').innerHTML = 'Сохраняю…';
+          // Решение по заявке уезжает не мгновенно - на месте кнопок крутится тот же
+          // индикатор, что и везде в CRM, вместо прежней надписи «Сохраняю…»
+          showSpinner(btn.closest('.msg-actions'), 'Сохраняю решение');
           try {
             await apiPatch(`/schedule-requests/${requestId}/decision`, { decision });
             await apiPost(`/notifications/${ntfId}/read`);

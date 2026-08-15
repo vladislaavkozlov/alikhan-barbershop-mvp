@@ -7,6 +7,7 @@ import { API, getToken } from './crm-auth.js';
 import { formatMoney } from './crm-shared.js';
 import { errorMessage, reportError, showError } from './crm-toast.js';
 import { escapeHtml } from './crm-schedule-shared.js';
+import { setButtonBusy } from './crm-loading.js';
 
 // Окно 55, Задача C (10.08.2026) - носитель id открытой записи. До этого окна им
 // всегда была карточка-просмотр #bd-1 (assets/mockup-crm.js openBooking писала туда
@@ -223,8 +224,7 @@ export function wireBookingServiceEdit(services, masterServices) {
       const masterId = panel?.dataset.bookingMasterId;
       if (!bookingId || bookingServiceEditSelected.size === 0) return;
       const originalLabel = saveBtn.textContent;
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Сохраняю…';
+      setButtonBusy(saveBtn);
       resultEl.hidden = true;
       try {
         const res = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/services`, {
@@ -247,7 +247,7 @@ export function wireBookingServiceEdit(services, masterServices) {
         resultEl.className = 'wf-result wf-result--err';
         reportError(resultEl, err, 'Не удалось сохранить');
         saveBtn.textContent = originalLabel;
-        saveBtn.disabled = false;
+        setButtonBusy(saveBtn, false);
       }
     });
   }
@@ -499,8 +499,7 @@ export function wireBookingActualPrice() {
     saveBtn.dataset.wired = '1';
     saveBtn.addEventListener('click', async () => {
       const originalLabel = saveBtn.textContent;
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Сохраняю…';
+      setButtonBusy(saveBtn);
       resultEl.hidden = true;
       const out = await window.saveBookingActualPrice();
       resultEl.hidden = false;
@@ -510,7 +509,7 @@ export function wireBookingActualPrice() {
           ? 'Сохранено - сумма считается по услугам'
           : out.comment ? 'Сохранено: сумма и комментарий' : 'Сохранено')
         : `Не удалось сохранить: ${out.error}`;
-      saveBtn.disabled = false;
+      setButtonBusy(saveBtn, false);
       saveBtn.textContent = originalLabel;
     });
   }

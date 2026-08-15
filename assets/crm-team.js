@@ -13,7 +13,7 @@ import {
 import { initCrmNavigationPanels } from './crm-navigation-panels.js';
 import { collectServiceChanges, DURATION_ERROR, markInvalidServiceDurations, renderMasterServiceEditor, saveServiceChanges } from './crm-master-services.js';
 import { errorMessage, showError, showSuccess } from './crm-toast.js';
-import { skeletonMarkup } from './crm-loading.js';
+import { setButtonBusy, showSpinner, skeletonMarkup } from './crm-loading.js';
 import { avatarMarkup } from './crm-avatar.js';
 import { cropSquareImage } from './crm-image-crop.js';
 import { hasWeeklyScheduleChanges, saveWeeklySchedule, wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
@@ -152,10 +152,19 @@ function addCard(locations) {
 function cardValue(card, name) {
   return card.querySelector(`[name="${name}"]:checked`) ?? card.querySelector(`[name="${name}"]`);
 }
-function showNote(host, text) {
+function noteElOf(host) {
   const selector = host.matches?.('[data-schedule-exception]') ? '[data-exception-note]' : '[data-card-note]';
-  const note = host.querySelector(selector) ?? host.querySelector('.payroll-note');
+  return host.querySelector(selector) ?? host.querySelector('.payroll-note');
+}
+function showNote(host, text) {
+  const note = noteElOf(host);
   if (note) note.textContent = text;
+}
+// Пока идёт сохранение, в строке статуса крутится индикатор, а не слово «Сохраняю…»
+// (правка Влада 15.08.2026: «вместо красивой анимации снова надпись Сохраняю»).
+// Результат придёт сюда же обычным текстом - через noteOk/noteFail
+function showNoteSpinner(host, label) {
+  showSpinner(noteElOf(host), label);
 }
 // Карточка сотрудника длинная - её строка статуса живёт в самом низу, и до неё нужно
 // листать (правка Влада 15.08.2026). Поэтому любое сообщение о результате дублируется
@@ -176,8 +185,7 @@ function noteOk(host, text) {
 }
 
 async function saveCard(card) {
-  const id = card.dataset.staffId;
-  // Длительность проверяем ДО первого запроса и до "Сохраняю…": ноль (или пустое
+  // Длительность проверяем ДО первого запроса и до индикатора: ноль (или пустое
   // поле) раньше молча превращался в каталожные 60 минут, карточка рапортовала
   // "Сохранено", а после перезагрузки владелец видел прежнюю цифру - баг P2 от
   // 15.08.2026. Теперь сохранение не начинается вовсе, пока цифра не исправлена
@@ -186,12 +194,31 @@ async function saveCard(card) {
     picker?.querySelector('.sc-duration-input.is-invalid')?.focus();
     return noteFail(card, DURATION_ERROR);
   }
-  showNote(card, 'Сохраняю…');
+  const saveButton = card.querySelector('[data-save]');
+  setButtonBusy(saveButton);
+  showNoteSpinner(card, 'Сохраняю карточку сотрудника');
+  try {
+    return await saveCardSteps(card);
+  } catch (err) {
+    // Неожиданный сбой в самом коде сохранения раньше уходил в консоль браузера:
+    // индикатор так и крутился, а человек не знал, сохранилось что-то или нет
+    return noteFail(card, errorMessage(err, 'Не удалось сохранить карточку'));
+  } finally {
+    // Кнопка освобождается на ЛЮБОМ выходе - и на отказе сервера, и на успехе.
+    // renderTeam ниже всё равно перерисует карточку, но между отказом и следующим
+    // действием человека кнопка не должна оставаться заблокированной
+    setButtonBusy(saveButton, false);
+    updateSaveState(card);
+  }
+}
+
+async function saveCardSteps(card) {
+  const id = card.dataset.staffId;
   const value = (name) => cardValue(card, name);
   const providesServicesChanged = value('providesServices').checked !== (card.dataset.providesServices === '1');
   // Услуги уезжают той же кнопкой, что и остальная карточка - отправляем их первыми,
   // чтобы отказ был виден до того, как остальное уже сохранилось
-  const serviceChanges = collectServiceChanges(picker);
+  const serviceChanges = collectServiceChanges(card.querySelector('.service-picker'));
   if (serviceChanges.length) {
     const failedService = await saveServiceChanges(id, serviceChanges);
     if (failedService) return noteApiFail(card, failedService, 'Не удалось сохранить услуги');

@@ -9,6 +9,7 @@ import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } 
 import { API, getToken, apiSend, fetchJson } from './crm-auth.js';
 import { errorMessage, reportError, showError } from './crm-toast.js';
 import { escapeHtml } from './crm-schedule-shared.js';
+import { setButtonBusy, showSpinner } from './crm-loading.js';
 
 export const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 // Полное имя дня в заголовке раскрытой панели: над ползунком "Пн" читалось как
@@ -57,7 +58,7 @@ export function wireScheduleEditor(masterId, fetchJson) {
     if (currentEl.dataset.wired) return;
     currentEl.dataset.wired = '1';
     const loadReadOnlyToday = () => {
-      currentEl.innerHTML = '<span class="note">загружаю…</span>';
+      showSpinner(currentEl, 'Загружаю график');
       return fetchJson(`/schedule?masterId=${masterId}&date=${todayStr()}`)
         .then((shifts) => {
           const shift = shifts.find((s) => s.date === todayStr());
@@ -101,7 +102,7 @@ export function wireScheduleEditor(masterId, fetchJson) {
 
   async function loadCurrent() {
     const date = dateSelectValue(`schedDateFrom-${masterId}`) || todayStr();
-    currentEl.innerHTML = '<span class="note">загружаю…</span>';
+    showSpinner(currentEl, 'Загружаю график');
     try {
       const shifts = await fetchJson(`/schedule?masterId=${masterId}&date=${date}`);
       const shift = shifts.find((s) => s.date === date);
@@ -159,9 +160,8 @@ export function wireScheduleEditor(masterId, fetchJson) {
       reportError(noteEl, 'Укажите время перерыва - с и до');
       return;
     }
-    saveBtn.disabled = true;
     const originalLabel = saveBtn.textContent;
-    saveBtn.textContent = 'Сохраняю…';
+    setButtonBusy(saveBtn);
     if (noteEl) noteEl.textContent = '';
     try {
       let totalConflicts = 0;
@@ -191,7 +191,7 @@ export function wireScheduleEditor(masterId, fetchJson) {
     } catch (err) {
       reportError(noteEl, err, 'Не удалось сохранить изменение графика');
     } finally {
-      saveBtn.disabled = false;
+      setButtonBusy(saveBtn, false);
       saveBtn.textContent = originalLabel;
     }
   });
@@ -458,7 +458,7 @@ export function wireWeeklyScheduleEditor(masterId, canEdit, fetchJson) {
     // в этом файле, чтобы кнопка "Обновить данные" (crm-owner.html) давала видимый
     // сигнал и здесь, не только в "Заявках на изменение графика". На первой загрузке
     // страницы container и так пуст - показать здесь текст вместо пустоты не хуже.
-    container.innerHTML = '<span class="note">загружаю…</span>';
+    showSpinner(container, 'Загружаю рабочую неделю');
     let rows;
     try {
       rows = await fetchJson(`/master-weekly-schedule?masterId=${masterId}`);

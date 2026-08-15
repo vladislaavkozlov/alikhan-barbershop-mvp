@@ -31,6 +31,26 @@ export function showLoadingLine(host, text = 'Загружаю…') {
   host.querySelector('.crm-loading-line__text').textContent = text;
 }
 
+// Один индикатор вместо подписи - там, где раньше в строке статуса писали
+// «Сохраняю…»/«Загружаю…» обычным текстом (правка Влада 15.08.2026: «вместо красивой
+// анимации снова надпись Сохраняю»). Подпись остаётся только для экранного диктора
+export function showSpinner(host, label = 'Загружаю') {
+  if (!host) return;
+  host.innerHTML = '<span class="crm-loading-line" role="status"><span class="crm-spinner" aria-hidden="true"></span></span>';
+  host.querySelector('.crm-loading-line').setAttribute('aria-label', label);
+}
+
+// Кнопка на время запроса: подпись гаснет, на её месте крутится индикатор, повторное
+// нажатие невозможно. Ширина кнопки не меняется - текст остаётся в разметке, поэтому
+// соседние элементы не прыгают, как это было при подмене подписи на «Сохраняю…»
+export function setButtonBusy(button, busy = true) {
+  if (!button) return;
+  button.classList.toggle('is-busy', busy);
+  button.disabled = busy;
+  if (busy) button.setAttribute('aria-busy', 'true');
+  else button.removeAttribute('aria-busy');
+}
+
 // ── Экран первичной загрузки кабинета ───────────────────────────────────────
 // Между входом и готовым интерфейсом проходит несколько запросов подряд; до этой
 // правки человек всё это время смотрел на полупустой каркас страницы

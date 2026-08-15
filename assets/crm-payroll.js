@@ -6,6 +6,7 @@ import { el, todayStr, formatMoney, bookingPrice, payrollBookingAmount, pad2 } f
 import { renderDateSelect } from './crm-widgets.js';
 import { fetchJson, apiSend } from './crm-auth.js';
 import { errorMessage, reportError, showError } from './crm-toast.js';
+import { showSpinner } from './crm-loading.js';
 
 // Правка 03.08.2026 (Окно 16): "Задать период" в карточках ЗП (владелец/админ - по
 // мастеру, свой "Моя зарплата" у мастера) раньше был <input type="date"> без id,
@@ -82,7 +83,7 @@ export async function wireDiscountSettings() {
     const next = toggle.checked;
     toggle.disabled = true;
     const prevText = note.textContent;
-    note.textContent = 'Сохраняю…';
+    showSpinner(note, 'Сохраняю настройку');
     try {
       const { ok, data } = await apiSend('/discount-settings', 'PUT', { payrollFromActualPrice: next });
       if (!ok) throw new Error(data?.error || 'не удалось сохранить');

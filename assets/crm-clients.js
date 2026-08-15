@@ -17,7 +17,7 @@
 // удалён и вернётся к полноценному рендеру, когда появится раздел "Клиенты".
 import { fetchJson } from './crm-auth.js';
 import { errorMessage, showError } from './crm-toast.js';
-import { showSkeleton } from './crm-loading.js';
+import { showSkeleton, showSpinner } from './crm-loading.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -113,7 +113,7 @@ export async function openClientCard(clientId) {
   if (!modal || !nameEl || !phoneEl || !riskEl || !rebookBtn || !visitsEl) return;
 
   modal.hidden = false;
-  nameEl.textContent = 'Загружаю…';
+  showSpinner(nameEl, 'Загружаю карточку клиента');
   phoneEl.textContent = '';
   riskEl.hidden = true;
   rebookBtn.hidden = true;

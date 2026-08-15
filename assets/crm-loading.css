@@ -55,6 +55,40 @@
 }
 .crm-spinner--lg { width: 30px; height: 30px; flex-basis: 30px; border-width: 2.5px; }
 
+/* ── Кнопка во время запроса (правка Влада 15.08.2026) ─────────────────────── */
+/* Раньше подпись подменялась на «Сохраняю…»: текст прыгал, кнопка меняла ширину, и
+   выглядело это как обычная надпись, а не как работа. Теперь подпись остаётся в
+   разметке (ширина не скачет), но становится невидимой, а по центру крутится тот же
+   индикатор, что и везде в CRM. Цвет индикатора - отдельным свойством: подпись
+   прозрачная, поэтому currentColor здесь не годится */
+.is-busy {
+  position: relative;
+  color: transparent !important;
+  cursor: progress;
+}
+.is-busy::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+  animation: crm-spin 780ms linear infinite;
+}
+/* На золотой кнопке светлый индикатор потерялся бы - берём тёмный тон подложки */
+.btn-primary.is-busy::after {
+  border-color: color-mix(in srgb, var(--leather) 30%, transparent);
+  border-top-color: var(--leather);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-busy::after { animation-duration: 2400ms; }
+}
+
 @keyframes crm-spin {
   to { transform: rotate(360deg); }
 }

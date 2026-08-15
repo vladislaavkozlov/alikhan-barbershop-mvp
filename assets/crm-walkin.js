@@ -11,6 +11,7 @@ import { renderLiveProof } from './crm-dashboard.js';
 import { RADIO_ID_TO_STATUS, applyNoShowStreakAfterStatus } from './crm-booking-status.js';
 import { mergeServiceCombos, isServiceBlockedByCombo } from '../storage.js';
 import { reportError, reportSuccess } from './crm-toast.js';
+import { setButtonBusy } from './crm-loading.js';
 
 // Задача Влада (01.08.2026): "Клиент без предварительной записи" была рисунком -
 // кнопка ничего не сохраняла, список услуг был одинаковый для любого мастера, поле
@@ -725,8 +726,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
 
   async function submitEdit() {
     const originalLabel = submitBtn.textContent;
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Сохраняю…';
+    setButtonBusy(submitBtn);
     resultEl.hidden = true;
     try {
       const bookingId = editBooking?.id;
@@ -851,6 +851,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       resultEl.className = 'wf-result wf-result--err';
       reportError(resultEl, err, 'Не удалось сохранить');
     } finally {
+      setButtonBusy(submitBtn, false);
       updateSubmitState();
       submitBtn.textContent = originalLabel;
     }
@@ -865,8 +866,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       // PATCH /services + PATCH /reschedule по уже существующему id.
       if (editMode) return void (await submitEdit());
       const originalLabel = submitBtn.textContent;
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Сохраняю…';
+      setButtonBusy(submitBtn);
       try {
         let date;
         let startTime;
@@ -933,6 +933,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         resultEl.className = 'wf-result wf-result--err';
         reportError(resultEl, err, 'Не удалось сохранить');
       } finally {
+        setButtonBusy(submitBtn, false);
         updateSubmitState();
         submitBtn.textContent = originalLabel;
       }
@@ -952,8 +953,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         return;
       }
       const originalLabel = saleSubmitBtn.textContent;
-      saleSubmitBtn.disabled = true;
-      saleSubmitBtn.textContent = 'Сохраняю…';
+      setButtonBusy(saleSubmitBtn);
       try {
         const res = await fetch(`${API}/sales`, {
           method: 'POST',
@@ -971,7 +971,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         saleResultEl.className = 'wf-result wf-result--err';
         reportError(saleResultEl, err, 'Не удалось сохранить продажу');
       } finally {
-        saleSubmitBtn.disabled = false;
+        setButtonBusy(saleSubmitBtn, false);
         saleSubmitBtn.textContent = originalLabel;
       }
     });
