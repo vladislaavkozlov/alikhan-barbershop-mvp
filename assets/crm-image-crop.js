@@ -33,9 +33,10 @@ function buildDialog(fileName) {
   overlay.setAttribute('aria-label', 'Кадрирование фото профиля');
   overlay.innerHTML = `
     <div class="crop-card">
+      <!-- Пояснение под заголовком убрано по просьбе Влада 15.08.2026: круг и
+           ползунок объясняют себя сами, а текст занимал место, особенно на телефоне -->
       <div class="crop-head">
         <h3>Фото профиля</h3>
-        <p>Двигайте фото, приближайте и отдаляйте - аватаром станет то, что внутри круга</p>
       </div>
       <div class="crop-stage" data-crop-stage>
         <img alt="" draggable="false" data-crop-image>

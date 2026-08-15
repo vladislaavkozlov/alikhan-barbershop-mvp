@@ -231,6 +231,15 @@ async function saveCard(card) {
     const roleResult = await apiSend(`/staff/${encodeURIComponent(id)}/role`, 'PUT', { role: role.value });
     if (!roleResult.ok) return noteApiFail(card, roleResult, 'Данные сохранены, а роль не изменилась');
   }
+  // Фотографии, помеченные к удалению, убираем последними: удаление необратимо, и
+  // пока предыдущие шаги могут отказать, снимок остаётся на месте
+  const pendingDelete = [...card.querySelectorAll('.team-media-item.is-pending-delete')];
+  let avatarDeleted = false;
+  for (const item of pendingDelete) {
+    const result = await apiSend(`/staff/${encodeURIComponent(id)}/media/${encodeURIComponent(item.dataset.mediaId)}`, 'DELETE');
+    if (!result.ok) return noteApiFail(card, result, 'Данные сохранены, а фотографию удалить не вышло');
+    if (item.dataset.mediaKind === 'avatar') avatarDeleted = true;
+  }
   noteOk(card, 'Сохранено');
   // Смена "Принимает клиентов" перестраивает состав колонок в Расписании, а тот
   // список собирается один раз при инициализации страницы (mastersOf в
@@ -245,6 +254,9 @@ async function saveCard(card) {
     return;
   }
   await renderTeam();
+  // Удалили фото профиля - кружки в «Дне»/«Неделе»/«Месяце» должны вернуться к
+  // инициалам сразу, без перезагрузки страницы
+  if (avatarDeleted) await window.__refreshScheduleViews?.({ all: true });
 }
 
 function mediaForCard(card) { return [...card.querySelectorAll('.team-media-item')].map((item) => ({ id: item.dataset.mediaId, kind: item.dataset.mediaKind, url: item.querySelector('img').src })); }
@@ -295,6 +307,10 @@ async function uploadMedia(card, input) {
   // не смог бы перекадрировать снимок, не выбрав сначала какой-нибудь другой
   input.value = '';
   await renderTeam();
+  // Фото стоит не только в «Команде»: те же кружки в «Дне»/«Неделе»/«Месяце».
+  // Перерисовываем расписание сразу, чтобы новое фото было видно без перезагрузки
+  // страницы (Влад, 15.08.2026)
+  if (kind === 'avatar') await window.__refreshScheduleViews?.({ all: true });
 }
 
 async function reorderMedia(card, mediaId, direction) {
@@ -383,7 +399,10 @@ function updateSaveState(card) {
   const fieldsChanged = cardSnapshot(card) !== card.dataset.snapshot;
   const servicesChanged = collectServiceChanges(card.querySelector('.service-picker')).length > 0;
   const scheduleChanged = hasWeeklyScheduleChanges(card.dataset.staffId);
-  button.disabled = !fieldsChanged && !servicesChanged && !scheduleChanged;
+  // Помеченная к удалению фотография - тоже несохранённое изменение: без этого
+  // кнопка оставалась серой и удалить снимок было нечем
+  const mediaMarked = Boolean(card.querySelector('.team-media-item.is-pending-delete'));
+  button.disabled = !fieldsChanged && !servicesChanged && !scheduleChanged && !mediaMarked;
 }
 
 function wireDirtyTracking(root) {
@@ -430,10 +449,19 @@ function wire(root) {
     const button = event.target.closest('button');
     if (!button) return;
     const card = list.closest('[data-staff-id]');
+    // Удаление фотографии больше не срабатывает сразу (правка Влада 15.08.2026):
+    // кнопка только помечает снимок, а исчезает он с сервера по «Сохранить
+    // изменения». Пока не сохранили, пометку снимает и повторный клик («Вернуть»), и
+    // кнопка обновления - она перерисовывает карточки тем, что лежит в базе
     if (button.dataset.mediaDelete) {
-      const result = await apiSend(`/staff/${encodeURIComponent(card.dataset.staffId)}/media/${encodeURIComponent(button.dataset.mediaDelete)}`, 'DELETE');
-      if (!result.ok) return noteApiFail(card, result, 'Не удалось удалить фотографию');
-      return renderTeam();
+      const item = button.closest('.team-media-item');
+      const marked = item.classList.toggle('is-pending-delete');
+      button.textContent = marked ? 'Вернуть' : 'Удалить';
+      showNote(card, marked
+        ? 'Фотография удалится, когда нажмёте «Сохранить изменения»'
+        : 'Фотография остаётся на месте');
+      card.dispatchEvent(new CustomEvent('crm:card-dirty', { bubbles: true }));
+      return;
     }
     if (button.dataset.mediaLeft) return reorderMedia(card, button.dataset.mediaLeft, -1);
     if (button.dataset.mediaRight) return reorderMedia(card, button.dataset.mediaRight, 1);

@@ -363,6 +363,23 @@ export function mastersOf(staffList) {
   return staffList.filter((s) => s.providesServices && s.hasWorkingSchedule !== false);
 }
 
+// Состав сотрудников для расписания снимается ОДИН раз при входе (замыкание
+// wireScheduleViews, assets/crm-schedule-views.js) - поэтому загруженное фото профиля
+// не появлялось в колонках «Дня» ни само, ни по кнопке «Обновить»: перечитывались
+// брони и график, а карточка сотрудника оставалась той, что приехала при входе
+// (Влад, 15.08.2026 - «загруженная фотка не обновилась во вкладке День»). Перед
+// отрисовкой перечитываем состав и берём из него имя и фото. КТО показан в дне
+// по-прежнему решает переданный staffList - список колонок не меняем
+async function freshStaffById(fetchJson) {
+  try {
+    const rows = await fetchJson('/staff');
+    return new Map(rows.map((row) => [row.id, row]));
+  } catch {
+    // сеть отвалилась - рисуем тем, что уже есть, день важнее свежести аватара
+    return new Map();
+  }
+}
+
 export async function renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson, date }) {
   const today = date || todayStr();
   const soloTrack = document.querySelector('.panel-sp-day .schedule-grid .schedule-col .schedule-track');
@@ -408,9 +425,11 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
     return;
   }
 
-  grid.innerHTML = masters.map(buildColumnHtml).join('');
+  const fresh = await freshStaffById(fetchJson);
+  const shownMasters = masters.map((m) => fresh.get(m.id) ?? m);
+  grid.innerHTML = shownMasters.map(buildColumnHtml).join('');
   const cols = grid.querySelectorAll(':scope > .schedule-col');
-  masters.forEach((m, i) => {
+  shownMasters.forEach((m, i) => {
     const track = cols[i]?.querySelector('.schedule-track');
     if (!track) return;
     fillTrack(track, m, {

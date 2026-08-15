@@ -226,6 +226,23 @@
 .crm-navigation-ui .team-media-item button { padding: 4px 7px; font-size: .68rem; border-color: var(--border); }
 .crm-navigation-ui .team-media-delete { justify-self: start; color: var(--danger); }
 
+/* Снимок, помеченный к удалению (правка Влада 15.08.2026 - удаление применяется
+   кнопкой «Сохранить изменения», а не сразу). Пока не сохранили, фотография видна,
+   но явно погашена, а её кнопка предлагает «Вернуть» */
+.crm-navigation-ui .team-media-item.is-pending-delete img {
+  opacity: 0.35;
+  filter: grayscale(1);
+  border-color: var(--danger);
+}
+.crm-navigation-ui .team-media-item.is-pending-delete figcaption > span {
+  text-decoration: line-through;
+  color: var(--danger);
+}
+.crm-navigation-ui .team-media-item.is-pending-delete .team-media-delete {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* Роли без нативного select: три понятных варианта и видимое выбранное состояние */
 .crm-navigation-ui .team-role-picker,
 .crm-navigation-ui .team-exception-types {
