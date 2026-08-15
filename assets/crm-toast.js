@@ -141,12 +141,34 @@ export function dismissToasts() {
   host?.querySelectorAll('.crm-toast').forEach((toast) => toast.remove());
 }
 
+// Конец сессии (токен истёк, вход под другой ролью, выход) обрывает разом все
+// запросы, которые страница уже успела отправить - каждый возвращается своим 401 и
+// печатает своё красное сообщение. Влад увидел это 15.08.2026 при входе в кабинет:
+// над расписанием висели «Не удалось загрузить рабочую неделю» и «...разовые
+// изменения», хотя человек ничего не запускал, а причина одна и уже на экране -
+// перед ним форма входа. После markSessionEnded() ошибки не показываем и убираем
+// уже висящие; markSessionActive() при успешном входе возвращает всё как было
+let sessionEnded = false;
+export function markSessionEnded() {
+  sessionEnded = true;
+  host?.querySelectorAll('.crm-toast--error').forEach((toast) => toast.remove());
+}
+export function markSessionActive() {
+  sessionEnded = false;
+}
+export function isSessionEnded() {
+  return sessionEnded;
+}
+
 // text - готовая фраза для человека. Одинаковое сообщение не размножается: повторный
 // вызов оживляет уже висящий тост, иначе экран забивается копиями при повторных
 // нажатиях на ту же кнопку
 export function showToast(text, { type = 'error', timeout } = {}) {
   const message = String(text ?? '').trim();
   if (!message) return null;
+  // Сессии нет - показывать нечего: причина у всех отказов одна и человек уже видит
+  // форму входа. Успех и подсказки не трогаем, они про другое
+  if (type === 'error' && sessionEnded) return null;
   const parent = ensureHost();
 
   const existing = [...parent.querySelectorAll('.crm-toast')].find((t) => t.dataset.message === message && t.dataset.type === type);

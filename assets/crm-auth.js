@@ -5,7 +5,7 @@
 import { getMasters, getServices } from '../storage.js';
 import { wireNotifications } from './crm-notifications.js';
 import { el } from './crm-shared.js';
-import { describeError, showError } from './crm-toast.js';
+import { describeError, markSessionActive, markSessionEnded, showError } from './crm-toast.js';
 import { hidePageLoader, showPageLoader } from './crm-loading.js';
 import { refreshRoleSnapshot, renderLiveProof } from './crm-dashboard.js';
 
@@ -28,10 +28,16 @@ function getStoredStaff() {
 function setSession(token, staff) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(STAFF_KEY, JSON.stringify(staff));
+  markSessionActive();
 }
+// Сессию закрываем не только по кнопке «Выйти»: тем же путём уходит просроченный
+// токен и чужая роль на этой странице. Всё, что страница успела запросить до этого
+// момента, вернётся с 401 - предупреждаем сообщения, чтобы человек на форме входа
+// не читал стопку красных плашек про запросы, которых он не делал
 function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(STAFF_KEY);
+  markSessionEnded();
 }
 
 function buildLoginGate() {
