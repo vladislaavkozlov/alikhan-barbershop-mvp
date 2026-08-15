@@ -167,10 +167,21 @@ const SLOT_STEP_MIN = 15;
 // снаппинга (это только шаг привязки стартовой позиции по Y), можно сделать чисто
 // декоративно крупнее без риска наложения на соседние реальные записи (в отличие от
 // .appt, где высота = реальная длительность брони, см. Задачу G).
-const SLOT_PREVIEW_HEIGHT_PX = 28;
+// Правка Влада 15.08.2026 («увеличить пунктирное окно, сделать выше»): 28px читались
+// узкой полоской. 44px - тот же минимальный размер цели, что и у кнопок CRM
+const SLOT_PREVIEW_HEIGHT_PX = 44;
 
+// Округление ВНИЗ, а не к ближайшему делению - вторая половина той же правки
+// («сделать так, чтобы она была под курсором и не уплывала от него»). При округлении
+// к ближайшему время под курсором 10:08 превращалось в 10:15, рамка вставала на 8px
+// НИЖЕ курсора и выглядела оторвавшейся - Влад прислал рисунок со стрелкой над
+// рамкой. Вниз: начало слота - ближайшее деление не позже курсора, поэтому верхний
+// край рамки всегда на уровне курсора или выше, а сам курсор внутри рамки (шаг 15
+// минут это 16px по шкале 64px/час, высота рамки 44px - курсор попадает внутрь при
+// любом положении). Клик берёт время той же функцией, значит выбирается ровно то
+// время, которое человек видит в рамке
 function snapToSlot(min) {
-  const snapped = Math.round(min / SLOT_STEP_MIN) * SLOT_STEP_MIN;
+  const snapped = Math.floor(min / SLOT_STEP_MIN) * SLOT_STEP_MIN;
   return Math.min(DAY_END_MIN - SLOT_STEP_MIN, Math.max(DAY_START_MIN, snapped));
 }
 
@@ -215,7 +226,11 @@ function wireEmptySlotInteraction(trackEl, master, date) {
       return;
     }
     const startMin = slotAt(e.clientY);
-    const top = Math.round((startMin - DAY_START_MIN) * PX_PER_MIN);
+    // Рамка стала выше, поэтому у самого низа дня она вылезала бы за конец колонки -
+    // на последних слотах прижимаем её к нижнему краю трека
+    const trackHeight = trackEl.clientHeight || Math.round((DAY_END_MIN - DAY_START_MIN) * PX_PER_MIN);
+    const rawTop = Math.round((startMin - DAY_START_MIN) * PX_PER_MIN);
+    const top = Math.max(0, Math.min(rawTop, trackHeight - SLOT_PREVIEW_HEIGHT_PX));
     preview.style.cssText = `top:${top}px;height:${SLOT_PREVIEW_HEIGHT_PX}px`;
     preview.hidden = false;
   });

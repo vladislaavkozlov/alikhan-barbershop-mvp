@@ -3,6 +3,10 @@
 //    карточки (padding/line-height внутри неизменных 16px, см. mockup-crm.css).
 // 2) пунктирный превью-слот на пустом месте визуально выше (28px вместо 16px),
 //    без изменения логики снаппинга и без риска наложения на реальные записи.
+//    Обновлено 15.08.2026: по новой просьбе Влада («увеличить пунктирное окно, сделать
+//    выше») высота стала 44px, а привязка времени - округлением вниз, чтобы курсор
+//    всегда оставался внутри рамки. Подробная проверка нового поведения -
+//    tools/verify-2026-08-15-punktirnaya-ramka-pod-kursorom.mjs.
 import { withBrowser } from './cdp.mjs';
 import { withEphemeralServer, withStaticServer, makeChecker, hashPin, randomPin, daysFromToday } from './verify-lib.mjs';
 
@@ -124,7 +128,7 @@ try {
           return { height: Math.round(r.height), hidden: preview.hidden };
         })()`);
         check('Превью-слот появился на свободном месте по mousemove', previewGeom !== null, JSON.stringify(previewGeom));
-        check('Превью-слот стал визуально выше (28px вместо прежних 16px)', previewGeom?.height === 28, JSON.stringify(previewGeom));
+        check('Превью-слот стал визуально выше (44px, правка 15.08.2026)', previewGeom?.height === 44, JSON.stringify(previewGeom));
 
         await s.screenshot('/tmp/owner-schedule-visual-tweaks-preview-after.png');
 
