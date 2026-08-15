@@ -15,6 +15,7 @@ import { collectServiceChanges, DURATION_ERROR, markInvalidServiceDurations, ren
 import { errorMessage, showError, showSuccess } from './crm-toast.js';
 import { skeletonMarkup } from './crm-loading.js';
 import { avatarMarkup } from './crm-avatar.js';
+import { cropSquareImage } from './crm-image-crop.js';
 import { hasWeeklyScheduleChanges, saveWeeklySchedule, wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 import { PHONE_PLACEHOLDER, formatStoredPhone, wirePhoneFields } from './crm-phone.js';
 import { todayStr } from './crm-shared.js';
@@ -84,7 +85,7 @@ function mediaMarkup(staff) {
   // по самому контролу, без текстовых пояснений - правка Влада 13.08.2026), своё
   // значение он сохраняет: вернут мастера на приём, витрина включится обратно сама.
   const offDuty = staff.providesServices === false;
-  return `<div class="team-media-upload"><div><strong>Фото профиля</strong><small>Квадратное фото будет смотреться лучше</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Выбрать фото</span><input class="team-file-native" name="avatar" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
+  return `<div class="team-media-upload"><div><strong>Фото профиля</strong><small>После выбора можно подвинуть и приблизить кадр</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Выбрать фото</span><input class="team-file-native" name="avatar" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
   <div class="team-editor-grid"><div class="field"><label>Стаж</label><input name="experience" value="${esc(staff.experienceText)}" placeholder="Например, 6 лет"></div><div class="field"><label>Сильные стороны</label><input name="strengths" value="${esc(staff.strengthsText)}" placeholder="Например, фейды и борода"></div></div>
   <div class="field"><label>Курсы и сертификаты</label><textarea name="certificates" placeholder="Название курса или сертификата">${esc(staff.certificatesText)}</textarea></div>
   <div class="team-media-upload"><div><strong>Портфолио</strong><small>До 20 фото в JPEG, PNG или WebP, каждое до 8 МБ</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Добавить работы</span><input class="team-file-native" name="portfolio" type="file" multiple accept="image/jpeg,image/png,image/webp"></label></div>
@@ -263,17 +264,36 @@ function uploadFile(card, file, kind, onProgress) {
 }
 
 async function uploadMedia(card, input) {
-  const files = [...input.files];
+  let files = [...input.files];
   if (!files.length) return;
   const note = card.querySelector('[data-card-note]');
   const kind = input.name === 'avatar' ? 'avatar' : 'portfolio';
+  // Фото профиля человек кадрирует сам (просьба Влада 15.08.2026): до этой правки в
+  // кружок попадал центр исходника, и лицо на вертикальном снимке с телефона
+  // срезалось. Портфолио показывается целиком, его кадрировать незачем
+  if (kind === 'avatar') {
+    let cropped;
+    try {
+      cropped = await cropSquareImage(files[0]);
+    } catch {
+      note.textContent = `${files[0].name}: не удалось открыть файл как изображение`;
+      input.value = '';
+      return;
+    }
+    // Отказались от кадрирования - ничего не загружаем и не пишем в базу
+    if (!cropped) { input.value = ''; return; }
+    files = [cropped];
+  }
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index];
     if (file.size > 8 * 1024 * 1024) { note.textContent = `${file.name}: файл больше 8 МБ`; return; }
     const result = await uploadFile(card, file, kind, (percent) => { note.textContent = `Загружаю ${file.name}${percent == null ? '…' : `: ${percent}%`}`; });
     if (!result.ok) { noteFail(card, errorMessage(result, `${file.name}: не удалось загрузить`)); return; }
   }
-  note.textContent = 'Фотографии загружены';
+  note.textContent = kind === 'avatar' ? 'Фото профиля обновлено' : 'Фотографии загружены';
+  // Тот же файл, выбранный второй раз подряд, иначе не вызывает change - человек
+  // не смог бы перекадрировать снимок, не выбрав сначала какой-нибудь другой
+  input.value = '';
   await renderTeam();
 }
 
