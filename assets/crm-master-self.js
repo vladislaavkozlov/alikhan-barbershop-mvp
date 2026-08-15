@@ -3,6 +3,7 @@
 // подмена data-master в примерном календаре) + вкладка "Личные данные"
 // (crm-master.html). Код перенесён 1в1, поведение не менялось.
 import { el } from './crm-shared.js';
+import { applyAvatar } from './crm-avatar.js';
 import { renderWeeklySelfReadOnly } from './crm-schedule-editor.js';
 import { wireScheduleRequestForm } from './crm-schedule-request-form.js';
 
@@ -20,8 +21,9 @@ export function wireMasterSelfView(staff) {
   const badge = el('selfNameBadge');
   if (badge) badge.textContent = staff.name;
 
-  const avatarEl = el('selfAvatar');
-  if (avatarEl) avatarEl.textContent = staff.name.split(' ').map((p) => p[0]).join('').toUpperCase();
+  // Своё фото профиля мастер видит там же, где владелец видит его в «Дне» и
+  // «Команде» - в кружке над колонкой (правка Влада 15.08.2026)
+  applyAvatar(el('selfAvatar'), staff);
 
   const nameHeadEl = el('selfNameHead');
   if (nameHeadEl) nameHeadEl.textContent = `${staff.name} (вы)`;
@@ -54,8 +56,7 @@ export function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
   const picker = el('selfServicePicker');
   if (!picker) return;
 
-  const avatarEl = el('selfCardAvatar');
-  if (avatarEl) avatarEl.textContent = staff.name.split(' ').map((p) => p[0]).join('').toUpperCase();
+  applyAvatar(el('selfCardAvatar'), staff);
   const nameEl = el('selfCardName');
   if (nameEl) nameEl.textContent = staff.name;
 

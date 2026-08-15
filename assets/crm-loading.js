@@ -36,13 +36,17 @@ export function showLoadingLine(host, text = 'Загружаю…') {
 // правки человек всё это время смотрел на полупустой каркас страницы
 let loaderEl = null;
 
-export function showPageLoader(text = 'Готовлю рабочий стол…') {
+// Подпись под индикатором убрана по правке Влада 15.08.2026 («без неё
+// минималистичнее») - карточка входа, кикер, бренд и вращение говорят сами за себя.
+// Экранному диктору происходящее всё равно объявляется, просто без видимого текста
+export function showPageLoader() {
   if (loaderEl?.isConnected) return loaderEl;
   loaderEl = document.createElement('div');
   loaderEl.className = 'crm-page-loader';
-  // Порядок и подача - как на экране входа: кикер «CRM», бренд, дальше действие
-  loaderEl.innerHTML = `<div class="crm-page-loader__card"><p class="crm-page-loader__kicker">CRM</p><span class="crm-page-loader__brand">АЛИХАН</span><span class="crm-spinner crm-spinner--lg" aria-hidden="true"></span><p class="crm-page-loader__text" role="status"></p></div>`;
-  loaderEl.querySelector('.crm-page-loader__text').textContent = text;
+  loaderEl.setAttribute('role', 'status');
+  loaderEl.setAttribute('aria-label', 'Загружаю данные');
+  // Порядок и подача - как на экране входа: кикер «CRM», бренд, индикатор
+  loaderEl.innerHTML = `<div class="crm-page-loader__card"><p class="crm-page-loader__kicker">CRM</p><span class="crm-page-loader__brand">АЛИХАН</span><span class="crm-spinner crm-spinner--lg" aria-hidden="true"></span></div>`;
   document.body.append(loaderEl);
   return loaderEl;
 }

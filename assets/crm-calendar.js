@@ -27,6 +27,8 @@ function positionStyle(startTime, endTime) {
   return `top:${top}px;height:${height}px`;
 }
 
+import { avatarMarkup } from './crm-avatar.js';
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -261,7 +263,7 @@ function fillTrack(trackEl, master, { shift, bookings, services, priceOf, date }
 
 function buildColumnHtml(master) {
   return `<div class="schedule-col">
-    <div class="schedule-col-head"><div class="avatar">${escapeHtml(initialsOf(master.name))}</div><span class="name">${escapeHtml(master.name)}</span></div>
+    <div class="schedule-col-head">${avatarMarkup(master, { initials: initialsOf(master.name) })}<span class="name">${escapeHtml(master.name)}</span></div>
     <div class="schedule-track"></div>
   </div>`;
 }

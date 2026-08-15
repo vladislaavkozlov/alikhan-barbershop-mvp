@@ -437,6 +437,11 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   color: var(--accent); font-size: 0.95rem; flex-shrink: 0;
 }
 .avatar.lg { width: 64px; height: 64px; font-size: 1.2rem; }
+/* Загруженное фото профиля вместо инициалов (assets/crm-avatar.js, правка Влада
+   15.08.2026). Размер кружка не меняется - снимок кадрируется по центру, поэтому
+   ряды карточек команды и колонок дня не скачут по высоте */
+.avatar.avatar--photo { padding: 0; overflow: hidden; background: var(--surface-2); }
+.avatar.avatar--photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 /* Окно 45 (08.08.2026) - иконка вместо аватара-инициалов в заголовке карточки блока
    (не человек, а раздел/метрика - День/Неделя/Выручка/Заявки и т.п.). Конвенция -

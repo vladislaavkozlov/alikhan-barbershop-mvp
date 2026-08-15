@@ -147,7 +147,7 @@ await withEphemeralServer(async ({ apiUrl, db }) => {
           const el = document.querySelector('.crm-page-loader');
           if (!el) return null;
           const spinner = el.querySelector('.crm-spinner');
-          return { text: el.querySelector('.crm-page-loader__text')?.textContent ?? '', spin: getComputedStyle(spinner).animationName };
+          return { brand: el.querySelector('.crm-page-loader__brand')?.textContent ?? '', spin: getComputedStyle(spinner).animationName };
         })())`));
         if (seen) { loaderShot = seen; break; }
         await s.sleep(100);
@@ -155,7 +155,9 @@ await withEphemeralServer(async ({ apiUrl, db }) => {
       console.log('экран загрузки на медленной сети:', loaderShot);
       check('на медленной сети видно экран загрузки с крутящимся индикатором',
         loaderShot?.spin === 'crm-spin', JSON.stringify(loaderShot));
-      check('на экране загрузки написано, что происходит', /Готовлю/.test(loaderShot?.text ?? ''), loaderShot?.text);
+      // Подписи под индикатором больше нет (правка «без неё минималистичнее») -
+      // проверяем фирменную подачу: бренд и вращение
+      check('на экране загрузки фирменный бренд без лишнего текста', loaderShot?.brand === 'АЛИХАН', loaderShot?.brand);
 
       // Экран проявляется за 140 мс - замеряем и снимаем уже установившееся состояние,
       // иначе поймаем полупрозрачную середину анимации и решим, что он просвечивает

@@ -293,8 +293,12 @@ export async function renderLiveProof(staff) {
     // записи, которой у него нет. pctOf нужен для комиссии за запись. На
     // owner/admin-страницах элемента панели нет, функция там тихий no-op.
     wireMasterBookingView(staff, services, masterServices, pctOf);
-    wireMasterSelfView(staff);
-    wireMasterSelfDataTab(staff, services, masterServices, pctOf);
+    // Своя запись из состава: в ней есть media с фото профиля, а в staff из сессии
+    // (/auth/me) его нет - без этого кружок мастера остался бы с инициалами, хотя
+    // фото загружено (правка Влада 15.08.2026)
+    const selfWithMedia = staffList.find((row) => row.id === staff.id) ?? staff;
+    wireMasterSelfView(selfWithMedia);
+    wireMasterSelfDataTab(selfWithMedia, services, masterServices, pctOf);
     wireAdminSelfData(staff, staffList);
     wireMasterServiceEditors(staff.role, services, masterServices);
     wirePayrollDateSlots();
