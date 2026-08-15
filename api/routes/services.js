@@ -55,6 +55,18 @@ export async function handleMasterServicesList(req, res) {
 // enabled:false удаляет строку (мастер больше не оказывает услугу) - не бронь
 // затрагивает, только каталог на будущее. enabled:true создаёт/обновляет строку,
 // duration_min по умолчанию берётся из общего каталога services, если не передан.
+// Чистые предикаты - тестируются без Postgres (тот же приём, что isLastOwnerDemotion
+// в api/routes/staff.js). "Не передана" - только отсутствие ключа в теле запроса
+// (JSON.stringify такие поля просто не отправляет). Явный null - это уже переданное
+// пустое значение, то есть ошибка ввода, а не согласие на каталожную длительность;
+// единственный клиент роута (assets/crm-master-services.js) null не шлёт никогда.
+export function isDurationOmitted(value) {
+  return value === undefined;
+}
+export function isValidDuration(value) {
+  return Number.isInteger(value) && value > 0;
+}
+
 export async function handleMasterServiceUpdate(req, res, parts) {
   const auth = await authenticate(req);
   if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
@@ -68,8 +80,15 @@ export async function handleMasterServiceUpdate(req, res, parts) {
   const serviceRes = await pool.query('SELECT price, duration_min FROM services WHERE id = $1', [serviceId]);
   if (serviceRes.rows.length === 0) return sendJson(res, 404, { error: 'service_not_found' });
   const price = Number.isFinite(body.price) ? body.price : serviceRes.rows[0].price;
-  const durationMin = Number.isFinite(body.durationMin) ? body.durationMin : serviceRes.rows[0].duration_min;
-  if (durationMin <= 0) return sendJson(res, 400, { error: 'invalid_duration' });
+  // Длительность: либо корректная переданная, либо каталожная. Прежняя проверка
+  // (`Number.isFinite ? ... : каталог` + `<= 0`) ловила ровно ноль, но всё
+  // некорректное непонятным образом (null, "", "abc", 1.5, -10) молча подменяла
+  // каталожными 60 минутами и отвечала 200 - клиент видел успех, а в базу уезжала
+  // чужая цифра. Теперь мусор в поле - это 400, а не тихая подмена
+  if (!isDurationOmitted(body.durationMin) && !isValidDuration(body.durationMin)) {
+    return sendJson(res, 400, { error: 'invalid_duration' });
+  }
+  const durationMin = isDurationOmitted(body.durationMin) ? serviceRes.rows[0].duration_min : body.durationMin;
   await pool.query(
     `INSERT INTO master_services (master_id, service_id, price, duration_min) VALUES ($1, $2, $3, $4)
      ON CONFLICT (master_id, service_id) DO UPDATE SET price = $3, duration_min = $4`,

@@ -11,7 +11,7 @@ import {
   ICON_UPLOAD,
 } from './crm-icons.js';
 import { initCrmNavigationPanels } from './crm-navigation-panels.js';
-import { collectServiceChanges, renderMasterServiceEditor, saveServiceChanges } from './crm-master-services.js';
+import { collectServiceChanges, DURATION_ERROR, markInvalidServiceDurations, renderMasterServiceEditor, saveServiceChanges } from './crm-master-services.js';
 import { hasWeeklyScheduleChanges, saveWeeklySchedule, wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 import { PHONE_PLACEHOLDER, formatStoredPhone, wirePhoneFields } from './crm-phone.js';
 import { todayStr } from './crm-shared.js';
@@ -156,12 +156,21 @@ function showNote(host, text) {
 
 async function saveCard(card) {
   const id = card.dataset.staffId;
+  // Длительность проверяем ДО первого запроса и до "Сохраняю…": ноль (или пустое
+  // поле) раньше молча превращался в каталожные 60 минут, карточка рапортовала
+  // "Сохранено", а после перезагрузки владелец видел прежнюю цифру - баг P2 от
+  // 15.08.2026. Теперь сохранение не начинается вовсе, пока цифра не исправлена
+  const picker = card.querySelector('.service-picker');
+  if (markInvalidServiceDurations(picker).length) {
+    picker?.querySelector('.sc-duration-input.is-invalid')?.focus();
+    return showNote(card, DURATION_ERROR);
+  }
   showNote(card, 'Сохраняю…');
   const value = (name) => cardValue(card, name);
   const providesServicesChanged = value('providesServices').checked !== (card.dataset.providesServices === '1');
   // Услуги уезжают той же кнопкой, что и остальная карточка - отправляем их первыми,
   // чтобы отказ был виден до того, как остальное уже сохранилось
-  const serviceChanges = collectServiceChanges(card.querySelector('.service-picker'));
+  const serviceChanges = collectServiceChanges(picker);
   if (serviceChanges.length) {
     const failedService = await saveServiceChanges(id, serviceChanges);
     if (failedService) return showNote(card, 'Не удалось сохранить услуги. Повторите попытку');

@@ -39,6 +39,11 @@ export function wireMasterServiceEditors(staffRole, services, masterServices) {
   });
 }
 
+function clearDurationError(durationInput) {
+  durationInput.classList.remove('is-invalid');
+  durationInput.removeAttribute('aria-invalid');
+}
+
 export function renderMasterServiceEditor(container, masterId, canEdit, services, masterServices, onChange) {
   container.innerHTML = '';
   container.classList.toggle('readonly', !canEdit);
@@ -97,16 +102,44 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
 
     input.addEventListener('change', () => {
       durationInput.disabled = !input.checked;
+      if (!input.checked) clearDurationError(durationInput);
       onChange?.();
     });
-    durationInput.addEventListener('input', () => onChange?.());
-    durationInput.addEventListener('change', () => onChange?.());
+    // Подсветку снимаем сразу, как только введено корректное число - держать красным
+    // поле, которое владелец уже исправил, значит спорить с ним
+    durationInput.addEventListener('input', () => {
+      if (parseDurationValue(durationInput.value) != null) clearDurationError(durationInput);
+      onChange?.();
+    });
+    durationInput.addEventListener('change', () => {
+      if (parseDurationValue(durationInput.value) != null) clearDurationError(durationInput);
+      onChange?.();
+    });
   }
   container.appendChild(note);
 }
 
+export const DURATION_ERROR = 'Длительность услуги должна быть больше 0 минут';
+
+// Единственное место, где строка из поля превращается в минуты. Всё, что не целое
+// положительное число (0, пусто, минус, "abc", 1.5), - null, то есть "введено
+// неверно", а не "оставим как было": прежний `Number(value) || initial` молча
+// подменял ноль исходными 60 минутами, из-за чего правка не считалась правкой,
+// на сервер не уезжала и после F5 значение возвращалось к 60 без единой ошибки
+// (баг P2, найден Владом 15.08.2026)
+export function parseDurationValue(raw) {
+  const text = String(raw ?? '').trim();
+  if (text === '') return null;
+  const value = Number(text);
+  if (!Number.isInteger(value) || value <= 0) return null;
+  return value;
+}
+
 // Что в этом блоке отличается от загруженного с сервера. Пустой массив = сохранять
-// нечего, поэтому кнопка карточки остаётся неактивной.
+// нечего, поэтому кнопка карточки остаётся неактивной. Неверная длительность тоже
+// попадает сюда (durationMin: null) - кнопка обязана остаться живой, иначе владелец
+// не увидит, что именно не так; отсекает такую строку markInvalidServiceDurations
+// перед отправкой.
 export function collectServiceChanges(container) {
   if (!container) return [];
   const changes = [];
@@ -114,7 +147,7 @@ export function collectServiceChanges(container) {
     const input = label.querySelector('input[type="checkbox"]');
     const durationInput = label.querySelector('.sc-duration-input');
     const enabled = Boolean(input?.checked);
-    const duration = Number(durationInput?.value) || Number(label.dataset.initialDuration);
+    const duration = parseDurationValue(durationInput?.value);
     const wasEnabled = label.dataset.initialEnabled === '1';
     const wasDuration = Number(label.dataset.initialDuration);
     if (enabled === wasEnabled && (!enabled || duration === wasDuration)) return;
@@ -123,10 +156,36 @@ export function collectServiceChanges(container) {
   return changes;
 }
 
+// Подсвечивает строки включённых услуг с неверной длительностью и возвращает их
+// serviceId. Пустой массив = сохранять можно. Выключенная услуга не проверяется -
+// её длительность на сервер не уезжает вовсе (тело запроса { enabled: false }).
+export function markInvalidServiceDurations(container) {
+  if (!container) return [];
+  const invalid = [];
+  container.querySelectorAll('.service-check[data-service-id]').forEach((label) => {
+    const input = label.querySelector('input[type="checkbox"]');
+    const durationInput = label.querySelector('.sc-duration-input');
+    if (!durationInput) return;
+    const bad = Boolean(input?.checked) && parseDurationValue(durationInput.value) == null;
+    durationInput.classList.toggle('is-invalid', bad);
+    if (bad) {
+      durationInput.setAttribute('aria-invalid', 'true');
+      invalid.push(label.dataset.serviceId);
+    } else {
+      durationInput.removeAttribute('aria-invalid');
+    }
+  });
+  return invalid;
+}
+
 // Отправляет только изменённые услуги. Возвращает имя первой не сохранившейся - карточка
 // покажет его в своей строке статуса, отдельного текста внутри блока услуг больше нет.
 export async function saveServiceChanges(masterId, changes) {
   for (const change of changes) {
+    // Страховка на случай, если валидацию когда-нибудь обойдут мимо кнопки карточки:
+    // null-длительность на сервере молча подменилась бы каталожной, а владелец увидел
+    // бы "Сохранено" с чужой цифрой
+    if (change.enabled && parseDurationValue(change.durationMin) == null) return change.serviceId;
     const body = change.enabled ? { enabled: true, durationMin: change.durationMin } : { enabled: false };
     const res = await fetch(`${API}/master-services/${encodeURIComponent(masterId)}/${encodeURIComponent(change.serviceId)}`, {
       method: 'PUT',

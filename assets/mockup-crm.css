@@ -1072,6 +1072,11 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
    достаточно подчёркивания */
 .sc-duration-input:focus, .sc-duration-input:focus-visible { outline: none; border-bottom-color: var(--accent); }
 .sc-duration-input:disabled { opacity: 0.55; cursor: not-allowed; border-bottom-style: dotted; }
+/* Неверная длительность (ноль, пусто, не число): та же инлайн-цифра, но красная и с
+   заметной линией - сохранение по кнопке карточки блокируется, пока она такая */
+.sc-duration-input.is-invalid,
+.sc-duration-input.is-invalid:focus,
+.sc-duration-input.is-invalid:focus-visible { color: var(--danger); border-bottom-color: var(--danger); border-bottom-width: 2px; }
 /* убираем стрелки-степпер у number - в узкой инлайн-цифре они не помещаются красиво */
 .sc-duration-input::-webkit-inner-spin-button, .sc-duration-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .sc-duration-input[type="number"] { -moz-appearance: textfield; }
