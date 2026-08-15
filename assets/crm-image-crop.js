@@ -35,7 +35,7 @@ function buildDialog(fileName) {
     <div class="crop-card">
       <div class="crop-head">
         <h3>Фото профиля</h3>
-        <p>Двигайте фото и приближайте - в кружок попадёт то, что видно внутри круга</p>
+        <p>Двигайте фото, приближайте и отдаляйте - аватаром станет то, что внутри круга</p>
       </div>
       <div class="crop-stage" data-crop-stage>
         <img alt="" draggable="false" data-crop-image>
@@ -43,7 +43,10 @@ function buildDialog(fileName) {
       </div>
       <div class="crop-zoom">
         <span class="crop-zoom-icon" aria-hidden="true">−</span>
-        <input type="range" min="1" max="${ZOOM_MAX}" step="0.01" value="1" data-crop-zoom aria-label="Приближение">
+        <!-- step="any": сетка шагов у range отсчитывается от min, а min здесь зависит
+             от пропорций фото - при фиксированном шаге стартовое значение съезжало бы
+             с ровной единицы («фото ровно закрывает кадр») на 1.001 и подобное -->
+        <input type="range" min="1" max="${ZOOM_MAX}" step="any" value="1" data-crop-zoom aria-label="Приближение и отдаление">
         <span class="crop-zoom-icon" aria-hidden="true">+</span>
       </div>
       <p class="crop-file">${esc(fileName)}</p>
@@ -54,6 +57,15 @@ function buildDialog(fileName) {
     </div>`;
   document.body.append(overlay);
   return overlay;
+}
+
+// Насколько сильно можно отдалить фото, считая от «cover» (zoom = 1). Граница - когда
+// вся картинка целиком помещается в КРУГ: диагональ фото равна диаметру круга. Дальше
+// отдалять нечего, фото и так видно полностью. Совсем длинные панорамы упёрлись бы в
+// исчезающе мелкий масштаб, поэтому ниже 0.3 не опускаемся
+export function minZoomFor({ naturalWidth, naturalHeight }) {
+  const fitInCircle = Math.min(naturalWidth, naturalHeight) / Math.hypot(naturalWidth, naturalHeight);
+  return Math.max(0.3, Number(fitInCircle.toFixed(3)));
 }
 
 // Квадрат, который человек видит внутри круга, в координатах ИСХОДНОГО файла.
@@ -82,9 +94,14 @@ export async function cropSquareImage(file) {
   let stage = stageEl.getBoundingClientRect().width || 280;
   // «Cover»: при zoom=1 фото ровно закрывает область, пустых полей в кружке не бывает
   const baseScale = () => Math.max(stage / image.naturalWidth, stage / image.naturalHeight);
+  // Правка Влада 15.08.2026: «зум есть, а отдалить нельзя». Нижняя граница - когда всё
+  // фото целиком помещается ВНУТРЬ круга (не квадрата: аватар круглый, углы квадрата
+  // всё равно срезаются). Дальше отдалять смысла нет - фото уже видно полностью
+  const minZoom = () => minZoomFor(image);
   let zoom = 1;
   let offsetX = 0;
   let offsetY = 0;
+  zoomEl.min = String(minZoom());
 
   function limit(value, axis) {
     const scale = baseScale() * zoom;
@@ -103,7 +120,7 @@ export async function cropSquareImage(file) {
   }
 
   function setZoom(next) {
-    const clamped = Math.min(ZOOM_MAX, Math.max(1, next));
+    const clamped = Math.min(ZOOM_MAX, Math.max(minZoom(), next));
     // Приближаем к центру круга: то, что человек поставил в центр, там и остаётся
     const factor = clamped / zoom;
     offsetX *= factor;
@@ -191,11 +208,20 @@ export async function cropSquareImage(file) {
       const ctx = canvas.getContext('2d');
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(image, square.x, square.y, square.side, square.side, 0, 0, side, side);
+      // Фото отдалили сильнее, чем нужно для заполнения кадра - по краям остались
+      // пустые поля. JPEG залил бы их чёрным, поэтому такой кадр сохраняем PNG: поля
+      // остаются прозрачными, и в кружке сквозь них виден фон интерфейса. Кадр без
+      // полей (обычный случай) по-прежнему JPEG - он заметно легче при отправке
+      const hasEmptyEdges =
+        square.x < -0.5 || square.y < -0.5 ||
+        square.x + square.side > image.naturalWidth + 0.5 ||
+        square.y + square.side > image.naturalHeight + 0.5;
+      const type = hasEmptyEdges ? 'image/png' : 'image/jpeg';
       canvas.toBlob((blob) => {
         if (!blob) return finish(null);
         const name = file.name.replace(/\.[^.]+$/, '') || 'avatar';
-        finish(new File([blob], `${name}.jpg`, { type: 'image/jpeg' }));
-      }, 'image/jpeg', 0.92);
+        finish(new File([blob], `${name}.${hasEmptyEdges ? 'png' : 'jpg'}`, { type }));
+      }, type, 0.92);
     });
   });
 }

@@ -129,6 +129,49 @@ await withEphemeralServer(async ({ apiUrl, db }) => {
       check('1. область кадра квадратная', opened.stageSquare === true);
       check('1. фото ещё не загружено на сервер', (await avatarCount()) === 0);
 
+      // ── 1б. круг ровно один (правка 15.08.2026 - «а почему внутри 2 кружка?») ──
+      // Замер по картинке: идём от центра вправо и ищем, где начинается затемнение
+      // маски, отдельно измеряем радиус золотой рамки. Раньше это были разные круги
+      const circles = JSON.parse(await s.eval(`JSON.stringify((function(){
+        const stage = document.querySelector('.crop-stage');
+        const rect = stage.getBoundingClientRect();
+        const mask = getComputedStyle(document.querySelector('.crop-mask'));
+        const ring = getComputedStyle(stage, '::after');
+        return {
+          maskImage: mask.maskImage || mask.webkitMaskImage || '',
+          ringRadius: rect.width / 2,
+          ringRound: ring.borderRadius,
+          borderWidth: ring.borderTopWidth,
+        };
+      })())`));
+      console.log('круги:', JSON.stringify(circles));
+      // closest-side привязывает радиус градиента к стороне квадрата - тот же радиус,
+      // что у вписанной золотой окружности; farthest-corner (по умолчанию) давал бы
+      // круг примерно в 0.71 от неё, то есть второй, меньший круг внутри рамки
+      check('1б. затемнение обрезано по вписанной окружности (один круг)', /closest-side/.test(circles.maskImage), circles.maskImage.slice(0, 90));
+      check('1б. золотая рамка - окружность по краю области', circles.ringRound.startsWith('50%'), circles.ringRound);
+
+      // ── 1в. фото можно отдалить, а не только приблизить ────────────────
+      const zoomRange = JSON.parse(await s.eval(`JSON.stringify((function(){
+        const zoom = document.querySelector('[data-crop-zoom]');
+        return { min: Number(zoom.min), max: Number(zoom.max), value: Number(zoom.value) };
+      })())`));
+      console.log('ползунок:', JSON.stringify(zoomRange));
+      check('1в. ползунок пускает ниже единицы - фото можно отдалить', zoomRange.min < 0.99, JSON.stringify(zoomRange));
+      const zoomedOut = await s.eval(`(function(){
+        const zoom = document.querySelector('[data-crop-zoom]');
+        zoom.value = zoom.min;
+        zoom.dispatchEvent(new Event('input', { bubbles: true }));
+        const stage = document.querySelector('.crop-stage').getBoundingClientRect();
+        const img = document.querySelector('[data-crop-image]').getBoundingClientRect();
+        // На минимуме вся картинка должна помещаться в круг: её диагональ не длиннее
+        // диаметра, то есть стороны области
+        return JSON.stringify({ diagonal: Math.hypot(img.width, img.height), diameter: stage.width });
+      })()`);
+      const fit = JSON.parse(zoomedOut);
+      console.log('на минимальном отдалении:', zoomedOut);
+      check('1в. на минимуме фото целиком помещается в круг', fit.diagonal <= fit.diameter + 1, JSON.stringify(fit));
+
       // ── 2. фото двигается и приближается ──────────────────────────────
       const before = opened.transform;
       await dragStage(70);

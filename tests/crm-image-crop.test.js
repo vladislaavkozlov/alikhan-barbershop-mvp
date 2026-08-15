@@ -63,3 +63,31 @@ test('кадр никогда не выходит за края файла пр�
     assert.ok(square.x + square.side <= image.naturalWidth + 1e-9, `правый край уехал за файл: ${square.x + square.side}`);
   }
 });
+
+// Правка Влада 15.08.2026 («зум есть, а отдалить нельзя») - нижняя граница ползунка
+const { minZoomFor } = await import('../assets/crm-image-crop.js');
+
+test('квадратное фото можно отдалить до диагонали круга', () => {
+  // Диагональ квадрата в √2 раза больше стороны - значит уменьшить нужно во столько же
+  assert.equal(minZoomFor({ naturalWidth: 1200, naturalHeight: 1200 }), 0.707);
+});
+
+test('вертикальное фото с телефона отдаляется сильнее квадратного', () => {
+  const phone = minZoomFor({ naturalWidth: 1080, naturalHeight: 1920 });
+  assert.ok(phone < 0.707, `ожидалось меньше 0.707, получено ${phone}`);
+  assert.ok(phone > 0.3, `слишком мелко: ${phone}`);
+});
+
+test('панорама не превращается в точку - ниже 0.3 не уходим', () => {
+  assert.equal(minZoomFor({ naturalWidth: 6000, naturalHeight: 400 }), 0.3);
+});
+
+test('на минимальном отдалении всё фото помещается в круг', () => {
+  const image = { naturalWidth: 1000, naturalHeight: 400 };
+  const zoom = minZoomFor(image);
+  const cover = Math.max(STAGE / image.naturalWidth, STAGE / image.naturalHeight);
+  const scale = cover * zoom;
+  // Диагональ фото на экране не длиннее диаметра круга (диаметр = сторона области)
+  const diagonal = Math.hypot(image.naturalWidth * scale, image.naturalHeight * scale);
+  assert.ok(diagonal <= STAGE + 0.5, `диагональ ${diagonal.toFixed(1)} не влезает в круг ${STAGE}`);
+});

@@ -67,16 +67,22 @@
   -webkit-user-drag: none;
 }
 
-/* Круг - ровно тот кадр, который станет аватаром: наружная тень гасит остальное,
-   рамка показывает границу. Клики маска не перехватывает */
+/* Круг ровно один - тот кадр, который станет аватаром: внутри чисто, снаружи
+   затемнение, по границе золотая линия (.crop-stage::after ниже). Клики маска не
+   перехватывает.
+   ВАЖНО (правка Влада 15.08.2026 - «а почему внутри 2 кружка?»): у radial-gradient
+   размер по умолчанию farthest-corner, то есть радиус считается до УГЛА квадрата, и
+   50% от него - окружность примерно в 0.71 от вписанной. Получалось два круга разного
+   размера: тёмная граница затемнения и золотая рамка отдельно от неё. closest-side
+   считает радиус до стороны - круг маски совпадает с вписанной окружностью рамки */
 .crop-mask {
   position: absolute;
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 9999px rgba(6, 14, 9, 0.55);
-  -webkit-mask: radial-gradient(circle at 50% 50%, transparent 0 49.5%, #000 50%);
-  mask: radial-gradient(circle at 50% 50%, transparent 0 49.5%, #000 50%);
+  box-shadow: inset 0 0 0 9999px rgba(6, 14, 9, 0.62);
+  -webkit-mask: radial-gradient(circle closest-side at 50% 50%, transparent 0 99%, #000 100%);
+  mask: radial-gradient(circle closest-side at 50% 50%, transparent 0 99%, #000 100%);
 }
 
 .crop-stage::after {
