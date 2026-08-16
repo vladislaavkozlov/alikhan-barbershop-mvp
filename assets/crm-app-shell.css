@@ -8,6 +8,101 @@
 
 .app-sidebar { display: none; }
 .app-sidebar-toggle { display: none; }
+/* Мобильные элементы шапки (16.08.2026) скрыты по умолчанию ровно тем же приёмом,
+   что и сама панель строкой выше: показывает их только мобильный медиа-запрос в
+   конце файла. Без этой пары строк они существуют как обычные inline-элементы и
+   вылезают на десктопе - кнопка-гамбургер рядом с логотипом при уже открытом меню
+   слева и вторая подпись раздела, которую с десктопа убирали намеренно
+   (08.08.2026, дублировала подсвеченный пункт панели). Поймано живым прогоном на
+   1440px, а не рассуждением. */
+.app-drawer-btn { display: none; }
+.app-shell-mobile-section { display: none; }
+.app-drawer-scrim { display: none; }
+/* Кнопка выхода внутри панели - тоже мобильная: на десктопе та же кнопка стоит в
+   шапке (#logoutBtn) и второй раз в меню не нужна. */
+.app-sidebar-logout { display: none; }
+
+/* ── Содержимое панели ────────────────────────────────────────────────────────
+   Вид самих пунктов навигации и подписей внизу панели. Общий для обоих режимов
+   показа: на десктопе панель стоит всегда, на телефоне выезжает шторкой, но
+   ВНУТРИ она одна и та же - одни иконки, одна подсветка активного, одна
+   типографика. Поэтому эти правила живут вне медиа-запросов, а в самих
+   медиа-запросах остаётся только геометрия панели (где стоит, какой ширины, как
+   появляется).
+
+   До 16.08.2026 весь этот блок лежал внутри `@media (min-width:1024px)` вместе с
+   геометрией - на телефоне панели не существовало, и разделять было незачем. С
+   появлением мобильной шторки это стало настоящим дефектом: кнопки в шторке не
+   получали ни одного своего стиля и подхватывали глобальное `button, .btn`
+   (золотая рамка + золотой текст + скругление 6px) из mockup-crm.css. */
+.app-nav { display: flex; flex-direction: column; gap: var(--space-1); }
+
+/* Правка 08.08.2026 (Влад: "кнопки панели меню пляшут вверх-вниз при открытии и
+   закрытии") - при развороте sidebar body.app-shell-sidebar-collapsed снимается
+   СРАЗУ (клик), .app-nav-label мгновенно становится видимым (снимается его
+   display:none), а сама ширина .app-sidebar только начинает анимироваться
+   76px→240px (180ms). Пару кадров подпись физически не помещалась в ещё узкую
+   панель и переносилась на вторую строку - высота каждой кнопки на миг росла,
+   все кнопки ниже сдвигались вниз и обратно, это и читалось как "пляшут".
+   white-space:nowrap запрещает перенос в принципе (лишний текст просто
+   обрезается overflow:hidden, а не переносится) - высота кнопки больше не может
+   измениться независимо от того, сколько от подписи сейчас помещается по
+   ширине. Сама подпись по-прежнему появляется/исчезает без анимации (просто
+   дисплей), но теперь это горизонтальный "реveal" по мере роста ширины
+   панели, а не вертикальный скачок. */
+.app-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-3);
+  color: var(--text-muted);
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+/* Правка 08.08.2026, третий заход (Влад: "при сворачивании-разворачивании пункты
+   смещаются по высоте") - в развёрнутом виде .app-nav-label добавлял себя как flex-
+   child с высотой строки текста (~22px по метрикам Manrope 0.9rem), в свёрнутом виде
+   label снят из потока (display:none выше), высоту кнопки задаёт только .app-nav-icon
+   (18px). Разная высота кнопки в двух состояниях копится по списку (gap между кнопками
+   не менялся, но каждая кнопка ниже - каждая следующая точка съезжает сильнее). line-
+   height, равный высоте иконки, убирает лишнюю высоту строки текста - кнопка теперь
+   одной высоты в обоих состояниях, свёрнутость/развёрнутость меняет только ширину. */
+.app-nav-label { overflow: hidden; text-overflow: clip; line-height: 18px; }
+/* :not(.is-active) у hover - иначе на телефоне активный пункт после тапа остаётся под
+   "залипшим" hover (палец ушёл, состояние держится до следующего касания) и золотая
+   заливка активного раздела гасится серой hover-заливкой: выбранный раздел выглядит
+   невыбранным ровно в тот момент, когда ты его выбрал. */
+.app-nav-item:hover:not(.is-active) { background: var(--surface-2); color: var(--text); }
+.app-nav-item.is-active { background: var(--accent); color: var(--leather); }
+.app-nav-icon { width: 1.4em; display: inline-flex; align-items: center; justify-content: center; }
+.app-nav-icon svg { width: 18px; height: 18px; }
+
+.app-sidebar-location {
+  margin-top: auto;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.app-sidebar-profile {
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
 
 @media (min-width: 1024px) {
   /* Правка 08.08.2026 (Влад отметил стрелкой на скриншоте линию границы шапки -
@@ -165,73 +260,233 @@
   body.app-shell-sidebar-collapsed .app-sidebar-toggle { left: calc(var(--sidebar-w-collapsed) - 14px); }
   body.app-shell-sidebar-collapsed .app-sidebar-toggle .app-nav-icon svg { transform: rotate(180deg); }
 
-  .app-nav { display: flex; flex-direction: column; gap: var(--space-1); }
-  /* Правка 08.08.2026 (Влад: "кнопки панели меню пляшут вверх-вниз при открытии и
-     закрытии") - при развороте sidebar body.app-shell-sidebar-collapsed снимается
-     СРАЗУ (клик), .app-nav-label мгновенно становится видимым (снимается его
-     display:none), а сама ширина .app-sidebar только начинает анимироваться
-     76px→240px (180ms). Пару кадров подпись физически не помещалась в ещё узкую
-     панель и переносилась на вторую строку - высота каждой кнопки на миг росла,
-     все кнопки ниже сдвигались вниз и обратно, это и читалось как "пляшут".
-     white-space:nowrap запрещает перенос в принципе (лишний текст просто
-     обрезается overflow:hidden, а не переносится) - высота кнопки больше не может
-     измениться независимо от того, сколько от подписи сейчас помещается по
-     ширине. Сама подпись по-прежнему появляется/исчезает без анимации (просто
-     дисплей), но теперь это горизонтальный "реveal" по мере роста ширины
-     панели, а не вертикальный скачок. */
-  .app-nav-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    background: transparent;
-    border: none;
-    border-radius: var(--radius-md);
-    padding: var(--space-3) var(--space-3);
-    color: var(--text-muted);
-    font-family: 'Manrope', sans-serif;
-    font-size: 0.9rem;
-    font-weight: 600;
-    text-align: left;
-    white-space: nowrap;
-    overflow: hidden;
-    cursor: pointer;
-    transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
-  }
-  /* Правка 08.08.2026, третий заход (Влад: "при сворачивании-разворачивании пункты
-     смещаются по высоте") - в развёрнутом виде .app-nav-label добавлял себя как flex-
-     child с высотой строки текста (~22px по метрикам Manrope 0.9rem), в свёрнутом виде
-     label снят из потока (display:none выше), высоту кнопки задаёт только .app-nav-icon
-     (18px). Разная высота кнопки в двух состояниях копится по списку (gap между кнопками
-     не менялся, но каждая кнопка ниже - каждая следующая точка съезжает сильнее). line-
-     height, равный высоте иконки, убирает лишнюю высоту строки текста - кнопка теперь
-     одной высоты в обоих состояниях, свёрнутость/развёрнутость меняет только ширину. */
-  .app-nav-label { overflow: hidden; text-overflow: clip; line-height: 18px; }
-  .app-nav-item:hover { background: var(--surface-2); color: var(--text); }
-  .app-nav-item.is-active { background: var(--accent); color: var(--leather); }
-  .app-nav-icon { width: 1.4em; display: inline-flex; align-items: center; justify-content: center; }
-  .app-nav-icon svg { width: 18px; height: 18px; }
-
-  .app-sidebar-location {
-    margin-top: auto;
-    font-size: 0.76rem;
-    color: var(--text-muted);
-    border-top: 1px solid var(--border);
-    padding-top: var(--space-3);
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  .app-sidebar-profile {
-    white-space: nowrap;
-    overflow: hidden;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--text);
-  }
+  /* Внешний вид самих пунктов меню (.app-nav / .app-nav-item / .app-nav-label /
+     .app-nav-icon / подписи точки и роли) переехал ОТСЮДА наружу, выше этого
+     медиа-запроса (16.08.2026) - см. блок "Содержимое панели". Здесь остались только
+     правила про десктопные состояния панели (сворачивание в иконки), которых на
+     телефоне нет. Причина переезда - реальный дефект, пойманный скриншотом: пока
+     весь внешний вид пунктов лежал внутри `min-width:1024px`, на телефоне те же
+     кнопки не получали НИ ОДНОГО своего стиля и оформлялись глобальным правилом
+     `button, .btn` из mockup-crm.css - золотая рамка, скругление 6px, золотой текст.
+     Меню-шторка выглядела списком из пяти обведённых кнопок вместо панели навигации,
+     а активный раздел не подсвечивался вовсе. */
 
   /* Sidebar заменяет верхнюю горизонтальную навигацию Окон 33-40 - сама вкладка
      (radio + .panel-*) не трогается, скрываем только полосу лейблов. */
   body.app-shell-active .page-tabs .tab-bar { display: none; }
+}
+
+/* ═══ Мобильный слой меню (16.08.2026) ════════════════════════════════════════
+   До этой даты весь app shell жил ровно внутри @media (min-width:1024px) выше -
+   на телефоне левого меню не существовало вообще (базовое .app-sidebar{display:none}
+   в начале файла), навигацией работала старая горизонтальная .tab-bar, которая на
+   390px не помещается: два последних раздела уезжают за правый край без единого
+   признака, что там что-то есть.
+
+   Решение - НЕ вторая навигация, а ТА ЖЕ панель в другом режиме показа: одна и та
+   же разметка (assets/crm-app-shell.js sidebarMarkup), те же .app-nav-item с теми же
+   иконками, той же золотой подсветкой активного и теми же подписями точки/роли внизу.
+   Меняется только способ появления: на десктопе панель стоит всегда и раздвигает
+   контент, на телефоне выезжает шторкой поверх контента по кнопке в шапке.
+
+   Почему шторка едет transform'ом, а стоит на transform:none - открытая панель не
+   имеет никакого трансформа вообще (translateX(0) снят целиком), поэтому её пункты
+   хит-тестятся по своим настоящим координатам. Это прямой урок 09.08.2026: у
+   синтетического CDP-клика в связке с ненулевым transform бывает расхождение между
+   координатой отрисовки и координатой хит-теста, и проверять кликабельность пунктов
+   пришлось бы с оговоркой. Здесь оговорки нет - в конечном состоянии геометрия
+   буквальная.
+
+   Ширина/фон/скругления/типографика не переопределяются - берутся из тех же токенов
+   (--bg-sidebar, --border, --space-*), что и десктопная панель. */
+@media (max-width: 1023.98px) {
+  /* Панель существует в DOM всегда (её вставляет тот же insertSidebar), но пока
+     drawer закрыт - она физически за левым краем экрана и вынута из доступности
+     (visibility:hidden гасит её для скринридера и для Tab, чего один transform не
+     делает). visibility переключается БЕЗ задержки на открытие и с задержкой на
+     закрытие - иначе панель пропала бы мгновенно, не доиграв выезд назад. */
+  body.app-shell-active .app-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(280px, 82vw);
+    padding: var(--space-5) var(--space-4);
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.65);
+    z-index: 60;
+    overflow-y: auto;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 220ms var(--ease-out), visibility 0s linear 220ms;
+  }
+
+  body.app-shell-drawer-open .app-sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform 220ms var(--ease-out), visibility 0s linear 0s;
+  }
+
+  /* Затемнение под шторкой. Оно же - зона закрытия по тапу мимо меню (обработчик в
+     crm-app-shell.js). pointer-events снимаются в закрытом состоянии, иначе невидимый
+     слой перехватывал бы все тапы по контенту. */
+  .app-drawer-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 14, 10, 0.62);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    z-index: 59;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms var(--ease-out);
+    border: none;
+    padding: 0;
+    margin: 0;
+  }
+  body.app-shell-drawer-open .app-drawer-scrim { opacity: 1; pointer-events: auto; }
+  /* Затемнение технически <button> (чтобы закрытие работало и с клавиатуры), а
+     глобальное правило mockup-crm.css заливает ЛЮБУЮ кнопку под курсором золотом.
+     На весь экран это выглядело буквально как золотая штора вместо затемнения -
+     поймано скриншотом. Держим свой фон во всех состояниях кнопки. */
+  .app-drawer-scrim:hover,
+  .app-drawer-scrim:active,
+  .app-drawer-scrim:focus { background: rgba(8, 14, 10, 0.62); color: inherit; transform: none; }
+
+  /* Кнопка вызова меню - слева от логотипа, 44x44 (минимальная зона пальца по
+     Human Interface Guidelines; сам штрих иконки 20px, зона больше самого рисунка).
+     flex:none обязателен: кнопка - flex-item внутри .app-shell-brand-group, и по
+     умолчанию flex-элемент имеет право сжиматься. Живой замер поймал реальную зону
+     20x44 вместо 44x44 - ширину съел длинный сосед (логотип + подпись раздела),
+     кнопка ужалась до ширины своего SVG. Палец при этом попадает мимо ровно в
+     половине случаев, при том что визуально иконка на месте. */
+  body.app-shell-active .app-drawer-btn {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-left: -10px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
+  }
+  body.app-shell-active .app-drawer-btn:hover { background: var(--surface-2); color: var(--accent); }
+  body.app-shell-active .app-drawer-btn svg { width: 20px; height: 20px; }
+
+  /* Название текущего раздела в шапке. На десктопе его намеренно нет (убрано
+     08.08.2026 - дублировало подсвеченный пункт меню, который всегда на виду), но на
+     телефоне меню закрыто по умолчанию, и без подписи негде увидеть, где ты сейчас
+     находишься. Появляется ровно там, где пропадает постоянно видимый sidebar. */
+  body.app-shell-active .app-shell-mobile-section {
+    display: inline-block;
+    flex: 0 1 auto;
+    min-width: 0;
+    font-family: 'Manrope', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 40vw;
+  }
+  /* Точка-разделитель отделяет название раздела от логотипа, чтобы "АЛИХАН Расписание"
+     не читалось одной строкой. Псевдоэлемент, а не символ в тексте: подпись
+     переписывается из JS (updateActiveNav), и разделитель не должен зависеть от того,
+     что именно туда сейчас записано. */
+  body.app-shell-active .app-shell-mobile-section::before {
+    content: '·';
+    margin-right: 8px;
+    color: var(--text-muted);
+  }
+
+  /* Шапка на узком экране: кнопка меню + логотип + подпись раздела в одну строку,
+     действия справа. Без flex-wrap:nowrap .nav роняет .nav-right на вторую строку и
+     шапка съедает треть экрана телефона.
+
+     Замер живьём показал, почему одного nowrap мало: .nav-right занимала 264px из
+     390 (обновить 38 + колокольчик 38 + "Выйти" 67 + пилюля "Владелец" 91), группа
+     логотипа - ещё 142, итого 406 при 366 доступных. Оба блока сжимались друг в
+     друга, подпись раздела схлопывалась в НОЛЬ ширины, а .nav-right наезжала на
+     логотип на 24px - буквы налезали друг на друга.
+     Разгрузка не косметическая: "Выйти" и подпись роли на телефоне переехали ВНИЗ
+     ШТОРКИ, где роль сотрудника и так подписана (.app-sidebar-profile) - в шапке они
+     были третьим и четвёртым повторением одного и того же на самом узком экране. */
+  .nav { gap: 10px; padding: 10px clamp(12px, 4vw, 20px); flex-wrap: nowrap; }
+  .nav-right { gap: 8px; flex-wrap: nowrap; flex: none; }
+  .app-shell-brand-group { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; }
+  body.app-shell-active .brand { font-size: 1.05rem; flex: none; }
+  body.app-shell-active .session-info { display: none; }
+  body.app-shell-active .nav-right #logoutBtn,
+  body.app-shell-active .nav-right .role-switch { display: none; }
+  /* То же и с пилюлей "Вы: имя" в кабинете мастера (crm-master.html) - она съедала
+     остаток строки, и подпись раздела схлопывалась в многоточие (поймано скриншотом
+     под Елизаветой). Имя мастера на его экране и так подписано в самом расписании
+     ("Елизавета (вы)" над колонкой), а роль - внизу шторки: в шапке телефона это
+     третье повторение. */
+  body.app-shell-active .nav-right .location-badge { display: none; }
+
+  /* Кнопка выхода внизу шторки. Оформлена приглушённо (рамка + тихий цвет, не
+     акцент): выход - редкое и необратимое действие, ему не место рядом по яркости с
+     разделами, которыми пользуются постоянно. */
+  body.app-shell-active .app-sidebar-logout {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    margin-top: var(--space-3);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+    font-family: 'Manrope', sans-serif;
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  body.app-shell-active .app-sidebar-logout:hover { border-color: var(--danger); color: var(--danger); background: transparent; }
+
+  /* Старая горизонтальная лента вкладок уступает место меню - но ТОЛЬКО когда
+     мобильная навигация действительно собрана (класс ставит crm-app-shell.js после
+     того, как кнопка и шторка реально вставлены в DOM). Если скрипт не выполнился,
+     класса нет, лента остаётся на месте, и страница не окажется вообще без
+     навигации. Это защита, а не украшение: разделы переключаются только этими
+     двумя способами. */
+  body.app-shell-mobile-nav .page-tabs .tab-bar { display: none; }
+
+  /* Пункты в шторке крупнее десктопных: палец, а не курсор. 48px - высота строки
+     списка в нативных мобильных меню, ниже неё промахи по соседнему пункту растут. */
+  body.app-shell-active .app-nav-item { min-height: 48px; font-size: 0.95rem; padding: var(--space-3) var(--space-4); }
+  body.app-shell-active .app-nav-icon svg { width: 20px; height: 20px; }
+}
+
+/* Когда меню-шторка открыта, страница под ней не прокручивается: иначе тап-скролл по
+   затемнению уводит контент, а вернувшись, пользователь видит уже не тот экран, с
+   которого открывал меню. Правило вне медиа-запроса - класс ставится только на
+   мобильном (десктоп drawer не открывает вовсе), а держать его тут безопаснее, чем
+   зависеть от границы вьюпорта при повороте телефона. */
+body.app-shell-drawer-open { overflow: hidden; }
+
+/* Плавающая кнопка "Развернуть все" (assets/crm-navigation-panels.css) живёт на
+   z-index:80 - выше и шторки, и затемнения. На телефоне она садилась прямо поверх
+   кнопки "Выйти" в открытом меню (видно на скриншоте проверки). Пока меню открыто,
+   ей нечего делать на экране: карточки под затемнением всё равно недоступны. */
+body.app-shell-drawer-open .crm-navigation-ui .panel-group-controls,
+body.app-shell-drawer-open.crm-navigation-ui .panel-group-controls {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms var(--ease-out);
 }
 
 /* ── Карточка визита в кабинете мастера (13.08.2026) ──────────────────────────

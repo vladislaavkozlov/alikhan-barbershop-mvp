@@ -33,7 +33,7 @@
 // тот же принцип, что уже применён к Клиентам/Настройкам выше (пункт появляется
 // в момент, когда раздел реально наполнен). Эмодзи-иконки заменены на SVG
 // (assets/crm-icons.js) - разный рендер эмодзи по ОС/браузерам ломал премиум-вид.
-import { ICON_SCHEDULE, ICON_TEAM, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE } from './crm-icons.js';
+import { ICON_SCHEDULE, ICON_TEAM, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE, ICON_MENU } from './crm-icons.js';
 
 // Правка 07.08.2026 - добавлен пункт "Уведомления" (radio pt-e/panel-e, новый слот):
 // "Заявки мастеров на изменение графика" переехали сюда из "Расписания" целиком
@@ -116,10 +116,17 @@ function sidebarMarkup() {
         <span class="app-nav-label">${activeConfig.label[id]}</span>
       </button>`
   ).join('');
+  // Кнопка выхода внизу панели (16.08.2026) существует только для мобильного режима
+  // (CSS прячет её на десктопе, где та же кнопка стоит в шапке). Своей логики выхода
+  // у неё НЕТ - она нажимает существующий #logoutBtn. Это принципиально: выход
+  // чистит сессию и токен (crm-auth.js), второй такой обработчик рано или поздно
+  // разошёлся бы с первым, а цена расхождения здесь - зависшая сессия на телефоне
+  // сотрудника. Одна кнопка-источник, вторая - только способ до неё дотянуться.
   return `
     <nav class="app-nav">${items}</nav>
     <div class="app-sidebar-location">Алихан, Ставрополь</div>
     <div class="app-sidebar-profile" id="appShellProfile">${activeConfig.profileLabel}</div>
+    <button type="button" class="app-sidebar-logout" id="appSidebarLogout">Выйти</button>
   `;
 }
 
@@ -168,7 +175,101 @@ function insertSidebar() {
   aside.querySelectorAll('[data-section]').forEach((btn) => {
     btn.addEventListener('click', () => goToSection(btn.dataset.section));
   });
+  const logout = aside.querySelector('#appSidebarLogout');
+  if (logout) {
+    logout.addEventListener('click', () => {
+      closeDrawer();
+      el('logoutBtn')?.click();
+    });
+  }
   insertToggleButton();
+}
+
+// ═══ Мобильная шторка (16.08.2026) ═══════════════════════════════════════════
+// До этой правки на телефоне левого меню не существовало вообще: весь app shell
+// жил внутри @media (min-width:1024px), навигацией работала горизонтальная
+// .tab-bar, у которой на 390px два последних раздела уезжают за край экрана.
+//
+// Здесь НЕ вторая навигация. Панель, её разметка, пункты, иконки, подсветка
+// активного и подписи точки/роли - те же самые (sidebarMarkup выше, один вызов на
+// оба режима). Добавляется только способ её показать на узком экране: кнопка в
+// шапке, затемнение и класс на body, по которому CSS выводит панель из-за левого
+// края. Ни одного дублирующего списка разделов в коде нет по построению - разойтись
+// с десктопным меню он физически не может.
+const DRAWER_OPEN_CLASS = 'app-shell-drawer-open';
+const MOBILE_NAV_CLASS = 'app-shell-mobile-nav';
+
+function isDrawerOpen() {
+  return document.body.classList.contains(DRAWER_OPEN_CLASS);
+}
+
+function setDrawer(open) {
+  document.body.classList.toggle(DRAWER_OPEN_CLASS, open);
+  const btn = el('appDrawerBtn');
+  if (btn) {
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+  }
+  const sidebar = el('appSidebar');
+  if (sidebar) sidebar.setAttribute('aria-hidden', open ? 'false' : 'true');
+}
+
+export function closeDrawer() {
+  if (isDrawerOpen()) setDrawer(false);
+}
+
+// Кнопка встаёт СЛЕВА ОТ ЛОГОТИПА внутри общей группы, а не отдельным элементом в
+// .nav: у .nav стоит justify-content:space-between, третий прямой ребёнок разъехался
+// бы по краям и логотип уехал бы в середину шапки. Обёртка держит "меню + логотип +
+// раздел" одним блоком слева, действия остаются справа, как были.
+function insertDrawerControls() {
+  const nav = document.querySelector('header.site .nav');
+  const brand = nav && nav.querySelector('.brand');
+  if (!nav || !brand || el('appDrawerBtn')) return false;
+
+  const group = document.createElement('div');
+  group.className = 'app-shell-brand-group';
+  nav.insertBefore(group, brand);
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'app-drawer-btn';
+  btn.id = 'appDrawerBtn';
+  btn.setAttribute('aria-label', 'Открыть меню');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-controls', 'appSidebar');
+  btn.innerHTML = `<span class="app-nav-icon" aria-hidden="true">${ICON_MENU}</span>`;
+  btn.addEventListener('click', () => setDrawer(!isDrawerOpen()));
+
+  const section = document.createElement('span');
+  section.className = 'app-shell-mobile-section';
+  section.id = 'appShellMobileSection';
+
+  group.append(btn, brand, section);
+
+  // Затемнение - <button>, а не <div>: закрытие по тапу мимо меню обязано работать и
+  // с клавиатуры/скринридера, иначе на открытой шторке фокус запирается без выхода.
+  if (!el('appDrawerScrim')) {
+    const scrim = document.createElement('button');
+    scrim.type = 'button';
+    scrim.className = 'app-drawer-scrim';
+    scrim.id = 'appDrawerScrim';
+    scrim.setAttribute('aria-label', 'Закрыть меню');
+    scrim.addEventListener('click', closeDrawer);
+    document.body.appendChild(scrim);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeDrawer();
+  });
+
+  // Класс-признак "мобильная навигация реально собрана". Именно по нему CSS прячет
+  // старую .tab-bar - если этот код не выполнился (ошибка импорта, старый кеш), лента
+  // вкладок останется на экране и телефон не окажется вообще без способа переключить
+  // раздел. Скрывать её безусловным CSS-правилом было бы ставкой на то, что скрипт
+  // всегда доедет.
+  document.body.classList.add(MOBILE_NAV_CLASS);
+  return true;
 }
 
 function updateActiveNav() {
@@ -177,6 +278,8 @@ function updateActiveNav() {
     btn.classList.toggle('is-active', active);
     btn.setAttribute('aria-current', active ? 'true' : 'false');
   });
+  const mobileSection = el('appShellMobileSection');
+  if (mobileSection) mobileSection.textContent = activeConfig.label[currentSection] || '';
 }
 
 export function getCurrentSection() {
@@ -195,6 +298,13 @@ export function goToSection(sectionId) {
   }
 
   updateActiveNav();
+
+  // Выбрал раздел - шторка уходит и открывает то, что ты выбрал. Закрытие живёт
+  // именно здесь, а не на клике по пункту меню, потому что в этот же раздел приводят
+  // и переходы из других модулей (клик по уведомлению - crm-notifications.js,
+  // алерт "мастер без графика" - crm-schedule-alerts.js): любой из них на телефоне
+  // оставил бы шторку висеть поверх раздела, в который сам же и привёл.
+  closeDrawer();
 }
 
 export function initAppShell(role = 'owner') {
@@ -205,6 +315,7 @@ export function initAppShell(role = 'owner') {
   currentSection = activeConfig.defaultSection;
 
   insertSidebar();
+  insertDrawerControls();
 
   // #crmMain остаётся hidden до успешного входа (initCrmAuth, crm-auth.js) - тот
   // же приём синхронизации, что уже использует wireOwnerToday (crm-owner-today.js).

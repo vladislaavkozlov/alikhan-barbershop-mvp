@@ -28,6 +28,12 @@ export const ICON_SIDEBAR_TOGGLE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="ht
 // тот же line-art стиль (STROKE), не эмодзи - см. остальные иконки этого файла.
 export const ICON_PROFILE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="6.8" r="3"/><path d="M4 17c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg>`;
 
+// 16.08.2026 - вызов меню-шторки на телефоне (assets/crm-app-shell.js, mobile drawer).
+// Три штриха вместо привычных трёх РАВНЫХ: нижний короче, как в наборе иконок этой
+// CRM (ICON_ANALYTICS тоже строит ритм из разной длины) - иначе иконка читается как
+// generic-гамбургер из бутстрапа и выбивается из line-art набора.
+export const ICON_MENU = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><path d="M3 5.5h14M3 10h14M3 14.5h9"/></svg>`;
+
 // Иконки внутренних разделов карточки сотрудника. Та же сетка 20x20 и тот же
 // stroke, что у оболочки CRM, но разные метафоры помогают быстро сканировать
 // длинную раскрытую карточку без повторяющихся ножниц у каждого заголовка
