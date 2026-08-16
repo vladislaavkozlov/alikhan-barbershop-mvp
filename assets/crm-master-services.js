@@ -4,6 +4,7 @@
 // ролей. Код перенесён 1в1, поведение не менялось.
 import { formatMoney } from './crm-shared.js';
 import { API, getToken } from './crm-auth.js';
+import { sortByServiceOrder } from '../storage.js';
 
 // Правка 03.08.2026: карточка сотрудника "Сотрудники" (владелец/админ) держала
 // чекбоксы услуг мастера и поле длительности как чистую декорацию - ни одного
@@ -52,7 +53,9 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
   note.className = 'section-hint';
   note.hidden = true;
 
-  for (const service of services) {
+  // Единый порядок показа услуг (storage.js SERVICE_ORDER) - каталог приезжает из
+  // /services, но фронт и бэкенд деплоятся раздельно
+  for (const service of sortByServiceOrder(services)) {
     const row = assigned.get(service.id);
     const label = document.createElement('label');
     label.className = 'service-check';

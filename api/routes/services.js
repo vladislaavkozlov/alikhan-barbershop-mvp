@@ -10,7 +10,11 @@ import { canManageStaff } from '../lib/permissions.js';
 export async function handleServicesList(req, res) {
   const auth = await authenticate(req);
   if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-  const result = await pool.query('SELECT id, name, category, duration_min, price, composition FROM services ORDER BY name, id');
+  // Порядок - тот, в котором барбершоп продаёт услуги (services.sort_order,
+  // миграция 049), не алфавит: этот же список рисуют все формы выбора в CRM.
+  const result = await pool.query(
+    'SELECT id, name, category, duration_min, price, composition FROM services ORDER BY sort_order, name, id'
+  );
   return sendJson(
     res,
     200,
@@ -34,7 +38,14 @@ export async function handleServicesList(req, res) {
 // разрешён так же, как уже сделано для /schedule (Окно 15) - ничего чувствительнее
 // цены/длительности здесь нет, эти цифры и так были видны на сайте захардкоженными.
 export async function handleMasterServicesList(req, res) {
-  const result = await pool.query('SELECT master_id, service_id, price, duration_min FROM master_services ORDER BY master_id, service_id');
+  // JOIN только ради sort_order: строки этого роута идут в чекбоксы услуг у
+  // клиента на сайте, в форме "Новая запись" и в корректировке состава записи -
+  // порядок там должен совпадать с каталогом, а не с алфавитом service_id.
+  const result = await pool.query(
+    `SELECT ms.master_id, ms.service_id, ms.price, ms.duration_min
+       FROM master_services ms JOIN services s ON s.id = ms.service_id
+      ORDER BY ms.master_id, s.sort_order, s.name, s.id`
+  );
   return sendJson(
     res,
     200,

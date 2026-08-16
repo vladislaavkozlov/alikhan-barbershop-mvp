@@ -11,6 +11,7 @@
 // панель на 100 строк честнее и не тянет за собой ничего из crm-walkin.js.
 import { el, formatMoney, masterCommissionLabel } from './crm-shared.js';
 import { escapeHtml } from './crm-schedule-shared.js';
+import { sortByServiceOrder } from '../storage.js';
 
 // Статус визита мастер видит, но не меняет: "Ожидание" до визита, "Обслужен" по
 // факту завершённой сделки, "Не пришёл" ставит администратор (решение Влада
@@ -28,7 +29,9 @@ const STATUS_LABEL = {
 // ему нечего. Имя и цену берём из его master_services (у мастеров прайс разный),
 // общий /services - страховка на случай пары, которую не завели.
 function serviceRows(serviceIds, masterId, services, masterServices) {
-  return serviceIds.map((serviceId) => {
+  // Единый порядок показа услуг (storage.js SERVICE_ORDER) - состав записи в
+  // карточке мастера читается так же, как список в форме записи
+  return sortByServiceOrder(serviceIds, (id) => id).map((serviceId) => {
     const own = masterServices.find((r) => r.masterId === masterId && r.serviceId === serviceId);
     const base = services.find((s) => s.id === serviceId);
     return {

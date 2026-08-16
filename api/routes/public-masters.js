@@ -9,7 +9,7 @@ import { pool } from '../lib/db.js';
 // релиза 12.08 (миграция 046 с DEFAULT false) так пропали все действующие мастера.
 const PUBLIC_MASTERS_SQL = `SELECT s.id,s.name,s.photo_url,s.experience_text,s.strengths_text,s.certificates_text,s.public_profile_enabled,sm.id AS media_id,sm.kind,sm.storage_key,sm.sort_order FROM staff s LEFT JOIN staff_media sm ON sm.staff_id=s.id WHERE s.employed=true AND s.provides_services=true AND EXISTS (SELECT 1 FROM master_services ms WHERE ms.master_id=s.id) AND EXISTS (SELECT 1 FROM master_weekly_schedule ws WHERE ws.master_id=s.id AND ws.is_working=true) ORDER BY s.name,sm.sort_order,sm.created_at`;
 
-const MASTER_SERVICES_SQL = `SELECT ms.master_id,s.id,s.name,ms.price,ms.duration_min FROM master_services ms JOIN services s ON s.id=ms.service_id WHERE ms.master_id=ANY($1) ORDER BY s.name`;
+const MASTER_SERVICES_SQL = `SELECT ms.master_id,s.id,s.name,ms.price,ms.duration_min FROM master_services ms JOIN services s ON s.id=ms.service_id WHERE ms.master_id=ANY($1) ORDER BY s.sort_order,s.name`;
 
 // Чистая сборка ответа - без БД и HTTP, чтобы правило "флаг режет только профиль,
 // не присутствие мастера" проверялось юнитом (тот же приём, что у computeMasterPayroll).

@@ -6,6 +6,7 @@ import { el, formatMoney } from './crm-shared.js';
 import { applyAvatar } from './crm-avatar.js';
 import { renderWeeklySelfReadOnly } from './crm-schedule-editor.js';
 import { wireScheduleRequestForm } from './crm-schedule-request-form.js';
+import { sortByServiceOrder } from '../storage.js';
 
 // Задача Б.1 (ТЗ-готовность-к-продакшену, 01.08.2026): crm-master.html хардкодил
 // "Алиовсад" в location-badge / шапке колонки календаря / скрытом bk-master / тексте
@@ -75,7 +76,9 @@ export function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
   // Услуги - read-only список всех 8, отмечены те, что реально есть у ЭТОГО мастера
   // в master_services (назначает владелец в своей карточке "Сотрудники").
   const mine = new Map(masterServices.filter((r) => r.masterId === staff.id).map((r) => [r.serviceId, r]));
-  picker.innerHTML = services
+  // Единый порядок показа услуг (storage.js SERVICE_ORDER) - тот же, что видит
+  // владелец в карточке этого мастера
+  picker.innerHTML = sortByServiceOrder(services)
     .map((s) => {
       const row = mine.get(s.id);
       const checked = row ? 'checked' : '';

@@ -28,6 +28,7 @@ function positionStyle(startTime, endTime) {
 }
 
 import { avatarMarkup } from './crm-avatar.js';
+import { sortByServiceOrder } from '../storage.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -72,7 +73,10 @@ function buildCancelledCard(booking, label) {
 }
 
 function serviceLabelFor(booking, services, priceOf) {
-  const serviceIds = booking.serviceIds?.length ? booking.serviceIds : [booking.serviceId].filter(Boolean);
+  const rawServiceIds = booking.serviceIds?.length ? booking.serviceIds : [booking.serviceId].filter(Boolean);
+  // Единый порядок показа услуг (storage.js SERVICE_ORDER): в карточке видно только
+  // первую услугу ("Стрижка +1"), значит от порядка зависит, какую мастер прочитает
+  const serviceIds = sortByServiceOrder(rawServiceIds, (id) => id);
   const first = services.find((s) => s.id === serviceIds[0]);
   const firstName = first?.name ?? serviceIds[0] ?? 'Услуга';
   const totalPrice = serviceIds.reduce((sum, id) => sum + priceOf(booking.masterId, id), 0);

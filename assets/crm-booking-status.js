@@ -8,6 +8,7 @@ import { formatMoney } from './crm-shared.js';
 import { errorMessage, reportError, showError } from './crm-toast.js';
 import { escapeHtml } from './crm-schedule-shared.js';
 import { setButtonBusy } from './crm-loading.js';
+import { sortByServiceOrder } from '../storage.js';
 
 // Окно 55, Задача C (10.08.2026) - носитель id открытой записи. До этого окна им
 // всегда была карточка-просмотр #bd-1 (assets/mockup-crm.js openBooking писала туда
@@ -169,10 +170,13 @@ export function wireBookingServiceEdit(services, masterServices) {
   const resultEl = document.getElementById('bkServiceEditResult');
   if (!picker || !saveBtn || !resultEl) return; // страница без этого блока - no-op
 
+  // Единый порядок показа услуг (storage.js SERVICE_ORDER), тот же, что в форме
+  // записи и в карточке сотрудника
   const servicesFor = (masterId) =>
-    masterServices
-      .filter((r) => r.masterId === masterId)
-      .map((r) => ({ ...r, name: services.find((s) => s.id === r.serviceId)?.name ?? r.serviceId }));
+    sortByServiceOrder(
+      masterServices.filter((r) => r.masterId === masterId),
+      (r) => r.serviceId
+    ).map((r) => ({ ...r, name: services.find((s) => s.id === r.serviceId)?.name ?? r.serviceId }));
 
   window.renderBookingServiceEdit = function renderBookingServiceEdit(masterId, existingServiceIds) {
     bookingServiceEditSelected = new Set();

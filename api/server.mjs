@@ -59,9 +59,9 @@ import { handleLocationsList } from './routes/locations.js';
 // Ре-экспорт для tests/api.staff-role-lock.test.js (инцидент 11.08.2026).
 export { isLastOwnerDemotion } from './routes/staff.js';
 import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
-import { handleBookings, handleBookingCancel, handleBookingStatus, handleBookingAddServices, handleBookingSetServices, handleBookingReschedule, handleBookingActualPrice, handleBookingDelete, handleSales } from './routes/bookings.js';
+import { handleBookings, handleBookingCancel, handleBookingStatus, handleBookingAddServices, handleBookingSetServices, handleBookingReschedule, handleBookingActualPrice, handleBookingClient, handleBookingDelete, handleSales } from './routes/bookings.js';
 // Ре-экспорт для tests/api.booking-reschedule.test.js (Окно 54, Задача B и C).
-export { checkSlotAvailability, resolveRescheduleDuration, planRescheduleNotifications, formatMoveSlot, normalizeStaffComment, BOOKING_COMMENT_MAX_LEN, resolveServicesReplacement } from './routes/bookings.js';
+export { checkSlotAvailability, resolveRescheduleDuration, planRescheduleNotifications, formatMoveSlot, normalizeStaffComment, BOOKING_COMMENT_MAX_LEN, resolveServicesReplacement, normalizeClientName, normalizeClientPhoneInput, CLIENT_NAME_MAX_LEN } from './routes/bookings.js';
 import {
   handleSchedule,
   handleScheduleExceptions,
@@ -134,6 +134,7 @@ const ROUTES = [
   { method: 'PATCH', path: 'bookings/:id/reschedule', auth: 'any-staff' },
   { method: 'DELETE', path: 'bookings/:id', auth: 'any-staff' },
   { method: 'PATCH', path: 'bookings/:id/actual-price', auth: 'any-staff' },
+  { method: 'PATCH', path: 'bookings/:id/client', auth: 'any-staff' },
   { method: 'GET', path: 'sales', auth: 'any-staff' },
   { method: 'POST', path: 'sales', auth: 'any-staff' },
   { method: 'GET', path: 'schedule', auth: 'public' },
@@ -341,6 +342,12 @@ const server = createServer(async (req, res) => {
     // см. подробный комментарий у handleBookingActualPrice, api/routes/bookings.js.
     if (parts[0] === 'bookings' && parts[1] && parts[2] === 'actual-price' && parts.length === 3 && req.method === 'PATCH') {
       return handleBookingActualPrice(req, res, parts);
+    }
+
+    // ── /bookings/:id/client - имя и телефон клиента у существующей записи
+    // (16.08.2026, Влад: правки этих двух полей никуда не сохранялись - роута не было).
+    if (parts[0] === 'bookings' && parts[1] && parts[2] === 'client' && parts.length === 3 && req.method === 'PATCH') {
+      return handleBookingClient(req, res, parts);
     }
 
     // ── /sales - продажа (косметика и т.п.), привязана к визиту (разд.14.3 п.2) ──

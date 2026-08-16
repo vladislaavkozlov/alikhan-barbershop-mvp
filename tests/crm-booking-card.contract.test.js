@@ -129,8 +129,10 @@ test('своей кнопки у суммы и комментария нет - �
 test('кнопка "Сохранить изменения" гаснет, пока в записи ничего не изменили', async () => {
   const walkin = await source('assets/crm-walkin.js');
   // Снимок всех сохраняемых полей: мастер, дата, время, услуги, сумма, комментарий
-  for (const field of ['masterId:', 'date:', 'startTime:', 'services:', 'actualPrice:', 'comment:']) {
-    assert.match(walkin, new RegExp(`editStateSnapshot[\\s\\S]{0,600}${field}`), field);
+  // 16.08.2026 (Влад): "не сохраняются изменения имени и номера" - clientName/
+  // clientPhone в снимке не было, и правка этих полей кнопку не будила
+  for (const field of ['masterId:', 'date:', 'startTime:', 'services:', 'clientName:', 'clientPhone:', 'actualPrice:', 'comment:']) {
+    assert.match(walkin, new RegExp(`editStateSnapshot[\\s\\S]{0,900}${field}`), field);
   }
   assert.match(walkin, /function isEditDirty/);
   assert.match(walkin, /btn\.disabled = editMode\s*\n?\s*\? selected\.size === 0 \|\| !isEditDirty\(\)/);
@@ -139,7 +141,7 @@ test('кнопка "Сохранить изменения" гаснет, пок�
   // Поля, которые меняются мимо списка услуг, тоже поднимают признак изменения
   assert.match(walkin, /form\.addEventListener\('customselect:change', updateSubmitState\)/);
   assert.match(walkin, /form\.addEventListener\('customdate:change', updateSubmitState\)/);
-  assert.match(walkin, /for \(const id of \['bkActualPrice', 'bkStaffComment'\]\)/);
+  assert.match(walkin, /for \(const id of \['bkActualPrice', 'bkStaffComment', 'wfClientName', 'wfClientPhone'\]\)/);
 });
 
 // 13.08.2026 (Влад): "меняешь статус и нажимаешь сохранить - всплывает 'Изменений не

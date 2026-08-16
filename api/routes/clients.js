@@ -59,7 +59,8 @@ export async function getClientCard(client, clientId) {
     ? await client.query(
         `SELECT bs.booking_id, bs.service_id, s.name AS service_name
          FROM booking_services bs JOIN services s ON s.id = bs.service_id
-         WHERE bs.booking_id = ANY($1)`,
+         WHERE bs.booking_id = ANY($1)
+         ORDER BY s.sort_order, s.name`,
         [bookingIds]
       )
     : { rows: [] };
@@ -142,11 +143,14 @@ const PHONE_DIGITS_SQL = `regexp_replace(phone, '[^0-9]', '', 'g')`;
 // строке их не запрещает: "+79991234567" и "+7 999 123 45 67" - две разные строки).
 // Поэтому выбор детерминированный: сначала точное совпадение присланной строки,
 // иначе первый по id - никогда "случайный из двух".
-export async function findClientByPhone(client, rawPhone) {
+// Только id и счётчик неявок, без карточки с историей визитов: PATCH
+// /bookings/:id/client (Влад, 16.08.2026) привязывает бронь к клиенту и ему нужны
+// ровно эти два поля - тянуть ради них все визиты клиента незачем.
+export async function findClientIdByPhone(client, rawPhone) {
   const key = normalizePhoneKey(rawPhone);
   if (!key) return null;
   const res = await client.query(
-    `SELECT id FROM clients
+    `SELECT id, no_show_streak FROM clients
      WHERE CASE WHEN length(${PHONE_DIGITS_SQL}) >= ${PHONE_KEY_DIGITS}
                 THEN right(${PHONE_DIGITS_SQL}, ${PHONE_KEY_DIGITS})
                 ELSE ${PHONE_DIGITS_SQL} END = $1
@@ -154,8 +158,13 @@ export async function findClientByPhone(client, rawPhone) {
      LIMIT 1`,
     [key, String(rawPhone ?? '')]
   );
-  if (res.rows.length === 0) return null;
-  return getClientCard(client, res.rows[0].id);
+  return res.rows.length === 0 ? null : { id: res.rows[0].id, noShowStreak: res.rows[0].no_show_streak };
+}
+
+export async function findClientByPhone(client, rawPhone) {
+  const found = await findClientIdByPhone(client, rawPhone);
+  if (!found) return null;
+  return getClientCard(client, found.id);
 }
 
 // Какая ветка GET /clients запрошена. Вынесено в чистую функцию, чтобы разбор

@@ -9,6 +9,7 @@ import { BOOKING_OPERATOR_ROLES, BOOKING_STAFF_ROLES } from '../lib/permissions.
 import { addMinutes, dateColToStr, intervalsOverlap, shopNow, toMinutes } from '../lib/time.js';
 import { mastersWithWorkingSchedule, masterAcceptsClients, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
 import { notifyStaff } from '../lib/notify-core.js';
+import { findClientIdByPhone } from './clients.js';
 
 // Админы точки - адресаты уведомлений о её записях (Окно 14: Мамедхан управляет
 // точкой день в день). Один запрос на два вызова - createBookingTx и перенос
@@ -292,7 +293,13 @@ async function listBookingsForRequest(url, auth) {
   // тот же паттерн, что уже есть у schedule_breaks в обработчике /schedule ниже.
   const bookingIds = result.rows.map((r) => r.id);
   const servicesRes = bookingIds.length
-    ? await pool.query('SELECT booking_id, service_id FROM booking_services WHERE booking_id = ANY($1)', [bookingIds])
+    ? await pool.query(
+        `SELECT bs.booking_id, bs.service_id FROM booking_services bs
+           JOIN services s ON s.id = bs.service_id
+          WHERE bs.booking_id = ANY($1)
+          ORDER BY s.sort_order, s.name`,
+        [bookingIds]
+      )
     : { rows: [] };
   const serviceIdsByBooking = new Map();
   for (const row of servicesRes.rows) {
@@ -1087,6 +1094,116 @@ export async function handleBookingActualPrice(req, res, parts) {
     actualPrice: body.actualPrice,
     ...(hasComment ? { comment } : {}),
   });
+}
+
+// ── /bookings/:id/client - имя и телефон клиента у УЖЕ СОЗДАННОЙ записи ──────
+// Влад, 16.08.2026: "не сохраняются изменения имени и номера в существующей
+// карточке". Правка клиента и правда никуда не уезжала - роута под неё не было
+// вовсе (были только services / reschedule / actual-price / status), а форма
+// редактирования эти два поля просто показывала. Ошиблись при записи в имени или
+// телефоне - исправить было нечем, только удалить запись и завести заново.
+//
+// Семантика повторяет создание записи (createBookingTx выше), чтобы правка и
+// создание не расходились: телефон есть - клиент ищется/заводится в общей базе
+// clients и бронь привязывается к нему; телефона нет - бронь остаётся
+// неидентифицированной (client_id = NULL), а имя живёт на самой брони в
+// walkin_name (решение Алихана 09.08.2026: без телефона по одному имени клиентов
+// не связываем).
+export const CLIENT_NAME_MAX_LEN = 120;
+export function normalizeClientName(raw) {
+  if (raw === null || raw === undefined) return { value: null };
+  if (typeof raw !== 'string') return { error: 'invalid_client_name' };
+  const trimmed = raw.trim();
+  if (trimmed === '') return { value: null }; // стёрли имя - это "без имени", а не пустая строка в базе
+  if (trimmed.length > CLIENT_NAME_MAX_LEN) return { error: 'client_name_too_long' };
+  return { value: trimmed };
+}
+
+export function normalizeClientPhoneInput(raw) {
+  if (raw === null || raw === undefined) return { value: null };
+  if (typeof raw !== 'string') return { error: 'invalid_client_phone' };
+  const trimmed = raw.trim();
+  if (trimmed === '') return { value: null };
+  // Тот же порог, что у поиска клиента (normalizePhoneKey, api/routes/clients.js) -
+  // меньше 10 цифр не опознаёт никого, и привязка по такому вводу создала бы в базе
+  // клиента-обрубок, к которому потом ничего не сойдётся
+  if (trimmed.replace(/\D/g, '').length < 10) return { error: 'invalid_client_phone' };
+  return { value: trimmed };
+}
+
+export async function handleBookingClient(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
+  const bookingId = decodeURIComponent(parts[1]);
+  const body = await readBody(req);
+
+  const nameOut = normalizeClientName(body.clientName);
+  if (nameOut.error) return sendJson(res, 400, { error: nameOut.error });
+  const phoneOut = normalizeClientPhoneInput(body.clientPhone);
+  if (phoneOut.error) return sendJson(res, 400, { error: phoneOut.error });
+  const clientName = nameOut.value;
+  const clientPhone = phoneOut.value;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const bookingRes = await client.query('SELECT id, location_id, status FROM bookings WHERE id = $1', [bookingId]);
+    if (bookingRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return sendJson(res, 404, { error: 'booking_not_found' });
+    }
+    const booking = bookingRes.rows[0];
+    if (auth.role === 'admin' && booking.location_id !== auth.locationId) {
+      await client.query('ROLLBACK');
+      return sendJson(res, 403, { error: 'forbidden' });
+    }
+    if (booking.status === 'cancelled') {
+      await client.query('ROLLBACK');
+      return sendJson(res, 400, { error: 'booking_cancelled' });
+    }
+
+    let clientId = null;
+    let noShowStreak = 0;
+    if (clientPhone) {
+      // Сначала поиск по нормализованному номеру (последние 10 цифр) - иначе
+      // "+7 903 444 44 44" и "+79034444444" завели бы ДВУХ клиентов с одной историей
+      // на двоих: unique-индекс clients_phone_key построен на сырой строке.
+      const found = await findClientIdByPhone(client, clientPhone);
+      if (found) {
+        clientId = found.id;
+        noShowStreak = found.noShowStreak;
+        // Имя обновляем только когда его реально ввели: пустое поле - это "не знаю
+        // имени этого визита", а не команда стереть имя у клиента с историей
+        if (clientName) {
+          await client.query('UPDATE clients SET name = $1 WHERE id = $2', [clientName, clientId]);
+        }
+      } else {
+        const created = await client.query(
+          `INSERT INTO clients (id, name, phone) VALUES ($1, $2, $3)
+           ON CONFLICT (phone) DO UPDATE SET name = COALESCE(EXCLUDED.name, clients.name)
+           RETURNING id, no_show_streak`,
+          [`client-${randomBytes(6).toString('hex')}`, clientName ?? null, clientPhone]
+        );
+        clientId = created.rows[0].id;
+        noShowStreak = created.rows[0].no_show_streak;
+      }
+    }
+
+    // Тот же порог предоплаты, что при создании (>=2 неявки) - иначе после смены
+    // телефона на номер проблемного клиента пометка осталась бы от прежнего
+    const requiresPrepayment = clientId ? noShowStreak >= 2 : false;
+    await client.query(
+      'UPDATE bookings SET client_id = $1, walkin_name = $2, requires_prepayment = $3 WHERE id = $4',
+      [clientId, clientName, requiresPrepayment, bookingId]
+    );
+    await client.query('COMMIT');
+    return sendJson(res, 200, { ok: true, clientId, clientName, clientPhone, requiresPrepayment });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // ── /sales - продажа (косметика и т.п.), привязана к визиту (разд.14.3 п.2) ──

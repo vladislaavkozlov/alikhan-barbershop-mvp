@@ -46,6 +46,9 @@ const ERROR_TEXT = {
   invalid_comment: 'Комментарий передан неверно',
   comment_too_long: 'Комментарий длиннее 500 знаков',
   client_not_found: 'Клиент не найден',
+  invalid_client_name: 'Имя клиента передано неверно',
+  client_name_too_long: 'Имя клиента длиннее 120 знаков',
+  invalid_client_phone: 'Телефон введён не полностью - нужен номер целиком или пустое поле',
 
   shift_not_found: 'Смена не найдена',
   invalid_range: 'Проверьте даты: начало должно быть раньше конца',

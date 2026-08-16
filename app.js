@@ -9,6 +9,7 @@ import {
   mergeServiceCombos,
   isServiceBlockedByCombo,
   filterBookableMasters,
+  sortByServiceOrder,
 } from './storage.js';
 
 // Если на странице задан window.ALIKHAN_API_URL (см. index.html) - работаем через
@@ -137,14 +138,17 @@ function servicesForMaster(masterId) {
   if (!masterServicesReady) {
     return services.map((s) => ({ id: s.id, name: s.name, price: priceForMaster(masterId, s.id), durationMin: s.durationMin }));
   }
-  return masterServices
-    .filter((r) => r.masterId === masterId)
-    .map((r) => ({
-      id: r.serviceId,
-      name: services.find((s) => s.id === r.serviceId)?.name ?? r.serviceId,
-      price: r.price,
-      durationMin: r.durationMin,
-    }));
+  // Единый порядок показа услуг (storage.js SERVICE_ORDER) - строки приезжают из
+  // /master-services, их порядок задаёт бэкенд, но фронт деплоится отдельно от него
+  return sortByServiceOrder(
+    masterServices.filter((r) => r.masterId === masterId),
+    (r) => r.serviceId
+  ).map((r) => ({
+    id: r.serviceId,
+    name: services.find((s) => s.id === r.serviceId)?.name ?? r.serviceId,
+    price: r.price,
+    durationMin: r.durationMin,
+  }));
 }
 
 const today = new Date();

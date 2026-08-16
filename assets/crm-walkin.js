@@ -9,7 +9,7 @@ import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } 
 import { API, getToken } from './crm-auth.js';
 import { renderLiveProof } from './crm-dashboard.js';
 import { RADIO_ID_TO_STATUS, applyNoShowStreakAfterStatus } from './crm-booking-status.js';
-import { mergeServiceCombos, isServiceBlockedByCombo } from '../storage.js';
+import { mergeServiceCombos, isServiceBlockedByCombo, sortByServiceOrder } from '../storage.js';
 import { reportError, reportSuccess } from './crm-toast.js';
 import { setButtonBusy } from './crm-loading.js';
 
@@ -107,6 +107,11 @@ function editStateSnapshot() {
     date: dateSelectValue('wfDateValue') || '',
     startTime: timeSelectValue('wfTimeValue') || '',
     services: [...selected].sort().join(','),
+    // Имя и телефон (16.08.2026, Влад: "не сохраняются изменения имени и номера в
+    // существующей карточке") - их не было в снимке, поэтому правка этих двух полей
+    // не считалась изменением и кнопка "Сохранить изменения" оставалась серой
+    clientName: (el('wfClientName')?.value ?? '').trim(),
+    clientPhone: (el('wfClientPhone')?.value ?? '').trim(),
     actualPrice: (el('bkActualPrice')?.value ?? '').trim(),
     comment: (el('bkStaffComment')?.value ?? '').trim(),
     status: checkedStatusRadioId(),
@@ -141,7 +146,7 @@ function wireDirtyWatchers() {
   form.dataset.dirtyWired = '1';
   form.addEventListener('customselect:change', updateSubmitState);
   form.addEventListener('customdate:change', updateSubmitState);
-  for (const id of ['bkActualPrice', 'bkStaffComment']) {
+  for (const id of ['bkActualPrice', 'bkStaffComment', 'wfClientName', 'wfClientPhone']) {
     el(id)?.addEventListener('input', updateSubmitState);
   }
   // Статус визита - обычные radio внутри формы, change всплывает
@@ -301,10 +306,13 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
   const saleResultEl = el('wfSaleResult');
   const hasSaleForm = saleForm && saleItemEl && saleAmountEl && saleSubmitBtn && saleResultEl;
 
+  // Единый порядок показа услуг (storage.js SERVICE_ORDER) - и для чекбоксов, и для
+  // строк итоговой суммы ниже: обе идут через servicesFor
   const servicesFor = (masterId) =>
-    masterServices
-      .filter((r) => r.masterId === masterId)
-      .map((r) => ({ ...r, name: services.find((s) => s.id === r.serviceId)?.name ?? r.serviceId }));
+    sortByServiceOrder(
+      masterServices.filter((r) => r.masterId === masterId),
+      (r) => r.serviceId
+    ).map((r) => ({ ...r, name: services.find((s) => s.id === r.serviceId)?.name ?? r.serviceId }));
 
   // Правка 03.08.2026: та же логика комплекса "стрижка+борода", что теперь у
   // публичной записи (storage.js SERVICE_COMBOS) - выбор комплекса блокирует его
@@ -716,6 +724,13 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     master_not_accepting: 'этот сотрудник сейчас не принимает клиентов',
     past_time: 'нельзя перенести в прошлое',
   };
+  const CLIENT_ERROR_TEXT = {
+    invalid_client_phone: 'телефон введён не полностью - нужен номер целиком или пустое поле',
+    client_name_too_long: 'имя слишком длинное',
+    booking_cancelled: 'запись отменена - править её нельзя, создайте новую',
+    booking_not_found: 'запись не найдена - возможно, её уже удалили',
+    forbidden: 'нет прав править эту запись (другая точка)',
+  };
   const RESCHEDULE_ERROR_TEXT = {
     booking_cancelled: 'запись отменена - перенести её нельзя, создайте новую',
     booking_not_found: 'запись не найдена - возможно, её уже удалили',
@@ -735,6 +750,33 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       const date = dateSelectValue('wfDateValue');
       const startTime = timeSelectValue('wfTimeValue');
       if (!date || !startTime) throw new Error('укажите дату и время');
+
+      // Клиент (имя и телефон) - ПЕРВЫМ шагом и своим роутом PATCH /bookings/:id/client
+      // (16.08.2026). Первым потому, что это самая безрисковая правка из всех: она не
+      // зависит от занятости слота, и исправление опечатки в имени не должно срываться
+      // из-за того, что перенос ниже упёрся в чужую запись.
+      const clientName = clientNameEl.value.trim();
+      const clientPhone = clientPhoneEl.value.trim();
+      const clientChanged = !!editBaseline && (
+        editBaseline.clientName !== clientName || editBaseline.clientPhone !== clientPhone
+      );
+      if (clientChanged) {
+        const cr = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/client`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ clientName: clientName || null, clientPhone: clientPhone || null }),
+        });
+        const cdata = await cr.json().catch(() => ({}));
+        if (!cr.ok || cdata.ok === false) {
+          throw new Error(CLIENT_ERROR_TEXT[cdata.error] || cdata.error || `HTTP ${cr.status}`);
+        }
+        editBooking.clientName = cdata.clientName ?? null;
+        editBooking.clientPhone = cdata.clientPhone ?? null;
+        // Признак предоплаты сервер пересчитал по неявкам НОВОГО клиента - без этого
+        // баннер в форме остался бы от прежнего номера до перезагрузки страницы
+        form.dataset.requiresPrepayment = cdata.requiresPrepayment ? 'true' : 'false';
+        window.updateNoShowUi?.();
+      }
 
       // Услуги: шлём ПОЛНЫЙ состав (PUT /bookings/:id/services, 13.08.2026, Влад:
       // "клиент передумал уже в кресле - услугу можно будет изменить?"). Раньше
