@@ -117,8 +117,11 @@ test('роль читается внутри своей карточки, а н�
   const root = new URL('../', import.meta.url);
   const team = await readFile(new URL('assets/crm-team.js', root), 'utf8');
   assert.doesNotMatch(team, /\[name="role"\]:checked/);
-  // сохранение, создание и снимок изменений - все читают роль внутри своей карточки
-  assert.ok((team.match(/\.team-role-picker input\[type="radio"\]:checked/g) ?? []).length >= 2);
+  // 16.08.2026: три копии этого селектора (сохранение, создание, снимок изменений)
+  // сведены в один хелпер - он же отсекает нередактируемый бейдж роли, у которого
+  // .value равен "on" и уезжал на сервер как несуществующая роль
+  assert.match(team, /function selectedRoleInput\(card\) \{\s*\n\s*return card\.querySelector\('\.team-role-picker input\[type="radio"\]:checked:not\(\[disabled\]\)'\)/);
+  assert.ok((team.match(/selectedRoleInput\(card\)/g) ?? []).length >= 3);
 });
 
 test('владелец показан подсвеченной карточкой роли, а не строкой текста', async () => {

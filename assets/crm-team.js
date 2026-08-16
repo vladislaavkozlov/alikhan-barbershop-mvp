@@ -82,6 +82,19 @@ function roleBadge(role) {
   return `<fieldset class="team-role-picker team-role-picker-single" data-role><legend>Роль сотрудника</legend><label class="team-role-option"><input type="radio" checked disabled><span><strong>${roleLabel[role] ?? esc(role)}</strong><small>${description}</small></span></label></fieldset>`;
 }
 
+// Отмеченная роль, которую этот зритель РЕАЛЬНО может назначить. Отличать от
+// roleBadge обязательно: он рисует такую же на вид отмеченную радиокнопку, но
+// disabled и БЕЗ атрибута value - у такого input `.value` равен строке "on"
+// (умолчание браузера для radio без value). Эта строка и уезжала на сервер как
+// роль, когда владелец сохранял карточку владельца, а сервер честно отвечал
+// invalid_role - "Данные сохранены, а роль не изменилась: Такой роли не
+// существует" (Влад, 16.08.2026). Заодно это обрывало сохранение на полпути: до
+// "Сохранено" и до перезагрузки расписания после смены "Принимает клиентов"
+// выполнение уже не доходило.
+function selectedRoleInput(card) {
+  return card.querySelector('.team-role-picker input[type="radio"]:checked:not([disabled])');
+}
+
 function roleControl(staff, viewerRole) {
   if (staff.role === 'owner' || viewerRole !== 'owner') return roleBadge(staff.role);
   return rolePicker(staff.role, `role-${staff.id}`);
@@ -123,7 +136,7 @@ function staffCard(staff, viewerRole, locations, viewerId) {
   const employmentLocked = locked || !canManage || staff.protectedOwner || isSelf;
   const fieldsLocked = locked || !canManage;
   const servicesTitle = canManage ? 'Выберите услуги и укажите длительность' : 'Услуги и длительность назначает владелец';
-  return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
+  return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-role="${esc(staff.role)}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
   ${section('Основное', canManage ? 'Контакты и рабочий статус' : 'Контакты и рабочий статус - только просмотр', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: 'Сотрудник остаётся в активном составе', checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: fieldsLocked })}</div>`)}
   ${/* Фото, портфолио и витрина на сайте - управление составом медиа, а оно на сервере
        management-only (POST/DELETE /staff/:id/media). Администратору секцию не рисуем
@@ -281,8 +294,11 @@ async function saveCardSteps(card) {
     publicProfileEnabled: value('publicProfileEnabled').checked,
   });
   if (!profile.ok) return noteApiFail(card, profile, 'Основное сохранено, а профиль для сайта - нет');
-  const role = card.querySelector('.team-role-picker input[type="radio"]:checked');
-  if (role) {
+  // Роль уезжает, только когда её реально сменили: она живёт отдельным
+  // owner-роутом, и лишний PUT на каждое сохранение карточки ничего не давал, зато
+  // добавлял шаг, на котором всё могло оборваться
+  const role = selectedRoleInput(card);
+  if (role && role.value !== card.dataset.role) {
     const roleResult = await apiSend(`/staff/${encodeURIComponent(id)}/role`, 'PUT', { role: role.value });
     if (!roleResult.ok) return noteApiFail(card, roleResult, 'Данные сохранены, а роль не изменилась');
   }
@@ -441,7 +457,7 @@ function cardSnapshot(card) {
     if (!field) return '';
     return field.type === 'checkbox' ? String(field.checked) : String(field.value);
   });
-  values.push(card.querySelector('.team-role-picker input[type="radio"]:checked')?.value ?? '');
+  values.push(selectedRoleInput(card)?.value ?? '');
   return values.join('\u0000');
 }
 
@@ -553,7 +569,7 @@ function wire(root) {
     const card = create.closest('details');
     const value = (name) => cardValue(card, name);
     showNote(card, 'Создаю…');
-    const out = await apiSend('/staff', 'POST', { name: value('name').value, phone: value('phone').value, email: value('email').value, locationId: value('locationId')?.value || null, role: card.querySelector('.team-role-picker input[type="radio"]:checked')?.value, providesServices: value('providesServices').checked });
+    const out = await apiSend('/staff', 'POST', { name: value('name').value, phone: value('phone').value, email: value('email').value, locationId: value('locationId')?.value || null, role: selectedRoleInput(card)?.value, providesServices: value('providesServices').checked });
     if (!out.ok) return noteApiFail(card, out, 'Не удалось создать сотрудника');
     lastCreatedCredentials = { name: value('name').value.trim(), pin: out.data.temporaryPin };
     await renderTeam();
