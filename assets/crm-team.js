@@ -102,17 +102,22 @@ function roleControl(staff, viewerRole) {
 
 function mediaMarkup(staff) {
   const media = staff.media ?? [];
-  // Снят с приёма - профиля на сайте нет в любом случае: /public/masters отбирает
-  // только тех, кто оказывает услуги. Тумблер поэтому неактивен (состояние читается
-  // по самому контролу, без текстовых пояснений - правка Влада 13.08.2026), своё
-  // значение он сохраняет: вернут мастера на приём, витрина включится обратно сама.
+  // Снят с приёма - на сайт человек не попадёт в любом случае: /public/masters
+  // отбирает только тех, кто оказывает услуги. Раньше из-за этого сам тумблер
+  // делался неактивным, и получался мёртвый контрол: ползунок выглядит обычным, на
+  // нажатие не отвечает, кнопка "Сохранить изменения" не просыпается, причина нигде
+  // не написана (Влад, 16.08.2026). Теперь настройка переключается всегда, а почему
+  // она сейчас ни на что не влияет - сказано прямо в подписи под ней.
   const offDuty = staff.providesServices === false;
+  const profileHint = offDuty
+    ? 'Сотрудник снят с приёма - на сайте его нет. Настройка сохранится и включится, когда вернёте на приём'
+    : 'Профиль появится после настройки услуг и графика';
   return `<div class="team-media-upload"><div><strong>Фото профиля</strong><small>После выбора можно подвинуть и приблизить кадр</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Выбрать фото</span><input class="team-file-native" name="avatar" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
   <div class="team-editor-grid"><div class="field"><label>Стаж</label><input name="experience" value="${esc(staff.experienceText)}" placeholder="Например, 6 лет"></div><div class="field"><label>Сильные стороны</label><input name="strengths" value="${esc(staff.strengthsText)}" placeholder="Например, фейды и борода"></div></div>
   <div class="field"><label>Курсы и сертификаты</label><textarea name="certificates" placeholder="Название курса или сертификата">${esc(staff.certificatesText)}</textarea></div>
   <div class="team-media-upload"><div><strong>Портфолио</strong><small>До 20 фото в JPEG, PNG или WebP, каждое до 8 МБ</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Добавить работы</span><input class="team-file-native" name="portfolio" type="file" multiple accept="image/jpeg,image/png,image/webp"></label></div>
   <div class="team-media-list" data-media-list data-staff-id="${esc(staff.id)}">${media.map((item) => mediaItem(item, media.filter((entry) => entry.kind === 'portfolio').findIndex((entry) => entry.id === item.id), media)).join('')}</div>
-  ${toggleControl({ name: 'publicProfileEnabled', title: 'Показывать профиль на сайте', description: 'Профиль появится после настройки услуг и графика', checked: staff.publicProfileEnabled, disabled: offDuty })}`;
+  ${toggleControl({ name: 'publicProfileEnabled', title: 'Показывать профиль на сайте', description: profileHint, checked: staff.publicProfileEnabled })}`;
 }
 
 function mediaItem(media, index, all) {

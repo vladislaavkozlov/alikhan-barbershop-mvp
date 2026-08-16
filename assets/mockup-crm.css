@@ -971,6 +971,10 @@ textarea:-webkit-autofill:focus { border-color: var(--accent); }
 .weekday-icon:hover { border-color: var(--accent); color: var(--accent); }
 .weekday-icon.is-working { border-color: var(--success); background: rgba(111,174,124,0.18); color: var(--text); }
 .weekday-icon[aria-expanded="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(198,161,91,0.25); }
+/* Часы дня в графике на просмотр (кабинет мастера, чужая карточка без прав правки) -
+   тот же блок дня, что у редактирования, только вместо полей строка текста */
+.weekly-readonly-hours { margin: 0; padding-bottom: 2px; }
+.weekly-day-row--readonly .toggle-row { padding-bottom: 4px; }
 .weekly-day-panel { display: none; }
 .weekly-day-panel.is-open { display: block; }
 .weekly-apply-all-btn { margin-top: 8px; }

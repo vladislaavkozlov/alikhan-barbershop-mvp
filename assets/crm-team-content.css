@@ -110,6 +110,16 @@
   border-style: dashed;
 }
 .crm-navigation-ui .team-toggle-row .switch input:disabled ~ .knob { background: var(--text-muted); }
+/* ...но выключенным его рисовать нельзя, если он включён: правило выше перебивало
+   зелёный `input:checked` и управляющий видел у владельца «не работает в компании»,
+   хотя тот работает (Влад, 16.08.2026). Включённый и недоступный тумблер остаётся
+   зелёным, только приглушённым - пунктир рамки и общая прозрачность строки и так
+   говорят «смотреть можно, менять нельзя» */
+.crm-navigation-ui .team-toggle-row .switch input:disabled:checked ~ .track {
+  background: rgba(111, 174, 124, 0.2);
+  border-color: rgba(111, 174, 124, 0.55);
+}
+.crm-navigation-ui .team-toggle-row .switch input:disabled:checked ~ .knob { background: rgba(111, 174, 124, 0.8); }
 
 /* Услуги: собственная золотая галочка вместо синего системного checkbox */
 .crm-navigation-ui .team-editor-section .service-picker {

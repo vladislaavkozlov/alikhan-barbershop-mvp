@@ -223,10 +223,25 @@ function buildWeeklyDayRow(prefix, wd, day, canEdit) {
   const breakStart = day?.breakStart || '13:00';
   const breakEnd = day?.breakEnd || '14:00';
   if (!canEdit) {
-    const desc = isWorking
-      ? `${workStart}–${workEnd}${hasBreak ? ` (перерыв ${breakStart}–${breakEnd})` : ''}`
-      : 'выходной';
-    return `<div class="break-row"><span class="note" style="flex:1">${WEEKDAY_SHORT[wd - 1]}: ${desc}</span></div>`;
+    // 16.08.2026 (Влад: "график почему-то списком вместо корректных иконок дней").
+    // Просмотр отставал от редактирования с Окна 27: там дни давно свёрнуты в строку
+    // круглых иконок Пн-Вс с раскрывающейся панелью, а здесь оставались семь текстовых
+    // строк "Пн: выходной". Теперь панель та же и открывается так же, отличается
+    // только содержимым: время и перерыв показаны текстом, без переключателей и полей
+    const dayOffLabel = 'Выходной, записи не будет';
+    const hours = isWorking
+      ? `${workStart}–${workEnd}${hasBreak ? ` · перерыв ${breakStart}–${breakEnd}` : ' · без перерыва'}`
+      : 'Записи в этот день нет';
+    return `
+    <div class="weekly-day-row weekly-day-row--readonly${isWorking ? '' : ' is-off'}" id="${prefix}-${wd}-row" data-weekday="${wd}">
+      <div class="toggle-row">
+        <div class="weekly-day-title">
+          <span class="tr-label">${WEEKDAY_LONG[wd - 1]}</span>
+          <span class="tr-sub">${isWorking ? 'Рабочий день' : dayOffLabel}</span>
+        </div>
+      </div>
+      <p class="note weekly-readonly-hours">${hours}</p>
+    </div>`;
   }
   return `
     <div class="weekly-day-row${isWorking ? '' : ' is-off'}" id="${prefix}-${wd}-row" data-weekday="${wd}">
@@ -268,6 +283,18 @@ function buildWeekdayIconStrip(prefix, days) {
     })
     .join('')}</div>`;
 }
+// Рабочая неделя на просмотр: те же круглые иконки Пн-Вс и та же раскрывающаяся
+// панель, что у редактирования (16.08.2026, Влад: "график почему-то списком вместо
+// корректных иконок дней"). Отличие ровно одно - внутри панели текст, а не поля
+function buildReadOnlyWeek(prefix, days) {
+  return (
+    buildWeekdayIconStrip(prefix, days) +
+    `<div class="weekly-panels">${days
+      .map((d, i) => `<div class="weekly-day-panel" id="${prefix}-${i + 1}-panel">${buildWeeklyDayRow(prefix, i + 1, d, false)}</div>`)
+      .join('')}</div>`
+  );
+}
+
 function toggleDayPanel(prefix, wd) {
   for (let i = 1; i <= 7; i++) {
     const panel = el(`${prefix}-${i}-panel`);
@@ -471,7 +498,8 @@ export function wireWeeklyScheduleEditor(masterId, canEdit, fetchJson) {
     const days = [1, 2, 3, 4, 5, 6, 7].map((wd) => byWeekday.get(wd) || null);
 
     if (!canEdit) {
-      container.innerHTML = `<div class="breaks-list">${days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, false)).join('')}</div>`;
+      container.innerHTML = buildReadOnlyWeek(prefix, days);
+      wireWeekdayIconStrip(prefix);
       return;
     }
 
@@ -512,7 +540,8 @@ export function renderWeeklySelfReadOnly(staff) {
     .then((rows) => {
       const byWeekday = new Map(rows.map((r) => [r.weekday, r]));
       const days = [1, 2, 3, 4, 5, 6, 7].map((wd) => byWeekday.get(wd) || null);
-      container.innerHTML = `<div class="breaks-list">${days.map((d, i) => buildWeeklyDayRow(prefix, i + 1, d, false)).join('')}</div>`;
+      container.innerHTML = buildReadOnlyWeek(prefix, days);
+      wireWeekdayIconStrip(prefix);
     })
     .catch((err) => {
       container.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить рабочую неделю'))}</span>`;
