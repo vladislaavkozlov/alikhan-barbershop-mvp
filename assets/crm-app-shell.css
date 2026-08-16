@@ -77,11 +77,21 @@
    height, равный высоте иконки, убирает лишнюю высоту строки текста - кнопка теперь
    одной высоты в обоих состояниях, свёрнутость/развёрнутость меняет только ширину. */
 .app-nav-label { overflow: hidden; text-overflow: clip; line-height: 18px; }
-/* :not(.is-active) у hover - иначе на телефоне активный пункт после тапа остаётся под
-   "залипшим" hover (палец ушёл, состояние держится до следующего касания) и золотая
-   заливка активного раздела гасится серой hover-заливкой: выбранный раздел выглядит
-   невыбранным ровно в тот момент, когда ты его выбрал. */
-.app-nav-item:hover:not(.is-active) { background: var(--surface-2); color: var(--text); }
+/* Hover-подсветка пунктов - ТОЛЬКО для устройств с настоящим курсором (16.08.2026).
+   На сенсорном экране состояние :hover не снимается после того, как палец ушёл: оно
+   висит на последнем тронутом элементе до следующего касания в другом месте. Живая
+   жалоба Влада: "жмёшь Команду - выделяется и Расписание тоже". Причина именно в
+   этом, а не в логике активного пункта (она верна, проверено: класс is-active стоит
+   ровно на одном пункте). Кнопка вызова меню в шапке расположена по вертикали ровно
+   над первым пунктом списка - открыл меню тапом, и палец "остался" висеть над
+   "Расписанием", подсвечивая его серым рядом с золотым активным разделом.
+   media (hover: hover) - штатный способ отличить мышь от пальца; на телефоне блок
+   не применяется вовсе, и подсветиться нечему.
+   :not(.is-active) сохраняем - на десктопе курсор поверх активного раздела не должен
+   гасить его золотую заливку серой. */
+@media (hover: hover) {
+  .app-nav-item:hover:not(.is-active) { background: var(--surface-2); color: var(--text); }
+}
 .app-nav-item.is-active { background: var(--accent); color: var(--leather); }
 .app-nav-icon { width: 1.4em; display: inline-flex; align-items: center; justify-content: center; }
 .app-nav-icon svg { width: 18px; height: 18px; }
@@ -381,7 +391,16 @@
     cursor: pointer;
     transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
   }
-  body.app-shell-active .app-drawer-btn:hover { background: var(--surface-2); color: var(--accent); }
+  /* Тот же случай, что и у пунктов меню: после тапа кнопка оставалась залитой золотом
+     и висела так, пока не тронешь что-то другое (видно на скриншотах жалобы). Здесь
+     вдобавок побеждало глобальное правило `button:hover` из mockup-crm.css - у него
+     специфичность выше, поэтому кнопка красилась не приглушённым surface-2, а
+     сплошным акцентом во всю площадь. Оба вопроса закрываются тем, что на сенсорных
+     экранах hover не описан вовсе, а на десктопе он свой (см. также исключение
+     .app-drawer-btn из глобального правила кнопок в mockup-crm.css). */
+  @media (hover: hover) {
+    body.app-shell-active .app-drawer-btn:hover { background: var(--surface-2); color: var(--accent); }
+  }
   body.app-shell-active .app-drawer-btn svg { width: 20px; height: 20px; }
 
   /* Название текущего раздела в шапке. На десктопе его намеренно нет (убрано
@@ -455,7 +474,9 @@
     font-weight: 600;
     cursor: pointer;
   }
-  body.app-shell-active .app-sidebar-logout:hover { border-color: var(--danger); color: var(--danger); background: transparent; }
+  @media (hover: hover) {
+    body.app-shell-active .app-sidebar-logout:hover { border-color: var(--danger); color: var(--danger); background: transparent; }
+  }
 
   /* Старая горизонтальная лента вкладок уступает место меню - но ТОЛЬКО когда
      мобильная навигация действительно собрана (класс ставит crm-app-shell.js после

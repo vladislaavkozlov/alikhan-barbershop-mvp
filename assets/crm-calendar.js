@@ -213,10 +213,35 @@ function wireEmptySlotInteraction(trackEl, master, date) {
   const preview = document.createElement('div');
   preview.className = 'appt appt--slot-preview';
   preview.hidden = true;
+  // Подпись времени внутри рамки (16.08.2026). Нужна ТОЛЬКО на касании: на компьютере
+  // рамка ходит за курсором непрерывно и время читается по часовой шкале слева, а
+  // палец рамку собой закрывает - к моменту, когда её видно, палец уже поднят, и без
+  // подписи непонятно, на какое время ты попал. Жалоба Влада: "вообще не понятно, как
+  // это использовать на телефоне".
+  const previewLabel = document.createElement('span');
+  previewLabel.className = 'slot-preview-time';
+  preview.appendChild(previewLabel);
   trackEl.appendChild(preview);
 
   function slotAt(clientY) {
     return snapToSlot(Math.round(minutesFromClientY(trackEl, clientY)));
+  }
+
+  // Общая для мыши и пальца отрисовка рамки. Возвращает время слота, чтобы вызывающий
+  // не считал его второй раз (иначе легко получить рамку на одном слоте и запись на
+  // другом, если между вызовами что-то сдвинулось).
+  function showPreview(clientY, withLabel) {
+    const startMin = slotAt(clientY);
+    // Рамка стала выше, поэтому у самого низа дня она вылезала бы за конец колонки -
+    // на последних слотах прижимаем её к нижнему краю трека
+    const trackHeight = trackEl.clientHeight || Math.round((DAY_END_MIN - DAY_START_MIN) * PX_PER_MIN);
+    const rawTop = Math.round((startMin - DAY_START_MIN) * PX_PER_MIN);
+    const top = Math.max(0, Math.min(rawTop, trackHeight - SLOT_PREVIEW_HEIGHT_PX));
+    preview.style.cssText = `top:${top}px;height:${SLOT_PREVIEW_HEIGHT_PX}px`;
+    previewLabel.textContent = withLabel ? minutesToHHMM(startMin) : '';
+    preview.classList.toggle('appt--slot-preview-touch', Boolean(withLabel));
+    preview.hidden = false;
+    return startMin;
   }
 
   trackEl.addEventListener('mousemove', (e) => {
@@ -225,22 +250,41 @@ function wireEmptySlotInteraction(trackEl, master, date) {
       preview.hidden = true;
       return;
     }
-    const startMin = slotAt(e.clientY);
-    // Рамка стала выше, поэтому у самого низа дня она вылезала бы за конец колонки -
-    // на последних слотах прижимаем её к нижнему краю трека
-    const trackHeight = trackEl.clientHeight || Math.round((DAY_END_MIN - DAY_START_MIN) * PX_PER_MIN);
-    const rawTop = Math.round((startMin - DAY_START_MIN) * PX_PER_MIN);
-    const top = Math.max(0, Math.min(rawTop, trackHeight - SLOT_PREVIEW_HEIGHT_PX));
-    preview.style.cssText = `top:${top}px;height:${SLOT_PREVIEW_HEIGHT_PX}px`;
-    preview.hidden = false;
+    showPreview(e.clientY, false);
   });
   trackEl.addEventListener('mouseleave', () => {
     preview.hidden = true;
   });
+
+  // Касание: рамка со временем появляется в момент нажатия, ДО открытия формы -
+  // палец видит, куда попал, и это же объясняет сам механизм ("по пустому месту можно
+  // нажать"). Форму открывает обычный click ниже, он приходит следом за этим
+  // событием - отдельного открытия здесь нет, иначе форма открывалась бы дважды.
+  //
+  // Отличаем палец от мыши по НАЛИЧИЮ КУРСОРА У УСТРОЙСТВА, а не по e.pointerType.
+  // Первая версия проверяла именно pointerType, и живой прогон показал, почему так
+  // нельзя: синтетический клик из CDP приходит как pointerType="mouse" даже при
+  // включённой эмуляции касаний (замерено - `pointerdown pointerType=mouse` на
+  // мобильном вьюпорте), то есть поведение на телефоне в принципе не проверяемо
+  // тестом, и любой будущий регресс здесь прошёл бы мимо. matchMedia('(hover: hover)')
+  // при этом честно даёт false в мобильной эмуляции и true на десктопе.
+  // По смыслу так тоже правильнее: рамка-под-курсором нужна ровно тем, у кого есть
+  // курсор, а не тем, у кого конкретное событие пришло с определённым типом.
+  const hasHoverPointer = () => window.matchMedia?.('(hover: hover)')?.matches === true;
+  trackEl.addEventListener('pointerdown', (e) => {
+    if (hasHoverPointer()) return; // у мыши своя непрерывная рамка на mousemove
+    if (typeof window.openSlotBooking !== 'function') return;
+    if (e.target.closest('.appt:not(.appt--slot-preview)')) return;
+    showPreview(e.clientY, true);
+  });
+
   trackEl.addEventListener('click', (e) => {
     if (typeof window.openSlotBooking !== 'function') return;
     if (e.target.closest('.appt:not(.appt--slot-preview)')) return; // реальная запись/перерыв - свой обработчик (openBooking)
     const startMin = slotAt(e.clientY);
+    // Рамка гасится сразу при открытии формы: иначе на телефоне она осталась бы
+    // висеть под формой и после её закрытия выглядела бы как уже созданная запись.
+    preview.hidden = true;
     window.openSlotBooking(master.id, master.name, date, minutesToHHMM(startMin));
   });
 }

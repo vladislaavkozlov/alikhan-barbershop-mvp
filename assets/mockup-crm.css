@@ -390,7 +390,12 @@ button, .btn {
    случай, что у двух виджетов-триггеров выше, поэтому и решается так же - исключением
    из общего правила кнопок, а не борьбой специфичностью в своём файле (проигрывает:
    у этого селектора три :not, у одиночного класса шансов нет). */
-button:hover:not(:disabled):not(.custom-select-trigger):not(.custom-date-trigger):not(.app-drawer-scrim),
+/* .app-drawer-btn (16.08.2026) - кнопка вызова мобильного меню в шапке. Тоже <button>,
+   но по смыслу иконка-переключатель, а не кнопка действия: сплошная золотая заливка на
+   ней читалась как "нажато и залипло" (и физически залипала на телефоне, где :hover не
+   снимается после ухода пальца). Свой приглушённый hover для мыши описан в
+   crm-app-shell.css внутри @media (hover: hover). */
+button:hover:not(:disabled):not(.custom-select-trigger):not(.custom-date-trigger):not(.app-drawer-scrim):not(.app-drawer-btn),
 .btn:hover:not(:disabled) { background: var(--accent); color: var(--leather); }
 button:active:not(:disabled), .btn:active:not(:disabled) { transform: scale(0.96); }
 button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -680,6 +685,37 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .appt--slot-preview {
   border: 1.5px dashed var(--accent); background: rgba(198,161,91,0.1);
   pointer-events: none; z-index: 1;
+}
+/* Подпись времени внутри рамки - только для касания (16.08.2026, crm-calendar.js).
+   Позиционируется АБСОЛЮТНО внутри превью, а не через flex на самом превью: задавать
+   display у .appt--slot-preview нельзя, он перебьёт [hidden] (см. предупреждение
+   выше). Пустой span на десктопе ничего не рисует и кликам не мешает - родитель
+   держит pointer-events:none. */
+.slot-preview-time {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem; font-weight: 700; color: var(--accent);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+}
+/* На касании рамка заметнее, чем на курсоре: она живёт доли секунды и наполовину
+   закрыта пальцем, поэтому ей нужен более плотный фон, иначе её просто не успеваешь
+   увидеть. */
+.appt--slot-preview-touch {
+  background: rgba(198,161,91,0.22); border-style: solid; border-width: 2px;
+}
+
+/* Подсказка над расписанием дня - только на сенсорных экранах (16.08.2026). На
+   компьютере роль подсказки играет сама пунктирная рамка: она ходит за курсором и
+   этим показывает, что по пустому месту можно кликнуть. У пальца курсора нет, и
+   узнать про это было неоткуда - жалоба Влада "вообще не понятно, как это
+   использовать на телефоне". Показываем ровно там, где исчезает подсказка-курсор:
+   узкий экран И отсутствие настоящего hover. */
+.day-touch-hint { display: none; }
+@media (max-width: 620px) and (hover: none) {
+  .day-touch-hint {
+    display: block; margin: 0 0 10px;
+    font-size: 0.76rem; line-height: 1.4; color: var(--text-muted);
+  }
 }
 
 /* Окно 43 - горизонтальная линия "сейчас" (assets/crm-calendar.js, renderNowLine).
@@ -1178,7 +1214,9 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
   width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2);
   color: var(--text); font-size: 1rem; cursor: pointer; transition: all 160ms var(--ease-out);
 }
-.day-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+@media (hover: hover) {
+  .day-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+}
 
 .master-switch-row { margin: 10px 0 14px; }
 .seg-bar.master-pill-row button.master-pill {
@@ -1193,7 +1231,17 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
   display: block; width: 100%; text-align: left; font-family: inherit; cursor: pointer;
   min-height: 74px;
 }
-.week-day-cell:hover { border-color: var(--accent); }
+/* Hover ячеек календаря - только для мыши (16.08.2026). На телефоне :hover залипает на
+   последней тронутой ячейке и та стоит с золотой рамкой, будто выбрана: в сетке из 30
+   дней это читается как ложная подсветка "текущего" дня рядом с настоящей is-today.
+   ВАЖНО при правке: внутрь этого блока попадают ТОЛЬКО :hover-правила. Соседние
+   правила ячейки (часы дня, фон выходного) - обычное оформление, на телефоне они
+   обязаны работать; будучи случайно завёрнутыми сюда, они молча исчезли бы именно
+   там, где их никто не проверяет глазами каждый день. */
+@media (hover: hover) {
+  .week-day-cell:hover { border-color: var(--accent); }
+  .week-day-cell:hover .week-load-pct { color: var(--leather); }
+}
 .week-day-cell .week-hours { display: block; color: var(--text-muted); font-size: 0.68rem; margin-top: 4px; line-height: 1.3; }
 .week-day-cell.is-dayoff { background: rgba(193,85,74,0.08); }
 /* Окно 44 (07.08.2026) - % загрузки в заголовке колонки + записи дня, сгруппированные
@@ -1201,7 +1249,6 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
    больше не фиксированной высоты (min-height, не height), но остаётся компактной
    (MAX_VISIBLE_APPTS=4 в crm-schedule-view-week.js, дальше "+N ещё"). */
 .week-load-pct { color: var(--accent); font-weight: 700; }
-.week-day-cell:hover .week-load-pct { color: var(--leather); }
 .week-appt-list { display: block; margin-top: 6px; }
 .week-appt-chip {
   display: block; font-size: 0.66rem; color: var(--text); white-space: nowrap;
@@ -1211,7 +1258,9 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .week-appt-empty { display: block; margin-top: 6px; font-size: 0.66rem; color: var(--text-muted); font-style: italic; }
 
 .month-day--real { cursor: pointer; }
-.month-day--real:hover { border-color: var(--accent); }
+@media (hover: hover) {
+  .month-day--real:hover { border-color: var(--accent); }
+}
 .month-day-edit {
   position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 5px;
   border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
@@ -1408,6 +1457,76 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
      на коротких пилюлях перенос на вторую строку честнее, весь текст виден сразу */
   .seg-bar { max-width: 100%; flex-wrap: wrap; row-gap: 6px; }
   .seg-bar label { flex-shrink: 0; }
+
+  /* ── Переключатель мастеров в "Неделе" и "Месяце" (16.08.2026) ──────────────
+     Жалоба Влада: "на выборе Неделя выбор мастера вылазит из окошка и выглядит криво".
+     Причина: правило выше (`flex-wrap: wrap`) писалось под КОРОТКИЕ пилюли периодов
+     ("День"/"Неделя"/"Год") - там перенос на вторую строку честнее обрезки. Но тот же
+     .seg-bar переиспользован под ИМЕНА МАСТЕРОВ, а они длинные: четыре имени в строку
+     не помещаются, четвёртое ("Тест Сценарии") сваливается вниз и торчит из
+     скруглённой пилюли-контейнера, которая рисовалась в расчёте на одну строку -
+     фон с border-radius:999px обтекает две строки как попало.
+     Здесь перенос отменяем и возвращаем горизонтальную прокрутку: имена - штука
+     непредсказуемой длины, их в принципе нельзя уместить в один экран, а вот
+     контейнер обязан остаться одной ровной пилюлей. Обрезки по кромке, из-за которой
+     когда-то отказались от скролла, тут нет: маска справа гасит край плавно и сама
+     показывает, что список продолжается. */
+  .seg-bar.master-pill-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    /* Плавное затухание у правого края вместо рубленого обреза на середине буквы */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  }
+  .seg-bar.master-pill-row::-webkit-scrollbar { display: none; }
+  .seg-bar.master-pill-row button.master-pill { flex: none; min-height: 40px; }
+
+  /* ── Сетка "Недели" (16.08.2026) ────────────────────────────────────────────
+     Была repeat(7, minmax(0,1fr)) - те же 7 колонок, что на Mac, но на 390px это
+     41px на день. Замер живьём: в ячейку не помещается ни "10:00-20:00", ни
+     "Нет записей", ни имя клиента - всё обрезано на полуслове, читать нечего.
+     Решение то же, что уже принято для "Дня" и одобрено Владом: колонки не жмём, а
+     прокручиваем вбок. День получает 132px - хватает на дату, часы смены, процент
+     загрузки и пару записей; форма и стиль ячейки те же, что на компьютере. */
+  .week-grid {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 132px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .week-grid::-webkit-scrollbar { display: none; }
+  /* Тот же приём затухания, что у переключателя мастеров выше: в кадр помещается
+     два с половиной дня, и без подсказки третий столбец выглядел бы обрезанным
+     браком, а не продолжением, которое можно подтянуть пальцем. */
+  .week-grid {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
+  }
+  .week-day-cell { min-height: 108px; }
+
+  /* ── Сетка "Месяца" (16.08.2026) ────────────────────────────────────────────
+     Месяц, в отличие от недели, вбок не прокручиваем: календарь на то и календарь,
+     что месяц виден целиком - прокручиваемый месяц перестаёт читаться как месяц.
+     Значит 7 колонок остаются, а внутрь ячейки должно попасть только то, что реально
+     читается в 41px. Замер до правки: ячейка 41x21px, шрифт 11.5px, подписи
+     "Нет записей"/"3 записи" обрезаны на середине слова - они не информируют, а
+     создают шум. Оставляем число дня, точку статуса и процент загрузки; количество
+     записей и праздник открываются тапом по дню (переход в "День" уже работает).
+     Высота растёт до 54px - палец попадает в конкретный день, а не между двумя. */
+  .month-grid { gap: 4px; }
+  .month-day { min-height: 54px; padding: 5px 4px; font-size: 0.72rem; }
+  .month-day .num { font-size: 0.78rem; line-height: 1.25; }
+  .month-day .appt-count,
+  .month-day .holiday-label { display: none; }
+  .month-load-pct { display: block; font-size: 0.68rem; }
+  /* Кнопка-карандаш "редактировать день" в углу ячейки: на 41px она перекрывала
+     половину числа. Прячем - редактирование дня доступно внутри самого дня. */
+  .month-day-edit { display: none; }
 }
 
 /* ---------- вход в боевую базу (правка Влада 28.07.2026 - реальный логин поверх макета) ---------- */
