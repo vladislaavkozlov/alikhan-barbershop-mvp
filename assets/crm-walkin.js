@@ -9,7 +9,14 @@ import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } 
 import { API, getToken } from './crm-auth.js';
 import { renderLiveProof } from './crm-dashboard.js';
 import { RADIO_ID_TO_STATUS, applyNoShowStreakAfterStatus } from './crm-booking-status.js';
-import { mergeServiceCombos, isServiceBlockedByCombo, sortByServiceOrder } from '../storage.js';
+import {
+  mergeServiceCombos,
+  isServiceBlockedByCombo,
+  absorbComboComponents,
+  hasComboConflict,
+  toggleServiceSelection,
+  sortByServiceOrder,
+} from '../storage.js';
 import { reportError, reportSuccess } from './crm-toast.js';
 import { setButtonBusy } from './crm-loading.js';
 
@@ -330,6 +337,23 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     return [...merged].every((id) => available.has(id)) ? merged : new Set(ids);
   }
 
+  // Клик по чекбоксу услуги. Правило одно на сайт и CRM (storage.js
+  // toggleServiceSelection), здесь к нему добавлена та же оговорка про прайс
+  // МАСТЕРА, что и у mergeCombosFor выше: если комплекса у мастера нет, сворачивать
+  // составляющие не во что - оставляем их по отдельности, иначе набор превратится в
+  // id, которого нет ни в одном чекбоксе.
+  function applyServiceToggle(serviceId) {
+    const next = toggleServiceSelection(serviceId, selected);
+    const available = new Set(servicesFor(currentMasterId).map((r) => r.serviceId));
+    if ([...next].every((id) => available.has(id))) return next;
+    const plain = new Set(selected);
+    if (plain.has(serviceId)) plain.delete(serviceId);
+    else if (!isServiceBlockedByCombo(serviceId, plain)) plain.add(serviceId);
+    // Поглощение оставляем в любом случае - оно только УБИРАЕТ лишнее из набора и
+    // недоступных услуг создать не может
+    return absorbComboComponents(plain);
+  }
+
   function syncCheckboxes() {
     for (const [serviceId, input] of checkboxByService) {
       const isSelected = selected.has(serviceId);
@@ -420,9 +444,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
           input.checked = false; // защита от гонки клика раньше, чем disabled применился
           return;
         }
-        if (input.checked) selected.add(row.serviceId);
-        else selected.delete(row.serviceId);
-        selected = mergeCombosFor(selected);
+        selected = applyServiceToggle(row.serviceId);
         syncCheckboxes();
         renderSummary();
       });
@@ -592,6 +614,17 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       selected = mergeCombosFor(selected);
       syncCheckboxes();
       renderSummary();
+      // Записи, созданные до 16.08.2026, могли получить комплекс И его составляющую
+      // разом (форма это позволяла, если сначала отметить составляющую) - клиент
+      // платил за неё дважды. Состав такой записи молча не правим: это её история и
+      // её деньги. Но говорим прямо, что снять, потому что сервер теперь такой набор
+      // не примет - иначе сохранение падало бы без понятной причины.
+      if (hasComboConflict(selected)) {
+        resultEl.hidden = false;
+        resultEl.className = 'wf-result wf-result--err';
+        resultEl.textContent =
+          'В этой записи комплекс и отдельная услуга, которая уже в него входит - снимите лишнюю галочку, иначе сохранить не получится';
+      }
     }
     // ── Окно 55, Задача C: обвязка режима редактирования ──────────────────────
     if (hasEditUi) {

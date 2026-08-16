@@ -6,8 +6,8 @@ import {
   getServices,
   priceLabelForMaster,
   priceForMaster,
-  mergeServiceCombos,
   isServiceBlockedByCombo,
+  toggleServiceSelection,
   filterBookableMasters,
   sortByServiceOrder,
 } from './storage.js';
@@ -621,13 +621,11 @@ function renderServiceOptions() {
     // комплекса блокирует компоненты, а отдельный выбор обоих компонентов сам
     // сворачивается в комплекс.
     btn.addEventListener('click', () => {
-      if (isServiceBlockedByCombo(service.id, selectedServiceIds)) return;
-      if (selectedServiceIds.has(service.id)) {
-        selectedServiceIds.delete(service.id);
-      } else {
-        selectedServiceIds.add(service.id);
-      }
-      selectedServiceIds = mergeServiceCombos(selectedServiceIds);
+      // Одно правило выбора на сайт и CRM (storage.js toggleServiceSelection):
+      // блокировка составляющих при комплексе, поглощение их комплексом и слияние
+      // двух составляющих в комплекс - раньше эта последовательность была написана
+      // здесь и в форме CRM по отдельности и разъезжалась
+      selectedServiceIds = toggleServiceSelection(service.id, selectedServiceIds);
       syncServiceButtons();
       renderServiceSummary();
       refreshSlots();

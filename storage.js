@@ -322,6 +322,57 @@ export function isServiceBlockedByCombo(serviceId, selectedIds) {
   return SERVICE_COMBOS.some((combo) => selectedIds.has(combo.comboId) && combo.blocks.includes(serviceId));
 }
 
+// Комплекс поглощает свои составляющие: если он в наборе, отдельных «борода»,
+// «бритьё», «фирменная окантовка», «стрижка» рядом с ним быть не может - они уже
+// входят в него по смыслу и в цену.
+//
+// Влад, 16.08.2026: "если выбрать просто 'Борода' и 'Стрижка + борода', он позволит
+// это сохранить". Правило блокировки было односторонним: оно запрещало добавить
+// составляющую ПОСЛЕ комплекса, но не разбирало обратный порядок - составляющая
+// отмечена первой, комплекс вторым, и оба оставались в наборе (клиент платил за
+// бороду дважды). Отсюда и «борода + бритьё + комплекс» одновременно.
+export function absorbComboComponents(selectedIds) {
+  let result = new Set(selectedIds);
+  for (const combo of SERVICE_COMBOS) {
+    if (!result.has(combo.comboId)) continue;
+    for (const id of combo.blocks) result.delete(id);
+  }
+  return result;
+}
+
+// Набор противоречив: комплекс и его составляющая отмечены одновременно. Проверка
+// живёт здесь, чтобы одним и тем же правилом пользовались обе стороны - формы
+// (не дают собрать такой набор) и сервер (не принимает его, даже если пришёл мимо
+// формы: старая открытая вкладка, прямой вызов API).
+export function hasComboConflict(selectedIds) {
+  const ids = new Set(selectedIds);
+  return SERVICE_COMBOS.some((combo) => ids.has(combo.comboId) && combo.blocks.some((id) => ids.has(id)));
+}
+
+// Единственная точка «человек кликнул по услуге» - и на сайте, и в CRM. Раньше обе
+// формы держали свою копию этой последовательности, и правило комбо расходилось
+// между ними. Возвращает НОВЫЙ набор, исходный не мутирует.
+export function toggleServiceSelection(serviceId, selectedIds) {
+  const current = new Set(selectedIds);
+  // Снятие - всегда просто снятие: сворачивать/поглощать тут нечего
+  if (current.has(serviceId)) {
+    current.delete(serviceId);
+    return current;
+  }
+  // Отмечать составляющую комплекса, когда сам комплекс уже выбран, нельзя
+  if (isServiceBlockedByCombo(serviceId, current)) return current;
+  current.add(serviceId);
+  // Порядок важен: сначала комплекс убирает свои составляющие (отметили комплекс
+  // поверх «бороды»), затем две отдельные составляющие сворачиваются в комплекс
+  // (отметили «стрижку» поверх «бороды»)...
+  const merged = mergeServiceCombos(absorbComboComponents(current));
+  // ...и поглощение повторяется ПОСЛЕ слияния: комплекс мог появиться сам, а рядом
+  // остаться отмеченное раньше «бритьё», которое в него тоже входит. Путь
+  // «стрижка → бритьё → борода» приводил ровно к такому набору - найдено перебором
+  // всех троек кликов в tests/service-combos.mirror.test.js, руками не заметили
+  return absorbComboComponents(merged);
+}
+
 function findMaster(masterId) {
   const master = MASTERS.find((m) => m.id === masterId);
   if (!master) throw new Error(`Неизвестный masterId: ${masterId}`);

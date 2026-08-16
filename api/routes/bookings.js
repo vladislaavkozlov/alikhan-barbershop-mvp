@@ -10,6 +10,7 @@ import { addMinutes, dateColToStr, intervalsOverlap, shopNow, toMinutes } from '
 import { mastersWithWorkingSchedule, masterAcceptsClients, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
 import { notifyStaff } from '../lib/notify-core.js';
 import { findClientIdByPhone } from './clients.js';
+import { hasComboConflict } from '../lib/service-combos.js';
 
 // Админы точки - адресаты уведомлений о её записях (Окно 14: Мамедхан управляет
 // точкой день в день). Один запрос на два вызова - createBookingTx и перенос
@@ -382,6 +383,12 @@ export async function handleBookings(req, res, url) {
     if (!body.masterId || !body.date || !body.startTime || serviceIds.length === 0) {
       return sendJson(res, 400, { error: 'missing_fields' });
     }
+    // Комплекс и услуга, которая в него входит, разом - двойная оплата одного и того
+    // же. Проверка нужна и здесь, на публичной записи с сайта: форма такой набор уже
+    // не собирает, но запрос может прийти из старой открытой вкладки или мимо неё
+    if (hasComboConflict(serviceIds)) {
+      return sendJson(res, 400, { error: 'combo_conflict' });
+    }
     const result = await createBookingTx({
       masterId: body.masterId,
       serviceIds,
@@ -601,6 +608,13 @@ export async function handleBookingAddServices(req, res, parts) {
   if (msRes.rows.length !== newServiceIds.length) {
     return sendJson(res, 400, { error: 'unknown_master_service' });
   }
+  // Конфликт комплекса и его составляющей считаем по ИТОГОВОМУ составу записи, а не
+  // по одним дописываемым услугам: он рождается именно из соседства с тем, что в
+  // записи уже лежит (мастер дописывает "бороду" к записи, где уже есть комплекс)
+  const existingRes = await pool.query('SELECT service_id FROM booking_services WHERE booking_id = $1', [bookingId]);
+  if (hasComboConflict([...existingRes.rows.map((r) => r.service_id), ...newServiceIds])) {
+    return sendJson(res, 400, { error: 'combo_conflict' });
+  }
   const addedDuration = msRes.rows.reduce((sum, r) => sum + r.duration_min, 0);
 
   const client = await pool.connect();
@@ -682,6 +696,11 @@ export async function handleBookingSetServices(req, res, parts) {
   if (booking.status === 'cancelled') return sendJson(res, 409, { error: 'booking_cancelled' });
 
   const wanted = Array.isArray(body.serviceIds) ? [...new Set(body.serviceIds)] : [];
+  // Комплекс и услуга, которая в него входит, разом - клиент платит за неё дважды.
+  // Форма такой набор больше не собирает (storage.js toggleServiceSelection), но
+  // сервер обязан отказать и мимо формы: старая открытая вкладка, прямой вызов API,
+  // запись, созданная до 16.08.2026.
+  if (hasComboConflict(wanted)) return sendJson(res, 400, { error: 'combo_conflict' });
   const msRes = wanted.length
     ? await pool.query(
         'SELECT service_id, duration_min FROM master_services WHERE master_id = $1 AND service_id = ANY($2)',
