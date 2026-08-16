@@ -17,7 +17,10 @@ test('все три кабинета подключают общий слой н
     assert.match(html, /class="[^"]*crm-top-action/);
   }
   assert.equal((pages[0].match(/<details class="staff-card/g) || []).length, 12);
-  assert.equal((pages[1].match(/<details class="staff-card/g) || []).length, 4);
+  // У администратора статических карточек сотрудников в разметке остался ровно один
+  // блок - «Личные данные» (panel-c). Раздел «Сотрудники» с 16.08.2026 рисует
+  // renderTeam из GET /staff, макетных карточек в HTML больше нет
+  assert.equal((pages[1].match(/<details class="staff-card/g) || []).length, 1);
   assert.equal((pages[2].match(/<details class="staff-card/g) || []).length, 1);
 });
 

@@ -25,13 +25,45 @@ test('расписание администратора использует п�
   assert.doesNotMatch(html, /Выручка сегодня|Неопознанных визитов сегодня/);
 });
 
-test('раздел сотрудников не предлагает администратору функции владельца и показывает Елизавету', async () => {
+// 16.08.2026. Раньше «Сотрудники» у администратора были статичным макетом Окна 9:
+// три карточки, написанные руками, с выдуманными контактами (+7 900 000-00-01),
+// бейджами «пример», аналитикой «00% пример» и ролью «Администратор + Мастер» у
+// человека, который давно управляющий. Новый сотрудник там не появлялся никогда.
+// Теперь раздел рисует общий renderTeam из GET /staff.
+test('раздел сотрудников администратора живой, а не макет с придуманными людьми', async () => {
   const html = await source('crm-admin.html');
 
   assert.doesNotMatch(html, /\+ Добавить сотрудника/);
-  assert.doesNotMatch(html, /Роль и список услуг - только для просмотра, менять может владелец/);
-  assert.match(html, /staffCard-master-3/);
-  assert.match(html, /Елизавета/);
+  assert.doesNotMatch(html, /badge-example|>пример</);
+  // именно ЗНАЧЕНИЯ полей, а не placeholder формы записи (там номер-подсказка законна)
+  assert.doesNotMatch(html, /value="\+7 900 000-00-0|value="\w+@example\.com/);
+  assert.doesNotMatch(html, /staff\.provides_services/);
+  assert.doesNotMatch(html, /Администратор \+ Мастер/);
+  assert.doesNotMatch(html, /staffCard-master-3/);
+  assert.match(html, /import '\.\/assets\/crm-team\.js'/);
+  assert.match(html, /assets\/crm-team-content\.css/);
+  assert.match(html, /<div class="tab-panel panel-b">[\s\S]{0,200}<div class="staff-list"><\/div>/);
+});
+
+// Право смотреть состав команды не равно праву его менять: на сервере состав,
+// услуги, ставки и роли - MANAGEMENT_ROLES (owner+manager), а график - шире
+// (BOOKING_OPERATOR_ROLES, туда входит и admin). Карточка обязана повторять это
+// разделение, иначе администратор жмёт кнопки, которые вернут ему 401
+test('карточка сотрудника у администратора - просмотр, кроме графика', async () => {
+  const team = await source('assets/crm-team.js');
+
+  assert.match(team, /const MANAGEMENT_VIEWERS = \['owner', 'manager'\]/);
+  assert.match(team, /const SCHEDULE_EDITORS = \['owner', 'manager', 'admin'\]/);
+  assert.match(team, /const canManage = MANAGEMENT_VIEWERS\.includes\(viewerRole\)/);
+  // поля и тумблеры состава закрыты для всех, кто не управляет командой
+  assert.match(team, /const fieldsLocked = locked \|\| !canManage/);
+  assert.match(team, /const employmentLocked = locked \|\| !canManage/);
+  // секции с management-роутами не рисуются вовсе, а не рисуются нерабочими
+  assert.match(team, /canManage \? section\('Профиль на сайте'/);
+  assert.match(team, /canEdit \? addCard\(locations\) : ''/);
+  // единственное сохранение, доступное администратору - рабочая неделя
+  assert.match(team, /data-schedule-only/);
+  assert.match(team, /noteOk\(card, 'График сохранён'\)/);
 });
 
 test('администратор получил раздел Личные данные на реальных данных сессии', async () => {

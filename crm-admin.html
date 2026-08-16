@@ -3,11 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Алихан — CRM · Администратор (макет)</title>
+<title>Алихан — CRM · Администратор</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/mockup-crm.css" />
 <link rel="stylesheet" href="assets/crm-app-shell.css" />
 <link rel="stylesheet" href="assets/crm-navigation-panels.css" />
+<!-- Стили карточки сотрудника - те же, что у владельца: раздел «Сотрудники» рисует
+     общий компонент crm-team.js (16.08.2026) -->
+<link rel="stylesheet" href="assets/crm-team-content.css" />
 <link rel="stylesheet" href="assets/crm-toast.css" />
 <link rel="stylesheet" href="assets/crm-loading.css" />
 <style>
@@ -335,231 +338,18 @@
     </div>
 
     <!-- ======================= СОТРУДНИКИ ======================= -->
+    <!-- 16.08.2026: раздел перестал быть статичным макетом Окна 9. До этой правки тут
+         лежали три карточки, написанные руками - администратор видел выдуманные
+         контакты и должности, устаревшую подпись роли у человека, который давно
+         управляющий, макетную аналитику вместо цифр и не видел вообще никого, кто
+         появился в команде позже. Теперь карточки рисует общий renderTeam
+         (assets/crm-team.js) из GET /staff - тот же компонент, что у владельца, в
+         режиме "только просмотр" (правки состава, услуг, ставок и ролей администратору
+         запрещены и на сервере: MANAGEMENT_ROLES = owner+manager). Разметка ниже -
+         скелет до входа, renderTeam заменяет её содержимым по факту авторизации. -->
     <div class="tab-panel panel-b">
       <section>
-        <!-- Правка 07.08.2026 - убран дублирующий <h2>Сотрудники</h2>: название вкладки
-             уже видно в active-состоянии таб-бара выше. -->
-        <div class="staff-list">
-          <!-- ИВАН 1 — полная карточка -->
-          <details class="staff-card" open>
-            <summary>
-              <div class="avatar lg">АЛ</div>
-              <div class="summary-meta">
-                <div class="name">Алиовсад <span class="badge badge-example">пример</span></div>
-                <div class="role">Владелец + Мастер</div>
-              </div>
-              <div class="summary-badges">
-                <span class="badge badge-on">Оказывает услуги</span>
-                <span class="badge badge-on">Доступ к сервису</span>
-              </div>
-              <span class="chevron">▸</span>
-            </summary>
-            <div class="staff-card-body">
-              <h4>Контакты</h4>
-              <div class="field-grid">
-                <div class="field"><label>Телефон</label><input value="+7 900 000-00-01" readonly></div>
-                <div class="field"><label>Email</label><input value="ali@example.com" readonly></div>
-                <div class="field"><label>Должность</label><input value="Мастер" readonly></div>
-              </div>
-
-              <h4>Роль <span class="badge badge-todo">только просмотр</span></h4>
-              <p class="role-hint">Роли можно комбинировать - менять может только владелец</p>
-              <div class="role-picker readonly">
-                <label class="role-option"><input type="checkbox" name="role-ivan1" checked disabled><span class="rn">Владелец</span><span class="rd">Видит и меняет всё</span></label>
-                <label class="role-option"><input type="checkbox" name="role-ivan1" disabled><span class="rn">Администратор</span><span class="rd">Одна точка, без прайса и ставок</span></label>
-                <label class="role-option"><input type="checkbox" name="role-ivan1" checked disabled><span class="rn">Мастер</span><span class="rd">Свой день и заработок</span></label>
-              </div>
-
-              <h4>Услуги</h4>
-              <div class="toggle-row">
-                <div><div class="tr-label">Оказывает услуги</div><div class="tr-sub">staff.provides_services</div></div>
-                <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label>
-              </div>
-              <p class="section-hint" style="margin:10px 0">Только просмотр - какие услуги умеет оказывать мастер, решает владелец</p>
-              <div class="service-picker" data-master-id="master-1"></div>
-
-              <h4>График работы</h4>
-              <p class="section-hint" style="margin:6px 0 10px">По каждому дню недели - только просмотр, меняет владелец</p>
-              <div id="weeklyEditor-master-1"></div>
-
-              <!-- Влад (03.08.2026): раньше здесь была декоративная "+ Добавить перерыв" -
-                   рисовала DOM, ничего не сохраняла, перерыв "числился", но не блокировал
-                   запись. Админ - только просмотр (ставит/меняет график владелец) -
-                   показываем реальные данные на сегодня без формы редактирования. -->
-              <h4 style="margin-top:18px">Разовое изменение на дату</h4>
-              <p class="section-hint" style="margin:6px 0">Перерыв и выходной ставит владелец</p>
-              <div class="breaks-list" id="schedCurrent-master-1"><span class="note">загружаю…</span></div>
-
-              <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
-              <div class="seg-tabs">
-                <input type="radio" name="zp1-sub" id="zp1-calc" checked>
-                <div class="seg-bar">
-                  <label for="zp1-calc">Расчёт ЗП</label>
-                </div>
-
-                <div class="seg-panel panel-zp1-calc">
-                  <div class="seg-tabs">
-                    <input type="radio" name="zp1-period" id="zp1p-day" checked>
-                    <input type="radio" name="zp1-period" id="zp1p-week">
-                    <input type="radio" name="zp1-period" id="zp1p-month">
-                    <input type="radio" name="zp1-period" id="zp1p-period">
-                    <div class="seg-bar">
-                      <label for="zp1p-day">За день</label>
-                      <label for="zp1p-week">За неделю</label>
-                      <label for="zp1p-month">За месяц</label>
-                      <label for="zp1p-period">Задать период</label>
-                    </div>
-                    <div class="seg-panel panel-zp1p-day">
-                      <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                      <p class="payroll-note">100% от выручки по своим услугам - сумма по броням этого мастера за сегодня</p>
-                    </div>
-                    <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster1Week">000 ₽ <span class="unsure">считаю…</span></span></div></div>
-                    <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div></div>
-                    <div class="seg-panel panel-zp1p-period">
-                      <div class="payroll-period-picker">
-                        <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
-                        <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
-                        <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-1">Показать</button>
-                      </div>
-                      <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                      <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <h4>Возвращаемость клиентов</h4>
-              <p class="section-hint">Появится после первых визитов</p>
-              <div class="seg-tabs">
-                <input type="radio" name="rt1-period" id="rt1-3" checked>
-                <input type="radio" name="rt1-period" id="rt1-6">
-                <input type="radio" name="rt1-period" id="rt1-12">
-                <input type="radio" name="rt1-period" id="rt1-24">
-                <input type="radio" name="rt1-period" id="rt1-36">
-                <div class="seg-bar">
-                  <label for="rt1-3">3 мес</label>
-                  <label for="rt1-6">6 мес</label>
-                  <label for="rt1-12">1 год</label>
-                  <label for="rt1-24">2 года</label>
-                  <label for="rt1-36">3 года</label>
-                </div>
-                <div class="seg-panel panel-rt1-3"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div></div>
-                <div class="seg-panel panel-rt1-6"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div></div>
-                <div class="seg-panel panel-rt1-12"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div></div>
-                <div class="seg-panel panel-rt1-24"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div></div>
-                <div class="seg-panel panel-rt1-36"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div></div>
-              </div>
-
-              <h4>Как приходят клиенты</h4>
-              <p class="section-hint">Появится после первых записей</p>
-              <div class="seg-tabs">
-                <input type="radio" name="wi1-period" id="wi1-month" checked>
-                <input type="radio" name="wi1-period" id="wi1-3m">
-                <input type="radio" name="wi1-period" id="wi1-6m">
-                <input type="radio" name="wi1-period" id="wi1-year">
-                <div class="seg-bar">
-                  <label for="wi1-month">Месяц</label>
-                  <label for="wi1-3m">3 мес</label>
-                  <label for="wi1-6m">Полгода</label>
-                  <label for="wi1-year">Год</label>
-                </div>
-                <div class="seg-panel panel-wi1-month"><div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                  <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                </div></div>
-                <div class="seg-panel panel-wi1-3m"><div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                  <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                </div></div>
-                <div class="seg-panel panel-wi1-6m"><div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                  <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                </div></div>
-                <div class="seg-panel panel-wi1-year"><div class="stat-cards">
-                  <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                  <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-                </div></div>
-              </div>
-            </div>
-          </details>
-
-          <!-- ИВАН 2 — короткая карточка -->
-          <details class="staff-card">
-            <summary>
-              <div class="avatar lg">МА</div>
-              <div class="summary-meta"><div class="name">Мамедхан <span class="badge badge-example">пример</span></div><div class="role">Администратор + Мастер</div></div>
-              <div class="summary-badges"><span class="badge badge-on">Оказывает услуги</span><span class="badge badge-on">Доступ к сервису</span></div>
-              <span class="chevron">▸</span>
-            </summary>
-            <div class="staff-card-body">
-              <h4>Контакты</h4>
-              <div class="field-grid">
-                <div class="field"><label>Телефон</label><input value="+7 900 000-00-02" readonly></div>
-                <div class="field"><label>Email</label><input value="mamed@example.com" readonly></div>
-              </div>
-              <h4>Роль <span class="badge badge-todo">только просмотр</span></h4>
-              <div class="role-picker readonly">
-                <label class="role-option"><input type="checkbox" name="role-ivan2" disabled><span class="rn">Владелец</span><span class="rd">Видит и меняет всё</span></label>
-                <label class="role-option"><input type="checkbox" name="role-ivan2" checked disabled><span class="rn">Администратор</span><span class="rd">Одна точка</span></label>
-                <label class="role-option"><input type="checkbox" name="role-ivan2" checked disabled><span class="rn">Мастер</span><span class="rd">Свой день и заработок</span></label>
-              </div>
-
-              <h4>Услуги</h4>
-              <p class="section-hint" style="margin:0 0 10px">Только просмотр - какие услуги умеет оказывать мастер, решает владелец</p>
-              <div class="service-picker" data-master-id="master-2"></div>
-              <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
-              <div class="seg-tabs">
-                <input type="radio" name="zp2-period" id="zp2p-day" checked>
-                <input type="radio" name="zp2-period" id="zp2p-week">
-                <input type="radio" name="zp2-period" id="zp2p-month">
-                <input type="radio" name="zp2-period" id="zp2p-period">
-                <div class="seg-bar">
-                  <label for="zp2p-day">За день</label>
-                  <label for="zp2p-week">За неделю</label>
-                  <label for="zp2p-month">За месяц</label>
-                  <label for="zp2p-period">Задать период</label>
-                </div>
-                <div class="seg-panel panel-zp2p-day">
-                  <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                  <p class="payroll-note">100% от выручки по своим услугам - сумма по броням этого мастера. Настройку ставки делает только владелец</p>
-                </div>
-                <div class="seg-panel panel-zp2p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster2Week">000 ₽ <span class="unsure">считаю…</span></span></div></div>
-                <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div></div>
-                <div class="seg-panel panel-zp2p-period">
-                  <div class="payroll-period-picker">
-                    <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
-                    <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
-                    <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-2">Показать</button>
-                  </div>
-                  <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                  <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
-                </div>
-              </div>
-              <h4>Возвращаемость клиентов</h4>
-              <div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно (12 мес)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div>
-            </div>
-          </details>
-
-          <details class="staff-card" id="staffCard-master-3">
-            <summary>
-              <div class="avatar lg">ЕЛ</div>
-              <div class="summary-meta"><div class="name">Елизавета</div><div class="role">Мастер</div></div>
-              <div class="summary-badges"><span class="badge badge-on">Оказывает услуги</span><span class="badge badge-on">Доступ к сервису</span></div>
-              <span class="chevron">▸</span>
-            </summary>
-            <div class="staff-card-body">
-              <h4>Контакты</h4>
-              <div class="field-grid">
-                <div class="field"><label>Телефон</label><input id="adminStaffPhone-master-3" value="—" readonly></div>
-                <div class="field"><label>Email</label><input id="adminStaffEmail-master-3" value="—" readonly></div>
-              </div>
-              <h4>Услуги</h4>
-              <div class="service-picker" data-master-id="master-3"></div>
-              <h4>График работы</h4>
-              <div id="weeklyEditor-master-3"></div>
-            </div>
-          </details>
-        </div>
+        <div class="staff-list"></div>
       </section>
     </div>
 
@@ -598,6 +388,10 @@
   import { initAppShell } from './assets/crm-app-shell.js';
   import { initCrmNavigationPanels, upgradeBookingPanel, upgradeScheduleViews } from './assets/crm-navigation-panels.js';
   import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
+  // Раздел «Сотрудники» (16.08.2026). Модуль подключён ради самого себя: он подписан
+  // на событие входа и сам рисует карточки из GET /staff, в режиме "только просмотр"
+  // для роли admin - вызывать его отсюда руками не нужно, ровно как у владельца
+  import './assets/crm-team.js';
   upgradeScheduleViews(['day', 'week', 'month']);
   upgradeBookingPanel();
   initCrmAuth('admin');

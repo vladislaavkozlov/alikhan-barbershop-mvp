@@ -37,8 +37,11 @@ test('услуги снятого с приёма не выбираются, г�
   ]);
   // редактор услуг получает canEdit=false - чекбоксы и длительности отключаются штатно
   assert.match(team, /renderMasterServiceEditor\([\s\S]{0,160}staffCanEdit && staff\.providesServices !== false/);
-  // график НЕ зависит от приёма клиентов: у администратора он свой и нужен ему самому
-  assert.match(team, /wireWeeklyScheduleEditor\(staff\.id, staffCanEdit, fetchJson\)/);
+  // график НЕ зависит от приёма клиентов: у администратора он свой и нужен ему самому.
+  // С 16.08.2026 право на график шире права на карточку - его правят и owner/manager,
+  // и admin (SCHEDULE_EDITORS), поэтому флаг тут свой, не staffCanEdit
+  assert.match(team, /wireWeeklyScheduleEditor\(staff\.id, canEditSchedule && [^,]+, fetchJson\)/);
+  assert.match(team, /const SCHEDULE_EDITORS = \['owner', 'manager', 'admin'\]/);
   assert.doesNotMatch(team, /wireWeeklyScheduleEditor\([^)]*providesServices/);
   // отключённый чекбокс услуги виден неактивным - он нарисован сам, браузер его не гасит
   assert.match(css, /\.service-check:has\(input\[type="checkbox"\]:disabled\)/);
@@ -162,7 +165,7 @@ test('заблокированный тумблер видно - он нарис
 test('кнопка сохранения включается только при реальных изменениях в карточке', async () => {
   const root = new URL('../', import.meta.url);
   const team = await readFile(new URL('assets/crm-team.js', root), 'utf8');
-  assert.match(team, /data-save disabled/);                       // стартует неактивной
+  assert.match(team, /data-save [^>]*disabled>/);                 // стартует неактивной
   assert.match(team, /function cardSnapshot\(card\)/);            // снимок исходных значений
   assert.match(team, /const fieldsChanged = cardSnapshot\(card\) !== card\.dataset\.snapshot/);
   // услуги уезжают той же кнопкой и тоже будят её (правка Влада 13.08.2026)

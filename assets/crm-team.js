@@ -24,6 +24,15 @@ import { dateSelectValue, renderDateSelect, renderTimeSelect, timeSelectValue } 
 
 const roleLabel = { owner: 'Владелец', manager: 'Управляющий', admin: 'Администратор', master: 'Мастер' };
 const editableRoles = ['master', 'admin', 'manager'];
+// Кто правит карточку сотрудника (имя, контакты, услуги, роль, фото) - ровно те же
+// роли, что MANAGEMENT_ROLES на сервере (api/lib/permissions.js). Администратор сюда
+// НЕ входит: с 16.08.2026 он видит тот же раздел «Сотрудники», но только смотрит.
+const MANAGEMENT_VIEWERS = ['owner', 'manager'];
+// А вот график - его работа: PUT /master-weekly-schedule и POST /schedule-exceptions
+// пускают BOOKING_OPERATOR_ROLES, то есть владельца, управляющего И администратора
+// (по своей точке). Разделение намеренное: администратор ставит смены и выходные, но
+// не меняет состав команды, прайс и ставки.
+const SCHEDULE_EDITORS = ['owner', 'manager', 'admin'];
 let lastCreatedCredentials = null;
 const esc = (value = '') => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const section = (title, description, icon, content, modifier = '') => `<section class="team-editor-section${modifier ? ` ${modifier}` : ''}"><header class="team-section-head"><span class="team-section-icon" aria-hidden="true">${icon}</span><div><h3>${title}</h3><p>${description}</p></div></header>${content}</section>`;
@@ -110,18 +119,29 @@ function staffCard(staff, viewerRole, locations, viewerId) {
   // выкинуть себя из CRM без пути назад. Бэкенд форсит это независимо от интерфейса
   // (guardAccountLockout), здесь тумблер просто не даёт нажать.
   const isSelf = viewerId != null && staff.id === viewerId;
-  const employmentLocked = locked || staff.protectedOwner || isSelf;
+  const canManage = MANAGEMENT_VIEWERS.includes(viewerRole);
+  const employmentLocked = locked || !canManage || staff.protectedOwner || isSelf;
+  const fieldsLocked = locked || !canManage;
+  const servicesTitle = canManage ? 'Выберите услуги и укажите длительность' : 'Услуги и длительность назначает владелец';
   return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
-  ${section('Основное', 'Контакты и рабочий статус', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${locked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${locked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: 'Сотрудник остаётся в активном составе', checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: locked })}</div>`)}
-  ${section('Профиль на сайте', 'Фото и информация для клиентов', ICON_PUBLIC, mediaMarkup(staff))}
-  ${section('Услуги и время', 'Выберите услуги и укажите длительность', ICON_SERVICES, `<div class="service-picker" data-master-id="${id}">${skeletonMarkup(4)}</div>`)}
+  ${section('Основное', canManage ? 'Контакты и рабочий статус' : 'Контакты и рабочий статус - только просмотр', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: 'Сотрудник остаётся в активном составе', checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: fieldsLocked })}</div>`)}
+  ${/* Фото, портфолио и витрина на сайте - управление составом медиа, а оно на сервере
+       management-only (POST/DELETE /staff/:id/media). Администратору секцию не рисуем
+       вовсе: кнопка «Выбрать фото» у него давала бы только 401 в ответ. */''}
+  ${canManage ? section('Профиль на сайте', 'Фото и информация для клиентов', ICON_PUBLIC, mediaMarkup(staff)) : ''}
+  ${section('Услуги и время', servicesTitle, ICON_SERVICES, `<div class="service-picker" data-master-id="${id}">${skeletonMarkup(4)}</div>`)}
   ${section('График', 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}">${skeletonMarkup(3)}</div>${exceptionEditor(staff.id)}`)}
   ${/* Тумблер "Разрешить вход в CRM" убран 13.08.2026 по решению владельца: он дублировал
        "Работает в компании" в глазах салона и создавал риск случайно отрезать себе вход.
        Вход теперь есть у каждого, кто числится в составе; колонка has_system_access в схеме
        осталась и по-прежнему проверяется при входе, но через интерфейс не выключается. */''}
   ${section('Доступ', 'Роль сотрудника и её права', ICON_ACCESS, roleControl(staff, viewerRole))}
-  <div class="team-editor-actions"><button class="btn btn-primary" type="button" data-save disabled>Сохранить изменения</button><p class="payroll-note" data-card-note aria-live="polite"></p></div></div></details>`;
+  ${/* Кнопка одна на карточку, но у администратора она сохраняет ровно то, на что у
+       него есть право - рабочую неделю (PUT /master-weekly-schedule). Поэтому у неё
+       и другая надпись, и признак data-schedule-only, по которому saveCardSteps
+       останавливается сразу после графика и не шлёт PUT /staff, /portfolio, /role -
+       они вернули бы ему 401 и «Не удалось сохранить» поверх уже сохранённого. */''}
+  <div class="team-editor-actions"><button class="btn btn-primary" type="button" data-save ${canManage ? '' : 'data-schedule-only'} disabled>${canManage ? 'Сохранить изменения' : 'Сохранить график'}</button><p class="payroll-note" data-card-note aria-live="polite"></p></div></div></details>`;
 }
 
 // Даты и время здесь - слоты под кастомные виджеты проекта (.custom-date /
@@ -234,6 +254,14 @@ async function saveCardSteps(card) {
         ? noteFail(card, 'График не сохранён: на это время уже есть записи, они показаны в блоке «График»')
         : noteApiFail(card, scheduleResult, 'Не удалось сохранить график');
     }
+  }
+  // Администратор (data-schedule-only) правит в карточке только график - на этом его
+  // сохранение и заканчивается. Остальные шаги ниже - management-роуты, для него это
+  // гарантированный 401 поверх успешно сохранённой недели
+  if (card.querySelector('[data-save][data-schedule-only]')) {
+    noteOk(card, 'График сохранён');
+    await renderTeam();
+    return;
   }
   const main = await apiSend(`/staff/${encodeURIComponent(id)}`, 'PUT', {
     name: value('name').value,
@@ -541,9 +569,13 @@ export async function renderTeam() {
     const [rows, services, masterServices, me, locations] = await Promise.all([
       fetchJson('/staff'), fetchJson('/services'), fetch(`${API}/master-services`).then((response) => response.json()), fetchJson('/auth/me'), fetchJson('/locations'),
     ]);
-    host.innerHTML = rows.map((staff) => staffCard(staff, me.staff.role, locations, me.staff.id)).join('') + addCard(locations);
+    const canEdit = MANAGEMENT_VIEWERS.includes(me.staff.role);
+    // Заведение сотрудника - POST /staff, тоже management. Администратору карточку
+    // «Добавить сотрудника» не показываем (16.08.2026): раньше её тут не мог увидеть
+    // никто, кроме владельца и управляющего, потому что раздел был только у них.
+    host.innerHTML = rows.map((staff) => staffCard(staff, me.staff.role, locations, me.staff.id)).join('') + (canEdit ? addCard(locations) : '');
     openStaffIds.forEach((staffId) => host.querySelector(`.team-editor-card[data-staff-id="${CSS.escape(staffId)}"]`)?.setAttribute('open', ''));
-    const canEdit = ['owner', 'manager'].includes(me.staff.role);
+    const canEditSchedule = SCHEDULE_EDITORS.includes(me.staff.role);
     rows.forEach((staff) => {
       // Услуги снятого с приёма не выбираются вовсе (canEdit=false отключает чекбоксы
       // и поля длительности штатным путём). График сознательно НЕ отключаем: он есть и
@@ -554,7 +586,7 @@ export async function renderTeam() {
       renderMasterServiceEditor(picker, staff.id, staffCanEdit && staff.providesServices !== false, services, masterServices, () => {
         picker.closest('.team-editor-card')?.dispatchEvent(new CustomEvent('crm:card-dirty', { bubbles: true }));
       });
-      wireWeeklyScheduleEditor(staff.id, staffCanEdit, fetchJson);
+      wireWeeklyScheduleEditor(staff.id, canEditSchedule && !(me.staff.role === 'manager' && staff.protectedOwner), fetchJson);
     });
     wire(host);
     wireDirtyTracking(host);

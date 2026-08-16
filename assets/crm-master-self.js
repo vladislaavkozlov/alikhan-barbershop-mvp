@@ -2,7 +2,7 @@
 // plans/2026-08-07-crm-auth-decomposition.md). Self-view мастера (шапка "Вы: имя",
 // подмена data-master в примерном календаре) + вкладка "Личные данные"
 // (crm-master.html). Код перенесён 1в1, поведение не менялось.
-import { el } from './crm-shared.js';
+import { el, formatMoney } from './crm-shared.js';
 import { applyAvatar } from './crm-avatar.js';
 import { renderWeeklySelfReadOnly } from './crm-schedule-editor.js';
 import { wireScheduleRequestForm } from './crm-schedule-request-form.js';
@@ -79,7 +79,11 @@ export function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
     .map((s) => {
       const row = mine.get(s.id);
       const checked = row ? 'checked' : '';
-      const price = row ? `${row.price}₽` : s.priceLabel;
+      // GET /services отдаёт цену полем `price` - поля `priceLabel` в ответе нет
+      // никогда, и услуга, которую мастеру не назначили, показывала ему "undefined"
+      // вместо цены из прайса (найдено живым прогоном 16.08.2026). Формат тот же,
+      // что в редакторе услуг у владельца - formatMoney (crm-master-services.js).
+      const price = formatMoney(row ? row.price : s.price);
       const duration = row ? row.durationMin : s.durationMin;
       return `<label class="service-check"><input type="checkbox" ${checked} disabled><span><span class="sc-name">${s.name}</span><span class="sc-meta"><span class="sc-price">${price}</span><span class="sc-dot">·</span><span>${duration} мин</span></span></span></label>`;
     })
