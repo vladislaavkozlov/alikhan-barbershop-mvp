@@ -25,7 +25,7 @@ import {
   mastersWithWorkingSchedule,
   computeMasterNextAvailability,
   MASTER_NEXT_AVAILABILITY_WINDOW_DAYS,
-  validateWeeklyChanges,
+  analyzeWeeklyChanges,
   findWeeklyScheduleConflicts,
   writeWeeklySchedule,
 } from '../lib/schedule-core.js';
@@ -449,13 +449,17 @@ export async function handleMasterWeeklySchedule(req, res, url) {
   if (req.method === 'PUT') {
     if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
     const body = await readBody(req);
-    const rows = validateWeeklyChanges(body.weeklyChanges);
+    const { rows, error: weeklyError } = analyzeWeeklyChanges(body.weeklyChanges);
     if (!body.masterId) return sendJson(res, 400, { error: 'missing_fields' });
     // 17.08.2026 - раньше на любой невалидный график владелец получал общий
     // missing_fields («Заполнены не все обязательные поля»), хотя поля как раз
-    // заполнены - неверен порядок времён. Тот же код, что уже отдаёт заявка мастера
-    // (invalid_weekly_changes, api/routes/schedule-requests.js), и он объясняет причину
-    if (!rows) return sendJson(res, 400, { error: 'invalid_weekly_changes' });
+    // заполнены - неверен порядок времён. Теперь отдаём КОНКРЕТНУЮ причину и день
+    // недели (замечание Влада по живому экрану: «в чём здесь конкретно ошибка?»),
+    // форма собирает из этого человеческую фразу с часами
+    // Код уезжает в поле error - это общий контракт ошибок API (клиент читает его в
+    // describeError, assets/crm-toast.js), остальные поля (день недели и сами часы)
+    // рядом, чтобы можно было собрать фразу с конкретикой
+    if (!rows) return sendJson(res, 400, { error: weeklyError.code, ...weeklyError });
     if (auth.role === 'admin') {
       const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [body.masterId]);
       if (staffRes.rows.length === 0 || staffRes.rows[0].location_id !== auth.locationId) {

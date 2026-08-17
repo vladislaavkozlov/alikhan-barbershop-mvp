@@ -389,6 +389,42 @@ function readWeeklyDayRow(prefix, wd) {
     breakEnd: breakOn ? timeSelectValue(`${prefix}-${wd}-breakEnd`) : null,
   };
 }
+// Понятная причина отказа вместо «Проверьте время» (17.08.2026, замечание Влада по
+// живому экрану: «в чём здесь конкретно ошибка? Что перерыв вне рабочего дня? - тогда
+// так и нужно написать»). На его скриншоте рабочий день стоял 00:00-08:00, а перерыв
+// 13:00-14:00, второй случай - перерыв 05:15-05:15: оба отказывались одной и той же
+// общей фразой, и приходилось самому сравнивать поля. Проверяем ЗДЕСЬ, до отправки:
+// человек получает ответ мгновенно, с названием дня и своими же часами в тексте.
+// Те же три правила, что и на сервере (analyzeWeeklyChanges, api/lib/schedule-core.js) -
+// сервер остаётся последним рубежом для любого другого клиента.
+const WEEKDAY_FULL = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+function weeklyDayProblem(row) {
+  if (!row.isWorking) return null;
+  const day = WEEKDAY_FULL[row.weekday - 1] ?? `День ${row.weekday}`;
+  if (!row.workStart || !row.workEnd) return `${day}: укажите, с какого и до какого часа мастер работает`;
+  if (row.workEnd <= row.workStart) {
+    return `${day}: рабочий день стоит с ${row.workStart} до ${row.workEnd} - конец должен быть позже начала`;
+  }
+  if (!row.breakStart && !row.breakEnd) return null;
+  if (!row.breakStart || !row.breakEnd) return `${day}: укажите время перерыва целиком - с какого и до какого часа`;
+  if (row.breakEnd <= row.breakStart) {
+    return `${day}: перерыв стоит с ${row.breakStart} до ${row.breakEnd} - конец перерыва должен быть позже начала`;
+  }
+  if (row.breakStart < row.workStart || row.breakEnd > row.workEnd) {
+    return `${day}: перерыв ${row.breakStart}-${row.breakEnd} вне рабочего дня ${row.workStart}-${row.workEnd} - перерыв должен быть внутри рабочего времени`;
+  }
+  return null;
+}
+// Сравнение строк «HH:MM» работает как сравнение времени только при двузначном часе -
+// именно такой формат даёт виджет времени (SHOP_TIME_OPTIONS, assets/crm-widgets.js)
+export function firstWeeklyProblem(rows) {
+  for (const row of rows) {
+    const problem = weeklyDayProblem(row);
+    if (problem) return problem;
+  }
+  return null;
+}
+
 // Русский список конфликтующих броней - общий формат ответа 409 schedule_conflict
 // (server.mjs: findScheduleConflicts/findWeeklyScheduleConflicts) что здесь, что в
 // модалке дня Месяца (assets/crm-schedule-views.js) - оба места рисуют его этой же
@@ -449,10 +485,21 @@ export async function saveWeeklySchedule(masterId) {
   const conflictsEl = el(`${prefix}-conflicts`);
   if (conflictsEl) conflictsEl.hidden = true;
   if (note) note.textContent = '';
+  const weeklyChanges = readWeeklySchedule(prefix);
+  // Заведомо неверное время не отправляем вовсе - причину человек видит сразу и
+  // словами (см. firstWeeklyProblem выше). reported: вызывающий код (кнопка
+  // «Сохранить изменения», assets/crm-team.js) по этому признаку понимает, что
+  // сообщение уже показано, и не добавляет второе, общее - на скриншоте Влада
+  // 17.08.2026 всплывало два окна сразу, из них полезным было только одно
+  const problem = firstWeeklyProblem(weeklyChanges);
+  if (problem) {
+    reportError(note, problem);
+    return { ok: false, conflict: false, reported: true, message: problem };
+  }
   try {
     const { ok, status, data } = await apiSend('/master-weekly-schedule', 'PUT', {
       masterId,
-      weeklyChanges: readWeeklySchedule(prefix),
+      weeklyChanges,
     });
     if (status === 409 && data?.error === 'schedule_conflict') {
       if (note) reportError(note, 'Нельзя сохранить график: на это время уже есть записи, они перечислены ниже');
@@ -460,7 +507,7 @@ export async function saveWeeklySchedule(masterId) {
         conflictsEl.innerHTML = formatScheduleConflicts(data.conflicts);
         conflictsEl.hidden = false;
       }
-      return { ok: false, conflict: true };
+      return { ok: false, conflict: true, reported: true };
     }
     if (!ok) throw Object.assign(new Error(`HTTP ${status}`), { status, code: data?.error ?? null });
     // Дыра №1 (Окно 18): форма НЕ доверяет тому, что ввёл владелец - перезапрашивает
@@ -468,8 +515,8 @@ export async function saveWeeklySchedule(masterId) {
     await state.reload();
     return { ok: true };
   } catch (err) {
-    reportError(note, err, 'Не удалось сохранить график');
-    return { ok: false, conflict: false };
+    const message = reportError(note, err, 'Не удалось сохранить график');
+    return { ok: false, conflict: false, reported: true, message };
   }
 }
 

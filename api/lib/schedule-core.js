@@ -266,31 +266,56 @@ function timeToMinutes(value) {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 }
 
-export function validateWeeklyChanges(input) {
-  if (!Array.isArray(input) || input.length === 0) return null;
+// Правка 17.08.2026 (вечер, замечание Влада по живому экрану: «в чём здесь конкретно
+// ошибка? Что перерыв вне рабочего дня? - тогда так и нужно написать»). Общий отказ
+// «проверьте время» не говорил, ЧТО именно не так и в каком дне: на скриншоте рабочий
+// день стоял 00:00-08:00, а перерыв 13:00-14:00 - человеку нужно было сравнивать поля
+// самому. Разбор возвращает конкретную причину и день, чтобы вызывающий код (роут и
+// форма) назвал её словами.
+export function analyzeWeeklyChanges(input) {
+  if (!Array.isArray(input) || input.length === 0) return { rows: null, error: { code: 'invalid_weekly_changes' } };
   const seen = new Set();
   const rows = [];
   for (const c of input) {
-    if (!Number.isInteger(c?.weekday) || c.weekday < 1 || c.weekday > 7 || seen.has(c.weekday)) return null;
+    if (!Number.isInteger(c?.weekday) || c.weekday < 1 || c.weekday > 7 || seen.has(c.weekday)) {
+      return { rows: null, error: { code: 'invalid_weekly_changes' } };
+    }
     seen.add(c.weekday);
+    const weekday = c.weekday;
     const isWorking = !!c.isWorking;
-    if (isWorking && (!c.workStart || !c.workEnd)) return null;
-    if (!!c.breakStart !== !!c.breakEnd) return null;
+    if (isWorking && (!c.workStart || !c.workEnd)) return { rows: null, error: { code: 'missing_work_time', weekday } };
+    if (!!c.breakStart !== !!c.breakEnd) return { rows: null, error: { code: 'missing_break_time', weekday } };
     if (isWorking) {
       const workStart = timeToMinutes(c.workStart);
       const workEnd = timeToMinutes(c.workEnd);
-      if (workStart == null || workEnd == null || workEnd <= workStart) return null;
+      if (workStart == null || workEnd == null) return { rows: null, error: { code: 'invalid_weekly_changes', weekday } };
+      if (workEnd <= workStart) {
+        return { rows: null, error: { code: 'work_end_before_start', weekday, workStart: c.workStart, workEnd: c.workEnd } };
+      }
       if (c.breakStart) {
         const breakStart = timeToMinutes(c.breakStart);
         const breakEnd = timeToMinutes(c.breakEnd);
+        if (breakStart == null || breakEnd == null) return { rows: null, error: { code: 'invalid_weekly_changes', weekday } };
+        if (breakEnd <= breakStart) {
+          return { rows: null, error: { code: 'break_end_before_start', weekday, breakStart: c.breakStart, breakEnd: c.breakEnd } };
+        }
         // Перерыв вне смены не блокирует ничего (getEffectiveSchedule считает пересечения
         // внутри окна) и при этом читается человеком как настроенный - тихая пустышка
-        if (breakStart == null || breakEnd == null || breakEnd <= breakStart) return null;
-        if (breakStart < workStart || breakEnd > workEnd) return null;
+        if (breakStart < workStart || breakEnd > workEnd) {
+          return {
+            rows: null,
+            error: {
+              code: 'break_outside_work',
+              weekday,
+              breakStart: c.breakStart, breakEnd: c.breakEnd,
+              workStart: c.workStart, workEnd: c.workEnd,
+            },
+          };
+        }
       }
     }
     rows.push({
-      weekday: c.weekday,
+      weekday,
       isWorking,
       workStart: isWorking ? c.workStart : null,
       workEnd: isWorking ? c.workEnd : null,
@@ -298,7 +323,12 @@ export function validateWeeklyChanges(input) {
       breakEnd: isWorking && c.breakEnd ? c.breakEnd : null,
     });
   }
-  return rows;
+  return { rows, error: null };
+}
+
+// Прежний контракт (rows или null) - им пользуется всё, что не показывает причину
+export function validateWeeklyChanges(input) {
+  return analyzeWeeklyChanges(input).rows;
 }
 
 // Полная замена недельного графика мастера - удаляем все прежние строки и пишем

@@ -7,7 +7,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { canManageStaff } from '../lib/permissions.js';
 import { enumerateDateRange, dateColToStr, shopNow } from '../lib/time.js';
 import {
-  validateWeeklyChanges,
+  analyzeWeeklyChanges,
   formatWeeklyChangesSummary,
   findWeeklyScheduleConflicts,
   dayOffWindowsForRequest,
@@ -46,8 +46,10 @@ export async function handleScheduleRequests(req, res, url) {
     if (!validCategories.includes(category)) return sendJson(res, 400, { error: 'invalid_category' });
 
     if (category === 'grafik_standard') {
-      const rows = validateWeeklyChanges(body.weeklyChanges);
-      if (!rows) return sendJson(res, 400, { error: 'invalid_weekly_changes' });
+      // 17.08.2026 - мастер получает ту же конкретную причину, что и владелец
+      // (какой день и что именно не так со временем), а не общий invalid_weekly_changes
+      const { rows, error: weeklyError } = analyzeWeeklyChanges(body.weeklyChanges);
+      if (!rows) return sendJson(res, 400, { error: weeklyError.code, ...weeklyError });
       const client = await pool.connect();
       try {
         await client.query('BEGIN');

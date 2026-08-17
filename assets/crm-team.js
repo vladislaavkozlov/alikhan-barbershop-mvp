@@ -287,9 +287,18 @@ async function saveCardSteps(card) {
   if (hasWeeklyScheduleChanges(id)) {
     const scheduleResult = await saveWeeklySchedule(id);
     if (!scheduleResult.ok) {
-      return scheduleResult.conflict
-        ? noteFail(card, 'График не сохранён: на это время уже есть записи, они показаны в блоке «График»')
-        : noteApiFail(card, scheduleResult, 'Не удалось сохранить график');
+      if (scheduleResult.conflict) {
+        return noteFail(card, 'График не сохранён: на это время уже есть записи, они показаны в блоке «График»');
+      }
+      // Причину уже назвал сам редактор графика (reported) - конкретной фразой с днём
+      // недели и часами. Второе, общее «Не удалось сохранить график. Повторите попытку»
+      // только мешало: на скриншоте Влада 17.08.2026 висели два окна сразу, полезным
+      // было одно. Дублируем причину в строку под кнопкой, но не всплываем повторно
+      if (scheduleResult.reported) {
+        showNote(card, scheduleResult.message ?? 'График не сохранён');
+        return scheduleResult.message ?? null;
+      }
+      return noteApiFail(card, scheduleResult, 'Не удалось сохранить график');
     }
   }
   // Администратор (data-schedule-only) правит в карточке только график - на этом его

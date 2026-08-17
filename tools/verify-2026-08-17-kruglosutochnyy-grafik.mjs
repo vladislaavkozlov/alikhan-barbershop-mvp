@@ -125,7 +125,9 @@ await withEphemeralServer(async ({ apiUrl, db }) => {
   });
   const badBody = await badRes.json();
   check('график «конец раньше начала» отклонён', badRes.status === 400, `${badRes.status} ${JSON.stringify(badBody)}`);
-  check('и отклонён понятным кодом, а не общим missing_fields', badBody?.error === 'invalid_weekly_changes', JSON.stringify(badBody));
+  // Код уточнён вечером 17.08.2026 (замечание Влада «в чём здесь конкретно ошибка»):
+  // вместо общего invalid_weekly_changes сервер называет саму причину и день недели
+  check('и отклонён понятным кодом в поле error, а не общим missing_fields', badBody?.error === 'work_end_before_start' && badBody?.weekday === 1 && badBody?.workEnd === '01:00', JSON.stringify(badBody));
   const stillNight = (await (await authed(`/schedule?masterId=${masterId}&date=${DATE}`, 'GET')).json()).find?.((s) => s.date === DATE);
   check('после отказа в базе остался прежний рабочий график', stillNight?.startTime === '00:00', JSON.stringify(stillNight));
 
