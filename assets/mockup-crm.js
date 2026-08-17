@@ -341,7 +341,16 @@ function toggleCustomSelect(trigger) {
 function openCustomSelect(wrap) {
   wrap.classList.add('open');
   const list = wrap.querySelector('.custom-select-list');
-  if (list) list.hidden = false;
+  if (!list) return;
+  list.hidden = false;
+  // 17.08.2026 - список времени стал суточным (97 значений вместо 41, см.
+  // SHOP_TIME_OPTIONS в assets/crm-widgets.js), а высота списка ограничена 220px
+  // (.custom-select-list, mockup-crm.css): без этого владелец, открывая поле со
+  // значением 20:00, видел бы начало суток и искал своё время прокруткой вслепую.
+  // Считаем позицию сами, а не scrollIntoView - тот пролистывает и саму страницу,
+  // унося карточку сотрудника из вида.
+  const selected = list.querySelector('.custom-select-option.selected');
+  if (selected) list.scrollTop = Math.max(0, selected.offsetTop - list.clientHeight / 2 + selected.offsetHeight / 2);
 }
 function closeCustomSelect(wrap) {
   wrap.classList.remove('open');

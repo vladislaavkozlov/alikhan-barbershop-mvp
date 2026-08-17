@@ -12,6 +12,12 @@ const STORAGE_KEY = 'alikhan-mvp:bookings:v1';
 // (аватар берёт первую букву КАЖДОГО слова через split(' ')) не ломается. isPlaceholder
 // оставлен true у всех троих: фото/телефоны/email всё ещё демо-заглушки, точны
 // только имена.
+// Часы салона по умолчанию - ровно то же, что GLOBAL_DEFAULT_START/END на сервере
+// (api/lib/schedule-core.js): окно, которое действует, пока мастеру не настроен свой
+// график. Реальные часы (в том числе круглосуточные, правка 17.08.2026) всегда
+// приезжают из GET /schedule и побеждают этот дефолт.
+export const SHOP_DEFAULT_WINDOW = { start: '10:00', end: '20:00' };
+
 export const MASTERS = [
   { id: 'master-1', name: 'Алиовсад', isPlaceholder: true, workWindow: { start: '10:00', end: '20:00' } },
   { id: 'master-2', name: 'Мамедхан', isPlaceholder: true, workWindow: { start: '10:00', end: '20:00' } },
@@ -463,9 +469,22 @@ export function createStore(backend = defaultBackend()) {
   // (master_weekly_schedule, GET /schedule уже отдаёт актуальные startTime/endTime) -
   // окно тоже нужно брать оттуда, иначе виджет предложит слоты, которые сервер
   // отклонит как schedule_blocked (createBookingTx теперь проверяет и границы окна).
+  // Правка 17.08.2026 (найдено живым прогоном круглосуточного графика): здесь стоял
+  // findMaster(masterId), который знает только жёстко прописанных выше master-1/2/3 и
+  // на любом другом id БРОСАЕТ - у мастера, созданного через интерфейс CRM
+  // (staff-<hex>), публичный виджет не показывал свободное время вообще, а писал
+  // клиенту «Не удалось загрузить свободное время» (catch в app.js refreshSlots).
+  // Справочник MASTERS - оффлайн-фолбэк макета, а не список реальных сотрудников:
+  // если мастера в нём нет, берём тот же глобальный дефолт салона, что и сервер
+  // (GLOBAL_DEFAULT_START/END, api/lib/schedule-core.js). Реальные часы всё равно
+  // приезжают ниже из GET /schedule - включая круглосуточные.
   async function getEffectiveWindowFor(masterId, dateStr) {
-    const master = findMaster(masterId);
-    const fallback = { startTime: master.workWindow.start, endTime: master.workWindow.end, breaks: [] };
+    const master = MASTERS.find((m) => m.id === masterId);
+    const fallback = {
+      startTime: master?.workWindow.start ?? SHOP_DEFAULT_WINDOW.start,
+      endTime: master?.workWindow.end ?? SHOP_DEFAULT_WINDOW.end,
+      breaks: [],
+    };
     if (typeof backend.getSchedule !== 'function') return fallback;
     try {
       const shifts = await backend.getSchedule({ masterId, date: dateStr });

@@ -253,6 +253,19 @@ export async function computeMasterNextAvailability(client, masterId, durationMi
 // если payload некорректен (вызывающий код отвечает 400), иначе нормализованный
 // массив строк (лишние поля обнулены - is_working=false никогда не хранит рабочее
 // окно/перерыв, это же гарантирует и CHECK на уровне таблицы).
+// Правка 17.08.2026 - вместе с суточными опциями времени в CRM (00:00-23:59, задача
+// Влада «круглосуточный график») добавлена проверка ПОРЯДКА времён. Раньше её не было
+// вообще: CHECK в миграции 022 следит только за заполненностью, и график вида
+// 23:00-01:00 сохранялся молча - мастер после этого просто выпадал из записи
+// (hasAvailableSlot не находит ни одного слота в перевёрнутом окне), нигде не появляясь
+// как ошибка. В прежнем списке 10:00-20:00 перепутать порядок было почти невозможно,
+// в суточном - соседние по смыслу «ночные» значения стоят на разных концах списка.
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+function timeToMinutes(value) {
+  const m = TIME_RE.exec(String(value ?? ''));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
 export function validateWeeklyChanges(input) {
   if (!Array.isArray(input) || input.length === 0) return null;
   const seen = new Set();
@@ -263,6 +276,19 @@ export function validateWeeklyChanges(input) {
     const isWorking = !!c.isWorking;
     if (isWorking && (!c.workStart || !c.workEnd)) return null;
     if (!!c.breakStart !== !!c.breakEnd) return null;
+    if (isWorking) {
+      const workStart = timeToMinutes(c.workStart);
+      const workEnd = timeToMinutes(c.workEnd);
+      if (workStart == null || workEnd == null || workEnd <= workStart) return null;
+      if (c.breakStart) {
+        const breakStart = timeToMinutes(c.breakStart);
+        const breakEnd = timeToMinutes(c.breakEnd);
+        // Перерыв вне смены не блокирует ничего (getEffectiveSchedule считает пересечения
+        // внутри окна) и при этом читается человеком как настроенный - тихая пустышка
+        if (breakStart == null || breakEnd == null || breakEnd <= breakStart) return null;
+        if (breakStart < workStart || breakEnd > workEnd) return null;
+      }
+    }
     rows.push({
       weekday: c.weekday,
       isWorking,

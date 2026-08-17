@@ -5,17 +5,36 @@
 // видна ни Екатерине, ни Алиовсаду, потому что календарь эти данные вообще не читал.
 // Контракт data-атрибутов ниже - строго тот же, что уже понимает openBooking()/
 // updateCommission()/updateDuration() (assets/mockup-crm.js) - та логика не трогается.
-const DAY_START_MIN = 600; // 10:00 - совпадает с шкалой .hour-marks во всех 3 файлах
-const DAY_END_MIN = 1200; // 20:00
-const PX_PER_MIN = 64 / 60; // 64px = 1 час
+// Правка 17.08.2026 (Влад, «круглосуточный график мастера»): шкала дня больше не
+// константа. Раньше здесь стояли жёсткие 600/1200, совпадавшие со статичными
+// подписями .hour-marks в 3 HTML - мастер с ночной сменой получал карточки записей с
+// отрицательным top (не видны вовсе), а клик по треку зажимался в 10:00-20:00.
+// Актуальное окно считает computeDayWindow (assets/crm-day-window.js) по рабочим часам
+// мастеров этого дня, а applyDayScale ниже переносит его в разметку. Пока день не
+// отрисован, окно равно прежнему дефолту - вид обычного дня не меняется.
+import { computeDayWindow, hourMarksFor, dayWindowHeightPx, isDayOffShift, PX_PER_MIN, DEFAULT_DAY_START_MIN, DEFAULT_DAY_END_MIN } from './crm-day-window.js';
+
+let DAY_START_MIN = DEFAULT_DAY_START_MIN;
+let DAY_END_MIN = DEFAULT_DAY_END_MIN;
 
 function toMinutes(hhmm) {
   const [h, m] = String(hhmm).split(':').map(Number);
   return h * 60 + m;
 }
 
+// Шкала дня идёт строго по рабочим часам (решение Влада 17.08.2026), а запись вне
+// смены персонал создать может - без прижатия к краю такая карточка получила бы
+// координату за пределами трека и была бы не видна вовсе. Прижимаем и помечаем
+// (isOutsideScale ниже), чтобы запись нельзя было потерять молча.
+function clampToScale(min) {
+  return Math.min(DAY_END_MIN, Math.max(DAY_START_MIN, min));
+}
+function isOutsideScale(startTime, endTime) {
+  return toMinutes(startTime) < DAY_START_MIN || toMinutes(endTime) > DAY_END_MIN;
+}
+
 function positionStyle(startTime, endTime) {
-  const top = Math.round((toMinutes(startTime) - DAY_START_MIN) * PX_PER_MIN);
+  const top = Math.round((clampToScale(toMinutes(startTime)) - DAY_START_MIN) * PX_PER_MIN);
   // Задача G (Окно 53) - старый пол Math.max(24, ...) был произвольным числом без
   // расчёта (не привязан к реальным длительностям услуг) и сам вызывал наложение:
   // "Воск" 15 мин физически занимает 16px (15×64/60), но рисовался ВЫСОТОЙ 24px -
@@ -23,7 +42,7 @@ function positionStyle(startTime, endTime) {
   // mockup-crm.css (тот же баг, два независимых источника). 16px - тот же расчёт от
   // самой короткой активной услуги в прайсе Алихана (services, migration 002),
   // что и в CSS - карточка никогда не рисуется длиннее своего реального слота.
-  const height = Math.max(16, Math.round((toMinutes(endTime) - toMinutes(startTime)) * PX_PER_MIN));
+  const height = Math.max(16, Math.round((clampToScale(toMinutes(endTime)) - clampToScale(toMinutes(startTime))) * PX_PER_MIN));
   return `top:${top}px;height:${height}px`;
 }
 
@@ -53,9 +72,30 @@ function initialsOf(name) {
 // либо в master_weekly_schedule этот день недели отмечен нерабочим → сервер отдаёт
 // ровно такой перерыв 10:00-20:00, см. getEffectiveSchedule). Проверено перед
 // реализацией, не предположение из промпта.
-function isDayOff(shift) {
-  if (!shift?.breaks?.length) return false;
-  return shift.breaks.some((b) => toMinutes(b.startTime) <= DAY_START_MIN && toMinutes(b.endTime) >= DAY_END_MIN);
+//
+// 17.08.2026 - признак переехал в crm-day-window.js и сравнивается с границами САМОЙ
+// смены, а не со шкалой дня: шкала теперь подвижная (её и считают по этому признаку -
+// выходной окно не раздвигает), а у мастера с круглосуточным графиком выходной
+// приходит перерывом 00:00-23:59, которого прежнее сравнение с 10:00-20:00 не поняло бы
+const isDayOff = isDayOffShift;
+
+// Часы вне смены мастера (17.08.2026). Нужны с того момента, как шкала дня перестала
+// совпадать с рабочим окном: на общей суточной шкале колонка мастера, работающего с
+// 10:00 до 20:00, иначе читается как рабочая все 24 часа (видно на снимке экрана до
+// правки). В обычном дне блоки нулевой длины и не рисуются вовсе - вид не меняется.
+function buildOffHoursCards(shift) {
+  const start = shift?.startTime ? toMinutes(shift.startTime) : DAY_START_MIN;
+  const end = shift?.endTime ? toMinutes(shift.endTime) : DAY_END_MIN;
+  const cards = [];
+  const block = (fromMin, toMin) => {
+    const top = Math.round((fromMin - DAY_START_MIN) * PX_PER_MIN);
+    const height = Math.round((toMin - fromMin) * PX_PER_MIN);
+    return `<div class="appt appt--offhours" style="top:${top}px;height:${height}px" aria-hidden="true"></div>`;
+  };
+  if (start > DAY_START_MIN) cards.push(block(DAY_START_MIN, start));
+  // Конец смены 23:59 против шкалы до 24:00 - остаток в одну минуту рисовать незачем
+  if (end < DAY_END_MIN - 1) cards.push(block(end, DAY_END_MIN));
+  return cards;
 }
 
 function buildBreakCard(br) {
@@ -118,6 +158,11 @@ function buildApptCard(booking, { masterName, services, priceOf }) {
   // криво, полная строка "клиент · услуга" возвращается на hover (.appt--compact:hover).
   const durationMin = toMinutes(booking.endTime) - toMinutes(booking.startTime);
   const compactClass = durationMin < 32 ? ' appt--compact' : '';
+  // Запись вне рабочих часов (17.08.2026). Шкала дня идёт строго по графику, поэтому
+  // такая запись прижата к краю трека - без явной метки человек прочитал бы её как
+  // обычную запись на 10:00 (или на конец дня) и не понял, почему она стоит вплотную
+  const outsideClass = isOutsideScale(booking.startTime, booking.endTime) ? ' appt--outside' : '';
+  const outsideTitle = outsideClass ? ' title="Запись вне рабочих часов мастера"' : '';
 
   // Правка 03.08.2026: data-id раньше не передавался вообще - openBooking() не
   // имела способа узнать РЕАЛЬНЫЙ id брони, чтобы что-то сохранить обратно (кнопка
@@ -140,7 +185,7 @@ function buildApptCard(booking, { masterName, services, priceOf }) {
   // который остаётся ради openBooking/updateNoShowUi и заголовка карточки) - режиму
   // edit нужны РАЗДЕЛЬНЫЕ машинные значения: дата уходит в PATCH /reschedule как есть,
   // а разбирать её обратно из человеческой строки с en-dash было бы лишним шагом.
-  return `<div class="appt ${cssClass} ${stripeClass}${compactClass}" style="${positionStyle(booking.startTime, booking.endTime)}" tabindex="0" onclick="(window.openBookingEdit||window.openBooking)(this)"
+  return `<div class="appt ${cssClass} ${stripeClass}${compactClass}${outsideClass}" style="${positionStyle(booking.startTime, booking.endTime)}"${outsideTitle} tabindex="0" onclick="(window.openBookingEdit||window.openBooking)(this)"
        data-id="${escapeHtml(booking.id)}" data-client="${escapeHtml(clientName)}" data-phone="${escapeHtml(booking.clientPhone || '')}" data-master="${escapeHtml(masterName)}"
        data-master-id="${escapeHtml(booking.masterId || '')}" data-service-ids="${escapeHtml((booking.serviceIds || []).join(','))}"
        data-service="${escapeHtml(priceLabel)}" data-planned="${escapeHtml(planned)}"
@@ -318,6 +363,7 @@ function fillTrack(trackEl, master, { shift, bookings, services, priceOf, date }
   }
   trackEl.classList.remove('day-off');
   const parts = [];
+  parts.push(...buildOffHoursCards(shift));
   (shift?.breaks ?? []).forEach((b) => parts.push(buildBreakCard(b)));
   bookings.forEach((b) => parts.push(buildApptCard(b, { masterName, services, priceOf })));
   trackEl.innerHTML = parts.join('');
@@ -492,6 +538,39 @@ async function freshStaffById(fetchJson) {
   }
 }
 
+// Шапка колонки внутри её высоты: 98px (.panel-sp-day .schedule-col-head, box-sizing
+// border-box) + 10px margin-bottom = 108px. Та же арифметика, что и в готовых числах
+// CSS - 748px колонки это 108 + 640 трека (tests/schedule-day.fixed-layout.test.js
+// держит оба числа, tests/crm-day-window.test.js - связь между ними).
+const COL_HEAD_BLOCK_PX = 108;
+
+// Переносит посчитанное окно дня в разметку. Раньше всё это было статикой: подписи
+// часов лежали в 3 HTML вручную, высоты - в mockup-crm.css (640/748px). Статику не
+// убираем - она остаётся видом по умолчанию до первой отрисовки и для обычного дня
+// даёт ровно тот же результат, что раньше (10:00-20:00, 640px).
+function applyDayScale(dayWindow) {
+  DAY_START_MIN = dayWindow.startMin;
+  DAY_END_MIN = dayWindow.endMin;
+  const trackHeightPx = dayWindowHeightPx(dayWindow);
+
+  const marks = document.querySelector('.panel-sp-day .hour-marks');
+  if (marks) {
+    marks.innerHTML = hourMarksFor(dayWindow)
+      .map((m) => `<span style="top:${m.top}px">${m.label}</span>`)
+      .join('');
+    marks.style.height = `${trackHeightPx}px`;
+  }
+  const colHeightPx = trackHeightPx + COL_HEAD_BLOCK_PX;
+  document.querySelectorAll('.panel-sp-day .schedule-track').forEach((track) => {
+    track.style.height = `${trackHeightPx}px`;
+  });
+  document.querySelectorAll('.panel-sp-day .schedule-col').forEach((col) => {
+    col.style.height = `${colHeightPx}px`;
+  });
+  const grid = document.querySelector('.panel-sp-day .schedule-grid');
+  if (grid) grid.style.minHeight = `${colHeightPx}px`;
+}
+
 export async function renderDayCalendar({ staff, staffList, services, priceOf, bookings, fetchJson, date }) {
   const today = date || todayStr();
   const soloTrack = document.querySelector('.panel-sp-day .schedule-grid .schedule-col .schedule-track');
@@ -522,9 +601,15 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
     bookingsByMaster.get(b.masterId).push(b);
   }
 
+  // Окно шкалы - по РАБОЧИМ ЧАСАМ мастеров этого дня (17.08.2026, решение Влада: часы
+  // на шкале появляются только если у сотрудника есть график в это время). Считаем ДО
+  // отрисовки треков: positionStyle карточек и клик по пустому месту берут его же
+  const dayWindow = computeDayWindow({ shifts: [...shiftByMaster.values()] });
+
   if (isSolo) {
     // crm-master.html - единственная колонка, всегда сам залогиненный
     if (soloTrack) {
+      applyDayScale(dayWindow);
       fillTrack(soloTrack, staff, {
         shift: shiftByMaster.get(staff.id),
         bookings: bookingsByMaster.get(staff.id) ?? [],
@@ -540,6 +625,9 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
   const fresh = await freshStaffById(fetchJson);
   const shownMasters = masters.map((m) => fresh.get(m.id) ?? m);
   grid.innerHTML = shownMasters.map(buildColumnHtml).join('');
+  // После innerHTML - колонки только что созданы, до этого момента задавать им высоту
+  // было бы некуда (шкала слева существует всегда, поэтому applyDayScale общий)
+  applyDayScale(dayWindow);
   const cols = grid.querySelectorAll(':scope > .schedule-col');
   shownMasters.forEach((m, i) => {
     const track = cols[i]?.querySelector('.schedule-track');
