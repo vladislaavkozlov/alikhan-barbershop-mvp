@@ -19,6 +19,7 @@ import {
 } from '../storage.js';
 import { reportError, reportSuccess } from './crm-toast.js';
 import { setButtonBusy } from './crm-loading.js';
+import { CLIENT_SOURCE_LABELS } from './client-source.js';
 
 // Задача Влада (01.08.2026): "Клиент без предварительной записи" была рисунком -
 // кнопка ничего не сохраняла, список услуг был одинаковый для любого мастера, поле
@@ -108,6 +109,34 @@ function checkedStatusRadioId() {
   return document.querySelector('input[name="bstatus"]:checked')?.id || '';
 }
 
+// ── Откуда клиент (17.08.2026, миграция 050) ─────────────────────────────────
+// Виджет .custom-select с теми же onclick-хуками mockup-crm.js, что у дропдауна
+// мастера выше (КОНВЕНЦИЯ-ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md) - нативный <select> рисуется
+// мимо темы. Первый пункт - пустой ключ: "не знаю" это законный ответ (клиент зашёл
+// мимо и ничего не сказал), а не пропуск, который надо чем-то заполнить.
+const SOURCE_EMPTY_LABEL = 'не указано';
+
+function renderSourceSelect(value) {
+  const slot = el('wfSource-slot');
+  if (!slot) return; // страница без поля (crm-master.html - мастер записи не создаёт)
+  const current = value || '';
+  const option = (key, label) =>
+    `<div class="custom-select-option${key === current ? ' selected' : ''}" onclick="pickCustomSelectOption(this)" data-value="${escapeHtml(key)}">${escapeHtml(label)}</div>`;
+  const options = [option('', SOURCE_EMPTY_LABEL)]
+    .concat(Object.entries(CLIENT_SOURCE_LABELS).map(([key, label]) => option(key, label)))
+    .join('');
+  slot.innerHTML = `<div class="custom-select" id="wfSourceValue" data-value="${escapeHtml(current)}">
+    <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">${escapeHtml(CLIENT_SOURCE_LABELS[current] || SOURCE_EMPTY_LABEL)}</button>
+    <div class="custom-select-list" hidden>${options}</div>
+  </div>`;
+}
+
+// Пустая строка виджета = "источник неизвестен" → null для сервера
+// (normalizeClientSource принимает и то и другое, но в теле запроса честнее null).
+function sourceSelectValue() {
+  return el('wfSourceValue')?.dataset.value || null;
+}
+
 function editStateSnapshot() {
   return {
     masterId: currentMasterId || '',
@@ -119,6 +148,9 @@ function editStateSnapshot() {
     // не считалась изменением и кнопка "Сохранить изменения" оставалась серой
     clientName: (el('wfClientName')?.value ?? '').trim(),
     clientPhone: (el('wfClientPhone')?.value ?? '').trim(),
+    // Откуда клиент (17.08.2026) - в снимке, иначе смена канала не считалась бы
+    // изменением и кнопка "Сохранить изменения" осталась бы серой
+    clientSource: sourceSelectValue() || '',
     actualPrice: (el('bkActualPrice')?.value ?? '').trim(),
     comment: (el('bkStaffComment')?.value ?? '').trim(),
     status: checkedStatusRadioId(),
@@ -610,6 +642,10 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     }
     clientNameEl.value = options.clientName || '';
     clientPhoneEl.value = options.clientPhone || '';
+    // Канал уже сохранённой записи (в режиме edit) или пусто у новой. Виджет
+    // перерисовывается каждый раз - иначе в новой записи остался бы источник
+    // предыдущего клиента, и администратор приписал бы его не тому каналу
+    renderSourceSelect(editMode ? editBooking?.clientSource || '' : '');
     renderPicker(masterId);
     if (rebookMode && options.serviceIds?.length) {
       const available = new Set(checkboxByService.keys());
@@ -793,14 +829,19 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       // из-за того, что перенос ниже упёрся в чужую запись.
       const clientName = clientNameEl.value.trim();
       const clientPhone = clientPhoneEl.value.trim();
+      // Источник едет тем же роутом и тем же шагом, что имя с телефоном (17.08.2026):
+      // в форме это один блок "кто клиент", и сервер обновляет всё одним UPDATE
+      const clientSource = sourceSelectValue();
       const clientChanged = !!editBaseline && (
-        editBaseline.clientName !== clientName || editBaseline.clientPhone !== clientPhone
+        editBaseline.clientName !== clientName
+        || editBaseline.clientPhone !== clientPhone
+        || editBaseline.clientSource !== (clientSource || '')
       );
       if (clientChanged) {
         const cr = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/client`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ clientName: clientName || null, clientPhone: clientPhone || null }),
+          body: JSON.stringify({ clientName: clientName || null, clientPhone: clientPhone || null, clientSource }),
         });
         const cdata = await cr.json().catch(() => ({}));
         if (!cr.ok || cdata.ok === false) {
@@ -808,6 +849,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         }
         editBooking.clientName = cdata.clientName ?? null;
         editBooking.clientPhone = cdata.clientPhone ?? null;
+        editBooking.clientSource = cdata.clientSource ?? null;
         // Признак предоплаты сервер пересчитал по неявкам НОВОГО клиента - без этого
         // баннер в форме остался бы от прежнего номера до перезагрузки страницы
         form.dataset.requiresPrepayment = cdata.requiresPrepayment ? 'true' : 'false';
@@ -972,6 +1014,10 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
             clientName: clientNameEl.value.trim() || null,
             clientPhone: clientPhoneEl.value.trim() || null,
             channel: 'admin',
+            // Откуда клиент (17.08.2026). Записи из CRM автоматика источник не даёт -
+            // человек стоит перед администратором, а не приходит по ссылке, поэтому
+            // канал ровно тот, что выбрали в форме (или пусто, если не спросили)
+            source: sourceSelectValue(),
           }),
         });
         const data = await res.json();
@@ -1133,6 +1179,9 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
           // приёмом, что и actualPrice: поле уже приходит с /bookings, отдельный
           // запрос за той же бронью не нужен.
           staffComment: d.staffComment || '',
+          // Откуда клиент (17.08.2026) - тем же приёмом, что комментарий: значение
+          // уже лежит на карточке дня (data-client-source), лишний запрос не нужен
+          clientSource: d.clientSource || '',
         },
       });
     };

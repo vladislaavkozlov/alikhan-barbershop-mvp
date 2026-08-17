@@ -48,6 +48,7 @@ function positionStyle(startTime, endTime) {
 
 import { avatarMarkup } from './crm-avatar.js';
 import { sortByServiceOrder } from '../storage.js';
+import { clientSourceLabel } from './client-source.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -134,7 +135,11 @@ const STATUS_TO_DATA = { planned: 'wait', done: 'came', no_show: 'no' };
 // appt--noshow/appt--new (фон и рамка, Окно 15 + правка 13.08.2026).
 const STATUS_STRIPE_CLASS = { planned: 'appt--status-planned', done: 'appt--status-done', no_show: 'appt--status-noshow' };
 
-function buildApptCard(booking, { masterName, services, priceOf }) {
+// Экспортирована ради офлайн-теста (tests/crm-day-appt-card.contract.test.js): это
+// чистая функция «бронь → разметка карточки», DOM ей не нужен, и правило «источник
+// показываем только новому клиенту» честнее проверять на её выводе, чем регуляркой
+// по исходнику. Внутри приложения по-прежнему зовётся только соседним кодом файла.
+export function buildApptCard(booking, { masterName, services, priceOf }) {
   const clientName = booking.clientName || 'Без имени';
   if (booking.status === 'cancelled') return buildCancelledCard(booking, clientName);
 
@@ -185,6 +190,34 @@ function buildApptCard(booking, { masterName, services, priceOf }) {
   // который остаётся ради openBooking/updateNoShowUi и заголовка карточки) - режиму
   // edit нужны РАЗДЕЛЬНЫЕ машинные значения: дата уходит в PATCH /reschedule как есть,
   // а разбирать её обратно из человеческой строки с en-dash было бы лишним шагом.
+  // Содержимое карточки (17.08.2026, задача Влада: "в карточки записи 'День'
+  // отображать имя клиента + номер (тем, у кого есть права) + откуда пришёл клиент;
+  // если клиент новый - '+1 новый клиент', если уже обслуживался - источник не
+  // показывать"). Права разводит СЕРВЕР: телефон и канал приходят только владельцу/
+  // управляющему/администратору (listBookingsForRequest, api/routes/bookings.js), у
+  // мастера этих полей в ответе нет вовсе - здесь достаточно проверить наличие.
+  const phone = booking.clientPhone || '';
+  // Источник показывается только новому клиенту - буквально по задаче: у постоянного
+  // канал привлечения давно неактуален и только занимает место в узкой карточке.
+  const sourceLabel = booking.clientIsNew ? clientSourceLabel(booking.clientSource) : null;
+  const newBadge = booking.clientIsNew ? '<span class="appt-new-client">+1 новый клиент</span>' : '';
+  const detailLine = [phone, sourceLabel].filter(Boolean).join(' · ');
+  // Разделитель между меткой и данными - та же точка, что уже разделяет клиента и
+  // услугу строкой выше: без неё "+1 новый клиент +79001112233" читается одной
+  // слипшейся строкой (видно на снимке живого прогона до правки).
+  const details = newBadge || detailLine
+    ? `<span class="s">${newBadge}${newBadge && detailLine ? ' · ' : ''}${escapeHtml(detailLine)}</span>`
+    : '';
+  // Кнопка раскрытия (17.08.2026, вторая часть задачи: "если человек записался на 15
+  // минут, должна быть опция раскрыть запись в 'Дне'"). Высота карточки равна реальной
+  // длительности визита (Задача G, Окно 53) - у 15-минутной записи это 16px, куда не
+  // помещается даже имя, а раскрытие высоты у всех подряд вернуло бы ровно тот наезд
+  // на соседнюю запись, который тогда и чинили. Поэтому раскрытие ручное и поверх
+  // соседей (класс appt--expanded), тем же жестом, что раскрывает карточки-вкладки
+  // расписания (details.schedule-view-card). Кнопка не идёт к отменённым записям -
+  // они некликабельны целиком (buildCancelledCard выше).
+  const expandBtn = '<button type="button" class="appt-expand" aria-expanded="false" aria-label="Раскрыть запись" onclick="window.toggleApptExpand(this, event)">⌄</button>';
+
   return `<div class="appt ${cssClass} ${stripeClass}${compactClass}${outsideClass}" style="${positionStyle(booking.startTime, booking.endTime)}"${outsideTitle} tabindex="0" onclick="(window.openBookingEdit||window.openBooking)(this)"
        data-id="${escapeHtml(booking.id)}" data-client="${escapeHtml(clientName)}" data-phone="${escapeHtml(booking.clientPhone || '')}" data-master="${escapeHtml(masterName)}"
        data-master-id="${escapeHtml(booking.masterId || '')}" data-service-ids="${escapeHtml((booking.serviceIds || []).join(','))}"
@@ -192,10 +225,69 @@ function buildApptCard(booking, { masterName, services, priceOf }) {
        data-date="${escapeHtml(booking.date || '')}" data-start-time="${escapeHtml(booking.startTime)}"
        data-status="${dataStatus}" data-real-status="${escapeHtml(booking.status)}" data-confirmed="${booking.clientConfirmed ? 'true' : 'false'}" data-noshow="${isNoShow ? 'true' : 'false'}"
        data-noshow-streak="${booking.clientNoShowStreak ?? 0}" data-requires-prepayment="${booking.requiresPrepayment ? 'true' : 'false'}"
-       data-actual-price="${booking.actualPrice ?? ''}" data-staff-comment="${escapeHtml(booking.staffComment || '')}">
-    <span class="t">${escapeHtml(planned)}</span><span class="c">${warn}${escapeHtml(clientName)} · ${escapeHtml(nameLabel)}</span>
+       data-actual-price="${booking.actualPrice ?? ''}" data-staff-comment="${escapeHtml(booking.staffComment || '')}"
+       data-client-source="${escapeHtml(booking.clientSource || '')}" data-client-new="${booking.clientIsNew ? 'true' : 'false'}">
+    <span class="t">${escapeHtml(planned)}</span><span class="c">${warn}${escapeHtml(clientName)} · ${escapeHtml(nameLabel)}</span>${details}${expandBtn}
   </div>`;
 }
+
+// ── Раскрытие записи прямо в «Дне» (17.08.2026) ──────────────────────────────
+// Задача Влада: «если человек записался на 15 минут, должна быть опция раскрыть
+// запись в "дне", по аналогии с самой вкладкой "день"» - то есть тем же жестом, что
+// раскрывает карточки-вкладки расписания (details.schedule-view-card).
+//
+// Почему не растянуть карточку по содержимому насовсем: высота карточки равна
+// реальной длительности визита, и любое «на сколько нужно, на столько и вырастет»
+// возвращает наезд на соседнюю запись - тот самый дефект, который чинила Задача G
+// (Окно 53). Поэтому раскрытие ручное, поверх соседей и только у одной карточки.
+//
+// Регистрируется через window - как openBookingEdit/openBooking: обработчик стоит
+// атрибутом onclick прямо в разметке карточки (её собирает строкой buildApptCard),
+// а onclick резолвится браузером только через глобальный объект. Экспорт нужен ради
+// офлайн-тестов: их node импортирует этот модуль без DOM, и регистрация ниже
+// выполняется только когда window реально есть (иначе падал бы весь импорт -
+// поймано прогоном tests/schedule-views.month-*.test.js).
+export function toggleApptExpand(btn, event) {
+  // Клик по кнопке НЕ должен открывать форму записи: обработчик формы висит на самой
+  // карточке, и без остановки всплытия раскрытие каждый раз тянуло бы за собой форму
+  event?.stopPropagation();
+  const card = btn.closest('.appt');
+  if (!card) return;
+  const willExpand = !card.classList.contains('appt--expanded');
+
+  // Одна раскрытая карточка за раз: две раскрытые в соседних колонках ещё разойдутся,
+  // а две подряд в одной колонке перекроют друг друга и прочитать их будет нельзя
+  document.querySelectorAll('.appt--expanded').forEach((other) => {
+    other.classList.remove('appt--expanded');
+    if (other.dataset.collapsedTop) {
+      other.style.top = other.dataset.collapsedTop;
+      delete other.dataset.collapsedTop;
+    }
+    const otherBtn = other.querySelector('.appt-expand');
+    otherBtn?.setAttribute('aria-expanded', 'false');
+    otherBtn?.setAttribute('aria-label', 'Раскрыть запись');
+  });
+
+  card.classList.toggle('appt--expanded', willExpand);
+  btn.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
+  btn.setAttribute('aria-label', willExpand ? 'Свернуть запись' : 'Раскрыть запись');
+  if (!willExpand) return;
+
+  // Запись в конце дня раскрывается за нижний край колонки, а родительский
+  // .schedule-scroll режет по вертикали (overflow-y:hidden) - нижние строки просто
+  // не было бы видно. Подтягиваем карточку вверх ровно настолько, чтобы поместилась,
+  // запоминая исходную позицию: она посчитана от времени записи и при сворачивании
+  // должна вернуться точь-в-точь, иначе запись «переедет» на другое время на вид.
+  const track = card.closest('.schedule-track');
+  if (!track) return;
+  const overflowPx = card.getBoundingClientRect().bottom - track.getBoundingClientRect().bottom;
+  if (overflowPx > 0) {
+    card.dataset.collapsedTop = card.style.top;
+    card.style.top = `${Math.max(0, parseFloat(card.style.top || '0') - Math.ceil(overflowPx))}px`;
+  }
+}
+
+if (typeof window !== 'undefined') window.toggleApptExpand = toggleApptExpand;
 
 // Окно 43 (07.08.2026) - минуты → "HH:MM", обратная функция к toMinutes выше (клик
 // по пустому месту трека переводит пиксель клика в реальное время слота).

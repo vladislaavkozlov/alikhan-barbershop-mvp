@@ -129,6 +129,10 @@
           <div class="field-grid">
             <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
             <div class="field"><label>Телефон</label><input id="wfClientPhone" type="tel" placeholder="+7 900 000-00-00"></div>
+            <!-- Откуда клиент (17.08.2026, миграция 050) - см. комментарий в
+                 crm-owner.html: у записи с сайта заполняется автоматически, здесь
+                 администратор проставляет канал пришедшим пешком и по звонку. -->
+            <div class="field"><label>Откуда клиент</label><div id="wfSource-slot"></div></div>
           </div>
           <!-- Окно 55, Задача B (10.08.2026) - опознание клиента по телефону:
                GET /clients?phone= (контракт Окна 54) вызывается, как только введён

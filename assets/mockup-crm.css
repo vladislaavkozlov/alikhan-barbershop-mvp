@@ -643,6 +643,49 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
    в обрезание снизу. */
 .appt--compact { display: flex; align-items: center; padding-top: 1px; padding-bottom: 1px; }
 .appt--compact .t { line-height: 1; }
+/* Телефон и канал клиента (17.08.2026) - третья строка карточки. Прячется там же,
+   где и вторая: в карточку короткой записи она физически не влезает, и раскрыть её
+   можно кнопкой ниже. Права на сами данные держит сервер (телефон и источник
+   приходят только владельцу/управляющему/администратору), CSS решает только место. */
+.appt--compact .s { display: none; }
+/* "+1 новый клиент" - метка первого визита. Не иконка и не цвет: Влад просил
+   буквальную подпись, её видно и на снимке экрана, и человеку, который в системе
+   первый день. Тон акцентный, но без заливки - карточка уже несёт цвет статуса. */
+.appt-new-client { color: var(--accent); font-weight: 700; }
+/* Кнопка раскрытия записи (17.08.2026, Влад: "если человек записался на 15 минут,
+   должна быть опция раскрыть запись в 'Дне'"). Абсолютная - карточка 15-минутной
+   записи это 16px высоты, кнопка в потоке вытолкнула бы из неё время. Шеврон тот же,
+   что у карточек-вкладок расписания: жест раскрытия в кабинете один на всё. */
+.appt-expand {
+  position: absolute; top: 0; right: 2px; width: 16px; height: 16px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; color: inherit; cursor: pointer;
+  font-size: 0.7rem; line-height: 1; opacity: 0.55; border-radius: 4px;
+  transition: opacity 120ms var(--ease-out), transform 140ms var(--ease-out);
+}
+.appt-expand:hover { opacity: 1; background: rgba(0,0,0,0.18); }
+.appt-expand:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Раскрытая запись (17.08.2026). Высота карточки равна реальной длительности визита
+   (Задача G, Окно 53) - растянуть её "по контенту" насовсем нельзя, это вернуло бы
+   наезд на соседнюю запись. Поэтому раскрытие ручное, поверх соседей (z-index) и
+   только у одной карточки за раз (toggleApptExpand, assets/crm-calendar.js). */
+.appt--expanded {
+  height: auto !important; min-height: 0; overflow: visible; z-index: 8;
+  box-shadow: 0 14px 32px -12px rgba(0,0,0,0.75);
+  white-space: normal;
+}
+/* Фон записи - полупрозрачная заливка статуса, сквозь неё просвечивала бы соседняя
+   карточка под раскрытой. Непрозрачная подложка идёт отдельным слоем ПОД заливкой,
+   чтобы цвет статуса (зелёный/красный/золотой) остался читаемым. */
+.appt--expanded::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: var(--surface-2); border-radius: inherit;
+}
+/* В раскрытом виде показываем всё, включая то, что компактный режим прятал */
+.appt--expanded .c, .appt--expanded .s { display: block; white-space: normal; overflow: visible; }
+.appt--expanded { display: block; padding: 6px 22px 7px 8px; }
+.appt--expanded .t { line-height: 1.22; }
+.appt--expanded .appt-expand { transform: rotate(180deg); opacity: 1; }
 .appt--done { background: rgba(111,174,124,0.24); border-color: var(--success); color: #DDEFE0; }
 .appt--new { background: rgba(198,161,91,0.28); border-color: var(--accent); color: var(--text); }
 /* Неявка (13.08.2026, Влад) - своя красная заливка, а не та же, что у ожидания:
