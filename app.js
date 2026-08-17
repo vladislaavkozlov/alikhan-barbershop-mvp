@@ -11,6 +11,13 @@ import {
   filterBookableMasters,
   sortByServiceOrder,
 } from './storage.js';
+import { rememberClientSource, currentClientSource } from './assets/client-source.js';
+
+// Первое касание запоминается сразу при загрузке страницы, а не в момент отправки
+// формы: клиент приходит по ссылке с меткой из карточки организации, потом листает
+// сайт, и к моменту записи utm_source в адресе уже нет. Ничего не показывает и ничего
+// не отправляет - только кладёт ключ канала в localStorage (assets/client-source.js).
+rememberClientSource();
 
 // Если на странице задан window.ALIKHAN_API_URL (см. index.html) - работаем через
 // реальный бэкенд на Amvera, синхронизация между устройствами реальна. Если нет -
@@ -847,6 +854,10 @@ form.addEventListener('submit', async (event) => {
       startTime: selectedSlot,
       clientName,
       clientPhone,
+      // Откуда клиент пришёл (17.08.2026) - определено в момент первого захода на
+      // сайт (rememberClientSource ниже), клиента ни о чём не спрашиваем: форма
+      // записи и так самое узкое место, лишний вопрос в ней стоил бы записей
+      source: currentClientSource(),
     });
   } catch (err) {
     console.error('createBooking: сетевая ошибка', err);

@@ -198,11 +198,15 @@ export function createHttpBackend(apiBaseUrl, getToken) {
     },
     // Окно 11: serviceIds - массив (1+), не единичный serviceId. Сервер сам считает
     // сумму длительности/цены по всем услугам этого мастера (master_services).
-    async createBooking({ masterId, serviceIds, date, startTime, clientName, clientPhone }) {
+    // source (17.08.2026) - откуда клиент пришёл на сайт (UTM-метка ссылки в карточке
+    // организации, иначе referrer - assets/client-source.js). Необязательный: не
+    // определился - в тело не кладём вовсе, сервер запишет NULL и примет бронь как
+    // раньше (старые открытые вкладки шлют запрос без этого поля и работают).
+    async createBooking({ masterId, serviceIds, date, startTime, clientName, clientPhone, source }) {
       const res = await fetch(`${apiBaseUrl}/bookings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ masterId, serviceIds, date, startTime, clientName, clientPhone }),
+        body: JSON.stringify({ masterId, serviceIds, date, startTime, clientName, clientPhone, ...(source ? { source } : {}) }),
       });
       if (res.status === 409) {
         // Раньше любой 409 подписывался как 'overlap' независимо от настоящей
