@@ -53,8 +53,10 @@ try {
     await s.click('#loginBtn, button[type=submit], .login-submit');
     await sleep(6000);
 
-    const subscribers = (await (await fetch(`${API}/health`)).json()).liveSubscribers;
-    check(subscribers >= 1, 'открытый кабинет подключился к потоку событий', `подписчиков: ${subscribers}`);
+    // Проверку «подключился к потоку» убрал 17.08.2026: живого соединения больше нет,
+    // кабинет опрашивает GET /changes раз в 3 секунды (висящий поток занимал слот
+    // соединения и ронял загрузку раздела «Команда»). Работает механизм или нет,
+    // честно показывает сам замер ниже - появилась ли запись без единого действия
 
     const before = await s.eval(`document.querySelectorAll('.appt[data-id]').length`);
     const startTime = await freeSlot();
