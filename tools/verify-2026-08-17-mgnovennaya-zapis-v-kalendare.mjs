@@ -25,6 +25,45 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// Прокси перед API, который НЕ пропускает поток событий (отвечает 502 на /events) и
+// прозрачно передаёт всё остальное. Так выглядит худший реальный случай: прокси
+// Amvera, корпоративный фильтр или мобильный оператор режут долгие соединения.
+// Кабинет обязан это пережить и обновляться страховочным опросом, пусть медленнее
+async function withBrokenStreamProxy(apiUrl, fn) {
+  const { createServer } = await import('node:http');
+  const server = createServer(async (req, res) => {
+    const cors = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Methods': 'GET, PUT, POST, PATCH, DELETE, OPTIONS',
+    };
+    if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
+    if (req.url.startsWith('/events')) { res.writeHead(502, cors); res.end('stream blocked'); return; }
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    try {
+      const upstream = await fetch(`${apiUrl}${req.url}`, {
+        method: req.method,
+        headers: req.headers.authorization ? { Authorization: req.headers.authorization, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' },
+        body: chunks.length ? Buffer.concat(chunks) : undefined,
+      });
+      const text = await upstream.text();
+      res.writeHead(upstream.status, { ...cors, 'Content-Type': 'application/json' });
+      res.end(text);
+    } catch (err) {
+      res.writeHead(500, cors);
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+  const port = 40000 + Math.floor(Math.random() * 10000);
+  await new Promise((resolve) => server.listen(port, resolve));
+  try {
+    return await fn(`http://localhost:${port}`);
+  } finally {
+    server.close();
+  }
+}
+
 await withEphemeralServer(async ({ apiUrl, db }) => {
   const ownerPin = randomPin();
   const ownerEmail = 'insta-owner@alikhan.test';
@@ -176,6 +215,90 @@ await withEphemeralServer(async ({ apiUrl, db }) => {
       check('своя запись встала в календарь без сети', ownFlow?.inserted === true && ownFlow?.visible === true, JSON.stringify(ownFlow));
       check('вставка заняла меньше 20мс', ownFlow?.ms < 20, `${ownFlow?.ms}мс`);
 
+      // ── 3a. Стресс: места, где точечная вставка обычно и расходится с реальностью
+      // (вопрос Влада «а всё правильно работать будет?»). Каждый пункт - отдельный
+      // способ получить лишнюю, пропавшую или устаревшую карточку
+
+      // (а) Дубль: то же событие приходит второй раз - карточек должно остаться одна
+      const dupe = await s.eval(`(() => {
+        const b = { id: '${foreignId}', masterId: '${masterId}', serviceIds: ['strizhka'], date: '${DATE}',
+                    startTime: '15:00', endTime: '16:00', clientName: 'Клиент С Сайта', status: 'planned' };
+        window.__insertDayBooking?.(b);
+        window.__insertDayBooking?.(b);
+        return document.querySelectorAll('.panel-sp-day .appt[data-id="${foreignId}"]').length;
+      })()`);
+      check('повторное событие не задваивает карточку', dupe === 1, `карточек: ${dupe}`);
+
+      // (б) Запись на ДРУГОЙ день не должна залезать в открытый сегодняшний
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      const other = await fetch(`${apiUrl}/bookings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ masterId, serviceIds: ['strizhka'], date: tomorrow, startTime: '11:00', clientName: 'Клиент Завтра', channel: 'admin' }),
+      });
+      const otherId = (await other.json()).booking?.id;
+      await sleep(1200);
+      const leaked = await s.eval(`document.querySelectorAll('.panel-sp-day .appt[data-id="${otherId}"]').length`);
+      check('запись другого дня НЕ попала в открытый день', leaked === 0, `карточек: ${leaked}`);
+
+      // ...а при переходе на тот день она там есть - то есть данные не потерялись
+      const seenTomorrow = await s.eval(`(async () => {
+        const slot = document.getElementById('dayNavNext');
+        slot?.click();
+        await new Promise((r) => setTimeout(r, 2500));
+        return document.querySelectorAll('.panel-sp-day .appt[data-id="${otherId}"]').length;
+      })()`, true);
+      check('на своём дне эта запись на месте', seenTomorrow === 1, `карточек: ${seenTomorrow}`);
+      await s.eval(`(async () => { document.getElementById('dayNavPrev')?.click(); await new Promise((r) => setTimeout(r, 2500)); return true; })()`, true);
+
+      // (в) Перенос: карточка обязана переехать на новое время, а не остаться на старом
+      await fetch(`${apiUrl}/bookings/${foreignId}/reschedule`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ masterId, date: DATE, startTime: '16:00' }),
+      });
+      let moved = null;
+      for (let i = 0; i < 40; i++) {
+        moved = await s.eval(`document.querySelector('.panel-sp-day .appt[data-id="${foreignId}"]')?.dataset.startTime ?? null`);
+        if (moved === '16:00') break;
+        await sleep(100);
+      }
+      check('перенос записи виден сам, без нажатий', moved === '16:00', `время на карточке: ${moved}`);
+
+      // (г) Отмена: карточка обязана стать отменённой
+      await fetch(`${apiUrl}/bookings/${foreignId}/cancel`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      let cancelled = false;
+      for (let i = 0; i < 40; i++) {
+        cancelled = await s.eval(`Boolean(document.querySelector('.panel-sp-day .appt--cancelled'))`);
+        if (cancelled === true) break;
+        await sleep(100);
+      }
+      check('отмена записи видна сама', cancelled === true, String(cancelled));
+
+      // (д) Удаление: карточка обязана исчезнуть, а не остаться висеть призраком
+      await fetch(`${apiUrl}/bookings/${foreignId}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+      });
+      let gone = false;
+      for (let i = 0; i < 40; i++) {
+        gone = await s.eval(`document.querySelectorAll('.panel-sp-day .appt[data-id="${foreignId}"]').length === 0`);
+        if (gone === true) break;
+        await sleep(100);
+      }
+      check('удалённая запись пропадает сама', gone === true, String(gone));
+
+      // (е) Кнопка «Обновить» после всего этого не должна ничего задвоить
+      await s.eval(`window.__refreshScheduleViews?.({ all: true })`, true);
+      await sleep(1500);
+      const consistent = await s.eval(`(async () => {
+        const res = await fetch('${apiUrl}/bookings?date=${DATE}', { headers: { Authorization: 'Bearer ${token}' } });
+        const body = await res.json();
+        const server = (body.bookings ?? []).length;
+        const shown = document.querySelectorAll('.panel-sp-day .appt[data-id]').length;
+        return { server, shown };
+      })()`, true);
+      check('после всех операций календарь совпадает с базой', consistent?.server === consistent?.shown, `в базе ${consistent?.server}, на экране ${consistent?.shown}`);
+
       // ── 3b. Кабинет МАСТЕРА (crm-master.html) - у него одна колонка, свой трек,
       // и запись ему создаёт администратор. Алихан работает и как мастер, поэтому
       // проверяем этот кабинет отдельно, а не полагаемся на владельца
@@ -223,6 +346,39 @@ await withEphemeralServer(async ({ apiUrl, db }) => {
 
       const subs = await (await fetch(`${apiUrl}/health`)).json();
       check('брошенные потоки не копятся на сервере', subs.liveSubscribers <= 2, `liveSubscribers=${subs.liveSubscribers}`);
+
+      // ── 5. Худший случай: поток до кабинета не доходит вовсе
+      await withBrokenStreamProxy(apiUrl, async (proxyUrl) => {
+        await withStaticServer(proxyUrl, async (brokenSite) => {
+          await s.navigate(`${brokenSite}/crm-owner.html`);
+          await sleep(800);
+          await s.type('#loginEmail', ownerEmail);
+          await s.type('#loginPin', ownerPin);
+          await s.click('#loginForm button[type=submit]');
+          await sleep(9000); // ждём, пока кабинет поймёт, что поток мёртв (8 сек), и поднимет опрос
+
+          const streamDead = await s.eval(`(async () => {
+            const r = await fetch('${proxyUrl}/events').catch(() => null);
+            return r ? r.status : 'no-response';
+          })()`, true);
+          check('поток действительно заблокирован (это честный худший случай)', streamDead === 502, String(streamDead));
+
+          const fallbackStart = Date.now();
+          const late = await fetch(`${apiUrl}/bookings`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ masterId, serviceIds: ['strizhka'], date: DATE, startTime: '13:00', clientName: 'Клиент Без Потока', channel: 'admin' }),
+          });
+          const lateId = (await late.json()).booking?.id;
+          let lateMs = null;
+          for (let i = 0; i < 100; i++) { // до 25 секунд: страховка опрашивает раз в 15
+            const seen = await s.eval(`Boolean(document.querySelector('.panel-sp-day .appt[data-id="${lateId}"]'))`);
+            if (seen === true) { lateMs = Date.now() - fallbackStart; break; }
+            await sleep(250);
+          }
+          console.log(`  · без потока запись появилась через ${lateMs}мс (страховочный опрос)`);
+          check('даже с убитым потоком запись появляется сама, без нажатий', lateMs !== null, lateMs === null ? 'не появилась за 25 сек' : `${lateMs}мс`);
+        });
+      });
     });
   });
 });
