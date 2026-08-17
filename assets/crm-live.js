@@ -38,6 +38,13 @@ const DEBOUNCE_BOOKINGS_MS = 60;
 
 let reconnectDelay = RECONNECT_MIN_MS;
 let stopped = false;
+// Открытый поток надо уметь ОБОРВАТЬ, а не только пометить флагом: без этого соединение
+// переживало уход со страницы, и при переходах между кабинетами они копились - живой
+// замер 17.08.2026 показал 7 висящих подписчиков после четырёх входов. Браузер держит
+// не больше шести одновременных соединений на домен, поэтому лишние потоки съедали
+// лимит, и обычные запросы (в том числе за составом команды) вставали в очередь -
+// раздел «Команда» оставался пустым на живом, полностью рабочем коде
+let controller = null;
 let usingFallback = false;
 let lastChanges = null;
 const pending = new Set();
@@ -157,12 +164,17 @@ async function connect() {
   const token = getToken();
   if (!token || stopped) return;
 
+  // Предыдущий поток закрываем перед открытием нового - двух одновременных быть не должно
+  controller?.abort();
+  controller = new AbortController();
+
   // Если за это время не пришло ни одного байта - поток считаем нерабочим
   const graceTimer = setTimeout(startFallback, STREAM_GRACE_MS);
 
   try {
     const res = await fetch(`${API}/events`, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
+      signal: controller.signal,
     });
     if (!res.ok || !res.body) throw new Error(`events ${res.status}`);
 
@@ -216,4 +228,12 @@ document.addEventListener('crm:authenticated', () => {
   connect();
 });
 
-window.addEventListener('beforeunload', () => { stopped = true; });
+// pagehide надёжнее beforeunload: он приходит и при переходе назад/вперёд, и на мобильных,
+// где beforeunload часто не срабатывает вовсе
+function stopLive() {
+  stopped = true;
+  controller?.abort();
+  controller = null;
+}
+window.addEventListener('pagehide', stopLive);
+window.addEventListener('beforeunload', stopLive);
