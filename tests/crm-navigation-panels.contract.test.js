@@ -16,7 +16,10 @@ test('все три кабинета подключают общий слой н
     assert.match(html, /assets\/crm-navigation-panels\.css/);
     assert.match(html, /class="[^"]*crm-top-action/);
   }
-  assert.equal((pages[0].match(/<details class="staff-card/g) || []).length, 12);
+  // 8, а не 12: 17.08.2026 из crm-owner.html убраны блок «Управление скидками» в
+  // «Финансах» и три макетные карточки мастеров в «Команде» (их рисует renderTeam из
+  // GET /staff, разметка-заготовка только мелькала на экране при загрузке)
+  assert.equal((pages[0].match(/<details class="staff-card/g) || []).length, 8);
   // У администратора статических карточек сотрудников в разметке остался ровно один
   // блок - «Личные данные» (panel-c). Раздел «Сотрудники» с 16.08.2026 рисует
   // renderTeam из GET /staff, макетных карточек в HTML больше нет

@@ -1,6 +1,7 @@
 node_modules/
 .env
 .DS_Store
+.claude/worktrees/
 ПРОМПТ-*.md
 ТЗ-*.md
 ЮРИДИЧЕСКИЙ-ЧЕК-ЛИСТ.md

@@ -140,9 +140,22 @@ function staffCard(staff, viewerRole, locations, viewerId) {
   const canManage = MANAGEMENT_VIEWERS.includes(viewerRole);
   const employmentLocked = locked || !canManage || staff.protectedOwner || isSelf;
   const fieldsLocked = locked || !canManage;
-  const servicesTitle = canManage ? 'Выберите услуги и укажите длительность' : 'Услуги и длительность назначает владелец';
+  // Подписи секций 17.08.2026: раньше карточка владельца у управляющего выглядела
+  // полностью редактируемой (заголовки те же, что у владельца), а половина полей была
+  // неактивна без единого слова почему. Теперь в каждой закрытой секции сказано, что
+  // именно закрыто, и что при этом остаётся доступным
+  const detailsTitle = !canManage
+    ? 'Контакты и рабочий статус - только просмотр'
+    : locked
+      ? 'Карточку владельца не переименовать - витрину на сайте ниже менять можно'
+      : 'Контакты и рабочий статус';
+  const servicesTitle = !canManage
+    ? 'Услуги и длительность назначает владелец'
+    : locked
+      ? 'Услуги владельца меняет только он сам'
+      : 'Выберите услуги и укажите длительность';
   return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-role="${esc(staff.role)}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
-  ${section('Основное', canManage ? 'Контакты и рабочий статус' : 'Контакты и рабочий статус - только просмотр', ICON_DETAILS, `<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: 'Сотрудник остаётся в активном составе', checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: fieldsLocked })}</div>`)}
+  ${section('Основное', detailsTitle, ICON_DETAILS,`<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: 'Сотрудник остаётся в активном составе', checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: fieldsLocked })}</div>`)}
   ${/* Фото, портфолио и витрина на сайте - управление составом медиа, а оно на сервере
        management-only (POST/DELETE /staff/:id/media). Администратору секцию не рисуем
        вовсе: кнопка «Выбрать фото» у него давала бы только 401 в ответ. */''}
@@ -216,8 +229,14 @@ function noteFail(host, text) {
 function noteApiFail(host, result, prefix) {
   return noteFail(host, errorMessage(result, prefix));
 }
+// Успех - только всплывающим окном внизу экрана (правка Влада 17.08.2026: «справа от
+// кнопки высвечиваются подписи "сохранено...", их нужно убрать»). Строку у кнопки
+// заодно чистим: там мог остаться индикатор сохранения или прошлая ошибка, и без
+// очистки рядом с кнопкой навсегда повисало бы «Сохраняю карточку сотрудника».
+// Отказы по-прежнему пишутся и в карточку тоже (noteFail): причину нужно видеть
+// рядом с полем, которое её вызвало, а не только в окне, которое само уедет
 function noteOk(host, text) {
-  showNote(host, text);
+  showNote(host, '');
   showSuccess(text);
   return text;
 }
@@ -324,8 +343,13 @@ async function saveCardSteps(card) {
   // 13.08.2026). Полная перезагрузка вместо точечной перерисовки сознательно:
   // renderLiveProof повторно звать нельзя, он задваивает обработчики (см.
   // crm-dashboard.js), а смена этого флага - редкая операция, не ежедневная.
+  // Надпись у кнопки заменена всплывающим окном 17.08.2026 (та же правка Влада, что и
+  // в noteOk): это был второй источник «сохранено...» справа от кнопки. Окну дана
+  // секунда, иначе перезагрузка смахнёт его раньше, чем человек успеет прочитать -
+  // и сохранение выглядело бы как самопроизвольный скачок страницы
   if (providesServicesChanged) {
-    showNote(card, 'Сохранено. Обновляю расписание…');
+    showSuccess('Сохранено, обновляю расписание');
+    await new Promise((done) => setTimeout(done, 1000));
     window.location.reload();
     return;
   }
@@ -469,9 +493,19 @@ function cardSnapshot(card) {
 // Кнопка сохранения активна только когда в карточке реально что-то изменили: до
 // этого нажимать нечего, и активная кнопка вводит в заблуждение (правка Влада
 // 13.08.2026). Снимок снимается при отрисовке, сравнение - на каждый ввод.
+// Ранний выход по data-locked-owner убран 17.08.2026 (Влад на проде, кабинет
+// управляющего): карточка владельца получает этот признак у управляющего, и кнопка
+// сохранения оставалась серой НАВСЕГДА - при том что витрина на сайте («Показывать
+// профиль на сайте», стаж, сильные стороны, фото) в ней не заблокирована и щёлкается.
+// Получался ровно тот мёртвый контрол, который чинили 16.08.2026 в mediaMarkup:
+// галка переключается, кнопка не просыпается, применилось или нет - не понять.
+// Сервер эту правку разрешает: замок защищённого владельца сужен 13.08.2026 до роли,
+// доступа и трудоустройства (api/lib/permissions.js), а витрина прямо помечена как
+// «никого не может запереть в системе» (handleStaffPortfolio). Роль и рабочий статус
+// заперты по-прежнему - своими признаками (roleBadge без value, employmentLocked).
 function updateSaveState(card) {
   const button = card.querySelector('[data-save]');
-  if (!button || card.dataset.lockedOwner !== undefined) return;
+  if (!button) return;
   const fieldsChanged = cardSnapshot(card) !== card.dataset.snapshot;
   const servicesChanged = collectServiceChanges(card.querySelector('.service-picker')).length > 0;
   const scheduleChanged = hasWeeklyScheduleChanges(card.dataset.staffId);

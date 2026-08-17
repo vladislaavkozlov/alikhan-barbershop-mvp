@@ -5,7 +5,16 @@ import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { canManageStaff } from '../lib/permissions.js';
-import { BOOKING_OPERATOR_ROLES } from '../lib/permissions.js';
+import { MANAGEMENT_ROLES } from '../lib/permissions.js';
+
+// Деньги видят только владелец и управляющий (правка Влада 17.08.2026:
+// «администратору не даём данных к финансам», «сотрудники не должны видеть свою
+// зарплату, проценты и тд»). До этой правки роуты были открыты шире, чем показывал
+// интерфейс, и это проверялось живьём: администратор одним запросом получал выручку
+// за день, ставки ВСЕХ мастеров своей точки и зарплату любого из них, а мастер - свою
+// ставку и свою сумму. Прятать такое только в вёрстке нельзя: данные отдаёт сервер,
+// а до него дотягивается кто угодно с токеном этой роли.
+const MONEY_VIEWERS = MANAGEMENT_ROLES;
 
 // Окно 37 (06.08.2026, Задача 1) - единый резолвер ЗП мастера за произвольный
 // период. До этого окна одна и та же формула (сумма цены броней × ставка мастера
@@ -145,16 +154,13 @@ export async function handlePayrollSettings(req, res, url) {
   if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
 
   if (req.method === 'GET') {
+    // Ставка - это процент от выручки, то есть чистая финансовая настройка. Раньше её
+    // читал и мастер (свою), и администратор (по всей своей точке) - теперь только
+    // владелец и управляющий, см. MONEY_VIEWERS выше
+    if (!requireRole(auth, MONEY_VIEWERS)) return sendJson(res, 403, { error: 'forbidden' });
     const masterId = url.searchParams.get('masterId');
     let query = 'SELECT mps.master_id, mps.pct FROM master_payroll_settings mps WHERE 1=1';
     const params = [];
-    if (auth.role === 'master') {
-      params.push(auth.id);
-      query += ` AND mps.master_id = $${params.length}`;
-    } else if (auth.role === 'admin') {
-      params.push(auth.locationId);
-      query += ` AND mps.master_id IN (SELECT id FROM staff WHERE location_id = $${params.length})`;
-    }
     if (masterId) {
       params.push(masterId);
       query += ` AND mps.master_id = $${params.length}`;
@@ -211,40 +217,32 @@ export async function handleDiscountSettings(req, res) {
 // (проверка location_id) - тот же уровень защиты денежных данных, что и у
 // /payroll-settings GET, роут не завязан только на текущего потребителя
 // (crm-master.html), должен быть безопасен и при будущем переиспользовании.
+// 17.08.2026: ветки "master видит свою ЗП" и "admin видит ЗП по своей точке" убраны
+// целиком. Мастер больше не получает свою сумму (вкладка «Моя зарплата» удалена из
+// crm-master.html этой же правкой), администратор - ничью
 export async function handlePayroll(req, res, url) {
   const auth = await authenticate(req);
-  if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, MONEY_VIEWERS)) return sendJson(res, 403, { error: 'forbidden' });
   const from = url.searchParams.get('from');
   const to = url.searchParams.get('to');
   if (!from || !to) return sendJson(res, 400, { error: 'missing_fields' });
-  let masterId = url.searchParams.get('masterId');
-  if (auth.role === 'master') {
-    masterId = auth.id;
-  } else {
-    if (!masterId) return sendJson(res, 400, { error: 'missing_fields' });
-    if (auth.role === 'admin') {
-      const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [masterId]);
-      if (staffRes.rows.length === 0) return sendJson(res, 404, { error: 'staff_not_found' });
-      if (staffRes.rows[0].location_id !== auth.locationId) return sendJson(res, 403, { error: 'forbidden' });
-    }
-  }
+  const masterId = url.searchParams.get('masterId');
+  if (!masterId) return sendJson(res, 400, { error: 'missing_fields' });
   const result = await computeMasterPayroll(pool, masterId, from, to);
   return sendJson(res, 200, result);
 }
 
 // ── /revenue/today - Окно 38 (06.08.2026). Дневная выручка через
-// computeRevenueToday. Тот же приём разграничения по роли, что у /staff и
-// /payroll: администратор форсирован на свою точку (не может передать чужой
-// locationId), владелец без locationId получает сумму по ВСЕМ точкам, с
-// locationId - по конкретной.
+// computeRevenueToday. 17.08.2026 администратор из списка убран (правка Влада):
+// карточки «Выручка сегодня» у него в кабинете и так нет, но роут отдавал сумму по
+// его точке любому, кто спросит с его токеном. Владелец без locationId получает сумму
+// по ВСЕМ точкам, с locationId - по конкретной.
 export async function handleRevenueToday(req, res, url) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
-  const locationId = auth.role === 'admin' ? auth.locationId : url.searchParams.get('locationId');
+  if (!requireRole(auth, MONEY_VIEWERS)) return sendJson(res, 403, { error: 'forbidden' });
+  const locationId = url.searchParams.get('locationId');
   // unidentifiedCount (09.08.2026) - добавлен в тот же ответ, не отдельный роут:
-  // тот же контур доступа (owner/admin), та же "сегодняшняя" сводка дня, что уже
-  // читает crm-admin.html карточкой "Выручка сегодня" (Окно 38) - см.
-  // countUnidentifiedToday выше.
+  // та же "сегодняшняя" сводка дня - см. countUnidentifiedToday выше.
   const [revenueResult, unidentifiedResult] = await Promise.all([
     computeRevenueToday(pool, locationId),
     countUnidentifiedToday(pool, locationId),

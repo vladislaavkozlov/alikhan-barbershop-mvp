@@ -396,7 +396,10 @@
 .crm-navigation-ui .team-create-result > span { color: var(--text-muted); font-size: .74rem; }
 .crm-navigation-ui .team-create-result code { grid-row: 1 / 3; grid-column: 2; color: var(--text); font-size: 1.1rem; letter-spacing: .12em; }
 .crm-navigation-ui .team-create-result button { grid-column: 1 / -1; justify-self: start; margin-top: 6px; }
-.crm-navigation-ui [data-locked-owner] .staff-card-body { opacity: .72; }
+/* Приглушение всей карточки владельца у управляющего убрано 17.08.2026: в ней
+   правится витрина на сайте, и полупрозрачный вид говорил обратное - «сюда нельзя».
+   Что действительно закрыто (имя, контакты, роль, рабочий статус), видно по самим
+   полям: они disabled и отрисованы неактивными штатным способом. */
 
 @media (max-width: 640px) {
   .crm-navigation-ui .team-editor-card .staff-card-body,

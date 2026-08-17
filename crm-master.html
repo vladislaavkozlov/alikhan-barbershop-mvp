@@ -18,15 +18,7 @@
   #sp-month:checked ~ .seg-bar label[for="sp-month"],
   #sp-year:checked ~ .seg-bar label[for="sp-year"] { background: var(--accent); color: var(--leather); }
 
-  #zpm-calc:checked ~ .panel-zpm-calc { display: block; }
-  #zpm-calc:checked ~ .seg-bar label[for="zpm-calc"] { background: var(--accent); color: var(--leather); }
-
-  #zpmp-day:checked ~ .panel-zpmp-day, #zpmp-week:checked ~ .panel-zpmp-week,
-  #zpmp-month:checked ~ .panel-zpmp-month, #zpmp-period:checked ~ .panel-zpmp-period { display: block; }
-  #zpmp-day:checked ~ .seg-bar label[for="zpmp-day"],
-  #zpmp-week:checked ~ .seg-bar label[for="zpmp-week"],
-  #zpmp-month:checked ~ .seg-bar label[for="zpmp-month"],
-  #zpmp-period:checked ~ .seg-bar label[for="zpmp-period"] { background: var(--accent); color: var(--leather); }
+  /* Стили вкладки «Моя зарплата» (zpm/zpmp) убраны 17.08.2026 вместе с самой вкладкой */
 
   /* Стили скрытого телефона убраны 13.08.2026 вместе с самим полем: мастеру номер
      клиента не показывается вообще, а пустая строка с пояснением "скрыто" была лишним
@@ -62,13 +54,14 @@
     #pt-c:checked ~ .tab-bar label[for="pt-c"] { color: var(--accent); border-color: var(--accent); }
     #pt-c:checked ~ .panel-c { display: block; }
   </style>
+  <!-- pt-b («Моя зарплата») удалён 17.08.2026, у мастера осталось две вкладки.
+       Сам слот radio не переиспользуем: pt-c оставлен как есть, чтобы не трогать
+       разметку и стили «Личных данных» ради переименования -->
   <div class="page-tabs">
     <input type="radio" name="pt" id="pt-a" checked>
-    <input type="radio" name="pt" id="pt-b">
     <input type="radio" name="pt" id="pt-c">
     <div class="tab-bar">
       <label for="pt-a">Мой день</label>
-      <label for="pt-b">Моя зарплата</label>
       <label for="pt-c">Личные данные</label>
     </div>
 
@@ -235,50 +228,12 @@
          "скоро" без даты работает против доверия так же, как декоративные
          чекбоксы) - убрано, не помечено "скоро". Вернуть - когда появится реальный
          бэкенд-резолвер удержания/каналов прихода, не раньше. -->
-    <div class="tab-panel panel-b">
-      <section>
-        <!-- Правка 07.08.2026 - убран дублирующий <h2>Моя зарплата</h2>: название вкладки
-             уже видно в active-состоянии таб-бара выше. -->
-
-        <div class="seg-tabs">
-          <input type="radio" name="zpm-sub" id="zpm-calc" checked>
-          <div class="seg-bar">
-            <label for="zpm-calc">Расчёт ЗП</label>
-          </div>
-
-          <div class="seg-panel panel-zpm-calc">
-            <div class="seg-tabs">
-              <input type="radio" name="zpm-period" id="zpmp-day" checked>
-              <input type="radio" name="zpm-period" id="zpmp-week">
-              <input type="radio" name="zpm-period" id="zpmp-month">
-              <input type="radio" name="zpm-period" id="zpmp-period">
-              <div class="seg-bar">
-                <label for="zpmp-day">За день</label>
-                <label for="zpmp-week">За неделю</label>
-                <label for="zpmp-month">За месяц</label>
-                <label for="zpmp-period">Задать период</label>
-              </div>
-              <div class="seg-panel panel-zpmp-day">
-                <div class="payroll-sum"><span class="amount" id="myPayrollDay">000 ₽ <span class="unsure">считаю…</span></span></div>
-                <p class="payroll-note">По своей ставке - от суммы моих сегодняшних записей</p>
-              </div>
-              <div class="seg-panel panel-zpmp-week"><div class="payroll-sum"><span class="amount" id="myPayrollWeek">000 ₽ <span class="unsure">считаю…</span></span></div></div>
-              <div class="seg-panel panel-zpmp-month"><div class="payroll-sum"><span class="amount" id="myPayrollMonth">000 ₽ <span class="unsure">считаю…</span></span></div></div>
-              <div class="seg-panel panel-zpmp-period">
-                <div class="payroll-period-picker">
-                  <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
-                  <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
-                  <button class="btn btn-ghost btn-sm" type="button" id="myPayrollPeriodBtn">Показать</button>
-                </div>
-                <div class="payroll-sum"><span class="amount" id="myPayrollPeriodAmount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-    </div>
+    <!-- Вкладка «Моя зарплата» удалена 17.08.2026 по правке Влада: «сотрудники не
+         должны видеть свою зарплату, проценты и тд». Здесь был расчёт своей суммы за
+         день/неделю/месяц/произвольный период (Окно 37, 06.08.2026) по GET /payroll.
+         Роут закрыт для роли master в тот же день (api/routes/payroll.js, MONEY_VIEWERS)
+         - прятать блок только в вёрстке было бы бессмысленно, сумму отдавал сервер.
+         Заодно отсюда ушло поле «Ставка ЗП» в «Личных данных» ниже. -->
 
     <!-- ======================= ЛИЧНЫЕ ДАННЫЕ (Задача 2, Окно 14, 02.08.2026) =======================
          Своя карточка мастера - копия структуры staff-card из crm-owner.html (карточка
@@ -319,10 +274,10 @@
               <p class="section-hint" style="margin:6px 0 10px">Какие услуги вы оказываете и с какой длительностью - назначает владелец в своей карточке «Сотрудники»</p>
               <div class="service-picker readonly" id="selfServicePicker"></div>
 
-              <h4>Ставка ЗП</h4>
-              <div class="field-grid" style="max-width:320px">
-                <div class="field"><label>Ставка от выручки, %</label><input id="selfRateInput" value="—" readonly></div>
-              </div>
+              <!-- Поле «Ставка от выручки, %» удалено 17.08.2026 (правка Влада:
+                   сотрудники не видят свою зарплату и проценты). Сервер тоже перестал
+                   отдавать ставку роли master - GET /payroll-settings сузился до
+                   владельца и управляющего -->
 
               <h4>График работы</h4>
               <p class="section-hint" style="margin:6px 0 10px">Только просмотр - график меняет владелец или администратор</p>
@@ -351,6 +306,20 @@
 
               <h4 style="margin-top:18px">Мои запросы</h4>
               <div id="reqHistory" class="breaks-list"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
+
+              <!-- Смена своего PIN (16.08.2026). Роут PUT /auth/pin существовал с
+                   самого начала, но ни один кабинет его не показывал: сотрудник,
+                   заведённый владельцем, навсегда оставался с временным PIN, который
+                   видел тот, кто его заводил. Логику держит assets/crm-pin.js -->
+              <h4 style="margin-top:18px">Вход в CRM</h4>
+              <p class="note" id="pinMustChange" hidden>Вы входите по временному PIN, который выдал владелец. Задайте свой - его не будет знать никто</p>
+              <p class="note">PIN - шесть цифр. Его вводят при входе вместе с рабочей почтой</p>
+              <div class="field-grid">
+                <div class="field"><label>Новый PIN</label><input id="pinNew" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="6 цифр"></div>
+                <div class="field"><label>Повторите PIN</label><input id="pinRepeat" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="6 цифр"></div>
+              </div>
+              <button class="btn btn-ghost btn-sm" type="button" id="pinSaveBtn">Сменить PIN</button>
+              <p class="payroll-note" id="pinNote" aria-live="polite"></p>
             </div>
           </details>
         </div>
@@ -366,6 +335,8 @@
   import { initAppShell } from './assets/crm-app-shell.js';
   import { initCrmNavigationPanels, upgradeScheduleViews, upgradeMasterBookingPanel } from './assets/crm-navigation-panels.js';
   import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
+  // Смена своего PIN в «Личных данных». Модуль сам подписан на событие входа
+  import './assets/crm-pin.js';
   upgradeScheduleViews(['day', 'week', 'month']);
   upgradeMasterBookingPanel();
   initCrmAuth('master');

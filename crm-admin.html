@@ -369,10 +369,26 @@
                 <div class="field"><label>Email</label><input id="adminSelfEmail" value="—" readonly></div>
               </div>
               <h4>Доступ</h4>
+              <!-- Поле «Точка» убрано 16.08.2026 по правке Влада: точка одна, выбор
+                   без выбора. Тот же довод, по которому 13.08.2026 из карточки
+                   сотрудника убрали <select> точки (см. locationControl в
+                   assets/crm-team.js) - салон один, поле показывало решение, которого
+                   в жизни нет. Название точки и так стоит внизу боковой панели -->
               <div class="field-grid">
                 <div class="field"><label>Роль</label><input value="Администратор" readonly></div>
-                <div class="field"><label>Точка</label><input value="Алихан, Ставрополь" readonly></div>
               </div>
+
+              <!-- Смена своего PIN (16.08.2026), тот же блок, что у мастера. Логику
+                   держит assets/crm-pin.js, разметку модуль находит по id -->
+              <h4>Вход в CRM</h4>
+              <p class="note" id="pinMustChange" hidden>Вы входите по временному PIN, который выдал владелец. Задайте свой - его не будет знать никто</p>
+              <p class="note">PIN - шесть цифр. Его вводят при входе вместе с рабочей почтой</p>
+              <div class="field-grid">
+                <div class="field"><label>Новый PIN</label><input id="pinNew" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="6 цифр"></div>
+                <div class="field"><label>Повторите PIN</label><input id="pinRepeat" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="6 цифр"></div>
+              </div>
+              <button class="btn btn-ghost btn-sm" type="button" id="pinSaveBtn">Сменить PIN</button>
+              <p class="payroll-note" id="pinNote" aria-live="polite"></p>
             </div>
           </details>
         </div>
@@ -388,6 +404,8 @@
   import { initAppShell } from './assets/crm-app-shell.js';
   import { initCrmNavigationPanels, upgradeBookingPanel, upgradeScheduleViews } from './assets/crm-navigation-panels.js';
   import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
+  // Смена своего PIN в «Личных данных». Модуль сам подписан на событие входа
+  import './assets/crm-pin.js';
   // Раздел «Сотрудники» (16.08.2026). Модуль подключён ради самого себя: он подписан
   // на событие входа и сам рисует карточки из GET /staff, в режиме "только просмотр"
   // для роли admin - вызывать его отсюда руками не нужно, ровно как у владельца

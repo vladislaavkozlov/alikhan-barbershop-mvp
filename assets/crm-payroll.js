@@ -55,47 +55,10 @@ export function wireMasterPayrollPeriod(staff) {
   });
 }
 
-// "Управление скидками" (08.08.2026, вечер, Влад: "Али иногда говорит администратору
-// 'пробей по старой цене'" - скидка клиенту). Владелец сам решает - политику держит
-// discount_settings (миграция 040), не жёстко зашитое решение в коде. Элемента нет
-// на crm-admin.html/crm-master.html (только в "Финансы" владельца, тот же уровень
-// доступа, что и сама возможность её менять) - no-op там, как и у остальных
-// опциональных блоков этой страницы.
-export async function wireDiscountSettings() {
-  const toggle = el('discountPayrollToggle');
-  const note = el('discountSettingsNote');
-  if (!toggle || !note) return;
-
-  const ON_TEXT = 'Включено - зарплата мастера считается от фактически взятой суммы, если она вписана в записи';
-  const OFF_TEXT = 'Выключено - зарплата всегда от полной цены услуг, скидки её не уменьшают';
-
-  try {
-    const { payrollFromActualPrice } = await fetchJson('/discount-settings');
-    toggle.checked = !!payrollFromActualPrice;
-    note.textContent = payrollFromActualPrice ? ON_TEXT : OFF_TEXT;
-  } catch {
-    reportError(note, 'Не удалось загрузить текущую настройку процента');
-  }
-
-  if (toggle.dataset.wired) return;
-  toggle.dataset.wired = '1';
-  toggle.addEventListener('change', async () => {
-    const next = toggle.checked;
-    toggle.disabled = true;
-    const prevText = note.textContent;
-    showSpinner(note, 'Сохраняю настройку');
-    try {
-      const { ok, data } = await apiSend('/discount-settings', 'PUT', { payrollFromActualPrice: next });
-      if (!ok) throw new Error(data?.error || 'не удалось сохранить');
-      note.textContent = next ? ON_TEXT : OFF_TEXT;
-    } catch (err) {
-      toggle.checked = !next; // откат визуального состояния - сохранить не удалось
-      reportError(note, err, `Не удалось сохранить процент (осталось прежнее: ${prevText})`);
-    } finally {
-      toggle.disabled = false;
-    }
-  });
-}
+// wireDiscountSettings удалена 17.08.2026 вместе с блоком "Управление скидками" в
+// "Финансах" владельца (правка Влада). Переключатель политики был единственным её
+// потребителем. Сама настройка жива на сервере (discount_settings, миграция 040) и
+// читается при расчёте зарплаты - убран только интерфейс, которым не пользовались.
 
 function dateToStr(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;

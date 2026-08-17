@@ -17,7 +17,7 @@ import { wireScheduleViews } from './crm-schedule-views.js';
 import { wirePortfolioEditors, wireRoleEditors } from './crm-staff-admin.js';
 import { wireScheduleEditor, wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 import { wireMasterServiceEditors } from './crm-master-services.js';
-import { wirePayrollDateSlots, wireMasterPayrollPeriod, renderRevenuePeriods, renderStaffPayrollPeriods, periodStartStr, wireDiscountSettings } from './crm-payroll.js';
+import { wirePayrollDateSlots, wireMasterPayrollPeriod, renderRevenuePeriods, renderStaffPayrollPeriods, periodStartStr } from './crm-payroll.js';
 import { wireMasterSelfView, wireMasterSelfDataTab } from './crm-master-self.js';
 import { wireAdminSelfData } from './crm-admin-self.js';
 import { wireBookingStatusRadios, wireBookingServiceEdit, wireBookingDelete, wireBookingActualPrice } from './crm-booking-status.js';
@@ -64,6 +64,21 @@ async function fetchPayrollFromActualPrice(fetchJsonFn) {
     return !!payrollFromActualPrice;
   } catch {
     return false; // недоступно/ошибка сети - безопасный дефолт "как раньше", не блокирует остальную "Финансы"
+  }
+}
+
+// Ставки мастеров с 17.08.2026 отдаются только владельцу и управляющему (правка
+// Влада: администратору не даём данных к финансам, сотрудник не видит свой процент).
+// В кабинетах администратора и мастера сервер честно отвечает 403 - и этот отказ
+// НЕЛЬЗЯ пускать в общий Promise.all: он ронял бы всю загрузку кабинета целиком
+// («Не удалось загрузить данные CRM»), хотя ставки там ни на что не влияют -
+// денежных блоков в этих кабинетах нет. Пустой список = ставка 0 в pctOf, а весь
+// расчёт зарплат живёт под elements-guard'ами владельца и до них не доходит
+async function fetchPayrollSettings(fetchJsonFn) {
+  try {
+    return await fetchJsonFn('/payroll-settings');
+  } catch {
+    return [];
   }
 }
 
@@ -177,7 +192,7 @@ export async function refreshFinance() {
       fetchJson('/services'),
       fetchJson(`/bookings?date=${todayStr()}`),
       fetchJson('/master-services'),
-      fetchJson('/payroll-settings'),
+      fetchPayrollSettings(fetchJson),
       fetchPayrollFromActualPrice(fetchJson),
     ]);
     const bookings = bookingsRes.bookings || [];
@@ -191,23 +206,10 @@ export async function refreshFinance() {
 }
 
 export async function refreshRoleSnapshot(staff) {
-  const myPayrollDayEl = el('myPayrollDay');
-  const myWeekEl = el('myPayrollWeek');
-  const myMonthEl = el('myPayrollMonth');
-  if (myPayrollDayEl || myWeekEl || myMonthEl) {
-    const today = todayStr();
-    const fillMyPayroll = async (targetEl, from, to) => {
-      if (!targetEl) return;
-      const { payroll } = await fetchJson(`/payroll?masterId=${staff.id}&from=${from}&to=${to}`);
-      targetEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
-    };
-    await Promise.allSettled([
-      fillMyPayroll(myPayrollDayEl, today, today),
-      fillMyPayroll(myWeekEl, periodStartStr('week'), today),
-      fillMyPayroll(myMonthEl, periodStartStr('month'), today),
-    ]);
-  }
-
+  // Блок «Моя зарплата» мастера (myPayrollDay/Week/Month через GET /payroll) удалён
+  // 17.08.2026 вместе со своей вкладкой в crm-master.html - правка Влада «сотрудники
+  // не должны видеть свою зарплату, проценты и тд». Роут для роли master закрыт в тот
+  // же день, поэтому оставлять здесь запрос было бы гарантированным 403 в консоли
   const revenueTodayEl = el('revenueTodayAmount');
   const unidentifiedTodayEl = el('unidentifiedTodayCount');
   if (revenueTodayEl || unidentifiedTodayEl) {
@@ -228,7 +230,7 @@ export async function renderLiveProof(staff) {
       fetchJson('/services'),
       fetchJson(`/bookings?date=${todayStr()}`),
       fetchJson('/master-services'),
-      fetchJson('/payroll-settings'),
+      fetchPayrollSettings(fetchJson),
       fetchPayrollFromActualPrice(fetchJson),
     ]);
     const bookings = bookingsRes.bookings || [];
@@ -302,7 +304,7 @@ export async function renderLiveProof(staff) {
     wireAdminSelfData(staff, staffList);
     wireMasterServiceEditors(staff.role, services, masterServices);
     wirePayrollDateSlots();
-    wireDiscountSettings();
+    // wireDiscountSettings убрана 17.08.2026 вместе с блоком «Управление скидками»
     wireMasterPayrollPeriod(staff);
 
     await renderRevenuePeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice);

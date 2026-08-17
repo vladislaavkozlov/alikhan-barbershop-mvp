@@ -92,12 +92,8 @@ export function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
     })
     .join('');
 
-  // Ставка ЗП - владелец её не платит себе, у остальных - реальный % из
-  // master_payroll_settings (тот же источник, что renderLiveProof уже читает).
-  const rateEl = el('selfRateInput');
-  if (rateEl) {
-    rateEl.value = staff.role === 'owner' ? 'Не начисляется - вы владелец' : `${pctOf(staff.id)}%`;
-  }
+  // Поле «Ставка от выручки, %» (selfRateInput) удалено 17.08.2026 вместе с самим
+  // блоком в crm-master.html - сотрудник не видит свой процент (правка Влада)
 
   renderWeeklySelfReadOnly(staff);
   wireScheduleRequestForm(staff);
