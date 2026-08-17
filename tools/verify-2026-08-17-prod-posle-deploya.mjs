@@ -27,6 +27,17 @@ const TABS = `[...document.querySelectorAll('.tab-bar label')].map((l) => l.text
 const TEXT = `document.body.innerText`;
 const LIVE_CARDS = `[...document.querySelectorAll('.team-editor-card')].map((c) => [c.querySelector('.name')?.textContent.trim(), c.querySelector('.role')?.textContent.trim()].join(' / '))`;
 
+// Ждать видимости, а не просто наличия в DOM: панели вкладок лежат в разметке всегда,
+// показывает их CSS по :checked, и снимок innerText, сделанный слишком рано, не
+// содержит текста ещё скрытой панели. Так 17.08.2026 покраснела рабочая смена PIN
+async function waitVisible(s, selector, tries = 40) {
+  for (let i = 0; i < tries; i++) {
+    if (await s.eval(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); return !!el && el.offsetParent !== null; })()`)) return true;
+    await s.sleep(250);
+  }
+  return false;
+}
+
 async function waitFor(s, selector, tries = 40) {
   for (let i = 0; i < tries; i++) {
     if (await s.eval(`!!document.querySelector(${JSON.stringify(selector)})`)) return true;
@@ -78,18 +89,17 @@ await withBrowser(async (s) => {
     if (role === 'администратор') {
       check(!/Точка/.test(text), 'администратор: пункта «Точка» в личных данных нет');
       await s.eval(`document.querySelector('#pt-c')?.click()`);
-      await s.sleep(1200);
-      check(/Вход в CRM|Сменить PIN/.test(await s.eval(TEXT)), 'администратор: появилась смена своего PIN');
+      check(await waitVisible(s, '#pinSaveBtn'), 'администратор: появилась смена своего PIN');
       check(!/Выручка|Зарплат/i.test(text), 'администратор: денежных блоков нет');
     }
 
     if (role === 'мастер') {
       check(tabs.length === 2 && !tabs.includes('Моя зарплата'), 'мастер: вкладки «Моя зарплата» нет', JSON.stringify(tabs));
       await s.eval(`document.querySelector('#pt-c')?.click()`);
-      await s.sleep(1200);
+      const pinVisible = await waitVisible(s, '#pinSaveBtn');
       const selfText = await s.eval(TEXT);
       check(!/Ставка от выручки/.test(selfText), 'мастер: поля «Ставка от выручки, %» нет');
-      check(/Вход в CRM|Сменить PIN/.test(selfText), 'мастер: смена своего PIN на месте');
+      check(pinVisible, 'мастер: смена своего PIN на месте');
     }
 
     await s.screenshot(`/tmp/prod-${role}.png`);

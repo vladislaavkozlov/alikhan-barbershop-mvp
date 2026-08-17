@@ -615,7 +615,19 @@ function wire(root) {
   });
 }
 
+// Второй одновременный вызов больше не запускается, а дожидается первого (17.08.2026).
+// С появлением живого обновления перерисовку команды стало дёргать не только событие
+// входа, но и поток событий с сервера - два параллельных прохода писали в один и тот
+// же контейнер, и раздел иногда оставался пустым
+let teamRenderInFlight = null;
+
 export async function renderTeam() {
+  if (teamRenderInFlight) return teamRenderInFlight;
+  teamRenderInFlight = renderTeamOnce().finally(() => { teamRenderInFlight = null; });
+  return teamRenderInFlight;
+}
+
+async function renderTeamOnce() {
   if (!getToken()) return;
   const host = document.querySelector('.panel-b .staff-list');
   if (!host) return;

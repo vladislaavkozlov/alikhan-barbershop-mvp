@@ -192,12 +192,22 @@ async function connect() {
   reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
 }
 
-// Вкладку свернули - браузер и так душит фоновые таймеры, а вернувшись, человек должен
-// увидеть свежую картинку сразу, не дожидаясь следующего события
+// Возврат на вкладку. Раньше здесь дёргались ВСЕ обновлялки сразу - и это ловилось
+// живьём как гонка: браузер шлёт visibilitychange и в момент первой отрисовки страницы,
+// так что renderTeam запускалась вторым параллельным экземпляром поверх ещё не
+// закончившегося первого, и раздел «Команда» иногда оставался пустым (17.08.2026,
+// поймано прод-прогоном сразу после выкатки живого обновления). Теперь: обновляем
+// только по настоящему ВОЗВРАЩЕНИЮ (вкладка была скрыта), и только расписание с
+// уведомлениями - за командой сходит своё событие, ей внеплановая перерисовка не нужна
+let wasHidden = false;
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible' || stopped) return;
+  if (stopped) return;
+  if (document.visibilityState !== 'visible') { wasHidden = true; return; }
+  if (!wasHidden) return;
+  wasHidden = false;
   if (usingFallback) pollOnce();
-  for (const type of Object.keys(APPLY)) scheduleApply(type);
+  scheduleApply('bookings');
+  scheduleApply('notifications');
 });
 
 // Поток открываем только после входа: до него нет токена, а значит и права слушать
