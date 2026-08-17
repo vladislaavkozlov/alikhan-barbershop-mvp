@@ -59,7 +59,18 @@ try {
     // запись сама, без единого действия, и за сколько. Внутреннюю механику проверяет
     // tools/verify-2026-08-17-mgnovennaya-zapis-v-kalendare.mjs на своей базе
 
-    const before = await s.eval(`document.querySelectorAll('.appt[data-id]').length`);
+    // Ждём, пока день реально догрузится, и только потом снимаем счётчик. Без этого
+    // получается ложный красный: 17.08.2026 прогон снял «было 0» на ещё пустом
+    // календаре, сравнил с «стало 5» (четыре реальные записи дня + одна тестовая) и
+    // отрапортовал расхождение на ровном месте, хотя механизм отработал верно.
+    // Признак готовности - счётчик перестал меняться два замера подряд
+    let before = -1;
+    for (let i = 0, stable = 0; i < 40 && stable < 2; i++) {
+      const now = await s.eval(`document.querySelectorAll('.appt[data-id]').length`);
+      stable = now === before ? stable + 1 : 0;
+      before = now;
+      await sleep(500);
+    }
     const startTime = await freeSlot();
     if (!startTime) { check(false, 'нашлось свободное окно для проверки'); return; }
     console.log(`\n  кабинет открыт, визитов в дне: ${before}. Записываю клиента на ${startTime} со стороны`);
