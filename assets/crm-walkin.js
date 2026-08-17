@@ -992,6 +992,18 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
             body: JSON.stringify({ status: 'done' }),
           });
         }
+        // Запись появляется в календаре ПРЯМО СЕЙЧАС, из ответа сервера, без единого
+        // сетевого запроса (17.08.2026, Влад: «записал - и сразу запись уже
+        // отображена», «бесшовно и моментально»). Ниже по коду стоит renderLiveProof -
+        // он перечитает цифры выручки и зарплаты, но это шесть запросов и ~секунда,
+        // всё это время календарь оставался без новой записи. Статус проставляем тот
+        // же, что уйдёт на сервер PATCH-ом выше: walk-in - клиент уже в кресле
+        // ('done'), «записать снова» - будущий визит ('planned').
+        window.__insertDayBooking?.({
+          ...data.booking,
+          date,
+          status: rebookMode ? 'planned' : 'done',
+        });
         resultEl.hidden = false;
         resultEl.className = 'wf-result wf-result--ok';
         const whenText = rebookMode ? `${date} ${startTime}` : startTime;

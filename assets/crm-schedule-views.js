@@ -14,7 +14,7 @@
 // а сами виды живут в crm-schedule-view-{day,week,month,year}.js и получают то, что
 // им нужно, через ctx (см. CLAUDE.md, "assets/crm-schedule-views.js" был крупнейшим
 // фронтенд-файлом проекта на момент аудита).
-import { mastersOf } from './crm-calendar.js';
+import { mastersOf, upsertDayBooking } from './crm-calendar.js';
 import { viewAnchorLabel, YEAR_PANEL_YEAR } from './crm-schedule-shared.js';
 import { wireDayView } from './crm-schedule-view-day.js';
 import { wireWeekView } from './crm-schedule-view-week.js';
@@ -129,9 +129,26 @@ export function wireScheduleViews(ctx) {
   // Единая точка смены вида и/или даты: и клик по вкладке, и клик по дню из
   // Недели/Месяца, и стрелки навигации проходят здесь - поэтому подпись-якорь,
   // отмеченная вкладка и содержимое панели физически не могут разойтись.
+  // Виды, чьи данные заведомо разошлись с сервером (17.08.2026). Новая запись
+  // вставляется в «День» точечно (upsertDayBooking), а «Неделя»/«Месяц» - это агрегаты
+  // (загрузка в %, число записей на дату), их одной карточкой не поправишь. Тянуть
+  // ради них сразу два запроса на каждую чужую запись - ровно то «обновление всего
+  // кабинета», от которого уходим, тем более что обе карточки у владельца по умолчанию
+  // свёрнуты. Поэтому помечаем и перечитываем в момент, когда человек их открывает.
+  const staleViews = new Set();
+
+  async function ensureFresh(v) {
+    if (!staleViews.has(v)) return;
+    staleViews.delete(v);
+    if (v === 'day') await view.loadDay(scheduleViewState.date);
+    else if (v === 'week') await view.loadWeek();
+    else if (v === 'month') await view.loadMonth();
+  }
+
   async function setView(v, date) {
     if (date) scheduleViewState.date = date;
     scheduleViewState.view = v;
+    staleViews.delete(v); // ниже вид грузится целиком - помечать нечего
     const radio = el(RADIO_ID_BY_VIEW[v]);
     if (radio && !radio.checked) radio.checked = true; // программная установка .checked события change не даёт - обновляем всё сами
     const details = el(DETAILS_ID_BY_VIEW[v]);
@@ -186,7 +203,11 @@ export function wireScheduleViews(ctx) {
     Object.entries(DETAILS_ID_BY_VIEW).forEach(([v, detailsId]) => {
       const details = el(detailsId);
       details?.addEventListener('toggle', () => {
-        if (details.open && scheduleViewState.view !== v) setView(v);
+        if (!details.open) return;
+        if (scheduleViewState.view !== v) setView(v);
+        // Вид уже активен, но его данные устарели, пока карточка была свёрнута
+        // (см. staleViews) - перечитываем ровно его, в момент, когда он понадобился
+        else ensureFresh(v);
       });
     });
     renderViewAnchor();
@@ -256,6 +277,39 @@ export function wireScheduleViews(ctx) {
   // window.openRebookBooking в этом проекте для похожей задачи "дотянуться из другого
   // модуля без циклического импорта".
   window.__refreshScheduleViews = refresh;
+
+  // Точка входа «показать одну запись прямо сейчас» (17.08.2026, Влад: «при создании
+  // записи она просто мгновенно должна появляться у всех»). Зовут двое:
+  //   - assets/crm-walkin.js сразу после успешного сохранения формы - из ответа
+  //     сервера, вообще без сетевых запросов;
+  //   - assets/crm-live.js по событию от сервера, когда записал кто-то другой.
+  // Возвращает false, если точечно не вышло (открыт другой день, колонки мастера нет,
+  // день закрыт как выходной) - тогда вызывающий делает обычную полную перерисовку.
+  // staffList - тот же снимок состава, по которому построены колонки «Дня» (он
+  // снимается один раз при входе, см. комментарий у freshStaffById в crm-calendar.js).
+  // Для мастера, появившегося уже после входа, колонки в гриде нет вовсе - вставка
+  // честно вернёт false, и запись покажет полная перерисовка.
+  window.__insertDayBooking = (booking) => {
+    const inserted = upsertDayBooking(booking, {
+      staff,
+      staffList,
+      services,
+      priceOf,
+      date: scheduleViewState.date,
+    });
+    if (inserted) {
+      // «День» уже показывает запись, а агрегаты Недели/Месяца - ещё нет
+      staleViews.add('week');
+      staleViews.add('month');
+      const weekOpen = el(DETAILS_ID_BY_VIEW.week)?.open || (!el(DETAILS_ID_BY_VIEW.day) && scheduleViewState.view === 'week');
+      const monthOpen = el(DETAILS_ID_BY_VIEW.month)?.open || (!el(DETAILS_ID_BY_VIEW.day) && scheduleViewState.view === 'month');
+      // Открытую карточку человек видит прямо сейчас - её обновляем сразу, свёрнутая
+      // подождёт своего раскрытия (ensureFresh)
+      if (weekOpen) ensureFresh('week');
+      if (monthOpen) ensureFresh('month');
+    }
+    return inserted;
+  };
 
   return { refresh };
 }

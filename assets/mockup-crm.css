@@ -669,6 +669,21 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
    подтверждении брони: ожидание нейтральное, пришёл зелёный, не пришёл красный.
    Было наоборот - зелёная полоса у ещё не состоявшейся записи и серая у
    выполненной, а неявка вообще красилась как обычная запись. */
+/* Запись, появившаяся сама (17.08.2026) - её вставляет upsertDayBooking
+   (assets/crm-calendar.js) в момент создания: либо сразу после сохранения формы,
+   либо по событию от сервера, когда записал кто-то другой. Без подсветки карточка
+   просто возникает из ниоткуда и человек не понимает, что именно изменилось.
+   Анимация одноразовая (запускается фактом появления узла в DOM) и короткая -
+   к моменту, когда взгляд дошёл до календаря, она уже закончилась и карточка
+   выглядит как все остальные. prefers-reduced-motion уважаем. */
+@keyframes apptJustAdded {
+  0% { opacity: 0; transform: scale(0.96); box-shadow: 0 0 0 0 rgba(198,161,91,0.55); }
+  40% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 6px rgba(198,161,91,0.28); }
+  100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(198,161,91,0); }
+}
+.appt--just-added { animation: apptJustAdded 900ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .appt--just-added { animation: none; } }
+
 .appt--status-planned, .appt--status-done, .appt--status-noshow { border-left-width: 4px; }
 .appt--status-planned { border-left-color: var(--accent); }
 .appt--status-done { border-left-color: var(--success); }

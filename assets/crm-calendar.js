@@ -324,11 +324,75 @@ function fillTrack(trackEl, master, { shift, bookings, services, priceOf, date }
   wireEmptySlotInteraction(trackEl, master, date);
 }
 
+// data-master-id на колонке (17.08.2026) - раньше колонку можно было найти только по
+// её порядковому номеру в гриде (renderDayCalendar знает индекс, потому что сам их и
+// построил). Для точечной вставки одной записи (upsertDayBooking ниже) этого мало:
+// туда приходит booking.masterId и никакого индекса, а порядок колонок задаёт сервер.
 function buildColumnHtml(master) {
-  return `<div class="schedule-col">
+  return `<div class="schedule-col" data-master-id="${escapeHtml(master.id)}">
     <div class="schedule-col-head">${avatarMarkup(master, { initials: initialsOf(master.name) })}<span class="name">${escapeHtml(master.name)}</span></div>
     <div class="schedule-track"></div>
   </div>`;
+}
+
+// ── Точечное появление одной записи в «Дне» ──────────────────────────────────
+// 17.08.2026, задача Влада: «нужно мгновенное появление новой записи в календаре»,
+// «не нужно, чтобы ВЕСЬ кабинет обновлялся».
+//
+// renderDayCalendar перестраивает грид целиком (grid.innerHTML = ...) и по дороге
+// делает 2+N сетевых запросов: /staff, /bookings и /schedule на каждого мастера. Для
+// одной новой записи это и медленно, и заметно глазу - день моргает, а всё, что
+// человек в нём успел раскрыть или проскроллить, сбрасывается. Здесь вставляется
+// ровно одна карточка в трек своего мастера, остальной DOM не трогается вообще.
+//
+// Возвращает true, только если карточка реально оказалась в календаре - вызывающий
+// (assets/crm-live.js) по false понимает, что точечным путём не обошлось, и делает
+// обычную полную перерисовку. Ложное true здесь опаснее ошибки: оно означало бы, что
+// запись создана, полная перерисовка пропущена, а в календаре пусто.
+export function upsertDayBooking(booking, { staff, staffList, services, priceOf, date }) {
+  if (!booking?.id || !booking.masterId || !booking.startTime || !booking.endTime) return false;
+  // Открыт другой день - вставлять некуда, и это нормальный, а не ошибочный исход
+  if (booking.date && date && booking.date !== date) return false;
+
+  const isSolo = staff.role === 'master';
+  // Мастер видит только свою колонку: чужая запись в его «Дне» не рисуется вовсе
+  if (isSolo && booking.masterId !== staff.id) return false;
+
+  const track = isSolo
+    ? document.querySelector('.panel-sp-day .schedule-grid .schedule-col .schedule-track')
+    : document.querySelector(`.panel-sp-day .schedule-grid .schedule-col[data-master-id="${CSS.escape(booking.masterId)}"] .schedule-track`);
+  if (!track) return false;
+
+  // «Выходной»/«Нет графика» - трек держит не карточки, а одну подпись-заглушку.
+  // Запись на такой день физически возможна (владелец закрыл день уже после того,
+  // как клиент записался), но дорисовывать её к заглушке нельзя - геометрия трека
+  // считается от рабочих часов. Отдаём false, дальше сработает полная перерисовка.
+  if (track.classList.contains('day-off') || track.classList.contains('no-schedule')) return false;
+
+  const masterName = isSolo
+    ? staff.name
+    : (staffList.find((m) => m.id === booking.masterId)?.name ?? '');
+  const html = buildApptCard(booking, { masterName, services, priceOf });
+
+  // Та же запись уже нарисована - значит это не новая, а изменившаяся (перенос,
+  // статус, состав услуг): заменяем карточку на месте, не плодим вторую
+  const existing = track.querySelector(`.appt[data-id="${CSS.escape(booking.id)}"]`);
+  if (existing) {
+    existing.outerHTML = html;
+    return true;
+  }
+
+  // Рамка-превью пустого слота (wireEmptySlotInteraction) живёт последним ребёнком
+  // трека и должна им остаться - вставляем перед ней, а не в конец
+  const preview = track.querySelector('.appt--slot-preview');
+  if (preview) preview.insertAdjacentHTML('beforebegin', html);
+  else track.insertAdjacentHTML('beforeend', html);
+
+  // Короткая подсветка - человек нажал «Сохранить» и должен увидеть, ЧТО именно
+  // появилось, особенно когда запись создал не он, а клиент с сайта
+  const added = track.querySelector(`.appt[data-id="${CSS.escape(booking.id)}"]`);
+  added?.classList.add('appt--just-added');
+  return Boolean(added);
 }
 
 // Окно 43 - горизонтальная линия "сейчас": видна только когда открыт РЕАЛЬНО
