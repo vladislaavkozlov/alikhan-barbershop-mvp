@@ -24,28 +24,21 @@
 //      просто с задержкой в несколько секунд, а не мгновенно.
 import { API, getToken } from './crm-auth.js';
 
-const RECONNECT_MIN_MS = 1000;
-const RECONNECT_MAX_MS = 30000;
-const FALLBACK_POLL_MS = 5000;
-// Сколько ждать первое событие, прежде чем считать поток нерабочим и включить опрос
-const STREAM_GRACE_MS = 8000;
+// Опрос раз в 3 секунды. Изначально здесь был поток событий (SSE) ради мгновенности, и
+// он работал - запись появлялась за 0.8 секунды. Но живое соединение занимает один из
+// шести слотов, которые браузер отводит на домен, и это ловилось на проде как плавающий
+// баг: раздел «Команда» то рисуется, то нет, потому что запрос за составом команды
+// вставал в очередь за висящим потоком. Три секунды задержки - честная цена за то, что
+// кабинет грузится предсказуемо. Запрос дешёвый: четыре числа, без данных.
 // События приходят пачками (одна операция = несколько строк), поэтому обновляем не на
 // каждую, а через короткую паузу - иначе календарь перерисовывался бы по три раза
+const POLL_MS = 3000;
 const DEBOUNCE_MS = 250;
 // Новая запись - то, ради чего всё затевалось: её ждут глазами, поэтому пачку событий
 // о бронях склеиваем короче, чем остальные
 const DEBOUNCE_BOOKINGS_MS = 60;
 
-let reconnectDelay = RECONNECT_MIN_MS;
 let stopped = false;
-// Открытый поток надо уметь ОБОРВАТЬ, а не только пометить флагом: без этого соединение
-// переживало уход со страницы, и при переходах между кабинетами они копились - живой
-// замер 17.08.2026 показал 7 висящих подписчиков после четырёх входов. Браузер держит
-// не больше шести одновременных соединений на домен, поэтому лишние потоки съедали
-// лимит, и обычные запросы (в том числе за составом команды) вставали в очередь -
-// раздел «Команда» оставался пустым на живом, полностью рабочем коде
-let controller = null;
-let usingFallback = false;
 let lastChanges = null;
 const pending = new Set();
 let flushTimer = null;
@@ -113,25 +106,14 @@ function scheduleApply(type) {
       try {
         await APPLY[item]();
       } catch {
-        // Одна упавшая перерисовка не должна отменять остальные и рвать поток
+        // Одна упавшая перерисовка не должна отменять остальные
       }
     }
   }, wait);
 }
 
-function handleLine(line) {
-  if (!line.startsWith('data:')) return; // ': ping' - строка жизни канала, не событие
-  try {
-    const event = JSON.parse(line.slice(5).trim());
-    if (event.type === 'hello') return;
-    scheduleApply(event.type);
-  } catch {
-    // Обрезанная строка на границе пакета - следующая придёт целиком
-  }
-}
-
-// Опрос как запасной путь. Сравнивает отметки времени последних изменений и дёргает
-// ровно те обновлялки, чьи отметки сдвинулись
+// Сравнивает отметки времени последних изменений с прошлым ответом и дёргает ровно те
+// обновлялки, чьи отметки сдвинулись. Сервер отдаёт четыре числа - это весь трафик
 async function pollOnce() {
   const token = getToken();
   if (!token) return;
@@ -150,58 +132,13 @@ async function pollOnce() {
   }
 }
 
-function startFallback() {
-  if (usingFallback) return;
-  usingFallback = true;
-  console.info('Живое обновление: поток недоступен, перешёл на опрос раз в 5 секунд');
+let pollTimer = null;
+function startPolling() {
+  if (pollTimer) return;
   pollOnce();
-  setInterval(() => {
+  pollTimer = setInterval(() => {
     if (!stopped) pollOnce();
-  }, FALLBACK_POLL_MS);
-}
-
-async function connect() {
-  const token = getToken();
-  if (!token || stopped) return;
-
-  // Предыдущий поток закрываем перед открытием нового - двух одновременных быть не должно
-  controller?.abort();
-  controller = new AbortController();
-
-  // Если за это время не пришло ни одного байта - поток считаем нерабочим
-  const graceTimer = setTimeout(startFallback, STREAM_GRACE_MS);
-
-  try {
-    const res = await fetch(`${API}/events`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
-      signal: controller.signal,
-    });
-    if (!res.ok || !res.body) throw new Error(`events ${res.status}`);
-
-    clearTimeout(graceTimer);
-    reconnectDelay = RECONNECT_MIN_MS; // соединение удалось - следующая попытка снова быстрая
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    while (!stopped) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      // Событие заканчивается пустой строкой; всё до неё - целые строки
-      const parts = buffer.split('\n');
-      buffer = parts.pop() ?? '';
-      for (const part of parts) handleLine(part.trim());
-    }
-  } catch {
-    clearTimeout(graceTimer);
-  }
-
-  if (stopped) return;
-  // Прокси закрыл канал или сеть моргнула - возвращаемся, увеличивая паузу, чтобы не
-  // долбить сервер в цикле, если он лежит
-  setTimeout(connect, reconnectDelay);
-  reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
+  }, POLL_MS);
 }
 
 // Возврат на вкладку. Раньше здесь дёргались ВСЕ обновлялки сразу - и это ловилось
@@ -217,23 +154,23 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') { wasHidden = true; return; }
   if (!wasHidden) return;
   wasHidden = false;
-  if (usingFallback) pollOnce();
+  pollOnce();
   scheduleApply('bookings');
   scheduleApply('notifications');
 });
 
-// Поток открываем только после входа: до него нет токена, а значит и права слушать
+// После входа начинаем опрашивать: до него нет токена, а значит и права спрашивать
 document.addEventListener('crm:authenticated', () => {
   stopped = false;
-  connect();
+  startPolling();
 });
 
 // pagehide надёжнее beforeunload: он приходит и при переходе назад/вперёд, и на мобильных,
 // где beforeunload часто не срабатывает вовсе
 function stopLive() {
   stopped = true;
-  controller?.abort();
-  controller = null;
+  clearInterval(pollTimer);
+  pollTimer = null;
 }
 window.addEventListener('pagehide', stopLive);
 window.addEventListener('beforeunload', stopLive);
