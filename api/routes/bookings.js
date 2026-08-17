@@ -124,7 +124,7 @@ export async function checkSlotAvailability(client, { masterId, date, startTime,
   return null;
 }
 
-async function createBookingTx({ masterId, serviceIds, date, startTime, clientName, clientPhone, channel, isStaff }) {
+async function createBookingTx({ masterId, serviceIds, date, startTime, clientName, clientPhone, channel, isStaff, clientSource }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -188,10 +188,15 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     // walkin_name (миграция 041) - сырое имя прямо на брони, независимо от clientId.
     // Заполняется всегда, когда указано имя - раньше терялось молча, если
     // администратор не указал телефон (clientId оставался null).
+    // client_source (17.08.2026, миграция 050) - откуда пришёл клиент. С публичного
+    // сайта приезжает определённым автоматически (UTM-метка ссылки в карточке
+    // организации, иначе referrer - assets/client-source.js), из CRM - выбором
+    // администратора в форме записи. Не определился - остаётся NULL, это законное
+    // состояние (клиент зашёл мимо или позвонил), а не пропуск данных.
     await client.query(
-      `INSERT INTO bookings (id, location_id, master_id, service_id, client_id, date, start_time, end_time, status, channel, requires_prepayment, walkin_name)
-       VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, 'planned', $8, $9, $10)`,
-      [bookingId, locationId, masterId, clientId, date, startTime, endTime, channel ?? 'client', requiresPrepayment, clientName ?? null]
+      `INSERT INTO bookings (id, location_id, master_id, service_id, client_id, date, start_time, end_time, status, channel, requires_prepayment, walkin_name, client_source)
+       VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, 'planned', $8, $9, $10, $11)`,
+      [bookingId, locationId, masterId, clientId, date, startTime, endTime, channel ?? 'client', requiresPrepayment, clientName ?? null, clientSource ?? null]
     );
     for (const serviceId of serviceIds) {
       await client.query('INSERT INTO booking_services (booking_id, service_id) VALUES ($1, $2)', [bookingId, serviceId]);
@@ -256,7 +261,7 @@ async function listBookingsForRequest(url, auth) {
   // прямо с брони, вместо молчаливой потери (найдено 09.08.2026, Окно 53).
   let query = `SELECT b.id, b.master_id, b.service_id, b.date, b.start_time, b.end_time, b.status,
                       b.client_confirmed, b.location_id, b.requires_prepayment, b.review_request_pending,
-                      b.actual_price, b.staff_comment,
+                      b.actual_price, b.staff_comment, b.client_id, b.client_source,
                       COALESCE(c.name, b.walkin_name) AS client_name, c.phone AS client_phone,
                       c.birthday AS client_birthday, c.no_show_streak AS client_no_show_streak
                FROM bookings b LEFT JOIN clients c ON c.id = b.client_id WHERE 1=1`;
@@ -311,6 +316,22 @@ async function listBookingsForRequest(url, auth) {
     serviceIdsByBooking.get(row.booking_id).push(row.service_id);
   }
 
+  // Метка "+1 новый клиент" (17.08.2026). Считать её по самой выборке нельзя: выборка
+  // это ОДИН день, и постоянный клиент, чей прошлый визит был на прошлой неделе, в неё
+  // не попадает - он бы каждый раз выглядел новым. Поэтому отдельный запрос по всей
+  // истории именно тех клиентов, что есть в выборке (индекс bookings_client_history_idx,
+  // миграция 050), а решение "какая бронь первая" принимает чистая функция - она же
+  // покрыта офлайн-тестом, второй копии правила в SQL нет.
+  const clientIds = [...new Set(result.rows.map((r) => r.client_id).filter(Boolean))];
+  const historyRes = clientIds.length
+    ? await pool.query(
+        `SELECT id, client_id, date, start_time, status FROM bookings
+          WHERE client_id = ANY($1) AND status <> 'cancelled'`,
+        [clientIds]
+      )
+    : { rows: [] };
+  const firstBookingId = firstBookingIdByClient(historyRes.rows);
+
   return result.rows.map((r) => {
     const base = {
       id: r.id,
@@ -332,6 +353,11 @@ async function listBookingsForRequest(url, auth) {
     // и crm-master.html уже показывает поле "Дата рождения клиента" - мастеру нужно
     // знать дату, чтобы поздравить. Видна owner/admin/master, не анонимному запросу.
     const clientBirthday = r.client_birthday instanceof Date ? r.client_birthday.toISOString().slice(0, 10) : r.client_birthday;
+    // clientIsNew виден ВСЕМУ персоналу, включая мастера: это не персональные данные
+    // (в отличие от телефона), а рабочая пометка - новому человеку мастер и здоровается
+    // иначе, и салон показывает. Про walk-in без телефона метки нет вовсе (см.
+    // firstBookingIdByClient) - там это было бы догадкой, а не фактом.
+    const clientIsNew = Boolean(r.client_id) && firstBookingId.get(r.client_id) === r.id;
     if (BOOKING_OPERATOR_ROLES.includes(auth.role)) {
       // requiresPrepayment/reviewRequestPending - видно только владельцу/администратору
       // (Задачи 3 и 6, Окно 13, 01.08.2026) - мастеру эти пометки не нужны для работы.
@@ -355,9 +381,14 @@ async function listBookingsForRequest(url, auth) {
         // видимости, что и сама сумма: мастер её не видит, значит и объяснение
         // к ней ему не показываем.
         staffComment: r.staff_comment ?? null,
+        clientIsNew,
+        // clientSource (17.08.2026, миграция 050) - откуда клиент пришёл. Уровень
+        // видимости тот же, что у телефона и комментария: канал привлечения это
+        // управленческая информация владельца/администратора, а не рабочая мастера.
+        clientSource: r.client_source ?? null,
       };
     }
-    return { ...base, clientName: r.client_name, clientBirthday }; // master: имя и ДР видно, телефон - нет
+    return { ...base, clientName: r.client_name, clientBirthday, clientIsNew }; // master: имя, ДР и "новый" видно, телефон и канал - нет
   });
 }
 
@@ -392,6 +423,11 @@ export async function handleBookings(req, res, url) {
     if (hasComboConflict(serviceIds)) {
       return sendJson(res, 400, { error: 'combo_conflict' });
     }
+    // source (17.08.2026) - необязательное поле: старая открытая вкладка сайта и
+    // прежние интеграции шлют запись без него и работают как раньше. Неизвестный
+    // ключ отбиваем 400, а не пишем молча - иначе опечатка стала бы "каналом"
+    const sourceOut = normalizeClientSource(body.source);
+    if (sourceOut.error) return sendJson(res, 400, { error: sourceOut.error });
     const result = await createBookingTx({
       masterId: body.masterId,
       serviceIds,
@@ -401,6 +437,7 @@ export async function handleBookings(req, res, url) {
       clientPhone: body.clientPhone ?? null,
       channel: body.channel ?? (auth ? 'admin' : 'client'),
       isStaff: !!auth,
+      clientSource: sourceOut.value,
     });
     // Новая запись - главный случай, ради которого заводилось живое обновление
     // (Влад: «записал клиента - и сразу запись уже отображена»). Публикуем только
@@ -1093,6 +1130,50 @@ export function normalizeStaffComment(raw) {
   return { value: trimmed };
 }
 
+// Источник клиента (17.08.2026, миграция 050). Ключи фиксированы: колонка заведена
+// ради ответа на вопрос "сколько клиентов дал каждый канал", а свободный текст на
+// этот вопрос не отвечает. Зеркало словаря для интерфейса - assets/client-source.js
+// (там же подписи на русском), здесь только допустимые ключи: сервер не показывает
+// подписи, а фронт не решает, что попадёт в базу.
+export const CLIENT_SOURCE_KEYS = ['yandex_maps', '2gis', 'instagram', 'telegram', 'vk', 'referral', 'walkin', 'other'];
+
+// Чистая функция ради офлайн-теста - тот же приём, что у normalizeStaffComment выше.
+// null/пустая строка = "источник неизвестен", и это ЗАКОННОЕ значение, а не пропуск:
+// человек, пришедший мимо по улице или по звонку, источника в технике не имеет, и
+// система не должна за него ничего додумывать. Неизвестный ключ - ошибка, а не
+// молчаливое "other": тихая подмена превратила бы опечатку в интеграции в цифру
+// канала, которую владелец потом прочитает как факт.
+export function normalizeClientSource(raw) {
+  if (raw === null || raw === undefined) return { value: null };
+  if (typeof raw !== 'string') return { error: 'invalid_client_source' };
+  const trimmed = raw.trim();
+  if (trimmed === '') return { value: null };
+  if (!CLIENT_SOURCE_KEYS.includes(trimmed)) return { error: 'unknown_client_source' };
+  return { value: trimmed };
+}
+
+// «Новый клиент» для метки в карточке дня (17.08.2026). Новая - самая ранняя не
+// отменённая бронь клиента, а не "у клиента одна бронь": человек мог записаться на
+// сегодня и тут же на следующий месяц, и меткой должен быть помечен первый визит,
+// а не оба и не ни одного.
+//
+// Отменённая бронь визитом не считается - клиент не приходил. Неявка (no_show)
+// считается: салон этого человека уже привлёк, второй раз он не новый.
+//
+// Брони БЕЗ client_id (walk-in без телефона, миграция 041) в расчёт не входят вовсе -
+// такие визиты намеренно не связываются между собой по имени (решение Алихана), и
+// утверждать про них "новый клиент" было бы выдумкой, а не фактом.
+export function firstBookingIdByClient(rows) {
+  const firstByClient = new Map();
+  for (const r of rows) {
+    if (!r.client_id || r.status === 'cancelled') continue;
+    const prev = firstByClient.get(r.client_id);
+    const key = `${dateColToStr(r.date)} ${r.start_time}`;
+    if (!prev || key < prev.key) firstByClient.set(r.client_id, { key, id: r.id });
+  }
+  return new Map([...firstByClient].map(([clientId, v]) => [clientId, v.id]));
+}
+
 export async function handleBookingActualPrice(req, res, parts) {
   const auth = await authenticate(req);
   if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
@@ -1181,6 +1262,15 @@ export async function handleBookingClient(req, res, parts) {
   if (phoneOut.error) return sendJson(res, 400, { error: phoneOut.error });
   const clientName = nameOut.value;
   const clientPhone = phoneOut.value;
+  // Источник правится тем же роутом, что имя и телефон (17.08.2026): в форме записи
+  // это один блок "кто клиент", и разводить его по двум запросам значило бы уметь
+  // сохранить канал отдельно от человека, которому он принадлежит.
+  // Поля clientSource в теле НЕТ вообще - прежний контракт, канал не трогаем: старый
+  // клиент, который шлёт только имя с телефоном, не должен молча стирать источник
+  // (тот же приём, что у comment в handleBookingActualPrice).
+  const hasSource = Object.prototype.hasOwnProperty.call(body, 'clientSource');
+  const sourceOut = hasSource ? normalizeClientSource(body.clientSource) : { value: null };
+  if (sourceOut.error) return sendJson(res, 400, { error: sourceOut.error });
 
   const client = await pool.connect();
   try {
@@ -1230,13 +1320,20 @@ export async function handleBookingClient(req, res, parts) {
     // Тот же порог предоплаты, что при создании (>=2 неявки) - иначе после смены
     // телефона на номер проблемного клиента пометка осталась бы от прежнего
     const requiresPrepayment = clientId ? noShowStreak >= 2 : false;
-    await client.query(
-      'UPDATE bookings SET client_id = $1, walkin_name = $2, requires_prepayment = $3 WHERE id = $4',
-      [clientId, clientName, requiresPrepayment, bookingId]
-    );
+    if (hasSource) {
+      await client.query(
+        'UPDATE bookings SET client_id = $1, walkin_name = $2, requires_prepayment = $3, client_source = $4 WHERE id = $5',
+        [clientId, clientName, requiresPrepayment, sourceOut.value, bookingId]
+      );
+    } else {
+      await client.query(
+        'UPDATE bookings SET client_id = $1, walkin_name = $2, requires_prepayment = $3 WHERE id = $4',
+        [clientId, clientName, requiresPrepayment, bookingId]
+      );
+    }
     await client.query('COMMIT');
     publish('bookings', { bookingId, reason: 'client' });
-    return sendJson(res, 200, { ok: true, clientId, clientName, clientPhone, requiresPrepayment });
+    return sendJson(res, 200, { ok: true, clientId, clientName, clientPhone, requiresPrepayment, clientSource: sourceOut.value });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     throw err;
