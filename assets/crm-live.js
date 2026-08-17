@@ -32,6 +32,9 @@ const STREAM_GRACE_MS = 8000;
 // События приходят пачками (одна операция = несколько строк), поэтому обновляем не на
 // каждую, а через короткую паузу - иначе календарь перерисовывался бы по три раза
 const DEBOUNCE_MS = 250;
+// Новая запись - то, ради чего всё затевалось: её ждут глазами, поэтому пачку событий
+// о бронях склеиваем короче, чем остальные
+const DEBOUNCE_BOOKINGS_MS = 60;
 
 let reconnectDelay = RECONNECT_MIN_MS;
 let stopped = false;
@@ -43,9 +46,15 @@ let flushTimer = null;
 // Обновлялки те же, что у кнопки «Обновить» (assets/crm-refresh-control.js) - здесь
 // они разложены по видам событий, чтобы новая запись не перерисовывала заодно карточки
 // команды, а правка карточки не дёргала календарь без нужды
+// Намеренно БЕЗ { all: true }: живой замер на проде 17.08.2026 показал 2.5 секунды до
+// появления записи, потому что обновлялись сразу день, неделя и месяц - три пачки
+// запросов вместо одной. Без флага refresh перечитывает только раскрытые (на телефоне -
+// активный) виды, а остальные подтянутся, когда человек до них доберётся. Сводка и
+// личные цифры уезжают следом отдельной волной, чтобы не задерживать саму карточку в
+// расписании - она и есть то, что человек ждёт увидеть
 async function applyBookings() {
-  await Promise.allSettled([
-    window.__refreshScheduleViews?.({ all: true }),
+  await window.__refreshScheduleViews?.();
+  Promise.allSettled([
     window.__refreshRoleSnapshot?.(),
     window.__refreshOwnerDashboard?.(),
   ].filter(Boolean));
@@ -88,8 +97,9 @@ function scheduleApply(type) {
   if (!APPLY[type]) return;
   pending.add(type);
   clearTimeout(flushTimer);
+  const wait = pending.has('bookings') ? DEBOUNCE_BOOKINGS_MS : DEBOUNCE_MS;
   flushTimer = setTimeout(async () => {
-    const types = [...pending];
+    const types = [...pending].sort((a, b) => (a === 'bookings' ? -1 : b === 'bookings' ? 1 : 0));
     pending.clear();
     for (const item of types) {
       try {
@@ -98,7 +108,7 @@ function scheduleApply(type) {
         // Одна упавшая перерисовка не должна отменять остальные и рвать поток
       }
     }
-  }, DEBOUNCE_MS);
+  }, wait);
 }
 
 function handleLine(line) {
