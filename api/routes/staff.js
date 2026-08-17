@@ -9,6 +9,8 @@ import { hashPin } from '../lib/auth.js';
 import { randomBytes } from 'node:crypto';
 import { MAX_PORTFOLIO_ITEMS, removeStoredImage, saveProcessedImage } from '../lib/staff-media.js';
 import { mastersWithWorkingSchedule, filterStaffForViewer } from '../lib/schedule-core.js';
+// Живое обновление (17.08.2026): правка карточки видна в чужих кабинетах сразу
+import { publish } from '../lib/events.js';
 
 // ── /staff - роль ограничивает выдачу на уровне SQL, не только в UI ──
 export async function handleStaffList(req, res) {
@@ -166,6 +168,10 @@ export async function handleStaffUpdate(req, res, parts) {
     const result = await pool.query(`UPDATE staff SET location_id=$1,name=$2,phone=$3,email=$4,employed=$5,provides_services=$6,has_system_access=COALESCE($7,has_system_access) WHERE id=$8 RETURNING id,location_id,name,phone,email,role,employed,provides_services,has_system_access`, [body.locationId ?? null, String(body.name).trim(), String(body.phone ?? '').trim() || null, email, flags.employed, body.providesServices === true, flags.hasSystemAccess, staffId]);
     const row = result.rows[0];
     if (!row.employed || !row.has_system_access) await pool.query('DELETE FROM sessions WHERE staff_id = $1', [staffId]);
+    // «Принимает клиентов» меняет состав колонок в расписании - шлём и staff, и
+    // schedule, чтобы у соседа перестроился не только список команды, но и сетка дня
+    publish('staff', { staffId, reason: 'updated' });
+    publish('schedule', { staffId, reason: 'staff-updated' });
     return sendJson(res, 200, { staff: { id: row.id, locationId: row.location_id, name: row.name, phone: row.phone, email: row.email, role: row.role, employed: row.employed, providesServices: row.provides_services, hasSystemAccess: row.has_system_access } });
   } catch (error) { if (error?.code === '23505') return sendJson(res, 409, { error: 'email_in_use' }); throw error; }
 }
@@ -292,5 +298,6 @@ export async function handleStaffRole(req, res, parts) {
     return sendJson(res, 409, { error: 'last_owner_role_locked' });
   }
   const result = await pool.query('UPDATE staff SET role = $1 WHERE id = $2 RETURNING id, role', [role, staffId]);
+  publish('staff', { staffId, reason: 'role' });
   return sendJson(res, 200, { ok: true, id: result.rows[0].id, role: result.rows[0].role });
 }

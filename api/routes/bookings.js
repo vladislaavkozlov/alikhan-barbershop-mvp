@@ -10,6 +10,9 @@ import { addMinutes, dateColToStr, intervalsOverlap, shopNow, toMinutes } from '
 import { mastersWithWorkingSchedule, masterAcceptsClients, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
 import { notifyStaff } from '../lib/notify-core.js';
 import { findClientIdByPhone } from './clients.js';
+// Живое обновление кабинетов (17.08.2026): каждое изменение брони уходит в открытые
+// кабинеты сразу, чтобы запись появлялась в расписании без кнопки «Обновить»
+import { publish } from '../lib/events.js';
 import { hasComboConflict } from '../lib/service-combos.js';
 
 // Админы точки - адресаты уведомлений о её записях (Окно 14: Мамедхан управляет
@@ -399,6 +402,12 @@ export async function handleBookings(req, res, url) {
       channel: body.channel ?? (auth ? 'admin' : 'client'),
       isStaff: !!auth,
     });
+    // Новая запись - главный случай, ради которого заводилось живое обновление
+    // (Влад: «записал клиента - и сразу запись уже отображена»). Публикуем только
+    // успех: отказ по занятому времени ничего в расписании не поменял
+    if (result.status === 200 && result.body?.ok !== false) {
+      publish('bookings', { date: body.date, masterId: body.masterId, bookingId: result.body?.booking?.id ?? null, reason: 'created' });
+    }
     return sendJson(res, result.status, result.body);
   }
 }
@@ -456,6 +465,7 @@ export async function handleBookingDelete(req, res, parts) {
   } finally {
     client.release();
   }
+  publish('bookings', { bookingId, reason: 'deleted' });
   return sendJson(res, 200, { ok: true });
 }
 
@@ -494,6 +504,7 @@ export async function handleBookingCancel(req, res, parts) {
   const refundEligible = hoursUntilBooking >= CANCEL_FULL_REFUND_HOURS;
 
   await pool.query(`UPDATE bookings SET status = 'cancelled' WHERE id = $1`, [bookingId]);
+  publish('bookings', { bookingId, date: bookingDate, masterId: booking.master_id ?? null, reason: 'cancelled' });
   return sendJson(res, 200, {
     ok: true,
     status: 'cancelled',
@@ -564,6 +575,7 @@ export async function handleBookingStatus(req, res, parts) {
   } finally {
     client.release();
   }
+  publish('bookings', { bookingId, reason: 'status', status: body.status });
   return sendJson(res, 200, { ok: true, status: body.status });
 }
 
@@ -634,6 +646,7 @@ export async function handleBookingAddServices(req, res, parts) {
     await client.query('UPDATE bookings SET end_time = $1 WHERE id = $2', [newEndTime, bookingId]);
     await client.query('COMMIT');
     const allServicesRes = await client.query('SELECT service_id FROM booking_services WHERE booking_id = $1', [bookingId]);
+    publish('bookings', { bookingId, reason: 'services-added' });
     return sendJson(res, 200, {
       ok: true,
       booking: { id: bookingId, serviceIds: allServicesRes.rows.map((r) => r.service_id), endTime: newEndTime },
@@ -736,6 +749,7 @@ export async function handleBookingSetServices(req, res, parts) {
     const newEndTime = addMinutes(booking.start_time, plan.durationMin);
     await client.query('UPDATE bookings SET end_time = $1 WHERE id = $2', [newEndTime, bookingId]);
     await client.query('COMMIT');
+    publish('bookings', { bookingId, reason: 'services-set' });
     return sendJson(res, 200, {
       ok: true,
       booking: { id: bookingId, serviceIds: plan.serviceIds, endTime: newEndTime },
@@ -1046,6 +1060,10 @@ export async function handleBookingReschedule(req, res, parts) {
     startTime: body.startTime,
     isStaff: true, // сюда допущены только owner/admin (requireRole выше) - визит задним числом разрешён, как и при создании из CRM
   });
+  // Перенос двигает карточку в календаре у всех, кто сейчас смотрит расписание
+  if (result.status === 200 && result.body?.ok !== false) {
+    publish('bookings', { bookingId, reason: 'rescheduled' });
+  }
   return sendJson(res, result.status, result.body);
 }
 
@@ -1108,6 +1126,7 @@ export async function handleBookingActualPrice(req, res, parts) {
   } else {
     await pool.query('UPDATE bookings SET actual_price = $1 WHERE id = $2', [body.actualPrice, bookingId]);
   }
+  publish('bookings', { bookingId, reason: 'actual-price' });
   return sendJson(res, 200, {
     ok: true,
     actualPrice: body.actualPrice,
@@ -1216,6 +1235,7 @@ export async function handleBookingClient(req, res, parts) {
       [clientId, clientName, requiresPrepayment, bookingId]
     );
     await client.query('COMMIT');
+    publish('bookings', { bookingId, reason: 'client' });
     return sendJson(res, 200, { ok: true, clientId, clientName, clientPhone, requiresPrepayment });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -1264,6 +1284,7 @@ export async function handleSales(req, res, url) {
       body.itemName,
       body.amount,
     ]);
+    publish('bookings', { bookingId: body.bookingId, reason: 'sale' });
     return sendJson(res, 200, { ok: true, id });
   }
 }

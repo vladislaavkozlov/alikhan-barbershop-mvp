@@ -337,6 +337,11 @@
   import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
   // Смена своего PIN в «Личных данных». Модуль сам подписан на событие входа
   import './assets/crm-pin.js';
+  // Живое обновление (17.08.2026): кабинет слушает поток событий с сервера и сам
+  // перерисовывает расписание, команду и уведомления, когда данные меняет кто-то
+  // другой. Модуль подписан на событие входа, вызывать его руками не нужно
+  import './assets/crm-live.js';
+
   upgradeScheduleViews(['day', 'week', 'month']);
   upgradeMasterBookingPanel();
   initCrmAuth('master');

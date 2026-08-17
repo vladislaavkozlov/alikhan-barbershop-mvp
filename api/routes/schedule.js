@@ -7,6 +7,8 @@ import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { BOOKING_OPERATOR_ROLES, canManageStaff } from '../lib/permissions.js';
 import { addDaysIso, enumerateDateRange, shopNow, toMinutes } from '../lib/time.js';
+// Живое обновление (17.08.2026): изменённый график перерисовывает расписание у всех
+import { publish } from '../lib/events.js';
 import {
   getEffectiveSchedule,
   findScheduleConflicts,
@@ -85,6 +87,7 @@ export async function handleScheduleExceptions(req, res) {
       }
     }
     await client.query('COMMIT');
+    publish('schedule', { reason: 'weekly' });
     return sendJson(res, 200, { ok: true, count: changes.length });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
@@ -205,6 +208,7 @@ export async function handleSchedule(req, res, url) {
         ]);
       }
       await client.query('COMMIT');
+      publish('schedule', { reason: 'shift' });
       return sendJson(res, 200, { ok: true, id: shiftId, conflicts: 0 });
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
@@ -315,6 +319,7 @@ export async function handleHolidaysClose(req, res) {
       await applyScheduleDay(client, item.masterId, item.date, item.startTime, item.endTime);
     }
     await client.query('COMMIT');
+    publish('schedule', { reason: 'holiday' });
     return sendJson(res, 200, { ok: true, ...plan });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -467,6 +472,8 @@ export async function handleMasterWeeklySchedule(req, res, url) {
       }
       await writeWeeklySchedule(client, body.masterId, rows);
       await client.query('COMMIT');
+      // Рабочая неделя мастера - это и есть сетка расписания у всех остальных
+      publish('schedule', { masterId: body.masterId, reason: 'weekly-saved' });
       return sendJson(res, 200, { ok: true, conflicts: 0 });
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});

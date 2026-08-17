@@ -46,6 +46,7 @@ export {
   HOLIDAY_CLOSE_MAX_DAYS,
 } from './lib/schedule-core.js';
 import { notifyStaff } from './lib/notify-core.js';
+import { addSubscriber, changesSnapshot, subscriberCount } from './lib/events.js';
 export { findMastersMissingSchedule, notifyOwnerAboutMastersMissingSchedule } from './lib/notify-core.js';
 // Ре-экспорт для tests/*.test.js, которые импортируют эти имена напрямую из
 // server.mjs (in-memory юниты без реального Postgres) - см. правило 6 плана
@@ -166,6 +167,13 @@ const ROUTES = [
   { method: 'GET', path: 'clients', auth: 'any-staff' },
   { method: 'GET', path: 'clients/:id', auth: 'any-staff' },
   { method: 'GET', path: 'owner/alerts', auth: 'management' },
+  // Живое обновление кабинетов (17.08.2026). /events - поток событий от сервера,
+  // /changes - его фолбэк опросом на случай, если прокси не пропустит долгое
+  // соединение. Обоим достаточно любого валидного токена: они не отдают данных,
+  // только сообщают, ЧТО изменилось - сами данные кабинет забирает своими роутами,
+  // где права и проверяются
+  { method: 'GET', path: 'events', auth: 'any-staff' },
+  { method: 'GET', path: 'changes', auth: 'any-staff' },
 ];
 
 function matchRoute(method, parts) {
@@ -207,7 +215,18 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname === '/health') {
       await pool.query('SELECT 1');
-      return sendJson(res, 200, { ok: true });
+      return sendJson(res, 200, { ok: true, liveSubscribers: subscriberCount() });
+    }
+
+    // ── Живое обновление ────────────────────────────────────────────────
+    // Ответ намеренно НЕ закрывается: соединение живёт, пока открыт кабинет.
+    // Гейт реестра выше уже проверил токен, здесь только берём личность подписчика
+    if (parts[0] === 'events' && parts.length === 1 && req.method === 'GET') {
+      const auth = await authenticate(req);
+      return addSubscriber(req, res, auth);
+    }
+    if (parts[0] === 'changes' && parts.length === 1 && req.method === 'GET') {
+      return sendJson(res, 200, changesSnapshot());
     }
 
     // ── Auth ────────────────────────────────────────────────────────────
