@@ -544,3 +544,47 @@ body.app-shell-drawer-open.crm-navigation-ui .panel-group-controls {
 .master-booking-view .mb-commission-label { font-size: 0.8rem; color: var(--text-muted); }
 .master-booking-view .mb-commission-value { font-size: 1.05rem; font-weight: 700; color: var(--accent); }
 .master-booking-view .mb-commission-note { margin: 0; font-size: 0.78rem; line-height: 1.45; color: var(--text-muted); }
+
+/* ── Сведение с дизайном сайта (18.08.2026) ─────────────────────────────────
+   Палитра переехала в mockup-crm.css :root, здесь - то, чего в токенах нет:
+   фактура фона как на лендинге и логотип вместо текстового бренда в шапке. */
+
+/* Подсветки привязаны к экрану, а не к высоте контента: на коротких разделах
+   (Финансы, Аналитика) градиент заканчивался вместе с body и внизу читался стык */
+html { background: var(--bg-main); }
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 82% 0%, rgba(53, 86, 68, 0.18), transparent 30rem),
+    radial-gradient(circle at 4% 36%, rgba(216, 179, 106, 0.06), transparent 26rem),
+    var(--bg-main);
+  background-attachment: fixed, fixed, fixed;
+}
+
+/* Зерно поверх заливки - тот же слой, что на сайте. z-index -1 и pointer-events
+   none, чтобы не перехватывать клики рабочего интерфейса */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.15;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.16'/%3E%3C/svg%3E");
+}
+
+/* Шапка кабинетов: тот же вензель-вордмарк, что в шапке сайта, вместо слова,
+   набранного Playfair. Файл общий - assets/brand/wordmark-header.webp */
+.brand-wordmark {
+  display: block;
+  width: 150px;
+  height: 38px;
+  object-fit: contain;
+  object-position: left center;
+  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.18));
+}
+
+@media (max-width: 720px) {
+  .brand-wordmark { width: 124px; height: 32px; }
+}
