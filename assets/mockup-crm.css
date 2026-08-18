@@ -61,11 +61,11 @@
   --surface: #202821;
   --surface-2: #242d27;
   --surface-3: #333e37;
-  --accent: #C9A468;
-  --accent-hover: #EBD3A4;
+  --accent: #D8B87C;
+  --accent-hover: #F5E3BC;
   --wood: #B0905D;
   --text: #f6f2e8;
-  --text-muted: #bcbbb0;
+  --text-muted: #d2d0c4;
   /* Правка (пятнадцатый заход, 13.08.2026) - возврат к 46%, и это НЕ откат к
      забракованному. Тогда 46% читались коричневой грязью, потому что фон был
      холодный, бирюзовый (158°): тёплая тёмная линия на холодном фоне
@@ -632,7 +632,7 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
    имя+услуга видны на hover (тот же приём z-index:5, что уже есть у обычного hover). */
 .appt {
   position: absolute; left: 4px; right: 4px; min-height: 16px; border-radius: 7px;
-  padding: 4px 8px; font-size: 0.68rem; line-height: 1.22; overflow: hidden;
+  padding: 4px 8px; font-size: 0.76rem; line-height: 1.24; overflow: hidden;
   /* 1px рамка тонула в заливке - статус должен читаться с одного взгляда */
   border: 1px solid transparent; border-left-width: 4px; cursor: pointer;
   transition: transform 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
@@ -640,7 +640,7 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .appt:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -10px rgba(0,0,0,0.5); z-index: 5; }
 .appt .t { font-weight: 700; display: block; }
 .appt .c { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.appt .s { display: block; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.appt .s { display: block; opacity: 0.95; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* .c скрыта всегда, не только по умолчанию - раскрытие высоты на hover (min-height:34px)
    пробовали, но оно возвращает ровно тот же визуальный дефект (наезд текста на соседнюю
    карточку), который и чинит эта задача, просто по требованию hover вместо всегда. Полная
@@ -700,14 +700,14 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .appt--expanded { display: block; padding: 6px 22px 7px 8px; }
 .appt--expanded .t { line-height: 1.22; }
 .appt--expanded .appt-expand { transform: rotate(180deg); opacity: 1; }
-.appt--done { background: rgba(126,214,163,0.86); border-color: var(--success); color: #10241a; }
-.appt--new { background: rgba(232,205,157,0.92); border-color: var(--accent-hover); color: #241c0c; }
+.appt--done { background: #86E8AD; border-color: var(--success); color: #0c2318; }
+.appt--new { background: #F3DCAB; border-color: var(--accent-hover); color: #241b08; }
 /* Неявка (13.08.2026, Влад) - своя красная заливка, а не та же, что у ожидания:
    в дневном календаре пропущенный визит должен читаться с одного взгляда. */
-.appt--noshow { background: rgba(240,132,112,0.88); border-color: var(--danger); color: #2b100b; }
-.appt--selected { background: rgba(158,194,255,0.90); border-color: var(--info); color: #0e1a2b; }
+.appt--noshow { background: #FF9682; border-color: var(--danger); color: #2b0f0a; }
+.appt--selected { background: #ADCBFF; border-color: var(--info); color: #0d1a2c; }
 .appt--break {
-  background: repeating-linear-gradient(135deg, rgba(235,211,164,0.42) 0 9px, rgba(235,211,164,0.06) 9px 18px);
+  background: repeating-linear-gradient(135deg, rgba(245,227,188,0.55) 0 9px, rgba(245,227,188,0.10) 9px 18px);
   border-color: var(--border); color: var(--text-muted); display: flex; align-items: center; justify-content: center; text-align: center;
 }
 /* Запись вне рабочих часов мастера (17.08.2026). Шкала дня идёт строго по графику

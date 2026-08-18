@@ -298,7 +298,8 @@
 }
 
 .crm-navigation-ui details.staff-card .summary-meta .role {
-  color: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  /* двойное приглушение (приглушённый цвет + альфа) съедало треть яркости */
+  color: var(--text-muted);
   line-height: 1.35;
 }
 
