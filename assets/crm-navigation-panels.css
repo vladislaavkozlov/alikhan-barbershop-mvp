@@ -699,3 +699,49 @@
     transition: none;
   }
 }
+
+/* ── Почерк сайта в кабинете (18.08.2026) ───────────────────────────────────
+   Влад: «сайт не выглядит похоронно, почему CRM грустная». Палитра у них уже
+   одна, разница в другом: на лендинге в каждом экране есть крупные светлые
+   пятна - заголовки Playfair 40-80px и фотографии. В кабинете самый крупный
+   текст был 16px Manrope приглушённого цвета, поэтому взгляду не за что
+   зацепиться. Ниже - та же типографика, что на сайте, на названиях разделов,
+   имён и сумм. */
+
+.crm-navigation-ui details.staff-card .summary-meta .name {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 1.42rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+/* Подзаголовок под именем - наоборот, тише и мельче: контраст между строками
+   и создаёт то самое «светлое пятно», которого не хватало */
+.crm-navigation-ui details.staff-card .summary-meta .role {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+/* Денежные суммы и счётчики - главный смысл экранов «Финансы» и «Аналитика»,
+   поэтому подаём их как заголовки сайта, золотом */
+.crm-navigation-ui .kpi-value,
+.crm-navigation-ui .sum-value,
+.crm-navigation-ui .payroll-total,
+.crm-navigation-ui .revenue-total,
+.crm-navigation-ui [data-role="amount"] {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: clamp(1.9rem, 2.6vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--gold-soft, #DEC192);
+}
+
+/* Аватар мастера крупнее и с золотым ободком - единственная «фотография»
+   в кабинете, пусть работает как на сайте */
+.crm-navigation-ui details.staff-card .avatar-icon {
+  width: 52px;
+  height: 52px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 8px 20px -12px rgba(0, 0, 0, 0.7);
+}
