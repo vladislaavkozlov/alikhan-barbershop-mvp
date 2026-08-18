@@ -91,8 +91,8 @@
       margin:0;
     }
     h1{font-size:clamp(2.1rem,2.9vw,3.05rem);line-height:1.06;overflow-wrap:break-word}
-    h2{font-size:clamp(1.5rem,2vw,1.95rem);margin:0 0 14px}
-    p,li{line-height:1.68;color:var(--muted);font-size:.96rem}
+    h2{font-size:clamp(1.32rem,1.6vw,1.62rem);margin:0 0 12px}
+    p,li{line-height:1.7;color:var(--muted);font-size:.92rem}
     p{margin:0 0 14px}
     a{color:var(--gold-soft);text-underline-offset:3px}
     a:hover{color:var(--gold)}
@@ -161,66 +161,41 @@
       align-items:start;
     }
     .doc-aside{position:sticky;top:118px}
-    .updated{
-      margin:22px 0 0;
-      color:var(--muted-2);
-      font-size:.82rem;
-      line-height:1.6;
-    }
-    .doc-aside .btn{margin-top:26px}
-
-    .callout{
-      background:linear-gradient(180deg,rgba(30,47,31,.5),rgba(25,31,27,.5));
-      border:1px solid var(--line);
-      border-left:2px solid var(--gold);
-      border-radius:18px;
-      padding:20px 22px;
-      margin:0 0 40px;
-      color:var(--muted);
-      font-size:.88rem;
-      line-height:1.62;
-    }
-    .callout b{color:var(--ink);font-weight:700}
+    /* Документ подаётся сдержанно: ни карточек, ни рамок - только текст,
+       тонкие разделители и та же палитра, что на главной */
     .placeholder{
-      background:rgba(216,179,106,.14);
-      border:1px solid rgba(216,179,106,.28);
-      border-radius:6px;
-      padding:1px 7px;
-      color:var(--gold-soft);
+      background:rgba(246,242,232,.06);
+      border-bottom:1px dashed var(--line-strong);
+      padding:1px 5px;
+      border-radius:4px;
+      color:var(--muted);
     }
 
     .doc-body h2{
       margin-top:0;
-      padding-top:36px;
+      padding-top:34px;
       border-top:1px solid var(--line);
       color:var(--ink);
     }
     .doc-body h2:first-of-type{padding-top:0;border-top:0}
-    .doc-body>*+h2{margin-top:44px}
+    .doc-body>*+h2{margin-top:42px}
     ol,ul{padding-left:20px;margin:0 0 14px}
     li{margin-bottom:9px}
-    li::marker{color:var(--gold)}
+    li::marker{color:var(--muted-2)}
 
-    table{
-      width:100%;
-      border-collapse:collapse;
-      margin:16px 0 22px;
-      font-size:.88rem;
-      background:rgba(24,30,26,.55);
-      border:1px solid var(--line);
-      border-radius:16px;
-      overflow:hidden;
+    /* Раздел 2 - вместо таблицы список: что собираем, откуда, обязательно ли */
+    .data-list{list-style:none;padding:0;margin:0 0 6px}
+    .data-list li{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      padding:14px 0;
+      margin:0;
+      border-bottom:1px solid var(--line);
     }
-    th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--muted)}
-    th{
-      color:var(--gold);
-      font-weight:700;
-      font-size:.7rem;
-      text-transform:uppercase;
-      letter-spacing:.12em;
-      background:rgba(30,47,31,.4);
-    }
-    tbody tr:last-child td{border-bottom:0}
+    .data-list li:last-child{border-bottom:0}
+    .d-name{color:var(--ink);font-size:.95rem;line-height:1.45}
+    .d-meta{color:var(--muted-2);font-size:.82rem;line-height:1.5}
 
     .brand-lockup{
       display:flex;
@@ -256,22 +231,6 @@
       .brand-wordmark-header{width:146px;height:38px}
       .doc{padding:104px 0 56px}
       h1{font-size:clamp(2rem,8.6vw,2.9rem);hyphens:auto}
-      table,thead,tbody,tr,td{display:block;width:100%}
-      thead{position:absolute;left:-9999px}
-      table{border-radius:16px;padding:4px;font-size:.86rem}
-      tr{border-bottom:1px solid var(--line);padding:6px 0}
-      tr:last-child{border-bottom:0}
-      td{border-bottom:0;padding:8px 12px}
-      td::before{
-        content:attr(data-label);
-        display:block;
-        margin-bottom:3px;
-        color:var(--gold);
-        font-size:.66rem;
-        text-transform:uppercase;
-        letter-spacing:.12em;
-        font-weight:700;
-      }
     }
     @media (prefers-reduced-motion:reduce){
       html{scroll-behavior:auto}
@@ -285,7 +244,7 @@
       <a class="brand" href="index.html" aria-label="АЛИХАН - на главную">
         <img class="brand-wordmark-header" src="assets/brand/wordmark-header.webp" alt="АЛИХАН">
       </a>
-      <a class="btn small" href="index.html#booking">Записаться</a>
+      <a class="btn small" href="index.html">Вернуться обратно</a>
     </div>
   </header>
 
@@ -294,14 +253,9 @@
       <aside class="doc-aside">
         <p class="eyebrow">Документ</p>
         <h1>Политика конфиденциальности</h1>
-        <p class="updated">Действует с <span class="placeholder">28.07.2026</span> · последнее изменение <span class="placeholder">28.07.2026</span></p>
-        <a class="btn" href="index.html#booking">Записаться онлайн</a>
       </aside>
 
       <div class="doc-body">
-        <div class="callout">
-      <b>Рабочий шаблон, не индивидуальная юридическая консультация.</b> Составлен по 152-ФЗ «О персональных данных» на основе типовых требований для сайта с формой онлайн-записи. Поля со значком <span class="placeholder">так помечены</span> - заполнить реальными реквизитами оператора перед публикацией. Для оборотов от 5 млн ₽/год рекомендуется финальная проверка у юриста-человека.
-    </div>
 
 <h2>1. Оператор персональных данных</h2>
     <p>
@@ -310,16 +264,28 @@
     <p>Настоящая Политика определяет, какие персональные данные (далее - ПДн) собирает Оператор через сайт alikhan-crm (далее - «Сайт») и форму онлайн-записи, для чего и как их обрабатывает - в соответствии с Федеральным законом от 27.07.2006 № 152-ФЗ «О персональных данных».</p>
 
     <h2>2. Какие данные собираем</h2>
-    <table>
-      <thead><tr><th>Данные</th><th>Откуда</th><th>Обязательно?</th></tr></thead>
-      <tbody>
-        <tr><td data-label="Данные">Имя</td><td data-label="Откуда">Форма записи</td><td data-label="Обязательно?">Да</td></tr>
-        <tr><td data-label="Данные">Телефон</td><td data-label="Откуда">Форма записи</td><td data-label="Обязательно?">Да</td></tr>
-        <tr><td data-label="Данные">Дата рождения</td><td data-label="Откуда">Указывается клиентом при первом визите администратору/мастеру</td><td data-label="Обязательно?">Нет (для поздравлений/акций)</td></tr>
-        <tr><td data-label="Данные">История визитов, выбранные услуги, суммы записей</td><td data-label="Откуда">Формируется автоматически при записи и оказании услуги</td><td data-label="Обязательно?">-</td></tr>
-        <tr><td data-label="Данные">Комментарии по клиенту (например особенности ухода, включая сведения о здоровье - аллергии)</td><td data-label="Откуда">Вносятся администратором/мастером со слов клиента</td><td data-label="Обязательно?">Нет, только если клиент сам сообщил</td></tr>
-      </tbody>
-    </table>
+    <ul class="data-list">
+      <li>
+        <span class="d-name">Имя</span>
+        <span class="d-meta">Форма записи · обязательно</span>
+      </li>
+      <li>
+        <span class="d-name">Телефон</span>
+        <span class="d-meta">Форма записи · обязательно</span>
+      </li>
+      <li>
+        <span class="d-name">Дата рождения</span>
+        <span class="d-meta">Указывается клиентом при первом визите администратору/мастеру · Нет (для поздравлений/акций)</span>
+      </li>
+      <li>
+        <span class="d-name">История визитов, выбранные услуги, суммы записей</span>
+        <span class="d-meta">Формируется автоматически при записи и оказании услуги</span>
+      </li>
+      <li>
+        <span class="d-name">Комментарии по клиенту (например особенности ухода, включая сведения о здоровье - аллергии)</span>
+        <span class="d-meta">Вносятся администратором/мастером со слов клиента · Нет, только если клиент сам сообщил</span>
+      </li>
+    </ul>
     <p>Отдельно: сведения о здоровье (например аллергия на косметический состав) относятся к специальной категории ПДн (ст. 10 152-ФЗ) и обрабатываются Оператором только в объёме, необходимом для безопасного оказания услуги, и только с согласия клиента - см. раздел 6.</p>
 
     <h2>3. Цели обработки</h2>
