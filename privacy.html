@@ -1,23 +1,19 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Политика конфиденциальности · Алихан</title>
-<meta name="description" content="Политика обработки персональных данных - барбершоп Алихан, Ставрополь">
-<style>
-  :root{
-    --bg: #12201A;
-    --surface: #1C2E24;
-    --surface-2: #24392C;
-    --accent: #C6A15B;
-    --accent-hover: #B58F45;
-    --text: #F3EFE4;
-    --text-muted: #B9B2A2;
-    --border: rgba(198, 161, 91, 0.25);
-    --leather: #17140F;
-    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Политика конфиденциальности - АЛИХАН</title>
+  <meta name="description" content="Политика обработки персональных данных - барбершоп АЛИХАН, Ставрополь">
+  <meta name="robots" content="noindex,follow">
+  <link rel="canonical" href="https://vladislaavkozlov.github.io/alikhan-barbershop-mvp/privacy.html">
+  <link rel="icon" type="image/png" sizes="48x48" href="assets/brand/icon-48.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="assets/brand/icon-96.png">
+  <link rel="shortcut icon" href="assets/brand/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/brand/apple-touch-icon-180.png">
+  <meta name="theme-color" content="#101311">
+
+  <style>
   @font-face{
     font-family: 'Manrope';
     font-style: normal; font-weight: 400; font-display: swap;
@@ -42,65 +38,272 @@
     src: url('assets/fonts/playfair-latin-600.woff2') format('woff2');
     unicode-range: U+0000-00FF, U+2000-206F, U+2122;
   }
-  *{ box-sizing: border-box; }
-  body{
-    margin: 0; background: var(--bg); color: var(--text);
-    font-family: 'Manrope', -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  h1, h2{ font-family: 'Playfair Display', Charter, Georgia, serif; font-weight: 600; margin: 0 0 12px; }
-  h1{ font-size: clamp(1.9rem, 3vw + 1.2rem, 2.6rem); }
-  h2{ font-size: 1.25rem; margin-top: 40px; }
-  p, li{ line-height: 1.6; color: var(--text); }
-  p{ margin: 0 0 14px; }
-  a{ color: var(--accent); }
-  .wrap{ max-width: 760px; margin: 0 auto; padding: 0 clamp(18px, 5vw, 40px); }
-  header.site{
-    position: sticky; top: 0; z-index: 20;
-    background: rgba(18,32,26,0.92); backdrop-filter: blur(6px);
-    border-bottom: 1px solid var(--border);
-  }
-  .nav{ display: flex; align-items: center; justify-content: space-between; padding: 14px clamp(18px, 5vw, 40px); max-width: 1080px; margin: 0 auto; }
-  .brand{ font-family: 'Playfair Display', Georgia, serif; font-weight: 600; font-size: 1.3rem; letter-spacing: 0.04em; color: var(--text); text-decoration: none; }
-  .btn{ display: inline-block; background: var(--accent); color: var(--leather); padding: 9px 18px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.88rem; }
-  .btn:hover{ background: var(--accent-hover); }
-  main{ padding: 48px 0 64px; }
-  .updated{ color: var(--text-muted); font-size: 0.86rem; margin-bottom: 32px; }
-  .callout{
-    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
-    padding: 16px 18px; font-size: 0.88rem; color: var(--text-muted); margin: 0 0 32px;
-  }
-  .callout b{ color: var(--text); }
-  .placeholder{ background: rgba(198,161,91,0.16); padding: 1px 6px; border-radius: 4px; color: var(--text); }
-  ol, ul{ padding-left: 22px; }
-  li{ margin-bottom: 8px; }
-  table{ width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.9rem; }
-  th, td{ text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  th{ color: var(--accent); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
-  footer.site{ border-top: 1px solid var(--border); padding: 24px 0 40px; font-size: 0.8rem; color: var(--text-muted); }
-  footer.site .wrap{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
-  footer.site a{ color: inherit; }
-</style>
+
+
+    /* Токены и базовая типографика - те же, что на главной (index.html):
+       страница юридическая, но должна читаться как часть одного сайта */
+    :root{
+      --bg:#0f1210;
+      --bg-soft:#141916;
+      --panel:#191f1b;
+      --panel-2:#202822;
+      --ink:#f6f2e8;
+      --muted:#aaa99f;
+      --muted-2:#7e8179;
+      --line:rgba(246,242,232,.12);
+      --line-strong:rgba(246,242,232,.22);
+      --gold:#B0905D;
+      --gold-soft:#DEC192;
+      --green-2:#1E2F1F;
+      --radius:24px;
+      --ease:cubic-bezier(.2,.8,.2,1);
+    }
+
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth;overflow-x:clip}
+    body{
+      margin:0;
+      background:
+        radial-gradient(circle at 82% 0%, rgba(53,86,68,.18), transparent 30rem),
+        radial-gradient(circle at 4% 36%, rgba(216,179,106,.06), transparent 26rem),
+        var(--bg);
+      color:var(--ink);
+      font-family:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      -webkit-font-smoothing:antialiased;
+      overflow-x:hidden;
+    }
+    body::before{
+      content:"";
+      position:fixed;
+      inset:0;
+      z-index:-1;
+      pointer-events:none;
+      opacity:.15;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.16'/%3E%3C/svg%3E");
+    }
+    img{display:block;max-width:100%}
+    .wrap{width:min(1180px,calc(100% - 40px));margin:0 auto}
+
+    h1,h2{
+      font-family:"Playfair Display",Georgia,serif;
+      font-weight:600;
+      letter-spacing:-.03em;
+      margin:0;
+    }
+    h1{font-size:clamp(2.6rem,4.4vw,4.2rem);line-height:1.02;overflow-wrap:break-word;hyphens:auto}
+    h2{font-size:clamp(1.5rem,2vw,1.95rem);margin:0 0 14px}
+    p,li{line-height:1.68;color:var(--muted);font-size:.96rem}
+    p{margin:0 0 14px}
+    a{color:var(--gold-soft);text-underline-offset:3px}
+    a:hover{color:var(--gold)}
+    .eyebrow{
+      margin:0 0 18px;
+      color:var(--gold);
+      font-size:.72rem;
+      text-transform:uppercase;
+      letter-spacing:.18em;
+      font-weight:700;
+    }
+
+    .btn{
+      appearance:none;
+      border:1px solid transparent;
+      min-height:52px;
+      padding:0 24px;
+      border-radius:999px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      text-decoration:none;
+      background:var(--gold);
+      color:#17140e;
+      font-weight:700;
+      font-size:.92rem;
+      cursor:pointer;
+      transition:transform .2s var(--ease),background .2s var(--ease);
+    }
+    .btn:hover{transform:translateY(-2px);background:var(--gold-soft);color:#17140e}
+    .btn.small{min-height:44px;padding:0 19px;font-size:.86rem}
+
+    .site-header{
+      position:fixed;
+      top:0;left:0;right:0;
+      z-index:80;
+      border-bottom:1px solid transparent;
+      transition:background .25s ease,border-color .25s ease;
+    }
+    .site-header.scrolled{
+      background:rgba(15,18,16,.82);
+      backdrop-filter:blur(18px);
+      -webkit-backdrop-filter:blur(18px);
+      border-color:var(--line);
+    }
+    .nav{min-height:78px;display:flex;align-items:center;gap:26px}
+    .brand{display:inline-flex;align-items:center;text-decoration:none;flex-shrink:0}
+    .brand-wordmark-header{
+      display:block;
+      width:172px;
+      height:44px;
+      object-fit:contain;
+      object-position:left center;
+      filter:drop-shadow(0 4px 16px rgba(0,0,0,.18));
+    }
+    .nav .btn{margin-left:auto}
+
+    /* Двухколоночный разворот - тот же приём, что в секции "Услуги и цены":
+       слева закреплённая шапка документа, справа сам текст политики */
+    .doc{padding:150px 0 90px}
+    .doc-layout{
+      display:grid;
+      grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);
+      gap:64px;
+      align-items:start;
+    }
+    .doc-aside{position:sticky;top:118px}
+    .updated{
+      margin:22px 0 0;
+      color:var(--muted-2);
+      font-size:.82rem;
+      line-height:1.6;
+    }
+    .doc-aside .btn{margin-top:26px}
+
+    .callout{
+      background:linear-gradient(180deg,rgba(30,47,31,.5),rgba(25,31,27,.5));
+      border:1px solid var(--line);
+      border-left:2px solid var(--gold);
+      border-radius:18px;
+      padding:20px 22px;
+      margin:0 0 40px;
+      color:var(--muted);
+      font-size:.88rem;
+      line-height:1.62;
+    }
+    .callout b{color:var(--ink);font-weight:700}
+    .placeholder{
+      background:rgba(216,179,106,.14);
+      border:1px solid rgba(216,179,106,.28);
+      border-radius:6px;
+      padding:1px 7px;
+      color:var(--gold-soft);
+    }
+
+    .doc-body h2{
+      margin-top:0;
+      padding-top:36px;
+      border-top:1px solid var(--line);
+      color:var(--ink);
+    }
+    .doc-body h2:first-of-type{padding-top:0;border-top:0}
+    .doc-body>*+h2{margin-top:44px}
+    ol,ul{padding-left:20px;margin:0 0 14px}
+    li{margin-bottom:9px}
+    li::marker{color:var(--gold)}
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      margin:16px 0 22px;
+      font-size:.88rem;
+      background:rgba(24,30,26,.55);
+      border:1px solid var(--line);
+      border-radius:16px;
+      overflow:hidden;
+    }
+    th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--muted)}
+    th{
+      color:var(--gold);
+      font-weight:700;
+      font-size:.7rem;
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      background:rgba(30,47,31,.4);
+    }
+    tbody tr:last-child td{border-bottom:0}
+
+    .brand-lockup{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:42px 20px;
+      border-top:1px solid var(--line);
+      border-bottom:1px solid var(--line);
+      background:
+        radial-gradient(circle at 50% 0%,rgba(216,179,106,.06),transparent 56%),
+        linear-gradient(180deg,rgba(30,47,31,.50),rgba(17,22,19,.34));
+    }
+    .brand-lockup img{width:min(470px,82vw);max-height:250px;object-fit:contain}
+
+    footer{
+      border-top:1px solid var(--line);
+      padding:28px 0 40px;
+      color:var(--muted-2);
+      font-size:.76rem;
+    }
+    .footer-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px}
+    .footer-links{display:flex;flex-wrap:wrap;gap:18px}
+    footer a{color:inherit;text-decoration:none;border-bottom:1px solid transparent}
+    footer a:hover{color:var(--ink);border-bottom-color:var(--line-strong)}
+
+    @media (max-width:980px){
+      .doc{padding:120px 0 70px}
+      .doc-layout{grid-template-columns:minmax(0,1fr);gap:38px}
+      .doc-aside{position:static}
+    }
+    @media (max-width:720px){
+      .nav{min-height:68px}
+      .brand-wordmark-header{width:146px;height:38px}
+      .doc{padding:104px 0 56px}
+      h1{font-size:clamp(2rem,8.6vw,2.9rem)}
+      table,thead,tbody,tr,td{display:block;width:100%}
+      thead{position:absolute;left:-9999px}
+      table{border-radius:16px;padding:4px;font-size:.86rem}
+      tr{border-bottom:1px solid var(--line);padding:6px 0}
+      tr:last-child{border-bottom:0}
+      td{border-bottom:0;padding:8px 12px}
+      td::before{
+        content:attr(data-label);
+        display:block;
+        margin-bottom:3px;
+        color:var(--gold);
+        font-size:.66rem;
+        text-transform:uppercase;
+        letter-spacing:.12em;
+        font-weight:700;
+      }
+    }
+    @media (prefers-reduced-motion:reduce){
+      html{scroll-behavior:auto}
+      *{transition-duration:.01ms!important}
+    }
+  </style>
 </head>
 <body>
+  <header class="site-header" id="site-header">
+    <div class="wrap nav">
+      <a class="brand" href="index.html" aria-label="АЛИХАН - на главную">
+        <img class="brand-wordmark-header" src="assets/brand/wordmark-header.webp" alt="АЛИХАН">
+      </a>
+      <a class="btn small" href="index.html#booking">Записаться</a>
+    </div>
+  </header>
 
-<header class="site">
-  <div class="nav">
-    <a href="index.html" class="brand">АЛИХАН</a>
-    <a href="index.html#booking" class="btn">Записаться</a>
-  </div>
-</header>
+  <main class="doc">
+    <div class="wrap doc-layout">
+      <aside class="doc-aside">
+        <p class="eyebrow">Документ</p>
+        <h1>Политика конфиденциальности</h1>
+        <p class="updated">Действует с <span class="placeholder">28.07.2026</span> · последнее изменение <span class="placeholder">28.07.2026</span></p>
+        <a class="btn" href="index.html#booking">Записаться онлайн</a>
+      </aside>
 
-<main>
-  <div class="wrap">
-    <h1>Политика конфиденциальности</h1>
-    <p class="updated">Действует с <span class="placeholder">28.07.2026</span> · последнее изменение <span class="placeholder">28.07.2026</span></p>
-
-    <div class="callout">
+      <div class="doc-body">
+        <div class="callout">
       <b>Рабочий шаблон, не индивидуальная юридическая консультация.</b> Составлен по 152-ФЗ «О персональных данных» на основе типовых требований для сайта с формой онлайн-записи. Поля со значком <span class="placeholder">так помечены</span> - заполнить реальными реквизитами оператора перед публикацией. Для оборотов от 5 млн ₽/год рекомендуется финальная проверка у юриста-человека.
     </div>
 
-    <h2>1. Оператор персональных данных</h2>
+<h2>1. Оператор персональных данных</h2>
     <p>
       <span class="placeholder">ЗАМЕНИТЬ: ФИО ИП / название ООО, ИНН, ОГРНИП/ОГРН</span> (далее - «Оператор»), адрес: Ставрополь, ул. Андрея Голуба 16 ст1, контактный телефон: <a href="tel:+79899977070">+7 989 997 70 70</a>, email для обращений: <span class="placeholder">ЗАМЕНИТЬ на реальный email</span>.
     </p>
@@ -110,11 +313,11 @@
     <table>
       <thead><tr><th>Данные</th><th>Откуда</th><th>Обязательно?</th></tr></thead>
       <tbody>
-        <tr><td>Имя</td><td>Форма записи</td><td>Да</td></tr>
-        <tr><td>Телефон</td><td>Форма записи</td><td>Да</td></tr>
-        <tr><td>Дата рождения</td><td>Указывается клиентом при первом визите администратору/мастеру</td><td>Нет (для поздравлений/акций)</td></tr>
-        <tr><td>История визитов, выбранные услуги, суммы записей</td><td>Формируется автоматически при записи и оказании услуги</td><td>-</td></tr>
-        <tr><td>Комментарии по клиенту (например особенности ухода, включая сведения о здоровье - аллергии)</td><td>Вносятся администратором/мастером со слов клиента</td><td>Нет, только если клиент сам сообщил</td></tr>
+        <tr><td data-label="Данные">Имя</td><td data-label="Откуда">Форма записи</td><td data-label="Обязательно?">Да</td></tr>
+        <tr><td data-label="Данные">Телефон</td><td data-label="Откуда">Форма записи</td><td data-label="Обязательно?">Да</td></tr>
+        <tr><td data-label="Данные">Дата рождения</td><td data-label="Откуда">Указывается клиентом при первом визите администратору/мастеру</td><td data-label="Обязательно?">Нет (для поздравлений/акций)</td></tr>
+        <tr><td data-label="Данные">История визитов, выбранные услуги, суммы записей</td><td data-label="Откуда">Формируется автоматически при записи и оказании услуги</td><td data-label="Обязательно?">-</td></tr>
+        <tr><td data-label="Данные">Комментарии по клиенту (например особенности ухода, включая сведения о здоровье - аллергии)</td><td data-label="Откуда">Вносятся администратором/мастером со слов клиента</td><td data-label="Обязательно?">Нет, только если клиент сам сообщил</td></tr>
       </tbody>
     </table>
     <p>Отдельно: сведения о здоровье (например аллергия на косметический состав) относятся к специальной категории ПДн (ст. 10 152-ФЗ) и обрабатываются Оператором только в объёме, необходимом для безопасного оказания услуги, и только с согласия клиента - см. раздел 6.</p>
@@ -150,15 +353,31 @@
 
     <h2>11. Изменения Политики</h2>
     <p>Оператор вправе вносить изменения в настоящую Политику. Действующая редакция всегда доступна по этому адресу.</p>
-  </div>
-</main>
+      </div>
+    </div>
+  </main>
 
-<footer class="site">
-  <div class="wrap">
-    <span>Алихан · премиум мужские стрижки · Ставрополь</span>
-    <span><a href="index.html">На главную</a></span>
+  <div class="brand-lockup" aria-label="Фирменный логотип АЛИХАН">
+    <img src="assets/brand/lockup-footer.webp" alt="АЛИХАН - премиум мужские стрижки">
   </div>
-</footer>
 
+  <footer>
+    <div class="wrap footer-row">
+      <span>АЛИХАН - премиум мужские стрижки - Ставрополь</span>
+      <div class="footer-links">
+        <a href="index.html">На главную</a>
+        <a href="index.html#contacts">Контакты</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const header = document.getElementById("site-header");
+    function updateHeader(){
+      header.classList.toggle("scrolled", window.scrollY > 24);
+    }
+    updateHeader();
+    window.addEventListener("scroll", updateHeader, {passive:true});
+  </script>
 </body>
 </html>
