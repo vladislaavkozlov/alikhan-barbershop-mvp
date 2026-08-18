@@ -626,3 +626,49 @@ body.app-shell-active .app-sidebar label.is-active {
 }
 
 .crm-page-loader__brand-mark { margin-bottom: 18px; }
+
+/* Воздух и акценты (18.08.2026, третья правка Влада «всё равно мрачно»).
+   Тёмный интерфейс выглядит унылым не от темноты, а от отсутствия перепадов:
+   ниже - золотые метки на заголовках, видимые рамки карточек и подсветка
+   строки под курсором, чтобы экран перестал быть однородным полем */
+
+.crm-navigation-ui .staff-card {
+  border: 1px solid var(--border);
+  background: var(--panel-bg-collapsed);
+}
+
+.crm-navigation-ui .staff-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: var(--panel-bg-light);
+}
+
+.crm-navigation-ui .staff-card[open] {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
+  background: var(--panel-bg);
+}
+
+/* Иконка раздела в золотом кружке - раньше растворялась в фоне карточки */
+.crm-navigation-ui .staff-card > summary .avatar-icon,
+.crm-navigation-ui .staff-card > summary .weekday-icon {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-2));
+  color: var(--accent-hover);
+}
+
+/* Шапка кабинета отделена от рабочей области - без линии верх «утекал» в фон */
+body.app-shell-active .app-topbar {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-header) 88%, #ffffff 2%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* Рабочая область получает собственную подсветку сверху: на разделах с одной-двумя
+   карточками (Финансы, Уведомления) нижние две трети экрана были голым фоном и
+   читались как провал, а не как полотно интерфейса */
+body.app-shell-active .crm-shell-main,
+body.app-shell-active main,
+body.app-shell-active #crmMain {
+  background:
+    linear-gradient(180deg, rgba(246, 242, 232, 0.035), rgba(246, 242, 232, 0) 340px),
+    radial-gradient(ellipse 900px 380px at 22% 0%, rgba(216, 179, 106, 0.05), transparent 70%);
+}
