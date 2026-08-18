@@ -10,5 +10,8 @@ test('публичный сайт не подставляет статическ
   for (const field of ['experienceText', 'strengthsText', 'certificatesText', 'portfolio', 'photoUrl']) {
     assert.match(source, new RegExp(field));
   }
-  assert.match(source, /publicMastersError/);
+  // Редизайн 18.08.2026: витрина команды больше не рисует текст-заглушку поверх
+  // разметки - пока список мастеров пуст (запрос идёт или упал), в сетке остаются
+  // карточки-фоллбэк из index.html, и ни одна из них не выдаётся за данные CRM
+  assert.match(source, /if \(!mastersGrid \|\| !masters\.length\) return;/);
 });

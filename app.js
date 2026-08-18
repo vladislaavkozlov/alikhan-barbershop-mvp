@@ -446,37 +446,64 @@ function renderPrice() {
   }
 }
 
-function renderMasters() {
-  mastersGrid.replaceChildren();
-  if (!masters.length) {
-    const message = document.createElement('p');
-    message.className = 'masters-disclaimer';
-    message.textContent = mastersGrid.dataset.publicMastersError === '1'
-      ? 'Не удалось загрузить мастеров. Обновите страницу или попробуйте позже'
-      : 'Загружаем мастеров…';
-    mastersGrid.append(message);
-    return;
+// Редизайн 18.08.2026 - витрина команды. Разметка в index.html (карточки с ролью,
+// описанием и инициалами) - дизайнерский фоллбэк: он виден сразу, пока идёт запрос,
+// и остаётся на экране, если /public/masters не ответил. Как только данные пришли,
+// карточки пересобираются из CRM (фото, стаж, портфолио), а роль и описание из
+// макета подставляются по имени мастера - их в API нет.
+const showcaseFallbackByName = new Map();
+if (mastersGrid) {
+  for (const card of mastersGrid.querySelectorAll('.master-card')) {
+    const name = card.querySelector('.master-name')?.textContent?.trim();
+    if (!name) continue;
+    showcaseFallbackByName.set(name, {
+      tag: card.querySelector('.master-placeholder-tag')?.textContent?.trim() ?? '',
+      detail: card.querySelector('.master-profile-detail')?.textContent?.trim() ?? '',
+    });
   }
+}
+
+function masterInitials(name) {
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .join('');
+}
+
+function renderMasters() {
+  // Пустой список - это либо "ещё грузим", либо ошибка сети (её отдельно показывает
+  // блок записи ниже). В обоих случаях витрина остаётся на разметке из index.html,
+  // без мигания текстом-заглушкой.
+  if (!mastersGrid || !masters.length) return;
+  mastersGrid.replaceChildren();
   let i = 0;
   for (const master of masters) {
-    const card = document.createElement('div');
+    const design = showcaseFallbackByName.get(master.name) ?? {};
+    const card = document.createElement('article');
     card.className = 'master-card';
 
-    const avatar = master.photoUrl ? document.createElement('img') : document.createElement('div');
+    const avatar = document.createElement('div');
     avatar.className = 'master-avatar';
     if (master.photoUrl) {
-      avatar.src = master.photoUrl;
-      avatar.alt = `Фотография мастера ${master.name}`;
+      const photo = document.createElement('img');
+      photo.src = master.photoUrl;
+      photo.alt = `Фотография мастера ${master.name}`;
+      photo.loading = 'lazy';
+      // фото могло быть удалено из CRM или не отдаться - показываем инициалы
+      photo.addEventListener('error', () => {
+        photo.remove();
+        avatar.classList.add('master-fallback');
+        avatar.textContent = masterInitials(master.name);
+      });
+      avatar.append(photo);
     } else {
-      avatar.textContent = master.name
-        .split(' ')
-        .map((part) => part[0])
-        .join('');
+      avatar.classList.add('master-fallback');
+      avatar.textContent = masterInitials(master.name);
     }
 
     const tag = document.createElement('span');
     tag.className = 'master-placeholder-tag';
-    tag.textContent = master.isPlaceholder ? 'пример' : 'мастер';
+    tag.textContent = master.isPlaceholder ? 'пример' : (design.tag || 'мастер');
 
     const name = document.createElement('div');
     name.className = 'master-name';
@@ -487,13 +514,25 @@ function renderMasters() {
     win.textContent = `${master.workWindow.start}-${master.workWindow.end}`;
 
     card.append(avatar, tag, name, win);
+
+    let hasOwnDetails = false;
     for (const [field, label] of [['experienceText', 'Стаж'], ['strengthsText', 'Сильные стороны'], ['certificatesText', 'Курсы и сертификаты']]) {
       if (!master[field]) continue;
       const detail = document.createElement('p');
       detail.className = 'master-profile-detail';
       detail.textContent = `${label}: ${master[field]}`;
       card.append(detail);
+      hasOwnDetails = true;
     }
+    // мастер без заполненного профиля в CRM не остаётся с голой карточкой -
+    // подставляем описание из макета, если оно для него написано
+    if (!hasOwnDetails && design.detail) {
+      const detail = document.createElement('p');
+      detail.className = 'master-profile-detail';
+      detail.textContent = design.detail;
+      card.append(detail);
+    }
+
     if (master.portfolio?.length) {
       const portfolio = document.createElement('div');
       portfolio.className = 'master-portfolio';
@@ -505,6 +544,9 @@ function renderMasters() {
       }
       card.append(portfolio);
     }
+
+    // ссылку "Выбрать мастера" дорисовывает CRO-скрипт index.html - он же
+    // связывает карточку с выбором этого мастера в форме записи
     mastersGrid.append(card);
     armReveal(card, i * 50);
     i += 1;
@@ -898,10 +940,8 @@ if (window.ALIKHAN_API_URL) {
     masters = rows.map((m) => ({ ...m, workWindow: { start: '10:00', end: '20:00' }, isPlaceholder: false }));
     renderMasters(); renderMasterOptions();
   }).catch(() => {
-    if (mastersGrid) {
-      mastersGrid.dataset.publicMastersError = '1';
-      renderMasters();
-    }
+    // витрина команды остаётся на разметке-фоллбэке из index.html (см. renderMasters),
+    // а форма записи честно говорит, что мастеров не удалось загрузить
     masterGrid.replaceChildren();
     const message = document.createElement('p');
     message.className = 'form-msg error';
