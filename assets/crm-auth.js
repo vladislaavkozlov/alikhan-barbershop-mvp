@@ -47,7 +47,7 @@ function buildLoginGate() {
   div.innerHTML = `
     <div class="login-card">
       <p class="login-kicker">CRM</p>
-      <div class="login-brand">АЛИХАН</div>
+      <img class="login-brand-mark" src="assets/brand/wordmark-header.webp" alt="АЛИХАН">
       <p class="login-tag">Вход для сотрудников</p>
       <form id="loginForm" novalidate>
         <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" required autocomplete="username"></div>

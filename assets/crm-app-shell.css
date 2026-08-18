@@ -588,3 +588,41 @@ body::before {
 @media (max-width: 720px) {
   .brand-wordmark { width: 124px; height: 32px; }
 }
+
+/* Подсветка кнопок (18.08.2026, правка Влада «кнопки выглядят грустно»): плоская
+   заливка золотом на графите читается тускло - добавлены мягкое свечение под
+   кнопкой и подъём на наведении, как у кнопок сайта */
+.btn-primary {
+  box-shadow: 0 8px 22px -12px rgba(176, 144, 93, 0.75);
+  transition: transform 160ms var(--ease-out), background 160ms var(--ease-out),
+              box-shadow 160ms var(--ease-out);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px -12px rgba(222, 193, 146, 0.85);
+}
+
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
+
+.btn-primary:disabled { box-shadow: none; }
+
+/* Активный пункт бокового меню - тот же золотой блик, чтобы выбранный раздел
+   не выглядел просто заливкой */
+body.app-shell-active .app-sidebar input:checked + label,
+body.app-shell-active .app-sidebar label.is-active {
+  box-shadow: 0 8px 20px -14px rgba(176, 144, 93, 0.8);
+}
+
+/* Вензель вместо слова на экране входа и на экране загрузки - один бренд во всех
+   трёх местах: шапка кабинета, вход, загрузка (правка Влада 18.08.2026) */
+.login-brand-mark,
+.crm-page-loader__brand-mark {
+  display: block;
+  width: 190px;
+  height: 52px;
+  margin: 0 auto 6px;
+  object-fit: contain;
+}
+
+.crm-page-loader__brand-mark { margin-bottom: 18px; }
