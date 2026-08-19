@@ -3,6 +3,9 @@
 // пятен от старой темы и (2) текста ниже порога читаемости WCAG AA
 // (4.5:1 мелкий, 3:1 крупный/полужирный от 18.66px).
 //
+// NO_INJECT=1 - не подмешивать локальный файл. Нужен после деплоя: тогда скрипт
+// меряет РОВНО то, что отдаёт прод, без единой локальной правки в кадре.
+//
 // Почему прогон идёт по ПРОДУ, а не по локальному серверу: боевой API не
 // принимает запросы с origin localhost - вход просто не проходит («Нет связи с
 // сервером»). Поэтому скрипт открывает боевую страницу с реальными данными и
@@ -66,7 +69,10 @@ await withBrowser(async (s) => {
   await s.setViewport(1440, 2000, false);
   await s.navigate(`${SITE}/${a.p}?t=${Date.now()}`);
   for(let i=0;i<60;i++){if(await s.eval('!!document.getElementById("loginEmail")'))break;await s.sleep(200);}
-  const inject=`(function(){var o=document.getElementById('daylight');if(o)o.remove();var t=document.createElement('style');t.id='daylight';t.textContent=${JSON.stringify(css)};document.head.appendChild(t);return 1})()`;
+  const inject = process.env.NO_INJECT
+    ? `(function(){return 'прод как есть, локальный файл не подмешан'})()`
+    : `(function(){var o=document.getElementById('daylight');if(o)o.remove();var t=document.createElement('style');t.id='daylight';t.textContent=${JSON.stringify(css)};document.head.appendChild(t);return 1})()`;
+  if(process.env.NO_INJECT) console.log('режим NO_INJECT: меряю прод как есть');
   await s.eval(inject);
   await s.eval(`(function(){document.getElementById('loginEmail').value=${JSON.stringify(a.e)};document.getElementById('loginPin').value=${JSON.stringify(a.pin)};document.getElementById('loginForm').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));})()`);
   for(let i=0;i<80;i++){if(await s.eval('!document.getElementById("crmMain").hidden'))break;await s.sleep(250);}
