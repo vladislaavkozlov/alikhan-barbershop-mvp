@@ -672,3 +672,51 @@ body.app-shell-active #crmMain {
     linear-gradient(180deg, rgba(246, 242, 232, 0.035), rgba(246, 242, 232, 0) 340px),
     radial-gradient(ellipse 900px 380px at 22% 0%, rgba(216, 179, 106, 0.05), transparent 70%);
 }
+
+/* Фирменный герб водяным знаком в рабочей области (просьба Влада 18.08.2026).
+   Тот же файл, что вензель в герое сайта. Заодно закрывает вторую претензию -
+   на разделах с двумя карточками низ экрана переставал быть голым полем.
+   position: fixed + pointer-events: none - знак не участвует в раскладке,
+   не перехватывает клики и не создаёт прокрутку */
+body.app-shell-active .crm-shell-main,
+body.app-shell-active main,
+body.app-shell-active #crmMain {
+  position: relative;
+}
+
+/* Знак рисуется внутри рабочей области, а не на body: на body он оказывался под
+   её собственным фоном и пропадал. position шапки и сайдбара не трогаем - они
+   fixed, и любая правка их позиционирования роняет раскладку (проверено) */
+body.app-shell-active .crm-shell-main::after,
+body.app-shell-active main::after,
+body.app-shell-active #crmMain::after {
+  content: "";
+  position: absolute;
+  right: clamp(-30px, -1.5vw, 0px);
+  bottom: 4vh;
+  width: clamp(320px, 34vw, 560px);
+  height: clamp(130px, 14vw, 230px);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.09;
+  background: url("assets/brand/crest-hero.webp") right center / contain no-repeat;
+}
+
+/* Содержимое разделов держится выше знака */
+.crm-navigation-ui .staff-card,
+.crm-navigation-ui .page-tabs {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 720px) {
+  /* на телефоне экран занят делом - знак мельче и тише */
+  body.app-shell-active .crm-shell-main::after,
+  body.app-shell-active main::after,
+  body.app-shell-active #crmMain::after {
+    width: 230px;
+    height: 96px;
+    bottom: 10vh;
+    opacity: 0.07;
+  }
+}
