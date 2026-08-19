@@ -682,6 +682,9 @@ body.app-shell-active .crm-shell-main,
 body.app-shell-active main,
 body.app-shell-active #crmMain {
   position: relative;
+  /* область всегда во весь экран: иначе на коротких разделах она высотой
+     в 500px, и знак в её низу оказывается посреди страницы и теряется */
+  min-height: calc(100vh - var(--topbar-h, 68px));
 }
 
 /* Знак рисуется внутри рабочей области, а не на body: на body он оказывался под
@@ -693,12 +696,12 @@ body.app-shell-active #crmMain::after {
   content: "";
   position: absolute;
   right: clamp(-30px, -1.5vw, 0px);
-  bottom: 4vh;
-  width: clamp(320px, 34vw, 560px);
-  height: clamp(130px, 14vw, 230px);
+  bottom: 5vh;
+  width: clamp(340px, 36vw, 600px);
+  height: clamp(140px, 15vw, 250px);
   z-index: 0;
   pointer-events: none;
-  opacity: 0.09;
+  opacity: 0.12;
   background: url("assets/brand/crest-hero.webp") right center / contain no-repeat;
 }
 
