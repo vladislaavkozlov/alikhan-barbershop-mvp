@@ -670,7 +670,14 @@ body.app-shell-active main,
 body.app-shell-active #crmMain {
   background:
     linear-gradient(180deg, rgba(246, 242, 232, 0.035), rgba(246, 242, 232, 0) 340px),
-    radial-gradient(ellipse 900px 380px at 22% 0%, rgba(216, 179, 106, 0.05), transparent 70%);
+    radial-gradient(ellipse 900px 380px at 22% 0%, rgba(216, 179, 106, 0.05), transparent 70%),
+    /* вуаль цвета фона гасит герб до водяного знака - у background-image нет
+       собственной прозрачности, поэтому приглушаем слоем поверх него */
+    linear-gradient(rgba(15, 18, 16, 0.9), rgba(15, 18, 16, 0.9)),
+    url("assets/brand/crest-hero.webp");
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+  background-position: center top, center top, right -30px bottom 6vh, right -30px bottom 6vh;
+  background-size: auto, auto, clamp(340px, 36vw, 600px) auto, clamp(340px, 36vw, 600px) auto;
 }
 
 /* Фирменный герб водяным знаком в рабочей области (просьба Влада 18.08.2026).
@@ -685,31 +692,6 @@ body.app-shell-active #crmMain {
   /* область всегда во весь экран: иначе на коротких разделах она высотой
      в 500px, и знак в её низу оказывается посреди страницы и теряется */
   min-height: calc(100vh - var(--topbar-h, 68px));
-}
-
-/* Знак рисуется внутри рабочей области, а не на body: на body он оказывался под
-   её собственным фоном и пропадал. position шапки и сайдбара не трогаем - они
-   fixed, и любая правка их позиционирования роняет раскладку (проверено) */
-body.app-shell-active .crm-shell-main::after,
-body.app-shell-active main::after,
-body.app-shell-active #crmMain::after {
-  content: "";
-  position: absolute;
-  right: clamp(-30px, -1.5vw, 0px);
-  bottom: 5vh;
-  width: clamp(340px, 36vw, 600px);
-  height: clamp(140px, 15vw, 250px);
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.12;
-  background: url("assets/brand/crest-hero.webp") right center / contain no-repeat;
-}
-
-/* Содержимое разделов держится выше знака */
-.crm-navigation-ui .staff-card,
-.crm-navigation-ui .page-tabs {
-  position: relative;
-  z-index: 1;
 }
 
 @media (max-width: 720px) {
