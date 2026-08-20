@@ -795,7 +795,12 @@
     .option-grid[aria-disabled="true"]{opacity:.48;pointer-events:none}
     #service-grid .option-card{min-height:76px;height:100%}
     #master-grid .master-option{min-width:0;width:auto;height:100%}
-    #master-grid .option-card{min-height:78px;height:100%}
+    /* flex-basis:auto (20.08.2026): карточка мастера лежит внутри .master-option -
+       колоночного флекса, где flex-basis из общего правила .option-card (150px) читается
+       как ВЫСОТА. Пока мастеров показывали всех подряд, лишние 60px прятались за
+       бейджем доступности; теперь список сужается тарифом и под одной карточкой
+       оставалась заметная пустота. Высоту задаёт содержимое, min-height остаётся. */
+    #master-grid .option-card{min-height:78px;height:100%;flex-basis:auto}
     .service-summary{min-height:42px}
     .service-summary[hidden]{display:block;visibility:hidden}
     @media(max-width:520px){
@@ -835,6 +840,16 @@
     .option-card .opt-name{font-weight:700}
     .option-card .opt-meta{font-size:.74rem;color:#777a73}
     .option-card.selected .opt-meta{color:#d9dfda}
+    /* Карточки тарифа (20.08.2026) - всегда в два столбца даже на узком экране: это
+       выбор ИЗ ДВУХ, и одна карточка под другой читается как список, а не как развилка */
+    .option-grid--tier{grid-template-columns:repeat(2,minmax(0,1fr))}
+    #tier-grid .option-card{min-height:74px}
+    /* Метка топ-мастера рядом с именем в списке выбора - тем же золотом, что и в CRM */
+    .opt-top-tag{
+      display:inline-block;padding:1px 5px;border-radius:5px;background:rgba(146,115,58,.16);
+      color:#7a5f27;font-size:.62rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;vertical-align:2px;
+    }
+    .option-card.selected .opt-top-tag{background:rgba(255,249,238,.18);color:#f0e2c4}
     .opt-availability{font-size:.72rem;color:#745a2b}
     .option-card.selected .opt-availability{color:#ead9b5}
     .opt-availability--none{color:#888b85}
@@ -1567,7 +1582,7 @@
             </p>
 
             <div class="hero-actions">
-              <a class="btn" href="#booking">Выбрать мастера и время</a>
+              <a class="btn" href="#booking">Выбрать услугу и время</a>
               <a class="btn secondary" href="#works">Посмотреть работы</a>
             </div>
 
@@ -1708,7 +1723,7 @@
             <h2>Выберите мастера, к которому захотите вернуться</h2>
           </div>
           <p class="section-copy">
-            Выберите мастера, которому хотите доверить свой образ. После выбора можно сразу перейти к реальному свободному времени.
+            Выберите мастера, которому хотите доверить свой образ. В форме записи сначала услуги, потом тариф - обычный мастер или топ-мастер - и уже потом свободное время.
           </p>
         </div>
 
@@ -1797,7 +1812,7 @@
           <p class="eyebrow">Онлайн-запись</p>
           <h2>Осталось выбрать время</h2>
           <p>
-            Выберите мастера, услуги и дату - система покажет только доступные окна.
+            Выберите услуги, тариф и мастера - система покажет только доступные окна.
           </p>
 
           <div class="booking-points">
@@ -1808,21 +1823,34 @@
         </div>
 
         <form id="booking-form" class="booking-shell" novalidate>
+          <!-- Порядок шагов изменён 20.08.2026 (задача Влада: «клиент выбирает услугу,
+               и ему открывается выбор - у обычного мастера за стандартную оплату или у
+               топ-мастера за +»). До этого первым шагом был мастер, и клиент выбирал
+               его вслепую по имени, не понимая, чем один дороже другого. Теперь сначала
+               услуги, потом тариф, и только потом человек. -->
           <div class="field">
-            <label id="f-master-label">1. Мастер</label>
-            <div id="master-grid" class="option-grid" role="group" aria-labelledby="f-master-label"></div>
-          </div>
-
-          <div class="field">
-            <label id="f-service-label">2. Услуги - можно несколько</label>
-            <div id="service-grid" class="option-grid" role="group" aria-labelledby="f-service-label" aria-disabled="true">
-              <p class="option-hint">Сначала выберите мастера</p>
-            </div>
+            <label id="f-service-label">1. Услуги - можно несколько</label>
+            <div id="service-grid" class="option-grid" role="group" aria-labelledby="f-service-label"></div>
             <p id="service-summary" class="service-summary" hidden></p>
           </div>
 
+          <!-- Блок тарифа показывается, только когда по выбранным услугам есть И
+               топ-мастера, И обычные: если все одного уровня, выбирать не из чего, и
+               лишний шаг в форме стоил бы записей. Скрытием управляет app.js. -->
+          <div class="field" id="tier-field" hidden>
+            <label id="f-tier-label">2. У какого мастера</label>
+            <div id="tier-grid" class="option-grid option-grid--tier" role="group" aria-labelledby="f-tier-label"></div>
+          </div>
+
+          <div class="field">
+            <label id="f-master-label">3. Мастер</label>
+            <div id="master-grid" class="option-grid" role="group" aria-labelledby="f-master-label" aria-disabled="true">
+              <p class="option-hint">Сначала выберите услуги</p>
+            </div>
+          </div>
+
           <div class="field date-field">
-            <label id="f-date-label">3. Дата</label>
+            <label id="f-date-label">4. Дата</label>
             <button
               type="button"
               id="date-toggle"
@@ -1831,7 +1859,7 @@
               aria-haspopup="dialog"
               aria-expanded="false"
               aria-labelledby="f-date-label">
-              <span id="date-toggle-label" class="date-toggle-label placeholder">Сначала выберите мастера</span>
+              <span id="date-toggle-label" class="date-toggle-label placeholder">Сначала выберите услуги и мастера</span>
               <svg class="cal-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
                 <rect x="3" y="5" width="18" height="16" rx="2"/>
                 <path d="M8 3v4M16 3v4M3 10h18"/>
@@ -1857,9 +1885,9 @@
           </div>
 
           <div class="field">
-            <label>4. Свободное время</label>
+            <label>5. Свободное время</label>
             <div id="slots-wrap" class="slots-wrap">
-              <p class="slots-hint">Сначала выберите мастера, услугу и дату</p>
+              <p class="slots-hint">Сначала выберите услуги, мастера и дату</p>
             </div>
           </div>
 
@@ -2023,7 +2051,7 @@
   </footer>
 
   <div class="mobile-cta">
-    <a class="btn" href="#booking">Выбрать мастера и время</a>
+    <a class="btn" href="#booking">Выбрать услугу и время</a>
   </div>
 
   <script>
@@ -2081,7 +2109,15 @@
               const n = btn.querySelector('.opt-name')?.textContent?.trim() || btn.textContent.trim();
               return name && n.includes(name);
             });
-            if(match) match.click();
+            if(match){
+              match.click();
+            } else if(name){
+              // 20.08.2026: мастера в форме появляются только после выбора услуг, и на
+              // момент клика карточки может ещё не быть. Имя запоминается, app.js
+              // выберет этого мастера сам, как только он окажется в списке -
+              // иначе ссылка «Выбрать мастера» просто скроллила бы в никуда
+              window.__preferredMasterName = name;
+            }
             booking.scrollIntoView({behavior:'smooth', block:'start'});
           });
         });

@@ -112,9 +112,22 @@ export async function withStaticServer(apiUrl, fn) {
     try {
       let data = await readFile(join(ROOT, p));
       if (p.endsWith('.html')) {
-        data = Buffer.from(
-          data.toString('utf8').replace(/window\.ALIKHAN_API_URL = '[^']*';/, `window.ALIKHAN_API_URL = '${apiUrl}';`)
+        // Кавычки любые (20.08.2026): редизайн лендинга 18.08 переписал строку с
+        // одинарных кавычек на двойные, регулярка перестала совпадать - и КАЖДЫЙ
+        // прогон, открывавший index.html через этот сервер, молча работал против
+        // БОЕВОГО бэкенда на Amvera вместо эфемерной базы. Ошибка тихая: страница
+        // выглядит рабочей, прогон «зелёный», а записи уезжают в прод. Поэтому ниже
+        // ещё и жёсткая проверка результата - лучше упасть, чем снова не заметить.
+        const html = data.toString('utf8').replace(
+          /window\.ALIKHAN_API_URL\s*=\s*["'][^"']*["'];/,
+          `window.ALIKHAN_API_URL = '${apiUrl}';`
         );
+        if (/ALIKHAN_API_URL/.test(html) && !html.includes(`window.ALIKHAN_API_URL = '${apiUrl}';`)) {
+          res.writeHead(500);
+          res.end('static server: не удалось подменить ALIKHAN_API_URL - страница ушла бы в прод');
+          return;
+        }
+        data = Buffer.from(html);
       }
       res.writeHead(200, { 'Content-Type': MIME[extname(p)] || 'application/octet-stream' });
       res.end(data);

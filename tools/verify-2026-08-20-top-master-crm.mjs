@@ -7,12 +7,19 @@
 //   4. администратор те же поля видит, но не правит (read-only, как было с длительностью)
 //   5. карточка записи в «Дне» помечает топ-визит, обычный не помечает
 //   6. форма записи показывает условия визита строкой «канал · запись к топ-мастеру»
-import { withEphemeralServer, withStaticServer, makeChecker, hashPin, randomPin, daysFromToday } from './verify-lib.mjs';
+import { withEphemeralServer, withStaticServer, makeChecker, hashPin, randomPin } from './verify-lib.mjs';
 import { withBrowser } from './cdp.mjs';
 
 const { check, summary } = makeChecker();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const TODAY = daysFromToday(0);
+// Локальная дата, а не daysFromToday(0): тот считает по UTC (toISOString), а «День» в
+// CRM открывается на дате БРАУЗЕРА. Ночью по московскому времени это разные сутки -
+// прогон, зелёный вечером, после полуночи искал записи во вчерашнем дне и не находил.
+function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const TODAY = todayLocal();
 
 let crashed = false;
 try {
@@ -163,6 +170,9 @@ try {
 
         // ── 6. карточки записей в «Дне» ───────────────────────────────────
         await login('crm-owner.html', 'tm-owner@alikhan.test', ownerPin);
+        // Возвращаемся на «Расписание» явно: активная панель запоминается между
+        // входами, а предыдущие шаги прогона оставили открытой «Команду»
+        await s.eval(`document.querySelector('#pt-a, [for="pt-a"]')?.click()`);
         for (let i = 0; i < 60 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('.appt[data-id]'))`)); i++) await sleep(200);
         const cards = JSON.parse(await s.eval(`JSON.stringify([...document.querySelectorAll('.appt[data-id]')].map(c => ({
           master: c.dataset.masterId, tier: c.dataset.masterTier, badge: !!c.querySelector('.appt-top-tier'), text: c.innerText.replace(/\\s+/g,' ').trim()

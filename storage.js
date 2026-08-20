@@ -255,6 +255,69 @@ export async function loadPublicMasters(apiBaseUrl) {
   }));
 }
 
+// ── Тариф мастера по выбранным услугам (20.08.2026, миграция 054) ────────────
+// Публичная форма записи спрашивает услуги ПЕРВЫМИ, и только потом - «у обычного
+// мастера за стандартную оплату» или «у топ-мастера за +». Всё, что для этого нужно,
+// считается по строкам /master-services (masterId, serviceId, price, durationMin,
+// isTop): отдельного роута под тарифы нет, потому что и цена, и признак топа уже
+// приезжают одним запросом, который форма и так делает.
+//
+// Функции чистые - решают, кого клиент увидит в списке и какую цену, поэтому
+// проверяются юнитом без DOM (tests/storage.master-tier.test.js).
+
+function rowsForMaster(masterServiceRows, masterId) {
+  return masterServiceRows.filter((r) => r.masterId === masterId);
+}
+
+// Мастер годится, только если оказывает ВСЕ выбранные услуги. Иначе клиент дошёл бы до
+// выбора времени и получил отказ сервера (unknown_master_service) уже после имени и
+// телефона - сервер такую бронь отбивает с самого Окна 8.
+export function masterCoversServices(masterServiceRows, masterId, serviceIds) {
+  if (!serviceIds?.length) return true; // услуг ещё не выбрали - никого не отсеиваем
+  const own = new Set(rowsForMaster(masterServiceRows, masterId).map((r) => r.serviceId));
+  return serviceIds.every((id) => own.has(id));
+}
+
+// 'top' | 'standard' | null. Правило ОДНО с сервером (resolveMasterTier,
+// api/routes/bookings.js): хотя бы одна топ-услуга в наборе делает визит топовым.
+// Разойдись эти две реализации - клиент выбирал бы «обычного», а запись в CRM
+// оказывалась бы топовой. null - мастер не оказывает всё выбранное (или услуг ещё нет),
+// то есть тарифа по этому набору у него не существует.
+export function masterTierForServices(masterServiceRows, masterId, serviceIds) {
+  if (!serviceIds?.length) return null;
+  if (!masterCoversServices(masterServiceRows, masterId, serviceIds)) return null;
+  const own = rowsForMaster(masterServiceRows, masterId).filter((r) => serviceIds.includes(r.serviceId));
+  return own.some((r) => r.isTop === true) ? 'top' : 'standard';
+}
+
+// Сколько визит стоит и сколько длится ИМЕННО у этого мастера. null - он оказывает не
+// всё выбранное: сложить то, что есть, и показать как полную цену значило бы соврать.
+export function masterTotalsForServices(masterServiceRows, masterId, serviceIds) {
+  if (!masterCoversServices(masterServiceRows, masterId, serviceIds)) return null;
+  const own = rowsForMaster(masterServiceRows, masterId).filter((r) => serviceIds.includes(r.serviceId));
+  return {
+    price: own.reduce((sum, r) => sum + r.price, 0),
+    durationMin: own.reduce((sum, r) => sum + r.durationMin, 0),
+  };
+}
+
+// Цена «от» на карточках тарифа. Считается по тем мастерам, которых клиент реально
+// может выбрать (список уже прошёл filterBookableMasters) - иначе на карточке стояла
+// бы цена мастера, которого в списке нет. null в группе = таких мастеров нет вовсе,
+// и карточка тарифа тогда не показывается: выбор из одной опции это не выбор.
+export function minTotalByTier(masterServiceRows, masterIds, serviceIds) {
+  const best = { standard: null, top: null };
+  if (!serviceIds?.length) return best;
+  for (const masterId of masterIds) {
+    const tier = masterTierForServices(masterServiceRows, masterId, serviceIds);
+    if (!tier) continue;
+    const totals = masterTotalsForServices(masterServiceRows, masterId, serviceIds);
+    if (!totals) continue;
+    if (best[tier] == null || totals.price < best[tier]) best[tier] = totals.price;
+  }
+  return best;
+}
+
 // Задача C промпта Окна 29 (05.08.2026) - мастер без единого рабочего дня в
 // стандартном графике не должен быть виден в списке выбора клиента (бэкенд остаётся
 // финальным рубежом - см. master_not_bookable в api/server.mjs createBookingTx, это

@@ -10,6 +10,10 @@ import {
   toggleServiceSelection,
   filterBookableMasters,
   sortByServiceOrder,
+  masterCoversServices,
+  masterTierForServices,
+  masterTotalsForServices,
+  minTotalByTier,
 } from './storage.js';
 import { rememberClientSource, currentClientSource } from './assets/client-source.js';
 
@@ -48,6 +52,10 @@ const mastersGrid = document.getElementById('masters-grid');
 const form = document.getElementById('booking-form');
 const masterGrid = document.getElementById('master-grid');
 const serviceGrid = document.getElementById('service-grid');
+// Блок выбора тарифа (20.08.2026) - появляется между услугами и мастером, только когда
+// выбирать реально есть из чего (см. renderTierOptions)
+const tierField = document.getElementById('tier-field');
+const tierGrid = document.getElementById('tier-grid');
 const serviceSummary = document.getElementById('service-summary');
 const slotsWrap = document.getElementById('slots-wrap');
 const nameInput = document.getElementById('f-name');
@@ -73,6 +81,10 @@ let selectedMaster = null;
 let selectedServiceIds = new Set();
 let selectedSlot = null;
 let selectedDate = null;
+// Тариф (20.08.2026): 'standard' | 'top' | null. null - клиент ещё не выбирал ИЛИ
+// выбора не было вовсе (все доступные мастера одного уровня) - тогда список мастеров
+// не сужается ни по какому признаку.
+let selectedTier = null;
 
 // Окно 21 (04.08.2026): даты видимого месяца календаря, у которых РЕАЛЬНО нет
 // свободного времени под текущую связку мастер+услуги (GET /schedule-availability) -
@@ -553,40 +565,156 @@ function renderMasters() {
   }
 }
 
+// Мастера, которых клиент реально может выбрать под уже сделанный выбор: работают по
+// графику (filterBookableMasters), оказывают ВСЕ отмеченные услуги и подходят под
+// выбранный тариф. Пока услуги не выбраны - никого не сужаем, но и список не рисуем
+// (см. renderMasterOptions): выбирать мастера вслепую больше не нужно.
+function eligibleMasters() {
+  const serviceIds = [...selectedServiceIds];
+  return filterBookableMasters(masters, masterWorkingSchedule).filter((master) => {
+    if (!masterServicesReady) return true; // данных о том, кто что оказывает, ещё нет
+    if (!masterCoversServices(masterServices, master.id, serviceIds)) return false;
+    if (!selectedTier) return true;
+    return masterTierForServices(masterServices, master.id, serviceIds) === selectedTier;
+  });
+}
+
+// Тариф этого мастера под выбранные услуги - тем же правилом, что и на сервере
+function tierOf(masterId) {
+  return masterServicesReady ? masterTierForServices(masterServices, masterId, [...selectedServiceIds]) : null;
+}
+
+// Цена и длительность визита у конкретного мастера. null - считать нечего (услуги не
+// выбраны или мастер оказывает не всё)
+function totalsOf(masterId) {
+  if (!masterServicesReady || selectedServiceIds.size === 0) return null;
+  return masterTotalsForServices(masterServices, masterId, [...selectedServiceIds]);
+}
+
+const formatPrice = (value) => `${value.toLocaleString('ru-RU')}₽`;
+
+// ── Шаг 2: «у обычного мастера за стандартную оплату» или «у топ-мастера за +» ──
+// Блок показывается, только когда по выбранным услугам есть И те, И другие. Одна
+// доступная группа - это не выбор, а лишний шаг в форме, которая и так самое узкое
+// место воронки: тогда мастера показываются сразу все, а топовые помечены на своих
+// карточках.
+function renderTierOptions() {
+  if (!tierField || !tierGrid) return;
+  const bookableIds = filterBookableMasters(masters, masterWorkingSchedule).map((m) => m.id);
+  const best = masterServicesReady ? minTotalByTier(masterServices, bookableIds, [...selectedServiceIds]) : { standard: null, top: null };
+  const bothAvailable = best.standard != null && best.top != null;
+
+  tierGrid.replaceChildren();
+  tierField.hidden = !bothAvailable;
+  if (!bothAvailable) {
+    // Выбор исчез (сняли услугу, у топа её нет) - прежний тариф молча не оставляем,
+    // иначе список мастеров остался бы сужен по признаку, которого клиент больше не видит
+    selectedTier = null;
+    return;
+  }
+
+  const options = [
+    { tier: 'standard', title: 'Обычный мастер', price: best.standard, note: 'стандартная цена' },
+    { tier: 'top', title: 'Топ-мастер', price: best.top, note: `+${formatPrice(best.top - best.standard)} к стандартной цене` },
+  ];
+  for (const option of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'option-card';
+    btn.dataset.tier = option.tier;
+    btn.setAttribute('aria-pressed', String(selectedTier === option.tier));
+    if (selectedTier === option.tier) btn.classList.add('selected');
+
+    const name = document.createElement('span');
+    name.className = 'opt-name';
+    name.textContent = option.title;
+
+    const meta = document.createElement('span');
+    meta.className = 'opt-meta';
+    meta.textContent = `от ${formatPrice(option.price)} · ${option.note}`;
+
+    btn.append(name, meta);
+    btn.addEventListener('click', () => {
+      // Повторный клик по выбранному тарифу снимает фильтр - клиент передумал
+      // сужать выбор, а не обязан перезагружать страницу
+      selectedTier = selectedTier === option.tier ? null : option.tier;
+      // Выбранный мастер другого тарифа больше не подходит - снимаем, а не оставляем
+      // выбор, который противоречит только что нажатой карточке
+      if (selectedMaster && selectedTier && tierOf(selectedMaster.id) !== selectedTier) {
+        selectedMaster = null;
+        resetSlots('Выберите мастера и дату');
+      }
+      renderTierOptions();
+      renderMasterOptions();
+      renderServiceSummary();
+      clearMsg();
+    });
+    tierGrid.append(btn);
+  }
+}
+
+// ── Шаг 3: мастер ────────────────────────────────────────────────────────────
 function renderMasterOptions() {
   masterGrid.replaceChildren();
-  // Задача C промпта Окна 29 - мастер без стандартного графика не появляется в
-  // списке выбора вообще (см. filterBookableMasters в storage.js).
-  for (const master of filterBookableMasters(masters, masterWorkingSchedule)) {
-    // Окно 26 (04.08.2026, Задача 2) - карточка обёрнута в wrap, чтобы кнопка выбора
-    // мастера (.option-card) и отдельная ссылка "Позвонить администратору" были
-    // соседями, не вложены друг в друга - вложенный <a> внутри <button> невалиден
-    // и ломает клик.
+  if (selectedServiceIds.size === 0) {
+    masterGrid.setAttribute('aria-disabled', 'true');
+    const hint = document.createElement('p');
+    hint.className = 'option-hint';
+    hint.textContent = 'Сначала выберите услуги';
+    masterGrid.append(hint);
+    return;
+  }
+  masterGrid.removeAttribute('aria-disabled');
+
+  const available = eligibleMasters();
+  if (available.length === 0) {
+    const hint = document.createElement('p');
+    hint.className = 'option-hint';
+    // Причина честная и разная: под тариф никого нет - это одно, а никто не оказывает
+    // такой набор услуг разом - совсем другое, и советы клиенту тоже разные
+    hint.textContent = selectedTier
+      ? 'Под этот тариф сейчас нет свободных мастеров - выберите другой'
+      : 'Ни один мастер не оказывает все выбранные услуги за один визит - снимите часть услуг';
+    masterGrid.append(hint);
+    return;
+  }
+
+  for (const master of available) {
     const wrap = document.createElement('div');
     wrap.className = 'master-option';
 
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'option-card';
-    // renderMasterOptions() перевызывается повторно, когда приходит ответ
-    // /masters-next-availability (см. вызов ниже в конце файла) - без этой строки
-    // уже сделанный клиентом выбор мастера визуально сбрасывался бы на каждый такой перерендер.
     if (selectedMaster === master) btn.classList.add('selected');
 
     const name = document.createElement('span');
     name.className = 'opt-name';
     name.textContent = master.name;
+    // Топ-мастер по этим услугам помечен и здесь - в том числе когда блока тарифа нет
+    // вовсе (все доступные мастера топовые): клиент должен понимать, за что платит
+    if (tierOf(master.id) === 'top') {
+      const tag = document.createElement('span');
+      tag.className = 'opt-top-tag';
+      tag.textContent = 'топ';
+      name.append(' ', tag);
+    }
 
     const meta = document.createElement('span');
     meta.className = 'opt-meta';
-    meta.textContent = `${master.workWindow.start}-${master.workWindow.end}${master.isPlaceholder ? ' · пример' : ''}`;
+    const totals = totalsOf(master.id);
+    // Цена визита ИМЕННО у этого мастера, а не общий прайс: ровно этим один мастер и
+    // отличается от другого, и до этой правки клиент видел разницу только постфактум
+    const window = `${master.workWindow.start}-${master.workWindow.end}`;
+    meta.textContent = totals
+      ? `${formatPrice(totals.price)} · ${totals.durationMin} мин · ${window}`
+      : `${window}${master.isPlaceholder ? ' · пример' : ''}`;
 
     btn.append(name, meta);
 
     // Проблема Влада (04.08.2026): клиент выбирал мастера ДО того, как видел его
     // реальную доступность - узнавал о занятости только в глубине календаря. Бейдж
-    // показывается только когда ответ сети реально пришёл (masterAvailabilityReady) -
-    // до этого момента карточка выглядит как раньше, без бейджа.
+    // показывается только когда ответ сети реально пришёл (masterAvailabilityReady).
     if (masterAvailabilityReady) {
       const nextDate = masterAvailability.get(master.id);
       const badge = document.createElement('span');
@@ -605,13 +733,15 @@ function renderMasterOptions() {
       for (const el of masterGrid.querySelectorAll('.option-card')) {
         el.classList.toggle('selected', el === btn);
       }
-      serviceGrid.removeAttribute('aria-disabled');
       dateToggle.disabled = false;
       if (dateToggleLabel.classList.contains('placeholder')) {
         dateToggleLabel.textContent = 'Выберите дату';
       }
-      renderServiceOptions();
-      resetSlots('Выберите услугу и дату');
+      // Услуги выбраны раньше мастера, но цена и длительность у каждого свои - сводка
+      // и расчёт слотов пересчитываются по его собственному прайсу
+      currentServiceList = servicesForMaster(master.id);
+      renderServiceSummary();
+      refreshSlots();
       refreshCalendarAvailability();
       clearMsg();
     });
@@ -631,28 +761,56 @@ function renderMasterOptions() {
 
     masterGrid.append(wrap);
   }
+
+  // CRO-ссылка «Выбрать мастера» из витрины команды (index.html) до 20.08.2026
+  // кликала по карточке напрямую - теперь карточек нет, пока не выбраны услуги,
+  // поэтому имя запоминается и применяется здесь, как только мастер стал доступен
+  if (window.__preferredMasterName) {
+    const wanted = available.find((m) => m.name.includes(window.__preferredMasterName));
+    if (wanted) {
+      window.__preferredMasterName = null;
+      [...masterGrid.querySelectorAll('.option-card')][available.indexOf(wanted)]?.click();
+    }
+  }
+}
+
+// ── Шаг 1: услуги ────────────────────────────────────────────────────────────
+// Каталог показывается сразу, до выбора мастера (порядок шагов изменён 20.08.2026).
+// Цена - минимальная среди доступных мастеров с пометкой «от», когда мастера берут
+// за одну и ту же услугу по-разному: назвать одну цифру как окончательную нельзя,
+// точную сумму визита клиент увидит на карточке выбранного мастера и в сводке.
+function serviceCatalogForDisplay() {
+  const bookableIds = filterBookableMasters(masters, masterWorkingSchedule).map((m) => m.id);
+  return sortByServiceOrder(services).map((service) => {
+    const rows = masterServicesReady
+      ? masterServices.filter((r) => r.serviceId === service.id && bookableIds.includes(r.masterId))
+      : [];
+    if (rows.length === 0) {
+      return { id: service.id, name: service.name, price: service.price, durationMin: service.durationMin, fromPrice: false };
+    }
+    const prices = rows.map((r) => r.price);
+    const minPrice = Math.min(...prices);
+    return {
+      id: service.id,
+      name: service.name,
+      price: minPrice,
+      durationMin: Math.min(...rows.map((r) => r.durationMin)),
+      fromPrice: Math.max(...prices) !== minPrice,
+    };
+  });
 }
 
 function renderServiceOptions() {
-  selectedServiceIds = new Set();
   serviceGrid.replaceChildren();
   currentServiceButtons = new Map();
-  currentServiceList = selectedMaster ? servicesForMaster(selectedMaster.id) : [];
+  const catalog = serviceCatalogForDisplay();
 
-  if (selectedMaster && currentServiceList.length === 0) {
-    const hint = document.createElement('p');
-    hint.className = 'section-hint';
-    hint.textContent = 'У этого мастера пока не назначено ни одной услуги - выберите другого мастера';
-    serviceGrid.append(hint);
-    renderServiceSummary();
-    return;
-  }
-
-  for (const service of currentServiceList) {
+  for (const service of catalog) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'option-card';
-    btn.setAttribute('aria-pressed', 'false');
+    btn.setAttribute('aria-pressed', String(selectedServiceIds.has(service.id)));
+    if (selectedServiceIds.has(service.id)) btn.classList.add('selected');
 
     const name = document.createElement('span');
     name.className = 'opt-name';
@@ -660,31 +818,40 @@ function renderServiceOptions() {
 
     const meta = document.createElement('span');
     meta.className = 'opt-meta';
-    meta.textContent = `${service.price.toLocaleString('ru-RU')}₽ · ${service.durationMin} мин`;
+    meta.textContent = `${service.fromPrice ? 'от ' : ''}${formatPrice(service.price)} · ${service.durationMin} мин`;
 
     btn.append(name, meta);
     // Окно 11: клик ДОБАВЛЯЕТ/УБИРАЕТ услугу из набора, не заменяет выбор целиком -
     // это реальный множественный выбор (чекбоксы), не радиокнопки под видом чекбоксов.
-    // Правка 03.08.2026: комплекс "стрижка+борода" и его 4 компонента (см.
-    // storage.js SERVICE_COMBOS) теперь взаимоисключающие в обе стороны - выбор
-    // комплекса блокирует компоненты, а отдельный выбор обоих компонентов сам
-    // сворачивается в комплекс.
     btn.addEventListener('click', () => {
       // Одно правило выбора на сайт и CRM (storage.js toggleServiceSelection):
       // блокировка составляющих при комплексе, поглощение их комплексом и слияние
-      // двух составляющих в комплекс - раньше эта последовательность была написана
-      // здесь и в форме CRM по отдельности и разъезжалась
+      // двух составляющих в комплекс
       selectedServiceIds = toggleServiceSelection(service.id, selectedServiceIds);
-      syncServiceButtons();
-      renderServiceSummary();
-      refreshSlots();
-      refreshCalendarAvailability();
-      clearMsg();
+      onServicesChanged();
     });
     currentServiceButtons.set(service.id, btn);
     serviceGrid.append(btn);
   }
   renderServiceSummary();
+}
+
+// Состав услуг изменился - всё, что от него зависит, пересобирается заново. Мастер
+// снимается, если он больше не подходит: молча оставить выбранным того, кто новую
+// услугу не оказывает, значит довести клиента до отказа сервера на последнем шаге.
+function onServicesChanged() {
+  syncServiceButtons();
+  if (selectedMaster && masterServicesReady && !masterCoversServices(masterServices, selectedMaster.id, [...selectedServiceIds])) {
+    selectedMaster = null;
+    resetSlots('Выберите мастера и дату');
+  }
+  renderTierOptions();
+  renderMasterOptions();
+  currentServiceList = selectedMaster ? servicesForMaster(selectedMaster.id) : [];
+  renderServiceSummary();
+  refreshSlots();
+  refreshCalendarAvailability();
+  clearMsg();
 }
 
 // Перерисовывает selected/disabled состояние ВСЕХ карточек услуг сразу, не только
@@ -713,11 +880,18 @@ function renderServiceSummary() {
     serviceSummary.textContent = '';
     return;
   }
-  const chosen = currentServiceList.filter((s) => selectedServiceIds.has(s.id));
+  // Мастер выбран - считаем по ЕГО прайсу. Не выбран (услуги теперь идут первым
+  // шагом, 20.08.2026) - показываем минимум среди доступных мастеров с пометкой «от»:
+  // назвать одну сумму окончательной, пока человек не выбран, значит пообещать цену,
+  // которой может не оказаться
+  const chosen = selectedMaster
+    ? currentServiceList.filter((s) => selectedServiceIds.has(s.id))
+    : serviceCatalogForDisplay().filter((s) => selectedServiceIds.has(s.id));
   const totalDuration = chosen.reduce((sum, s) => sum + s.durationMin, 0);
   const totalPrice = chosen.reduce((sum, s) => sum + s.price, 0);
+  const prefix = selectedMaster ? '' : 'от ';
   serviceSummary.hidden = false;
-  serviceSummary.textContent = `Выбрано услуг: ${chosen.length} · итого ${totalDuration} мин · ${totalPrice.toLocaleString('ru-RU')}₽`;
+  serviceSummary.textContent = `Выбрано услуг: ${chosen.length} · итого ${totalDuration} мин · ${prefix}${totalPrice.toLocaleString('ru-RU')}₽`;
 }
 
 function showMsg(text, type) {
@@ -755,7 +929,7 @@ async function refreshSlots() {
   const date = selectedDate;
 
   if (!selectedMaster || selectedServiceIds.size === 0 || !date) {
-    resetSlots('Сначала выберите мастера, услугу и дату');
+    resetSlots('Сначала выберите услуги, мастера и дату');
     return;
   }
 
@@ -933,12 +1107,15 @@ form.addEventListener('submit', async (event) => {
 
 renderPrice();
 renderMasters();
+// Услуги - первый шаг формы (20.08.2026), рисуются сразу, не дожидаясь выбора мастера.
+// Мастера до выбора услуг показывают подсказку вместо списка.
+renderServiceOptions();
 renderMasterOptions();
 
 if (window.ALIKHAN_API_URL) {
   loadPublicMasters(window.ALIKHAN_API_URL).then((rows) => {
     masters = rows.map((m) => ({ ...m, workWindow: { start: '10:00', end: '20:00' }, isPlaceholder: false }));
-    renderMasters(); renderMasterOptions();
+    renderMasters(); renderServiceOptions(); renderTierOptions(); renderMasterOptions();
   }).catch(() => {
     // витрина команды остаётся на разметке-фоллбэке из index.html (см. renderMasters),
     // а форма записи честно говорит, что мастеров не удалось загрузить
@@ -955,7 +1132,11 @@ if (window.ALIKHAN_API_URL) {
 // уже успел выбрать мастера, пока шёл fetch, перерисовываем список услуг заново
 // с реальными данными вместо legacy-фоллбэка.
 loadMasterServices().then(() => {
-  if (selectedMaster) renderServiceOptions();
+  // Реальные цены и признак топа приезжают сюда: до ответа каталог показан по общему
+  // прайсу storage.js, тариф не показан вовсе (топов в офлайн-данных нет)
+  renderServiceOptions();
+  renderTierOptions();
+  renderMasterOptions();
 });
 
 // Окно 26 (04.08.2026, Задача 2) - тот же приём, что и loadMasterServices выше:
@@ -963,6 +1144,7 @@ loadMasterServices().then(() => {
 // перерисовкой, когда batch-ответ реально пришёл. renderMasterOptions() безопасно
 // перевызывать повторно - сохраняет выбор мастера (selectedMaster === master выше).
 loadMasterNextAvailability().then(() => {
+  renderTierOptions();
   renderMasterOptions();
 });
 
