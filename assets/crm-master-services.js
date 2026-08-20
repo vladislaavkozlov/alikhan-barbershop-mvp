@@ -4,7 +4,7 @@
 // ролей. Код перенесён 1в1, поведение не менялось.
 import { formatMoney } from './crm-shared.js';
 import { API, getToken } from './crm-auth.js';
-import { sortByServiceOrder } from '../storage.js';
+import { sortByServiceOrder, SERVICE_COMBOS, SERVICES } from '../storage.js';
 
 // Правка 03.08.2026: карточка сотрудника "Сотрудники" (владелец/админ) держала
 // чекбоксы услуг мастера и поле длительности как чистую декорацию - ни одного
@@ -53,6 +53,8 @@ function clearFieldError(field) {
 }
 
 export function renderMasterServiceEditor(container, masterId, canEdit, services, masterServices, onChange) {
+  // Имена из живого каталога сервера - для подсказки о связанных ценах (comboPriceHint)
+  serviceNamesById = Object.fromEntries(services.map((s) => [s.id, s.name]));
   container.innerHTML = '';
   container.classList.toggle('readonly', !canEdit);
   const assigned = new Map(masterServices.filter((r) => r.masterId === masterId).map((r) => [r.serviceId, r]));
@@ -138,7 +140,14 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
     topLabel.append(topInput, topText);
     topLabel.title = 'Топ-мастер по этой услуге - на сайте клиент выбирает его отдельным тарифом';
     meta.append(priceSpan, dot, durationSpan, topLabel);
-    span.append(nameSpan, meta);
+    // Подсказка про связанную услугу (21.08.2026): комплекс и его части - связанные
+    // цены, но система их не пересчитывает друг из друга (см. comboPriceHint), только
+    // напоминает. Появляется после правки цены, а не висит всегда: на восьми услугах
+    // это был бы шум, а нужна она ровно в момент, когда цифру трогают.
+    const comboNote = document.createElement('span');
+    comboNote.className = 'sc-combo-hint';
+    comboNote.hidden = true;
+    span.append(nameSpan, meta, comboNote);
     label.append(input, span);
     container.appendChild(label);
 
@@ -160,6 +169,7 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
     for (const eventName of ['input', 'change']) {
       priceInput.addEventListener(eventName, () => {
         if (parsePriceValue(priceInput.value) != null) clearFieldError(priceInput);
+        showComboHint(container, service.id, comboNote);
         onChange?.();
       });
     }
@@ -186,6 +196,63 @@ export const DURATION_ERROR = 'Длительность услуги должн�
 // подменял ноль исходными 60 минутами, из-за чего правка не считалась правкой,
 // на сервер не уезжала и после F5 значение возвращалось к 60 без единой ошибки
 // (баг P2, найден Владом 15.08.2026)
+// Названия услуг для подсказки берём из каталога, а не из id: подсказка адресована
+// владельцу, и «kompleks-strizhka-boroda» ему ни о чём не говорит. Каталог приезжает
+// в renderMasterServiceEditor, поэтому имена кладём сюда при отрисовке строк.
+let serviceNamesById = {};
+
+// Комплекс и его составляющие - связанные цены, но НЕ вычисляемые друг из друга
+// (21.08.2026, вопрос Влада «а комплекс не должен пересчитаться сам?»). Комплекс стоит
+// 3500 при сумме частей 3600: внутри него скидка, которую придумал владелец, а правила
+// «комплекс = сумма минус X» в системе нет и выдумывать его на боевом прайсе нельзя -
+// это деньги клиента. Поэтому система не считает за человека, а напоминает: поменял
+// часть - проверь комплекс, поменял комплекс - вот сколько те же услуги стоят порознь.
+// null - подсказывать нечего (услуга вне комплексов или связанные услуги мастеру не
+// назначены: цена, которой у него нет, в подсказке была бы выдумкой).
+export function comboPriceHint(serviceId, priceByServiceId) {
+  const money = (value) => `${value.toLocaleString('ru-RU')} ₽`;
+  // Имя из живого каталога сервера, если он уже отрисован, иначе из storage.js -
+  // подсказка не должна показывать владельцу «kompleks-strizhka-boroda»
+  const nameOf = (id) => serviceNamesById[id] ?? SERVICES.find((s) => s.id === id)?.name ?? id;
+  for (const combo of SERVICE_COMBOS) {
+    const comboPrice = priceByServiceId[combo.comboId];
+    if (serviceId === combo.comboId) {
+      const parts = combo.mergeFrom.map((id) => priceByServiceId[id]);
+      if (parts.some((price) => !Number.isFinite(price))) return null;
+      const names = combo.mergeFrom.map((id) => `«${nameOf(id)}»`).join(' и ');
+      return `Состоит из услуг ${names} - по отдельности сейчас ${money(parts.reduce((a, b) => a + b, 0))}`;
+    }
+    if (combo.mergeFrom.includes(serviceId)) {
+      if (!Number.isFinite(comboPrice)) return null;
+      return `Входит в «${nameOf(combo.comboId)}» - сейчас ${money(comboPrice)}, проверьте и его`;
+    }
+  }
+  return null;
+}
+
+// Текущие цены всех строк карточки - то, что владелец видит на экране прямо сейчас
+// (включая ещё не сохранённые правки): подсказка должна опираться на них, а не на
+// значения с сервера, иначе она отставала бы на один шаг.
+function currentPricesFrom(container) {
+  const prices = {};
+  container.querySelectorAll('.service-check[data-service-id]').forEach((row) => {
+    const box = row.querySelector('input[type="checkbox"]');
+    const field = row.querySelector('.sc-price-input');
+    // Выключенная услуга в подсказку не идёт: её цена мастеру не назначена
+    if (!box?.checked) return;
+    const value = parsePriceValue(field?.value);
+    if (value != null) prices[row.dataset.serviceId] = value;
+  });
+  return prices;
+}
+
+function showComboHint(container, serviceId, noteEl) {
+  if (!noteEl) return;
+  const text = comboPriceHint(serviceId, currentPricesFrom(container));
+  noteEl.textContent = text ?? '';
+  noteEl.hidden = !text;
+}
+
 export const PRICE_ERROR = 'Цена услуги должна быть целым числом больше нуля';
 
 // Строка из поля цены в рубли. Пробелы внутри числа - не ошибка: владелец копирует

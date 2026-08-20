@@ -157,6 +157,30 @@ try {
         })()`);
         check('человеку названа причина, а не «не получилось»', /[Цц]ена/.test(errText), errText.slice(0, 120));
 
+        // ── 4б. подсказка о связанной услуге (21.08.2026) ─────────────────
+        // Комплекс и его части система не пересчитывает друг из друга (это решение
+        // владельца, а не арифметика), но напоминает о связи в момент правки цены
+        await s.eval(`(function(){
+          const price = document.querySelector('.service-picker[data-master-id="tm-usual"] .service-check[data-service-id="strizhka"] .sc-price-input');
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          setter.call(price, '2800');
+          price.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`);
+        await sleep(400);
+        const hintText = await s.eval(`(function(){
+          const el = document.querySelector('.service-picker[data-master-id="tm-usual"] .service-check[data-service-id="strizhka"] .sc-combo-hint');
+          return el && !el.hidden ? el.textContent.replace(/\u00a0/g, ' ') : '';
+        })()`);
+        check('правка цены части комплекса подсказывает проверить комплекс', /Комплекс стрижка\+борода/.test(hintText) && /3 500/.test(hintText), hintText || '(подсказки нет)');
+        const hintOnOther = await s.eval(`(function(){
+          const el = document.querySelector('.service-picker[data-master-id="tm-usual"] .service-check[data-service-id="vosk"] .sc-combo-hint');
+          return el && !el.hidden ? el.textContent : '(скрыта)';
+        })()`);
+        check('услуга вне комплексов подсказкой не засоряется', hintOnOther === '(скрыта)', hintOnOther);
+        await s.eval(`document.querySelector('.service-picker[data-master-id="tm-usual"] .service-check[data-service-id="strizhka"]')?.scrollIntoView({block:'center'})`);
+        await sleep(400);
+        await s.screenshot('/tmp/verify-combo-hint.png');
+
         // ── 5. снятая услуга гасит цену и галку ────────────────────────────
         await s.eval(`(function(){
           const label = document.querySelector('.service-picker[data-master-id="tm-usual"] .service-check[data-service-id="strizhka"]');

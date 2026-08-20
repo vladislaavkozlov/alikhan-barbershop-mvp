@@ -1249,6 +1249,14 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 /* Включённый топ подсвечен золотом - владелец должен видеть тариф беглым взглядом по
    списку услуг, не вчитываясь в каждую строку */
 .service-check .sc-top:has(input:checked) .sc-top-text { color: var(--accent); font-weight: 700; }
+/* Подсказка про связанную услугу (21.08.2026) - появляется под ценой, когда владелец
+   её правит. display задан явно вместе с [hidden]: у собственного display правила
+   UA-дефолт [hidden]{display:none} не срабатывает (в проекте на это уже наступали) */
+.service-check .sc-combo-hint {
+  display: block; margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--border);
+  color: var(--accent); font-size: 0.68rem; line-height: 1.35;
+}
+.service-check .sc-combo-hint[hidden] { display: none; }
 
 /* Метка топ-тарифа на карточке записи в «Дне» (20.08.2026). Рядом с «+1 новый клиент»
    и тем же ростом: обе метки отвечают на один вопрос - что особенного в этом визите */
