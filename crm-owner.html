@@ -186,7 +186,11 @@
              дата и так видна в day-nav). -->
 
         <div class="staff-list schedule-view-cards">
-          <details class="staff-card schedule-view-card" id="scheduleCard-day">
+          <!-- Правка 20.08.2026 (Влад) - "День" открыт по умолчанию: раздел "Расписание" - вход
+               в кабинет, и главное, зачем в него заходят, это сегодняшний день. Атрибут open
+               закрывает ПЕРВУЮ загрузку страницы, возвраты из других разделов меню - слушатель
+               события crm:section в assets/crm-schedule-views.js (raiseDayOnEnter). -->
+          <details class="staff-card schedule-view-card" id="scheduleCard-day" open>
             <summary>
               <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><text x="12" y="17.3" font-size="7.2" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Georgia, serif">1</text></svg></div>
               <div class="summary-meta"><div class="name">День</div></div>

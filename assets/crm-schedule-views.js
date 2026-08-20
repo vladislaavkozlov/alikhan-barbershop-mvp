@@ -213,6 +213,26 @@ export function wireScheduleViews(ctx) {
     renderViewAnchor();
   }
 
+  // Правка 20.08.2026 (Влад: «переходишь с "Команды" на "Расписание" - "День" должен быть
+  // сразу открыт»). Раскрытость карточек живёт в DOM и переживает переключение разделов:
+  // свернул "День", ушёл в "Команду", вернулся - раздел встречал пустым списком свёрнутых
+  // карточек, хотя заходят в него ради сегодняшнего дня. Слушаем 'crm:section'
+  // (assets/crm-app-shell.js goToSection) и на каждом входе в "Расписание" поднимаем
+  // "День". Неделю/Месяц не трогаем: карточки независимые (Окно 45), закрывать их - значило
+  // бы отменять осознанный выбор человека, а "День" сверху ему не мешает.
+  // Само открытие делает toggle-обработчик выше: он же вызовет setView('day') с загрузкой,
+  // если активен был другой вид. Если карточка уже открыта, toggle не сработает - тогда
+  // сами дочитываем устаревшие данные (staleViews).
+  function raiseDayOnEnter(e) {
+    if (e.detail?.section !== 'schedule') return;
+    const details = el(DETAILS_ID_BY_VIEW.day);
+    if (!details) return; // crm-admin.html/crm-master.html - там карточек нет, вид виден всегда
+    if (!details.open) details.open = true;
+    else ensureFresh('day');
+  }
+
+  document.addEventListener('crm:section', raiseDayOnEnter);
+
   const dayApi = wireDayView({
     staff, staffList, services, priceOf, fetchJson, renderDateSelect, renderDayCalendar,
     scheduleViewState, holidaysOfYear, setView,
