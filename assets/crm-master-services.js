@@ -41,8 +41,15 @@ export function wireMasterServiceEditors(staffRole, services, masterServices) {
 }
 
 function clearDurationError(durationInput) {
-  durationInput.classList.remove('is-invalid');
-  durationInput.removeAttribute('aria-invalid');
+  clearFieldError(durationInput);
+}
+
+// Подсветка снимается сразу, как только введено корректное значение - держать красным
+// поле, которое владелец уже исправил, значит спорить с ним. Одна функция на цену и
+// длительность: правила подсветки у них общие, расходиться им незачем.
+function clearFieldError(field) {
+  field.classList.remove('is-invalid');
+  field.removeAttribute('aria-invalid');
 }
 
 export function renderMasterServiceEditor(container, masterId, canEdit, services, masterServices, onChange) {
@@ -65,6 +72,8 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
     label.dataset.serviceId = service.id;
     label.dataset.initialEnabled = row ? '1' : '0';
     label.dataset.initialDuration = String(row ? row.durationMin : service.durationMin);
+    label.dataset.initialPrice = String(row ? row.price : service.price);
+    label.dataset.initialTop = row?.isTop ? '1' : '0';
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = Boolean(row);
@@ -76,9 +85,25 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
     nameSpan.textContent = service.name;
     const meta = document.createElement('span');
     meta.className = 'sc-meta';
+    // Цена мастера (20.08.2026) - поле, а не текст. master_services.price различает
+    // прайс по мастеру с Окна 8, но в карточке он был подписью: владелец видел, что
+    // Елизавета дешевле, и не мог этого изменить, не идя в базу.
     const priceSpan = document.createElement('span');
     priceSpan.className = 'sc-price';
-    priceSpan.textContent = formatMoney(row ? row.price : service.price);
+    const priceInput = document.createElement('input');
+    priceInput.type = 'text';
+    // inputMode вместо type="number": «3 000» с пробелом-разделителем из прайса
+    // числовое поле не принимает вовсе, а владелец копирует цены именно так
+    priceInput.inputMode = 'numeric';
+    priceInput.className = 'sc-price-input';
+    priceInput.value = row ? row.price : service.price;
+    priceInput.disabled = !canEdit || !row;
+    priceInput.setAttribute('aria-label', `Цена услуги «${service.name}»`);
+    priceInput.addEventListener('click', (e) => e.stopPropagation());
+    const priceUnit = document.createElement('span');
+    priceUnit.className = 'sc-price-unit';
+    priceUnit.textContent = '₽';
+    priceSpan.append(priceInput, priceUnit);
     const dot = document.createElement('span');
     dot.className = 'sc-dot';
     dot.textContent = '·';
@@ -96,7 +121,23 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
     durationUnit.className = 'sc-duration-unit';
     durationUnit.textContent = 'мин';
     durationSpan.append(durationInput, durationUnit);
-    meta.append(priceSpan, dot, durationSpan);
+    // Галка «топ-услуга» (20.08.2026): по ней публичный сайт делит мастеров на два
+    // тарифа. Живёт в той же строке, что цена, - владелец ставит галку и сразу рядом
+    // видит (и правит) цифру, за которую эта топовость продаётся.
+    const topLabel = document.createElement('label');
+    topLabel.className = 'sc-top';
+    const topInput = document.createElement('input');
+    topInput.type = 'checkbox';
+    topInput.className = 'sc-top-input';
+    topInput.checked = Boolean(row?.isTop);
+    topInput.disabled = !canEdit || !row;
+    topInput.addEventListener('click', (e) => e.stopPropagation());
+    const topText = document.createElement('span');
+    topText.className = 'sc-top-text';
+    topText.textContent = 'топ';
+    topLabel.append(topInput, topText);
+    topLabel.title = 'Топ-мастер по этой услуге - на сайте клиент выбирает его отдельным тарифом';
+    meta.append(priceSpan, dot, durationSpan, topLabel);
     span.append(nameSpan, meta);
     label.append(input, span);
     container.appendChild(label);
@@ -105,9 +146,24 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
 
     input.addEventListener('change', () => {
       durationInput.disabled = !input.checked;
-      if (!input.checked) clearDurationError(durationInput);
+      priceInput.disabled = !input.checked;
+      // Снятая услуга не может оставаться топовой: тарифа без услуги не бывает, и
+      // мёртвая включённая галка рядом с погасшими полями врала бы о состоянии
+      topInput.disabled = !input.checked;
+      if (!input.checked) {
+        topInput.checked = false;
+        clearDurationError(durationInput);
+        clearFieldError(priceInput);
+      }
       onChange?.();
     });
+    for (const eventName of ['input', 'change']) {
+      priceInput.addEventListener(eventName, () => {
+        if (parsePriceValue(priceInput.value) != null) clearFieldError(priceInput);
+        onChange?.();
+      });
+    }
+    topInput.addEventListener('change', () => onChange?.());
     // Подсветку снимаем сразу, как только введено корректное число - держать красным
     // поле, которое владелец уже исправил, значит спорить с ним
     durationInput.addEventListener('input', () => {
@@ -130,6 +186,21 @@ export const DURATION_ERROR = 'Длительность услуги должн�
 // подменял ноль исходными 60 минутами, из-за чего правка не считалась правкой,
 // на сервер не уезжала и после F5 значение возвращалось к 60 без единой ошибки
 // (баг P2, найден Владом 15.08.2026)
+export const PRICE_ERROR = 'Цена услуги должна быть целым числом больше нуля';
+
+// Строка из поля цены в рубли. Пробелы внутри числа - не ошибка: владелец копирует
+// «3 000» из своего прайса, и отбивать такое значило бы спорить с человеком на ровном
+// месте. Всё остальное, что не целое положительное (0, пусто, минус, дробь, буквы), -
+// null, то есть «введено неверно», а не «оставим как было»: ровно тот же урок, что дал
+// баг P2 с длительностью 15.08.2026, только про деньги.
+export function parsePriceValue(raw) {
+  const text = String(raw ?? '').replace(/[\s\u00a0]/g, '');
+  if (text === '') return null;
+  const value = Number(text);
+  if (!Number.isInteger(value) || value <= 0) return null;
+  return value;
+}
+
 export function parseDurationValue(raw) {
   const text = String(raw ?? '').trim();
   if (text === '') return null;
@@ -149,12 +220,21 @@ export function collectServiceChanges(container) {
   container.querySelectorAll('.service-check[data-service-id]').forEach((label) => {
     const input = label.querySelector('input[type="checkbox"]');
     const durationInput = label.querySelector('.sc-duration-input');
+    const priceInput = label.querySelector('.sc-price-input');
+    const topInput = label.querySelector('.sc-top-input');
     const enabled = Boolean(input?.checked);
     const duration = parseDurationValue(durationInput?.value);
+    const price = parsePriceValue(priceInput?.value);
+    // Тариф без услуги существовать не может: у выключенной строки топ всегда false,
+    // на сервер уедет { enabled: false } и строка master_services исчезнет целиком
+    const isTop = enabled && Boolean(topInput?.checked);
     const wasEnabled = label.dataset.initialEnabled === '1';
     const wasDuration = Number(label.dataset.initialDuration);
-    if (enabled === wasEnabled && (!enabled || duration === wasDuration)) return;
-    changes.push({ serviceId: label.dataset.serviceId, enabled, durationMin: duration });
+    const wasPrice = Number(label.dataset.initialPrice);
+    const wasTop = label.dataset.initialTop === '1';
+    const untouched = enabled === wasEnabled && (!enabled || (duration === wasDuration && price === wasPrice && isTop === wasTop));
+    if (untouched) return;
+    changes.push({ serviceId: label.dataset.serviceId, enabled, durationMin: duration, price, isTop });
   });
   return changes;
 }
@@ -181,6 +261,27 @@ export function markInvalidServiceDurations(container) {
   return invalid;
 }
 
+// То же самое для цены. Выключенная услуга не проверяется - её цена на сервер не
+// уезжает вовсе (тело запроса { enabled: false }).
+export function markInvalidServicePrices(container) {
+  if (!container) return [];
+  const invalid = [];
+  container.querySelectorAll('.service-check[data-service-id]').forEach((label) => {
+    const input = label.querySelector('input[type="checkbox"]');
+    const priceInput = label.querySelector('.sc-price-input');
+    if (!priceInput) return;
+    const bad = Boolean(input?.checked) && parsePriceValue(priceInput.value) == null;
+    priceInput.classList.toggle('is-invalid', bad);
+    if (bad) {
+      priceInput.setAttribute('aria-invalid', 'true');
+      invalid.push(label.dataset.serviceId);
+    } else {
+      priceInput.removeAttribute('aria-invalid');
+    }
+  });
+  return invalid;
+}
+
 // Отправляет только изменённые услуги. Возвращает null при успехе, иначе описание
 // первой не сохранившейся услуги ({ serviceId, status, data }) - карточка покажет по
 // нему причину отказа, а не просто «не получилось» (правка Влада 15.08.2026).
@@ -192,7 +293,17 @@ export async function saveServiceChanges(masterId, changes) {
     if (change.enabled && parseDurationValue(change.durationMin) == null) {
       return { serviceId: change.serviceId, status: 400, data: { error: 'invalid_duration' } };
     }
-    const body = change.enabled ? { enabled: true, durationMin: change.durationMin } : { enabled: false };
+    // Та же страховка для цены: null на сервере молча подменился бы каталожной ценой,
+    // и владелец увидел бы «Сохранено» с чужой цифрой в собственном прайсе
+    if (change.enabled && parsePriceValue(change.price) == null) {
+      return { serviceId: change.serviceId, status: 400, data: { error: 'invalid_price' } };
+    }
+    // Все поля строки разом: роут переписывает строку master_services целиком
+    // (ON CONFLICT DO UPDATE), и непереданная цена вернулась бы к каталожной, а
+    // непереданная галка - к «не топ», то есть правка одного поля стирала бы соседние
+    const body = change.enabled
+      ? { enabled: true, durationMin: change.durationMin, price: change.price, isTop: change.isTop }
+      : { enabled: false };
     const res = await fetch(`${API}/master-services/${encodeURIComponent(masterId)}/${encodeURIComponent(change.serviceId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },

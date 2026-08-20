@@ -11,7 +11,7 @@ import {
   ICON_UPLOAD,
 } from './crm-icons.js';
 import { initCrmNavigationPanels } from './crm-navigation-panels.js';
-import { collectServiceChanges, DURATION_ERROR, markInvalidServiceDurations, renderMasterServiceEditor, saveServiceChanges } from './crm-master-services.js';
+import { collectServiceChanges, DURATION_ERROR, markInvalidServiceDurations, markInvalidServicePrices, PRICE_ERROR, renderMasterServiceEditor, saveServiceChanges } from './crm-master-services.js';
 import { errorMessage, showError, showSuccess } from './crm-toast.js';
 import { setButtonBusy, showSpinner, skeletonMarkup } from './crm-loading.js';
 import { avatarMarkup } from './crm-avatar.js';
@@ -268,6 +268,13 @@ async function saveCard(card) {
   if (markInvalidServiceDurations(picker).length) {
     picker?.querySelector('.sc-duration-input.is-invalid')?.focus();
     return noteFail(card, DURATION_ERROR);
+  }
+  // Цена - та же проверка до первого запроса (20.08.2026): негодная цифра на сервере
+  // молча подменилась бы каталожной ценой с ответом 200, и владелец увидел бы
+  // «Сохранено» с чужой суммой в собственном прайсе - ровно баг P2, но про деньги
+  if (markInvalidServicePrices(picker).length) {
+    picker?.querySelector('.sc-price-input.is-invalid')?.focus();
+    return noteFail(card, PRICE_ERROR);
   }
   const saveButton = card.querySelector('[data-save]');
   setButtonBusy(saveButton);

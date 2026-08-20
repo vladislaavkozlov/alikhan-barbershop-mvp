@@ -31,15 +31,28 @@ class FakeInput {
   removeAttribute(name) { delete this.attributes[name]; }
 }
 
+// Цена и галка «топ» появились в строке 20.08.2026 (топ-мастер по услуге) - здесь они
+// нужны только чтобы строка была настоящей: тесты этого файла по-прежнему про
+// длительность, поэтому цена всюду одна и та же, «не тронутая» владельцем
 class FakeLabel {
-  constructor({ serviceId, checked, duration, initialEnabled, initialDuration }) {
-    this.dataset = { serviceId, initialEnabled: initialEnabled ? '1' : '0', initialDuration: String(initialDuration) };
+  constructor({ serviceId, checked, duration, initialEnabled, initialDuration, price = '2000', initialPrice = 2000, isTop = false, initialTop = false }) {
+    this.dataset = {
+      serviceId,
+      initialEnabled: initialEnabled ? '1' : '0',
+      initialDuration: String(initialDuration),
+      initialPrice: String(initialPrice),
+      initialTop: initialTop ? '1' : '0',
+    };
     this.checkbox = { checked };
     this.durationInput = new FakeInput(duration);
+    this.priceInput = new FakeInput(price);
+    this.topInput = { checked: isTop, disabled: false };
   }
   querySelector(selector) {
     if (selector === 'input[type="checkbox"]') return this.checkbox;
     if (selector === '.sc-duration-input') return this.durationInput;
+    if (selector === '.sc-price-input') return this.priceInput;
+    if (selector === '.sc-top-input') return this.topInput;
     return null;
   }
 }
@@ -84,14 +97,14 @@ test('корректная длительность сохраняется и п
   const picker = new FakePicker([label]);
   assert.deepEqual(markInvalidServiceDurations(picker), []);
   assert.equal(label.durationInput.classes.has('is-invalid'), false);
-  assert.deepEqual(collectServiceChanges(picker), [{ serviceId: 'haircut', enabled: true, durationMin: 45 }]);
+  assert.deepEqual(collectServiceChanges(picker), [{ serviceId: 'haircut', enabled: true, durationMin: 45, price: 2000, isTop: false }]);
 });
 
 test('выключенная услуга с пустым полем сохранению не мешает - её длительность не уезжает', () => {
   const label = new FakeLabel({ serviceId: 'haircut', checked: false, duration: '', initialEnabled: true, initialDuration: 60 });
   const picker = new FakePicker([label]);
   assert.deepEqual(markInvalidServiceDurations(picker), []);
-  assert.deepEqual(collectServiceChanges(picker), [{ serviceId: 'haircut', enabled: false, durationMin: null }]);
+  assert.deepEqual(collectServiceChanges(picker), [{ serviceId: 'haircut', enabled: false, durationMin: null, price: 2000, isTop: false }]);
 });
 
 test('подсветка снимается, когда цифру исправили', () => {

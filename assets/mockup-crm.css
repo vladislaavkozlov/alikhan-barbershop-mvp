@@ -1194,7 +1194,10 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 /* цена и длительность - одной строкой через точку, как единое "мета"-описание услуги,
    а не два отдельных ряда мелкого текста (визуальная правка Влада 28.07.2026 - было
    тесно и не симпатично, когда длительность появилась вторым рядом под ценой) */
-.service-check .sc-meta { display: flex; align-items: baseline; gap: 5px; margin-top: 4px; color: var(--text-muted); font-size: 0.72rem; }
+/* flex-wrap появился 20.08.2026 вместе с галкой «топ»: в узкой карточке (три колонки
+   на широком экране) цена + длительность + «топ» в одну строку не помещаются, и без
+   переноса подпись уезжала за край карточки - видно на скриншоте живого прогона */
+.service-check .sc-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; row-gap: 3px; margin-top: 4px; color: var(--text-muted); font-size: 0.72rem; }
 .service-check .sc-dot { opacity: 0.45; }
 .service-check .sc-duration { display: inline-flex; align-items: baseline; gap: 3px; white-space: nowrap; }
 .sc-duration-input {
@@ -1216,6 +1219,43 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 /* убираем стрелки-степпер у number - в узкой инлайн-цифре они не помещаются красиво */
 .sc-duration-input::-webkit-inner-spin-button, .sc-duration-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .sc-duration-input[type="number"] { -moz-appearance: textfield; }
+
+/* Цена мастера за услугу (20.08.2026, топ-мастер) - такая же инлайн-цифра, как
+   длительность, только шире: в неё влезает "3 000". Стили лежат рядом с
+   .sc-duration-input, а не в crm-app-shell.css, сознательно - это не новый токен
+   редизайна, а второе поле того же legacy-компонента .service-check, и разносить одну
+   строку услуги по двум файлам значило бы ломать её при следующей правке. */
+.sc-price-input {
+  width: 46px; background: transparent; border: none; border-bottom: 1px solid var(--border);
+  border-radius: 0; color: var(--text); padding: 0 0 1px; font-family: inherit; font-size: 0.78rem;
+  font-weight: 600; text-align: center; transition: border-color 140ms var(--ease-out);
+}
+.sc-price-input:hover:not(:disabled) { border-bottom-color: var(--wood); }
+.sc-price-input:focus, .sc-price-input:focus-visible { outline: none; border-bottom-color: var(--accent); }
+.sc-price-input:disabled { opacity: 0.55; cursor: not-allowed; border-bottom-style: dotted; }
+.sc-price-input.is-invalid,
+.sc-price-input.is-invalid:focus,
+.sc-price-input.is-invalid:focus-visible { color: var(--danger); border-bottom-color: var(--danger); border-bottom-width: 2px; }
+.service-check .sc-price { display: inline-flex; align-items: baseline; gap: 2px; white-space: nowrap; }
+.service-check .sc-price-unit { opacity: 0.7; }
+/* Галка "топ" - последняя в мета-строке и с отступом слева: она про деньги клиента на
+   сайте, а не про настройку услуги, и визуально не должна слипаться с длительностью */
+.service-check .sc-top {
+  display: inline-flex; align-items: center; gap: 4px; padding-left: 4px;
+  cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.66rem;
+}
+.service-check .sc-top-input { width: 13px; height: 13px; accent-color: var(--accent); }
+.service-check .sc-top-input:disabled { opacity: 0.45; cursor: not-allowed; }
+/* Включённый топ подсвечен золотом - владелец должен видеть тариф беглым взглядом по
+   списку услуг, не вчитываясь в каждую строку */
+.service-check .sc-top:has(input:checked) .sc-top-text { color: var(--accent); font-weight: 700; }
+
+/* Метка топ-тарифа на карточке записи в «Дне» (20.08.2026). Рядом с «+1 новый клиент»
+   и тем же ростом: обе метки отвечают на один вопрос - что особенного в этом визите */
+.appt .appt-top-tier {
+  display: inline-block; padding: 0 4px; border-radius: 4px; background: rgba(198,161,91,0.18);
+  color: var(--accent); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+}
 
 /* ---------- месяц/год расписания ---------- */
 /* minmax(0,1fr), не голый 1fr - иначе грид не сжимает колонку меньше содержимого
@@ -1454,6 +1494,16 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 /* Комментарий сотрудника в истории визитов клиента (13.08.2026, миграция 048) -
    отдельной строкой под визитом, приглушённо: это пояснение, не заголовок. */
 .visit-comment { display: block; margin-top: 3px; color: var(--text-muted); font-style: italic; }
+/* Условия визита (20.08.2026) - подпись над полями суммы и комментария: сначала
+   сотрудник видит, на каких условиях запись сделана, потом правит цифру и объясняет
+   расхождение. [hidden] снимаем явно - у <p> он перебивается display из этого правила
+   (тот же класс бага, что уже ловили с [hidden] в проекте) */
+.wf-terms {
+  display: block; margin: 0 0 10px; padding: 7px 10px; border-radius: 8px;
+  background: rgba(198,161,91,0.10); border: 1px solid var(--border);
+  color: var(--text-muted); font-size: 0.78rem;
+}
+.wf-terms[hidden] { display: none; }
 .wf-result { margin: 12px 0 0; font-size: 0.84rem; padding: 8px 12px; border-radius: 8px; }
 .wf-result[hidden] { display: none; }
 .wf-result--ok { background: rgba(111,174,124,0.14); border: 1px solid var(--success); color: var(--text); }

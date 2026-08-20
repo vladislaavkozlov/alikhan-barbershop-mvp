@@ -203,6 +203,13 @@
                window.saveBookingActualPrice), тем же PATCH /bookings/:id/actual-price.
                Тот же разбор, что на crm-owner.html. -->
           <div class="wf-edit-extras" id="wfEditExtras" hidden>
+            <!-- Условия визита (20.08.2026, задача Влада: «у записи по умолчанию
+                 комментарий - откуда пришёл клиент и на каких условиях, например
+                 "запись к топ мастеру"»). Не поле, а подпись: и канал, и тариф уже
+                 есть на самой брони (client_source, миграция 050; master_tier,
+                 миграция 054), вводить их руками нечего, а редактируемое поле с
+                 автоподстановкой затирало бы комментарий сотрудника ниже. -->
+            <p class="wf-terms" id="bkTerms" hidden></p>
             <div class="field-grid">
               <div class="field">
                 <label for="bkActualPrice">Фактическая сумма, ₽</label>

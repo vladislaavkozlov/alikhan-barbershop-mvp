@@ -23,6 +23,7 @@ import {
 import { reportError, reportSuccess } from './crm-toast.js';
 import { setButtonBusy } from './crm-loading.js';
 import { CLIENT_SOURCE_LABELS } from './client-source.js';
+import { bookingTermsLabel } from './booking-terms.js';
 
 // Задача Влада (01.08.2026): "Клиент без предварительной записи" была рисунком -
 // кнопка ничего не сохраняла, список услуг был одинаковый для любого мастера, поле
@@ -132,6 +133,18 @@ function renderSourceSelect(value) {
     <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect(this)">${escapeHtml(CLIENT_SOURCE_LABELS[current] || SOURCE_EMPTY_LABEL)}</button>
     <div class="custom-select-list" hidden>${options}</div>
   </div>`;
+}
+
+// Условия визита одной строкой под полями формы (20.08.2026): «Яндекс Карты · запись
+// к топ-мастеру». Подпись, а не поле - оба значения уже лежат на брони и вводить их
+// руками нечего. Нечего показать (старая запись без тарифа и без канала) - строки нет
+// вовсе, вместо пустой рамки с двоеточием.
+function renderBookingTerms(booking) {
+  const host = el('bkTerms');
+  if (!host) return; // страница без блока (crm-master.html)
+  const text = booking ? bookingTermsLabel({ clientSource: booking.clientSource, masterTier: booking.masterTier }) : null;
+  host.textContent = text ? `Условия визита: ${text}` : '';
+  host.hidden = !text;
 }
 
 // Пустая строка виджета = "источник неизвестен" → null для сервера
@@ -651,6 +664,11 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     // перерисовывается каждый раз - иначе в новой записи остался бы источник
     // предыдущего клиента, и администратор приписал бы его не тому каналу
     renderSourceSelect(editMode ? editBooking?.clientSource || '' : '');
+    // Условия визита показываем только у существующей записи: у новой ни канала, ни
+    // тарифа ещё нет - тариф определит сервер по услугам выбранного мастера в момент
+    // создания, и показывать до этого «обычный тариф» значило бы обещать цифру, которая
+    // может оказаться другой
+    renderBookingTerms(editMode ? editBooking : null);
     renderPicker(masterId);
     if (rebookMode && options.serviceIds?.length) {
       const available = new Set(checkboxByService.keys());
@@ -1187,6 +1205,9 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
           // Откуда клиент (17.08.2026) - тем же приёмом, что комментарий: значение
           // уже лежит на карточке дня (data-client-source), лишний запрос не нужен
           clientSource: d.clientSource || '',
+          // Тариф визита (20.08.2026, миграция 054) - оттуда же (data-master-tier).
+          // Вместе с каналом даёт строку условий записи под полями формы.
+          masterTier: d.masterTier || '',
         },
       });
     };

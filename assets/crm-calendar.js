@@ -49,6 +49,7 @@ function positionStyle(startTime, endTime) {
 import { avatarMarkup } from './crm-avatar.js';
 import { sortByServiceOrder } from '../storage.js';
 import { clientSourceLabel } from './client-source.js';
+import { masterTierLabel } from './booking-terms.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -201,12 +202,20 @@ export function buildApptCard(booking, { masterName, services, priceOf }) {
   // канал привлечения давно неактуален и только занимает место в узкой карточке.
   const sourceLabel = booking.clientIsNew ? clientSourceLabel(booking.clientSource) : null;
   const newBadge = booking.clientIsNew ? '<span class="appt-new-client">+1 новый клиент</span>' : '';
+  // Тариф визита (20.08.2026, миграция 054). В узкой карточке дня отмечаем ТОЛЬКО
+  // топовые: «обычный тариф» - это умолчание, и повторять его на каждой второй записи
+  // значило бы забить место, которого и так не хватает даже под имя (см. раскрытие
+  // карточки ниже). Полную строку условий показывает форма записи при открытии.
+  const topBadge = booking.masterTier === 'top'
+    ? `<span class="appt-top-tier" title="${escapeHtml(masterTierLabel('top'))}">топ</span>`
+    : '';
   const detailLine = [phone, sourceLabel].filter(Boolean).join(' · ');
   // Разделитель между меткой и данными - та же точка, что уже разделяет клиента и
   // услугу строкой выше: без неё "+1 новый клиент +79001112233" читается одной
   // слипшейся строкой (видно на снимке живого прогона до правки).
-  const details = newBadge || detailLine
-    ? `<span class="s">${newBadge}${newBadge && detailLine ? ' · ' : ''}${escapeHtml(detailLine)}</span>`
+  const badges = `${newBadge}${newBadge && topBadge ? ' ' : ''}${topBadge}`;
+  const details = badges || detailLine
+    ? `<span class="s">${badges}${badges && detailLine ? ' · ' : ''}${escapeHtml(detailLine)}</span>`
     : '';
   // Кнопка раскрытия (17.08.2026, вторая часть задачи: "если человек записался на 15
   // минут, должна быть опция раскрыть запись в 'Дне'"). Высота карточки равна реальной
@@ -226,7 +235,8 @@ export function buildApptCard(booking, { masterName, services, priceOf }) {
        data-status="${dataStatus}" data-real-status="${escapeHtml(booking.status)}" data-confirmed="${booking.clientConfirmed ? 'true' : 'false'}" data-noshow="${isNoShow ? 'true' : 'false'}"
        data-noshow-streak="${booking.clientNoShowStreak ?? 0}" data-requires-prepayment="${booking.requiresPrepayment ? 'true' : 'false'}"
        data-actual-price="${booking.actualPrice ?? ''}" data-staff-comment="${escapeHtml(booking.staffComment || '')}"
-       data-client-source="${escapeHtml(booking.clientSource || '')}" data-client-new="${booking.clientIsNew ? 'true' : 'false'}">
+       data-client-source="${escapeHtml(booking.clientSource || '')}" data-client-new="${booking.clientIsNew ? 'true' : 'false'}"
+       data-master-tier="${escapeHtml(booking.masterTier || '')}">
     <span class="t">${escapeHtml(planned)}</span><span class="c">${warn}${escapeHtml(clientName)} · ${escapeHtml(nameLabel)}</span>${details}${expandBtn}
   </div>`;
 }
