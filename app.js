@@ -593,6 +593,23 @@ function totalsOf(masterId) {
 
 const formatPrice = (value) => `${value.toLocaleString('ru-RU')}₽`;
 
+// Номера шагов проставляются здесь, а не в разметке (20.08.2026): блок тарифа
+// показывается не всегда, и зашитые в HTML цифры давали на живом сайте «1, 3, 4, 5» -
+// клиент видел пропущенный шаг и искал, где потерял второй. Подписи шагов лежат в
+// data-step, номер дорисовывается по фактически видимым полям.
+function renumberSteps() {
+  const labels = [
+    document.getElementById('f-service-label'),
+    tierField && !tierField.hidden ? document.getElementById('f-tier-label') : null,
+    document.getElementById('f-master-label'),
+    document.getElementById('f-date-label'),
+    document.getElementById('f-slots-label'),
+  ].filter(Boolean);
+  labels.forEach((label, index) => {
+    label.textContent = `${index + 1}. ${label.dataset.step}`;
+  });
+}
+
 // ── Шаг 2: «у обычного мастера за стандартную оплату» или «у топ-мастера за +» ──
 // Блок показывается, только когда по выбранным услугам есть И те, И другие. Одна
 // доступная группа - это не выбор, а лишний шаг в форме, которая и так самое узкое
@@ -606,6 +623,7 @@ function renderTierOptions() {
 
   tierGrid.replaceChildren();
   tierField.hidden = !bothAvailable;
+  renumberSteps();
   if (!bothAvailable) {
     // Выбор исчез (сняли услугу, у топа её нет) - прежний тариф молча не оставляем,
     // иначе список мастеров остался бы сужен по признаку, которого клиент больше не видит
@@ -1111,6 +1129,7 @@ renderMasters();
 // Мастера до выбора услуг показывают подсказку вместо списка.
 renderServiceOptions();
 renderMasterOptions();
+renumberSteps();
 
 if (window.ALIKHAN_API_URL) {
   loadPublicMasters(window.ALIKHAN_API_URL).then((rows) => {

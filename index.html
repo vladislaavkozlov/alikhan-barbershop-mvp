@@ -1829,7 +1829,7 @@
                его вслепую по имени, не понимая, чем один дороже другого. Теперь сначала
                услуги, потом тариф, и только потом человек. -->
           <div class="field">
-            <label id="f-service-label">1. Услуги - можно несколько</label>
+            <label id="f-service-label" data-step="Услуги - можно несколько"></label>
             <div id="service-grid" class="option-grid" role="group" aria-labelledby="f-service-label"></div>
             <p id="service-summary" class="service-summary" hidden></p>
           </div>
@@ -1838,19 +1838,19 @@
                топ-мастера, И обычные: если все одного уровня, выбирать не из чего, и
                лишний шаг в форме стоил бы записей. Скрытием управляет app.js. -->
           <div class="field" id="tier-field" hidden>
-            <label id="f-tier-label">2. У какого мастера</label>
+            <label id="f-tier-label" data-step="У какого мастера"></label>
             <div id="tier-grid" class="option-grid option-grid--tier" role="group" aria-labelledby="f-tier-label"></div>
           </div>
 
           <div class="field">
-            <label id="f-master-label">3. Мастер</label>
+            <label id="f-master-label" data-step="Мастер"></label>
             <div id="master-grid" class="option-grid" role="group" aria-labelledby="f-master-label" aria-disabled="true">
               <p class="option-hint">Сначала выберите услуги</p>
             </div>
           </div>
 
           <div class="field date-field">
-            <label id="f-date-label">4. Дата</label>
+            <label id="f-date-label" data-step="Дата"></label>
             <button
               type="button"
               id="date-toggle"
@@ -1885,7 +1885,7 @@
           </div>
 
           <div class="field">
-            <label>5. Свободное время</label>
+            <label id="f-slots-label" data-step="Свободное время"></label>
             <div id="slots-wrap" class="slots-wrap">
               <p class="slots-hint">Сначала выберите услуги, мастера и дату</p>
             </div>

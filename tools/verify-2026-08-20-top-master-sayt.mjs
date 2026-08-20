@@ -81,6 +81,14 @@ try {
         const strizhka = servicesShown.find((c) => c.name === 'Стрижка');
         check('в каталоге цена «от», раз мастера берут по-разному', /^от 2 000₽/.test(plain(strizhka?.meta)), plain(strizhka?.meta));
 
+        const stepLabels = async () => JSON.parse(await s.eval(
+          `JSON.stringify([...document.querySelectorAll('.booking-shell label[data-step]')].filter(l => !l.closest('.field').hidden).map(l => l.innerText.trim()))`
+        ));
+        // Нумерация без пропусков: блок тарифа скрыт, значит шаги обязаны идти 1-2-3-4,
+        // а не 1-3-4-5 (на живом сайте после первого деплоя было именно так)
+        const stepsNoTier = (await stepLabels()).join(' | ').toLowerCase();
+        check('без тарифа шаги пронумерованы подряд', stepsNoTier === '1. услуги - можно несколько | 2. мастер | 3. дата | 4. свободное время', stepsNoTier);
+
         // ── 2. выбрали услугу - появился выбор тарифа ─────────────────────
         check('клик по услуге', (await clickCard('#service-grid', 'Стрижка')) === 'OK');
         await sleep(400);
@@ -92,6 +100,9 @@ try {
         check('карточка топ-мастера показывает надбавку', /от 3 000₽/.test(plain(top?.meta)) && /\+1 000₽/.test(plain(top?.meta)), plain(top?.meta));
 
         // ── 3. до выбора тарифа видны все, кто оказывает услугу ───────────
+        const stepsWithTier = (await stepLabels()).join(' | ').toLowerCase();
+        check('с тарифом шаги тоже подряд', stepsWithTier === '1. услуги - можно несколько | 2. у какого мастера | 3. мастер | 4. дата | 5. свободное время', stepsWithTier);
+
         const allMasters = await readGrid('#master-grid');
         check('узкий мастер без этой услуги в списке не появился', !allMasters.some((m) => m.name.includes('Никита')), JSON.stringify(allMasters.map((m) => m.name)));
         check('топ-мастер помечен меткой «топ»', allMasters.find((m) => m.name.includes('Тимур'))?.top === true, JSON.stringify(allMasters));
