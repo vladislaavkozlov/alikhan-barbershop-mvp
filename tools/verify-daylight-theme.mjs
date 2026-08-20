@@ -76,6 +76,16 @@ await withBrowser(async (s) => {
   await s.eval(inject);
   await s.eval(`(function(){document.getElementById('loginEmail').value=${JSON.stringify(a.e)};document.getElementById('loginPin').value=${JSON.stringify(a.pin)};document.getElementById('loginForm').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));})()`);
   for(let i=0;i<80;i++){if(await s.eval('!document.getElementById("crmMain").hidden'))break;await s.sleep(250);}
+  // Без этой проверки скрипт молча «проходит» при неудачном входе: рабочей
+  // области нет, аудиту нечего мерить, и он честно печатает 0 находок. Проверено
+  // случайно (запуск с CRM_EMAIL=x дал зелёный отчёт) - такой зелёный не значит
+  // ничего, поэтому падаем громко.
+  if (await s.eval('document.getElementById("crmMain").hidden')) {
+    const err = await s.eval('(document.querySelector(".login-error")||{}).textContent || "причина неизвестна"');
+    console.error(`ВХОД НЕ ВЫПОЛНЕН (${err}) - мерить нечего, аудит не проводился.`);
+    process.exitCode = 1;
+    return;
+  }
   await s.sleep(3500); await s.eval(inject);
   const all={dark:{},low:{}};
   for(const sec of a.s){
