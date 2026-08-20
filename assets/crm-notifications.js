@@ -20,7 +20,7 @@
 // до решения по боту. Здесь только связь в один клик руками сотрудника: кнопка
 // открывает мессенджер с уже набранным текстом, отправляет человек.
 import { goToSection } from './crm-app-shell.js';
-import { ICON_BELL, ICON_BOOKING_NEW, ICON_BOOKING_MOVED_IN, ICON_BOOKING_MOVED_OUT, ICON_CLOSE } from './crm-icons.js';
+import { ICON_BELL, ICON_BOOKING_NEW, ICON_BOOKING_MOVED_IN, ICON_BOOKING_MOVED_OUT, ICON_BOOKING_CANCELLED, ICON_CLOSE } from './crm-icons.js';
 // Экранирование берём готовое из crm-schedule-shared.js - та же функция уже защищает
 // пять других CRM-файлов, своей копии не заводим. Нужна она здесь по-прежнему: имя
 // клиента приезжает из АНОНИМНОГО POST /bookings с публичного сайта (XSS, найденный
@@ -44,6 +44,7 @@ const TYPE_ICON = {
   booking_new: ICON_BOOKING_NEW,
   booking_moved_out: ICON_BOOKING_MOVED_OUT,
   booking_moved_in: ICON_BOOKING_MOVED_IN,
+  booking_cancelled: ICON_BOOKING_CANCELLED,
 };
 
 function getToken() {
@@ -135,6 +136,12 @@ export function clientMessageText(booking) {
   const when = formatBookingWhen(booking.date, booking.startTime);
   const master = booking.masterName ? `, мастер ${booking.masterName}` : '';
   const services = booking.serviceNames ? ` (${booking.serviceNames})` : '';
+  // Отменённой записи нельзя писать «ждём вас» - человек придёт к закрытому времени.
+  // Кнопки связи на такой карточке нужны как раз чтобы предложить перенос, поэтому
+  // текст сразу об этом
+  if (booking.status === 'cancelled') {
+    return `Здравствуйте, ${name}это барбершоп «Алихан». Ваша запись ${when}${master} отменена. Напишите, если хотите перенести - подберём удобное время.`;
+  }
   return `Здравствуйте, ${name}это барбершоп «Алихан». Ждём вас ${when}${master}${services}. Если планы изменятся - напишите, перенесём.`;
 }
 
@@ -177,7 +184,7 @@ async function openBookingFromNotification(booking) {
   return true;
 }
 
-function bookingSummaryHtml(booking) {
+function bookingSummaryHtml(booking, type) {
   const rows = [];
   const when = formatBookingWhen(booking.date, booking.startTime);
   const till = booking.endTime ? `–${booking.endTime}` : '';
@@ -187,7 +194,12 @@ function bookingSummaryHtml(booking) {
   if (booking.masterName) meta.push(`мастер ${booking.masterName}`);
   if (booking.serviceNames) meta.push(booking.serviceNames);
   if (meta.length) rows.push(`<div class="ntf-meta">${escapeHtml(meta.join(' · '))}</div>`);
-  if (booking.status === 'cancelled') rows.push('<div class="ntf-meta ntf-meta--off">Запись отменена</div>');
+  // У уведомления об отмене это уже сказано заголовком - второй раз не повторяем.
+  // На остальных типах строка нужна: «Новая запись», которую потом отменили руками в
+  // расписании, иначе выглядела бы действующей
+  if (booking.status === 'cancelled' && type !== 'booking_cancelled') {
+    rows.push('<div class="ntf-meta ntf-meta--off">Запись отменена</div>');
+  }
   return rows.join('');
 }
 
@@ -198,12 +210,25 @@ function bookingSummaryHtml(booking) {
 // момент создания записи это одно и то же событие, поэтому показываем одну строку. Для
 // переноса они расходятся: запись завели давно, а переехала она только что - показываем
 // оба, иначе «5 мин назад» соврёт про возраст самой записи.
+// Что именно случилось «5 минут назад» - зависит от типа. Раньше здесь для всего, кроме
+// новой записи, стояло слово «перенесена», и отменённая запись подписывалась
+// «перенесена только что» - прямое враньё в ленте (поймано глазами на скриншоте
+// живого прогона 20.08.2026, ни один ассерт этого не заметил)
+const EVENT_VERB = {
+  booking_moved_in: 'перенесена',
+  booking_moved_out: 'перенесена',
+  booking_cancelled: 'отменена',
+};
+
 function timeLine(n) {
   const created = n.booking?.createdAt ? `запись создана ${formatMoment(n.booking.createdAt)}` : '';
   const ago = timeAgo(n.createdAt);
   if (!created) return ago;
+  // У новой записи момент уведомления и момент создания - одно событие, вторая строка
+  // была бы повтором
   if (n.type === 'booking_new') return created;
-  return `перенесена ${ago} · ${created}`;
+  const verb = EVENT_VERB[n.type];
+  return verb ? `${verb} ${ago} · ${created}` : `${ago} · ${created}`;
 }
 
 function fullItemHtml(n) {
@@ -220,7 +245,7 @@ function fullItemHtml(n) {
       <span class="ntf-ico" aria-hidden="true">${TYPE_ICON[n.type] ?? ICON_BELL}</span>
       <div class="ntf-body">
         <div class="ntf-title">${escapeHtml(n.title)}</div>
-        ${b ? bookingSummaryHtml(b) : `<div class="ntf-meta">${escapeHtml(n.body ?? '')}</div>`}
+        ${b ? bookingSummaryHtml(b, n.type) : `<div class="ntf-meta">${escapeHtml(n.body ?? '')}</div>`}
         <div class="ntf-time">${escapeHtml(timeLine(n))}</div>
         ${actions.length ? `<div class="ntf-actions">${actions.join('')}</div>` : ''}
       </div>

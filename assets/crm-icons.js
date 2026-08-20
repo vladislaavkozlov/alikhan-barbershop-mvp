@@ -52,6 +52,8 @@ export const ICON_ADD = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3
 // строк важно видеть, ушла запись или пришла, не вчитываясь в текст.
 export const ICON_BOOKING_NEW = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8h14"/><path d="M6.5 2.5v3M13.5 2.5v3"/><path d="M10 10.5v4M8 12.5h4"/></svg>`;
 export const ICON_BOOKING_MOVED_OUT = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8h14"/><path d="M6.5 2.5v3M13.5 2.5v3"/><path d="M7 12.5h6M10.5 10l2.5 2.5-2.5 2.5"/></svg>`;
+// Отменённая запись - тот же календарь, но перечёркнутый крестиком
+export const ICON_BOOKING_CANCELLED = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8h14"/><path d="M6.5 2.5v3M13.5 2.5v3"/><path d="M8 11.5l4 4M12 11.5l-4 4"/></svg>`;
 export const ICON_BOOKING_MOVED_IN = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8h14"/><path d="M6.5 2.5v3M13.5 2.5v3"/><path d="M13 12.5H7M9.5 10 7 12.5 9.5 15"/></svg>`;
 
 // Крестик «убрать из колокольчика» (20.08.2026). Тот же STROKE, что весь набор -

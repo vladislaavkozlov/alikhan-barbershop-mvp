@@ -532,6 +532,51 @@ export async function handleBookingDelete(req, res, parts) {
 // ориентируется сотрудник в разговоре с клиентом. Доступ сужен той же матрицей,
 // что и видимость самой брони (listBookingsForRequest): owner - любая, admin -
 // только своя точка, master - только свои записи.
+// Отмена записи (20.08.2026, решение Влада): узнают все, кого она касается - мастер,
+// у которого сорвался визит, плюс владелец, управляющий и администратор точки.
+//
+// В ленте остаётся ОДНА строка на запись: прежние уведомления по этой брони
+// («Новая запись», «Запись перенесена») удаляются здесь же. Иначе у человека висело бы
+// два взаимоисключающих сообщения об одном визите - тот же довод и тот же приём, что у
+// переноса (applyRescheduleNotifications выше). Новая строка встаёт наверх списка,
+// снова непрочитанной и снова видимой в колокольчике, даже если прежнюю оттуда убрали
+// крестиком: отмена - новая информация, а не повтор разобранного (refresh, notify-core).
+//
+// Ошибку отправки глушим: запись уже отменена в базе, и падение на уведомлении не
+// должно превращать успешную отмену в 500 для того, кто её нажал.
+async function notifyAboutCancelledBooking(booking, bookingDate) {
+  const client = await pool.connect();
+  try {
+    const clientRes = await client.query(
+      `SELECT COALESCE(c.name, b.walkin_name) AS client_name
+         FROM bookings b LEFT JOIN clients c ON c.id = b.client_id WHERE b.id = $1`,
+      [booking.id]
+    );
+    const clientName = clientRes.rows[0]?.client_name ?? null;
+    const [y, m, d] = String(bookingDate).split('-');
+    const body = `${d}.${m}.${y}, ${booking.start_time}${clientName ? ' · ' + clientName : ''}`;
+
+    const recipients = [booking.master_id, ...(await bookingWatcherIds(client, booking.location_id))];
+    for (const staffId of [...new Set(recipients.filter(Boolean))]) {
+      await client.query(
+        `DELETE FROM notifications
+          WHERE staff_id = $1 AND booking_id = $2 AND type <> 'booking_cancelled'`,
+        [staffId, booking.id]
+      );
+      await notifyStaff(client, staffId, 'booking_cancelled', {
+        bookingId: booking.id,
+        title: 'Запись отменена',
+        body,
+        refresh: true,
+      });
+    }
+  } catch (err) {
+    console.error('уведомление об отмене записи не отправлено (сама отмена прошла):', err.message);
+  } finally {
+    client.release();
+  }
+}
+
 export async function handleBookingCancel(req, res, parts) {
   const auth = await authenticate(req);
   if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
@@ -560,7 +605,9 @@ export async function handleBookingCancel(req, res, parts) {
   const refundEligible = hoursUntilBooking >= CANCEL_FULL_REFUND_HOURS;
 
   await pool.query(`UPDATE bookings SET status = 'cancelled' WHERE id = $1`, [bookingId]);
+  await notifyAboutCancelledBooking(booking, bookingDate);
   publish('bookings', { bookingId, date: bookingDate, masterId: booking.master_id ?? null, reason: 'cancelled' });
+  publish('notifications', { reason: 'booking-cancelled' });
   return sendJson(res, 200, {
     ok: true,
     status: 'cancelled',

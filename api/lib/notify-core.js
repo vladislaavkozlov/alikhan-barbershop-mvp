@@ -41,11 +41,16 @@ export async function notifyStaff(
   // DO UPDATE без таргета Postgres не принимает. refresh осмыслен только для событий
   // по брони, поэтому bookingId обязателен.
   if (!bookingId) throw new Error('notifyStaff: refresh требует bookingId');
+  // dismissed_at сбрасывается вместе с read_at (20.08.2026): человек мог убрать строку
+  // из колокольчика, разобравшись с прежним состоянием записи, - а перенос или отмена
+  // это НОВАЯ информация о ней, и прятать её за прошлое решение нельзя. Строка
+  // возвращается в колокольчик так же, как возвращается в непрочитанные.
   await client.query(
     `INSERT INTO notifications (id, staff_id, type, booking_id, schedule_request_id, related_master_id, title, body)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (staff_id, type, booking_id) WHERE booking_id IS NOT NULL
-     DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, created_at = now(), read_at = NULL`,
+     DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, created_at = now(),
+                   read_at = NULL, dismissed_at = NULL`,
     params
   );
 }
