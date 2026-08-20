@@ -9,6 +9,9 @@ import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } 
 import { API, getToken } from './crm-auth.js';
 import { renderLiveProof } from './crm-dashboard.js';
 import { RADIO_ID_TO_STATUS, applyNoShowStreakAfterStatus } from './crm-booking-status.js';
+// Признак «принимает клиентов сейчас» - общий с колонками календаря (mastersOf),
+// чтобы список мастеров в форме записи и в дне не мог разойтись
+import { acceptsClients } from './crm-calendar.js';
 import {
   mergeServiceCombos,
   isServiceBlockedByCombo,
@@ -277,18 +280,20 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
   // ВСПЛЫВАЮЩИЕ-ЭЛЕМЕНТЫ.md), тот же виджет, что у "Закреплён за мастером" - строим
   // его тем же HTML-контрактом (data-value + onclick-хуки mockup-crm.js), потому что
   // интерактивность .custom-select живёт там и резолвится через window.
-  // Список - только те, кто реально принимает клиентов (providesServices), а НЕ по
-  // role === 'master': владелец Алиовсад сам стрижёт и обязан быть в списке, а
-  // администратор без услуг - нет. Тем же признаком бэкенд отбирает мастеров для
-  // расписания (serviceMasterIds, api/routes/staff.js) - берём тот же критерий, а не
-  // свой. Текущий мастер записи добавляется всегда, даже если его уже сняли с услуг:
-  // иначе открытая старая запись показала бы пустой дропдаун.
+  // Список - только те, кто реально принимает клиентов (acceptsClients: услуги ВКЛ и
+  // человек в активном составе), а НЕ по role === 'master': владелец Алиовсад сам
+  // стрижёт и обязан быть в списке, а администратор без услуг - нет. Тот же критерий
+  // отбирает колонки в календаре и проверяет сервер при создании записи - раньше здесь
+  // стоял только providesServices, и уволенный сотрудник оставался в дропдауне, хотя
+  // сервер запись к нему всё равно отклонял (20.08.2026). Текущий мастер записи
+  // добавляется всегда, даже если его уже сняли с услуг или уволили: иначе открытая
+  // старая запись показала бы пустой дропдаун.
   function renderMasterSelect(selectedMasterId, { manual = false } = {}) {
     const slot = el('wfMaster-slot');
     if (!slot) return;
     const masters = (staffList || []).filter((s) => manual
-      ? s.providesServices && s.hasWorkingSchedule !== false
-      : s.providesServices || s.id === selectedMasterId
+      ? acceptsClients(s) && s.hasWorkingSchedule !== false
+      : acceptsClients(s) || s.id === selectedMasterId
     );
     const current = masters.find((m) => m.id === selectedMasterId);
     const options = masters
@@ -734,7 +739,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
 
   window.openManualBooking = () => {
     const masters = (staffList || []).filter((candidate) =>
-      candidate.providesServices && candidate.hasWorkingSchedule !== false
+      acceptsClients(candidate) && candidate.hasWorkingSchedule !== false
     );
     const master = masters[0];
     if (!master) {
