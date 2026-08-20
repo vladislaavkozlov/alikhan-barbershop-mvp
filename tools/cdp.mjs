@@ -121,6 +121,25 @@ export async function withBrowser(fn) {
           return 'OK';
         })()`);
       },
+      // Настоящий ввод с клавиатуры (21.08.2026): type() выше ставит value сеттером и
+      // диспатчит события руками - так не поймать баги, которые живут в самом жесте
+      // (фокус, выделение, активация <label> кликом по вложенному полю). Здесь -
+      // честные события Input.*, ровно как от живого человека.
+      async typeReal(selector, text, { clear = true } = {}) {
+        const found = await this.eval(`(function(){
+          const el = document.querySelector(${JSON.stringify(selector)});
+          if (!el) return 'NOT_FOUND';
+          el.focus();
+          ${clear ? 'el.select();' : ''}
+          return 'OK';
+        })()`);
+        if (found !== 'OK') return found;
+        for (const char of String(text)) {
+          await send('Input.dispatchKeyEvent', { type: 'keyDown', text: char, unmodifiedText: char, key: char });
+          await send('Input.dispatchKeyEvent', { type: 'keyUp', key: char });
+        }
+        return 'OK';
+      },
       sleep,
     };
 

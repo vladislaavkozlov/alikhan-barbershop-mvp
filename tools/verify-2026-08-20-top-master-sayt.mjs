@@ -89,6 +89,24 @@ try {
         const stepsNoTier = (await stepLabels()).join(' | ').toLowerCase();
         check('без тарифа шаги пронумерованы подряд', stepsNoTier === '1. услуги - можно несколько | 2. мастер | 3. дата | 4. свободное время', stepsNoTier);
 
+        // ── 1б. клики реально доходят до карточек ─────────────────────────
+        // Баг Влада 21.08.2026: декоративная окружность .booking::before лежала поверх
+        // правого верхнего угла формы и съедала клики - услуга под ней не выбиралась и
+        // не снималась. Проверяем ровно в том положении страницы, куда попадает клиент
+        // по кнопке «Выбрать услугу и время» (якорь #booking), а не после прокрутки к
+        // конкретной карточке: прокрутка уводит её из-под круга и баг прячется.
+        // scrollIntoView, а не location.hash: если hash уже равен #booking, повторное
+        // присвоение не прокручивает страницу вовсе, и проверка мерила не то положение
+        await s.eval(`document.getElementById('booking').scrollIntoView({ block: 'start' })`);
+        await sleep(1500);
+        const covered = JSON.parse(await s.eval(`JSON.stringify([...document.querySelectorAll('#service-grid .option-card')].map(b => {
+          const r = b.getBoundingClientRect();
+          if (r.top < 0 || r.bottom > innerHeight) return null;
+          const hit = document.elementFromPoint(Math.round(r.x + r.width/2), Math.round(r.y + r.height/2));
+          return hit && (b === hit || b.contains(hit)) ? null : b.querySelector('.opt-name').innerText.trim();
+        }).filter(Boolean))`));
+        check('клики доходят до всех карточек услуг, ничем не перекрыты', covered.length === 0, covered.join(', '));
+
         // ── 2. выбрали услугу - появился выбор тарифа ─────────────────────
         check('клик по услуге', (await clickCard('#service-grid', 'Стрижка')) === 'OK');
         await sleep(400);
