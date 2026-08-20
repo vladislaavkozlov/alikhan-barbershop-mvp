@@ -52,8 +52,8 @@ export { findMastersMissingSchedule, notifyOwnerAboutMastersMissingSchedule } fr
 // server.mjs (in-memory юниты без реального Postgres) - см. правило 6 плана
 // декомпозиции, plans/2026-08-07-server-mjs-decomposition.md.
 export { isoWeekday, enumerateDateRange } from './lib/time.js';
-import { handleLogin, handleLogout, handleMe, handlePinChange } from './routes/auth.js';
-import { handleStaffCreate, handleStaffList, handleStaffMediaDelete, handleStaffMediaOrder, handleStaffMediaUpload, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
+import { handleLogin, handleLogout, handleMe } from './routes/auth.js';
+import { handleStaffCreate, handleStaffList, handleStaffMediaDelete, handleStaffMediaOrder, handleStaffMediaUpload, handleStaffPinSet, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
 import { MEDIA_ROOT } from './lib/staff-media.js';
 import { handlePublicMasters } from './routes/public-masters.js';
 import { handleLocationsList } from './routes/locations.js';
@@ -110,7 +110,11 @@ const ROUTES = [
   { method: 'GET', path: 'health', auth: 'public' },
   { method: 'POST', path: 'auth/login', auth: 'public' },
   { method: 'GET', path: 'auth/me', auth: 'any-staff' },
-  { method: 'PUT', path: 'auth/pin', auth: 'any-staff' },
+  // PUT /auth/pin (самостоятельная смена своего PIN) снят 20.08.2026 по решению
+  // Влада: пины задаёт только владелец, через PUT /staff/:id/pin ниже. Роут убран
+  // из реестра, значит запрос к нему получает 404 на гейте и до обработчика не
+  // доходит - оставлять его живым «на всякий случай» нельзя, это была бы обходная
+  // дверь мимо нового правила.
   { method: 'POST', path: 'auth/logout', auth: 'public' },
   { method: 'GET', path: 'staff', auth: 'any-staff' },
   { method: 'GET', path: 'locations', auth: 'any-staff' },
@@ -123,6 +127,7 @@ const ROUTES = [
   { method: 'GET', path: 'media/:key', auth: 'public' },
   { method: 'PUT', path: 'staff/:id/portfolio', auth: 'management' },
   { method: 'PUT', path: 'staff/:id/role', auth: 'management' },
+  { method: 'PUT', path: 'staff/:id/pin', auth: 'owner' },
   { method: 'GET', path: 'services', auth: 'any-staff' },
   { method: 'GET', path: 'master-services', auth: 'public' },
   { method: 'PUT', path: 'master-services/:masterId/:serviceId', auth: 'management' },
@@ -176,7 +181,10 @@ const ROUTES = [
   { method: 'GET', path: 'changes', auth: 'any-staff' },
 ];
 
-function matchRoute(method, parts) {
+// Экспортируется ради тестов (tests/api.pin-owner-only.test.js): решение «кто
+// вообще допущен к роуту» принимает реестр, до обработчиков дело не доходит, и
+// проверять это правильнее здесь, а не через живой HTTP.
+export function matchRoute(method, parts) {
   for (const route of ROUTES) {
     if (route.method !== method) continue;
     const routeParts = route.path.split('/');
@@ -237,7 +245,6 @@ const server = createServer(async (req, res) => {
     if (parts[0] === 'auth' && parts[1] === 'me' && req.method === 'GET') {
       return handleMe(req, res);
     }
-    if (parts[0] === 'auth' && parts[1] === 'pin' && req.method === 'PUT') return handlePinChange(req, res);
     if (parts[0] === 'auth' && parts[1] === 'logout' && req.method === 'POST') return handleLogout(req, res);
 
     // ── /staff - роль ограничивает выдачу на уровне SQL, не только в UI ──
@@ -265,6 +272,11 @@ const server = createServer(async (req, res) => {
     // сотрудника (например Мамедхан master→admin) - раньше чекбоксы роли в
     // crm-owner.html были кликабельны, но физически ничего не сохраняли, эндпоинта
     // не существовало вообще. Owner-only - роль решает исключительно Алихан.
+    // ── /staff/:id/pin - владелец задаёт PIN сотруднику (20.08.2026). Роль
+    //    проверяет реестр (auth: 'owner'), сюда чужая уже не доходит.
+    if (parts[0] === 'staff' && parts[1] && parts[2] === 'pin' && parts.length === 3 && req.method === 'PUT') {
+      return handleStaffPinSet(req, res, parts);
+    }
     if (parts[0] === 'staff' && parts[1] && parts[2] === 'role' && parts.length === 3 && req.method === 'PUT') {
       return handleStaffRole(req, res, parts);
     }

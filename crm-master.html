@@ -313,19 +313,13 @@
               <h4 style="margin-top:18px">Мои запросы</h4>
               <div id="reqHistory" class="breaks-list"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
 
-              <!-- Смена своего PIN (16.08.2026). Роут PUT /auth/pin существовал с
-                   самого начала, но ни один кабинет его не показывал: сотрудник,
-                   заведённый владельцем, навсегда оставался с временным PIN, который
-                   видел тот, кто его заводил. Логику держит assets/crm-pin.js -->
+              <!-- Смена PIN убрана 20.08.2026 (решение Влада): пины задаёт только
+                   владелец, в разделе «Команда» внутри карточки сотрудника. Роут
+                   PUT /auth/pin снят с сервера вместе с этим блоком - оставлять
+                   форму без роута значило бы показывать кнопку, которая всегда
+                   отвечает 404. -->
               <h4 style="margin-top:18px">Вход в CRM</h4>
-              <p class="note" id="pinMustChange" hidden>Вы входите по временному PIN, который выдал владелец. Задайте свой - его не будет знать никто</p>
-              <p class="note">PIN - шесть цифр. Его вводят при входе вместе с рабочей почтой</p>
-              <div class="field-grid">
-                <div class="field"><label>Новый PIN</label><input id="pinNew" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="6 цифр"></div>
-                <div class="field"><label>Повторите PIN</label><input id="pinRepeat" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="6 цифр"></div>
-              </div>
-              <button class="btn btn-ghost btn-sm" type="button" id="pinSaveBtn">Сменить PIN</button>
-              <p class="payroll-note" id="pinNote" aria-live="polite"></p>
+              <p class="note">PIN для входа задаёт владелец. Если нужно сменить - попросите его</p>
             </div>
           </details>
         </div>
@@ -342,7 +336,6 @@
   import { initCrmNavigationPanels, upgradeScheduleViews, upgradeMasterBookingPanel } from './assets/crm-navigation-panels.js';
   import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
   // Смена своего PIN в «Личных данных». Модуль сам подписан на событие входа
-  import './assets/crm-pin.js';
   // Живое обновление (17.08.2026): кабинет слушает поток событий с сервера и сам
   // перерисовывает расписание, команду и уведомления, когда данные меняет кто-то
   // другой. Модуль подписан на событие входа, вызывать его руками не нужно

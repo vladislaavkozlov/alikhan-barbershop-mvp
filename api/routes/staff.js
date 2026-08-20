@@ -3,7 +3,7 @@
 // перенесён без изменений.
 import { sendJson, readBody, readRawBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
-import { authenticate } from '../lib/auth.js';
+import { authenticate, requireRole } from '../lib/auth.js';
 import { canManageStaff, canMutateProtectedOwner, guardAccountLockout, isAssignableRole } from '../lib/permissions.js';
 import { hashPin } from '../lib/auth.js';
 import { randomBytes } from 'node:crypto';
@@ -143,6 +143,42 @@ export async function handleStaffCreate(req, res) {
     const row = result.rows[0];
     return sendJson(res, 201, { staff: { id: row.id, locationId: row.location_id, name: row.name, phone: row.phone, email: row.email, role: row.role, employed: row.employed, providesServices: row.provides_services, hasSystemAccess: row.has_system_access, mustChangePin: row.must_change_pin }, temporaryPin });
   } catch (error) { await client.query('ROLLBACK'); if (error?.code === '23505') return sendJson(res, 409, { error: 'email_in_use' }); throw error; } finally { client.release(); }
+}
+
+// ── PUT /staff/:id/pin - владелец задаёт PIN любому сотруднику, включая себя ──
+//
+// Решение Влада 20.08.2026: менять PIN может ТОЛЬКО владелец, и сразу всем.
+// До этого модель была обратной - каждый менял свой сам (PUT /auth/pin), а у
+// владельца формы не было вовсе, то есть единственный человек с полным
+// доступом не мог сменить себе пароль через интерфейс.
+//
+// Роль проверяет реестр роутов (auth: 'owner' в server.mjs) - до этого
+// обработчика чужая роль не доходит. Здесь остаётся предметная часть.
+//
+// must_change_pin гасим здесь же. Флаг ставится в true при заведении
+// сотрудника (handleStaffCreate выше), а снимался он раньше самостоятельной
+// сменой. Самостоятельной смены больше нет - значит снять его может только
+// эта операция, иначе баннер «вы входите по временному PIN» висел бы у
+// человека вечно и снять его было бы нечем.
+export async function handleStaffPinSet(req, res, parts) {
+  // Дублирующая проверка роли. Гейт реестра уже не пустил бы сюда никого, кроме
+  // владельца, но все соседние обработчики staff (handleStaffRole,
+  // handleStaffUpdate, handleStaffPortfolio) проверяют права ещё и сами - и на
+  // эндпоинте, который ЗАДАЁТ ПАРОЛЬ, выпадать из этого правила нельзя. Стоит
+  // кому-то однажды поменять уровень в реестре или добавить второй путь к этому
+  // обработчику - здесь всё равно останется замок.
+  const auth = await authenticate(req);
+  if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
+  const staffId = parts[1];
+  const body = await readBody(req);
+  const newPin = String(body.newPin ?? '');
+  if (!isValidPin(newPin)) return sendJson(res, 400, { error: 'invalid_pin' });
+  const result = await pool.query(
+    'UPDATE staff SET pin_hash = $1, must_change_pin = false WHERE id = $2 RETURNING id',
+    [hashPin(newPin), staffId],
+  );
+  if (result.rowCount === 0) return sendJson(res, 404, { error: 'staff_not_found' });
+  return sendJson(res, 200, { ok: true });
 }
 
 export async function handleStaffUpdate(req, res, parts) {

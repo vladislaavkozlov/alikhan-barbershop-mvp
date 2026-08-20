@@ -2,7 +2,7 @@
 // структурного рефакторинга, 07.08.2026), код перенесён без изменений.
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
-import { verifyPin, createSession, authenticate, hashPin } from '../lib/auth.js';
+import { verifyPin, createSession, authenticate } from '../lib/auth.js';
 import { notifyOwnerAboutMastersMissingSchedule } from '../lib/notify-core.js';
 
 export async function handleLogin(req, res) {
@@ -42,14 +42,9 @@ export async function handleMe(req, res) {
   return sendJson(res, 200, { staff: auth });
 }
 
-export async function handlePinChange(req, res) {
-  const auth = await authenticate(req);
-  const body = await readBody(req);
-  if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-  if (!/^\d{6}$/.test(String(body.newPin ?? ''))) return sendJson(res, 400, { error: 'invalid_pin' });
-  await pool.query('UPDATE staff SET pin_hash = $1, must_change_pin = false WHERE id = $2', [hashPin(String(body.newPin)), auth.id]);
-  return sendJson(res, 200, { ok: true });
-}
+// handlePinChange (самостоятельная смена своего PIN) удалён 20.08.2026 вместе с
+// роутом PUT /auth/pin: по решению Влада пины задаёт только владелец, через
+// PUT /staff/:id/pin (api/routes/staff.js, handleStaffPinSet).
 
 export async function handleLogout(req, res) {
   const token = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7).trim() : '';

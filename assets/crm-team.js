@@ -100,6 +100,18 @@ function roleControl(staff, viewerRole) {
   return rolePicker(staff.role, `role-${staff.id}`);
 }
 
+// Поля PIN намеренно БЕЗ атрибута name: снимок карточки (cardSnapshot) собирает
+// значения по именам из SAVED_FIELDS, и любое названное поле разбудило бы кнопку
+// «Сохранить изменения». PIN сохраняется своей кнопкой и своим роутом, к общему
+// сохранению карточки он отношения не имеет.
+function pinControl(staff) {
+  return `<p class="note">PIN - ровно шесть цифр. Сотрудник вводит его при входе вместе с рабочей почтой ${esc(staff.email ?? '')}</p>
+  <p class="note">Старый PIN знать не нужно: вы задаёте новый и передаёте его сотруднику</p>
+  <div class="team-editor-grid"><div class="field"><label>Новый PIN</label><input class="pin-new" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="6 цифр"></div><div class="field"><label>Повторите PIN</label><input class="pin-repeat" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="6 цифр"></div></div>
+  <button class="btn btn-ghost btn-sm" type="button" data-pin-save>Задать PIN</button>
+  <p class="payroll-note" data-pin-note aria-live="polite"></p>`;
+}
+
 function mediaMarkup(staff) {
   const media = staff.media ?? [];
   // Снят с приёма - на сайт человек не попадёт в любом случае: /public/masters
@@ -167,6 +179,12 @@ function staffCard(staff, viewerRole, locations, viewerId) {
        Вход теперь есть у каждого, кто числится в составе; колонка has_system_access в схеме
        осталась и по-прежнему проверяется при входе, но через интерфейс не выключается. */''}
   ${section('Доступ', 'Роль сотрудника и её права', ICON_ACCESS, roleControl(staff, viewerRole))}
+  ${/* PIN сотрудника (20.08.2026). Секцию видит ТОЛЬКО владелец - и на сервере
+       PUT /staff/:id/pin тоже owner-only (реестр роутов в api/server.mjs). У
+       управляющего и администратора раздел «Сотрудники» открывается тем же
+       кодом, поэтому проверка роли обязана быть здесь, а не в разметке
+       страницы: иначе они увидели бы поля, которые всегда отвечают 401. */''}
+  ${viewerRole === 'owner' ? section('PIN для входа', 'Пароль сотрудника от кабинета', ICON_ACCESS, pinControl(staff)) : ''}
   ${/* Кнопка одна на карточку, но у администратора она сохраняет ровно то, на что у
        него есть право - рабочую неделю (PUT /master-weekly-schedule). Поэтому у неё
        и другая надпись, и признак data-schedule-only, по которому saveCardSteps
@@ -560,9 +578,49 @@ function wireExceptionPickers(editor) {
   renderTimeSelect(`${ids.breakEnd}-slot`, ids.breakEnd, '14:00');
 }
 
+// Владелец задаёт PIN сотруднику (20.08.2026). Отдельная кнопка и отдельный роут:
+// к общему «Сохранить изменения» это не относится, иначе PIN уезжал бы вместе с
+// именем и телефоном, и его нельзя было бы задать, не тронув остальное.
+async function savePin(button) {
+  const card = button.closest('[data-staff-id]');
+  const staffId = card?.dataset.staffId;
+  const newEl = card?.querySelector('.pin-new');
+  const repeatEl = card?.querySelector('.pin-repeat');
+  const note = card?.querySelector('[data-pin-note]');
+  if (!staffId || !newEl || !repeatEl) return;
+  const fail = (text, focus) => {
+    if (note) note.textContent = text;
+    showError(text);
+    focus?.focus();
+  };
+  const newPin = newEl.value.trim();
+  // Ровно шесть цифр - то же правило, что на сервере (isValidPin, api/routes/staff.js).
+  // Держим его здесь, чтобы человек узнал об этом до отправки, а не из отказа
+  if (!/^\d{6}$/.test(newPin)) return fail('PIN - ровно шесть цифр', newEl);
+  if (newPin !== repeatEl.value.trim()) return fail('PIN и повтор не совпали', repeatEl);
+  setButtonBusy(button, true);
+  const result = await apiSend(`/staff/${staffId}/pin`, 'PUT', { newPin });
+  setButtonBusy(button, false);
+  if (!result.ok) {
+    const text = errorMessage(result, 'Не удалось задать PIN');
+    if (note) note.textContent = text;
+    showError(text);
+    return;
+  }
+  // Поля не оставляем заполненными: карточка часто открыта на экране в зале,
+  // и заданный PIN не должен висеть на нём до перезагрузки страницы
+  newEl.value = '';
+  repeatEl.value = '';
+  const name = card.querySelector('.summary-meta .name')?.textContent?.trim() || 'сотрудника';
+  const text = `PIN задан. Передайте его ${name} - войти по старому уже нельзя`;
+  if (note) note.textContent = text;
+  showSuccess(text);
+}
+
 function wire(root) {
   wirePhoneFields(root);
   root.querySelectorAll('[data-save]').forEach((button) => button.addEventListener('click', () => saveCard(button.closest('[data-staff-id]'))));
+  root.querySelectorAll('[data-pin-save]').forEach((button) => button.addEventListener('click', () => savePin(button)));
   root.querySelectorAll('input[type=file]').forEach((input) => input.addEventListener('change', () => uploadMedia(input.closest('[data-staff-id]'), input)));
   root.querySelectorAll('[data-media-list]').forEach((list) => list.addEventListener('click', async (event) => {
     const button = event.target.closest('button');
