@@ -42,7 +42,7 @@ export async function handleMasterServicesList(req, res) {
   // клиента на сайте, в форме "Новая запись" и в корректировке состава записи -
   // порядок там должен совпадать с каталогом, а не с алфавитом service_id.
   const result = await pool.query(
-    `SELECT ms.master_id, ms.service_id, ms.price, ms.duration_min
+    `SELECT ms.master_id, ms.service_id, ms.price, ms.duration_min, ms.is_top
        FROM master_services ms JOIN services s ON s.id = ms.service_id
       ORDER BY ms.master_id, s.sort_order, s.name, s.id`
   );
@@ -54,6 +54,10 @@ export async function handleMasterServicesList(req, res) {
       serviceId: r.service_id,
       price: r.price,
       durationMin: r.duration_min,
+      // Топ-услуга этого мастера (20.08.2026, миграция 054). Читают оба потребителя
+      // роута: карточка сотрудника в CRM (галка) и форма записи - чтобы цена и признак
+      // тарифа приезжали одним запросом, а не двумя расходящимися.
+      isTop: r.is_top === true,
     }))
   );
 }
@@ -78,6 +82,26 @@ export function isValidDuration(value) {
   return Number.isInteger(value) && value > 0;
 }
 
+// Цена мастера за услугу - те же два предиката, что у длительности (20.08.2026, топ-
+// мастер: поле цены в карточке сотрудника стало редактируемым, до этого оно было
+// текстом). Прежняя проверка роута - `Number.isFinite(body.price) ? body.price :
+// каталог` - пропускала в базу и ноль, и минус, и 1500.5: ровно тот баг P2, который
+// 15.08.2026 чинили для длительности, только про деньги.
+export function isPriceOmitted(value) {
+  return value === undefined;
+}
+export function isValidPrice(value) {
+  return Number.isInteger(value) && value > 0;
+}
+
+// Галка «топ-услуга». Строгий boolean: строка "false" из формы истинна в JS, и мягкое
+// приведение молча сделало бы мастера топовым на публичном сайте - то есть подняло бы
+// цену клиенту без решения владельца. Ключа нет - услуга обычная (значение колонки по
+// умолчанию), роут пишет строку master_services целиком.
+export function normalizeIsTop(value) {
+  return value === true;
+}
+
 export async function handleMasterServiceUpdate(req, res, parts) {
   const auth = await authenticate(req);
   if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
@@ -90,7 +114,13 @@ export async function handleMasterServiceUpdate(req, res, parts) {
   }
   const serviceRes = await pool.query('SELECT price, duration_min FROM services WHERE id = $1', [serviceId]);
   if (serviceRes.rows.length === 0) return sendJson(res, 404, { error: 'service_not_found' });
-  const price = Number.isFinite(body.price) ? body.price : serviceRes.rows[0].price;
+  // Цена: либо корректная переданная, либо каталожная. Мусор в поле - 400, а не тихая
+  // подмена каталожной ценой: владелец увидел бы «Сохранено» и чужую цифру в прайсе
+  if (!isPriceOmitted(body.price) && !isValidPrice(body.price)) {
+    return sendJson(res, 400, { error: 'invalid_price' });
+  }
+  const price = isPriceOmitted(body.price) ? serviceRes.rows[0].price : body.price;
+  const isTop = normalizeIsTop(body.isTop);
   // Длительность: либо корректная переданная, либо каталожная. Прежняя проверка
   // (`Number.isFinite ? ... : каталог` + `<= 0`) ловила ровно ноль, но всё
   // некорректное непонятным образом (null, "", "abc", 1.5, -10) молча подменяла
@@ -101,9 +131,9 @@ export async function handleMasterServiceUpdate(req, res, parts) {
   }
   const durationMin = isDurationOmitted(body.durationMin) ? serviceRes.rows[0].duration_min : body.durationMin;
   await pool.query(
-    `INSERT INTO master_services (master_id, service_id, price, duration_min) VALUES ($1, $2, $3, $4)
-     ON CONFLICT (master_id, service_id) DO UPDATE SET price = $3, duration_min = $4`,
-    [masterId, serviceId, price, durationMin]
+    `INSERT INTO master_services (master_id, service_id, price, duration_min, is_top) VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (master_id, service_id) DO UPDATE SET price = $3, duration_min = $4, is_top = $5`,
+    [masterId, serviceId, price, durationMin, isTop]
   );
-  return sendJson(res, 200, { ok: true, enabled: true, price, durationMin });
+  return sendJson(res, 200, { ok: true, enabled: true, price, durationMin, isTop });
 }

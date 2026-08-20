@@ -134,6 +134,20 @@ export async function checkSlotAvailability(client, { masterId, date, startTime,
   return null;
 }
 
+// ── Тариф записи (20.08.2026, миграция 054) ────────────────────────────────
+// Условия, на которых сделана запись. 'top' - если хотя бы одна услуга этого визита
+// помечена у мастера топовой (master_services.is_top): одна топ-услуга в чеке уже
+// означает, что клиент платит по топ-цене, значит и записан он на условиях топ-мастера.
+// Пустой состав - null, а не 'standard': бронь без услуг тарифа не имеет, и врать про
+// её условия в отчётности владельца нельзя. Чистая функция - проверяется юнитом без
+// Postgres (тот же приём, что у buildPublicMasters и computeMasterPayroll).
+export const MASTER_TIERS = ['standard', 'top'];
+
+export function resolveMasterTier(masterServiceRows) {
+  if (!Array.isArray(masterServiceRows) || masterServiceRows.length === 0) return null;
+  return masterServiceRows.some((r) => r.is_top === true) ? 'top' : 'standard';
+}
+
 async function createBookingTx({ masterId, serviceIds, date, startTime, clientName, clientPhone, channel, isStaff, clientSource }) {
   const client = await pool.connect();
   try {
@@ -141,7 +155,7 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booking:${masterId}:${date}`]);
 
     const msRes = await client.query(
-      'SELECT service_id, duration_min, price FROM master_services WHERE master_id = $1 AND service_id = ANY($2)',
+      'SELECT service_id, duration_min, price, is_top FROM master_services WHERE master_id = $1 AND service_id = ANY($2)',
       [masterId, serviceIds]
     );
     if (msRes.rows.length !== serviceIds.length) {
@@ -150,6 +164,7 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     }
     const totalDuration = msRes.rows.reduce((sum, r) => sum + r.duration_min, 0);
     const totalPrice = msRes.rows.reduce((sum, r) => sum + r.price, 0);
+    const masterTier = resolveMasterTier(msRes.rows);
     const endTime = addMinutes(startTime, totalDuration);
 
     const blocked = await checkSlotAvailability(client, { masterId, date, startTime, endTime, isStaff });
@@ -198,15 +213,18 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     // walkin_name (миграция 041) - сырое имя прямо на брони, независимо от clientId.
     // Заполняется всегда, когда указано имя - раньше терялось молча, если
     // администратор не указал телефон (clientId оставался null).
+    // master_tier (20.08.2026, миграция 054) - на каких условиях сделана запись.
+    // Пишется в момент создания и дальше живёт вместе с бронью: галку «топ» у мастера
+    // могут снять через месяц, а эта запись обязана помнить, почему в чеке была та цена.
     // client_source (17.08.2026, миграция 050) - откуда пришёл клиент. С публичного
     // сайта приезжает определённым автоматически (UTM-метка ссылки в карточке
     // организации, иначе referrer - assets/client-source.js), из CRM - выбором
     // администратора в форме записи. Не определился - остаётся NULL, это законное
     // состояние (клиент зашёл мимо или позвонил), а не пропуск данных.
     await client.query(
-      `INSERT INTO bookings (id, location_id, master_id, service_id, client_id, date, start_time, end_time, status, channel, requires_prepayment, walkin_name, client_source)
-       VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, 'planned', $8, $9, $10, $11)`,
-      [bookingId, locationId, masterId, clientId, date, startTime, endTime, channel ?? 'client', requiresPrepayment, clientName ?? null, clientSource ?? null]
+      `INSERT INTO bookings (id, location_id, master_id, service_id, client_id, date, start_time, end_time, status, channel, requires_prepayment, walkin_name, client_source, master_tier)
+       VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, 'planned', $8, $9, $10, $11, $12)`,
+      [bookingId, locationId, masterId, clientId, date, startTime, endTime, channel ?? 'client', requiresPrepayment, clientName ?? null, clientSource ?? null, masterTier]
     );
     for (const serviceId of serviceIds) {
       await client.query('INSERT INTO booking_services (booking_id, service_id) VALUES ($1, $2)', [bookingId, serviceId]);
@@ -274,7 +292,7 @@ async function listBookingsForRequest(url, auth) {
   // прямо с брони, вместо молчаливой потери (найдено 09.08.2026, Окно 53).
   let query = `SELECT b.id, b.master_id, b.service_id, b.date, b.start_time, b.end_time, b.status,
                       b.client_confirmed, b.location_id, b.requires_prepayment, b.review_request_pending,
-                      b.actual_price, b.staff_comment, b.client_id, b.client_source,
+                      b.actual_price, b.staff_comment, b.client_id, b.client_source, b.master_tier,
                       COALESCE(c.name, b.walkin_name) AS client_name, c.phone AS client_phone,
                       c.birthday AS client_birthday, c.no_show_streak AS client_no_show_streak
                FROM bookings b LEFT JOIN clients c ON c.id = b.client_id WHERE 1=1`;
@@ -359,6 +377,11 @@ async function listBookingsForRequest(url, auth) {
       endTime: r.end_time,
       status: r.status,
       clientConfirmed: r.client_confirmed,
+      // masterTier (20.08.2026, миграция 054) - условия записи ('top' | 'standard' |
+      // null у броней, созданных до фичи). Видно всему персоналу, включая мастера, в
+      // отличие от канала привлечения: это не управленческая информация о клиенте, а
+      // условия его собственной работы - по какому прайсу принят этот визит.
+      masterTier: r.master_tier ?? null,
     };
     if (!auth) return base; // клиент без входа - карточек других клиентов вообще не видит
     // Блок В (ТЗ-готовность-к-продакшену, 01.08.2026): день рождения клиента - не
@@ -694,6 +717,24 @@ export async function handleBookingStatus(req, res, parts) {
 // revenue/payroll (computeMasterPayroll, api/routes/payroll.js) считают сумму по
 // booking_services на лету при каждом запросе - простой INSERT сюда автоматически
 // даёт верную статистику без отдельного пересчёта.
+// Пересчёт тарифа после того, как состав услуг или мастер записи изменились
+// (20.08.2026). Дописали к обычной стрижке топовую услугу - визит стал топовым; сняли
+// её - вернулся обычный тариф; перенесли к другому мастеру - условия считаются по ЕГО
+// прайсу. Без пересчёта строка условий в карточке показывала бы то, чего в записи
+// больше нет. Работает внутри уже открытой транзакции вызывающего роута - тем же
+// клиентом, а не отдельным соединением, иначе читал бы ещё не закоммиченный состав.
+async function refreshMasterTier(client, bookingId, masterId) {
+  const rows = await client.query(
+    `SELECT ms.is_top FROM booking_services bs
+       JOIN master_services ms ON ms.service_id = bs.service_id AND ms.master_id = $2
+      WHERE bs.booking_id = $1`,
+    [bookingId, masterId]
+  );
+  const tier = resolveMasterTier(rows.rows);
+  await client.query('UPDATE bookings SET master_tier = $1 WHERE id = $2', [tier, bookingId]);
+  return tier;
+}
+
 export async function handleBookingAddServices(req, res, parts) {
   const auth = await authenticate(req);
   if (!requireRole(auth, BOOKING_STAFF_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
@@ -747,6 +788,7 @@ export async function handleBookingAddServices(req, res, parts) {
     // сознательно (это правка уже случившегося визита, не новое бронирование).
     const newEndTime = addMinutes(booking.end_time, addedDuration);
     await client.query('UPDATE bookings SET end_time = $1 WHERE id = $2', [newEndTime, bookingId]);
+    await refreshMasterTier(client, bookingId, booking.master_id);
     await client.query('COMMIT');
     const allServicesRes = await client.query('SELECT service_id FROM booking_services WHERE booking_id = $1', [bookingId]);
     publish('bookings', { bookingId, reason: 'services-added' });
@@ -851,6 +893,7 @@ export async function handleBookingSetServices(req, res, parts) {
     // снятии услуги слот обязан укоротиться, а не остаться прежним.
     const newEndTime = addMinutes(booking.start_time, plan.durationMin);
     await client.query('UPDATE bookings SET end_time = $1 WHERE id = $2', [newEndTime, bookingId]);
+    await refreshMasterTier(client, bookingId, booking.master_id);
     await client.query('COMMIT');
     publish('bookings', { bookingId, reason: 'services-set' });
     return sendJson(res, 200, {
@@ -1073,6 +1116,10 @@ async function rescheduleBookingTx({ bookingId, masterId, date, startTime, isSta
        WHERE id = $6`,
       [masterId, locationId, date, startTime, endTime, bookingId]
     );
+    // Тариф пересчитывается по НОВОМУ мастеру (20.08.2026): у прежнего стрижка могла
+    // быть топовой, у нового та же стрижка - обычная. Оставить прежний тариф значило бы
+    // показывать в карточке условия, по которым этот визит уже не проходит.
+    await refreshMasterTier(client, bookingId, masterId);
 
     const previousDate = dateColToStr(booking.date);
     const previousSlot = {
