@@ -20,7 +20,7 @@
 // до решения по боту. Здесь только связь в один клик руками сотрудника: кнопка
 // открывает мессенджер с уже набранным текстом, отправляет человек.
 import { goToSection } from './crm-app-shell.js';
-import { ICON_BELL, ICON_BOOKING_NEW, ICON_BOOKING_MOVED_IN, ICON_BOOKING_MOVED_OUT } from './crm-icons.js';
+import { ICON_BELL, ICON_BOOKING_NEW, ICON_BOOKING_MOVED_IN, ICON_BOOKING_MOVED_OUT, ICON_CLOSE } from './crm-icons.js';
 // Экранирование берём готовое из crm-schedule-shared.js - та же функция уже защищает
 // пять других CRM-файлов, своей копии не заводим. Нужна она здесь по-прежнему: имя
 // клиента приезжает из АНОНИМНОГО POST /bookings с публичного сайта (XSS, найденный
@@ -33,6 +33,9 @@ import { showSpinner, skeletonMarkup } from './crm-loading.js';
 const TOKEN_KEY = 'alikhan-crm:token';
 const API = window.ALIKHAN_API_URL;
 const COMPACT_LIMIT = 6; // сколько строк показывает колокольчик, прежде чем отправить в раздел
+// Пустой колокольчик объясняет, куда делись убранные строки - иначе «Новых записей нет»
+// прочитается как «записей нет вообще», хотя журнал в разделе полон
+const EMPTY_BELL_HTML = '<div class="note" style="padding:10px">Новых записей нет. Всё, что было, осталось в разделе «Уведомления»</div>';
 
 // Иконки - штриховые SVG того же набора, что сайдбар и шапка (assets/crm-icons.js),
 // не эмодзи: в крупной карточке раздела эмодзи выпадал из общего стиля. Стрелка
@@ -100,6 +103,17 @@ export function formatBookingWhen(date, startTime) {
   const month = MONTHS[m - 1] ?? '';
   const year = String(y) === today.slice(0, 4) ? '' : ` ${y}`;
   return `${d} ${month}${year}${time}`;
+}
+
+// Момент времени (создание записи) в том же языке, что и время визита выше: «сегодня в
+// 14:32», «19 августа в 14:32». Часовой пояс - барбершопа, не браузера: сотрудник,
+// открывший CRM из другого пояса, должен видеть время Ставрополя, иначе «создана в
+// 11:32» разойдётся с тем, что помнит администратор.
+export function formatMoment(iso) {
+  if (!iso) return '';
+  const msk = new Date(new Date(iso).getTime() + 3 * 60 * 60 * 1000);
+  if (Number.isNaN(msk.getTime())) return '';
+  return formatBookingWhen(msk.toISOString().slice(0, 10), msk.toISOString().slice(11, 16));
 }
 
 // Только цифры, приведённые к 7XXXXXXXXXX - в таком виде номер понимают и wa.me, и
@@ -180,6 +194,18 @@ function bookingSummaryHtml(booking) {
 // Полная карточка - раздел «Уведомления». Кнопки связи появляются только когда сервер
 // реально отдал телефон: роли «мастер» он его не отдаёт (разд.12 п.1), и это не ошибка
 // отрисовки, а правило доступа - выводим карточку без кнопок, не пустые заглушки.
+// Когда запись завели - правка Влада 20.08.2026. Для новой записи момент уведомления и
+// момент создания записи это одно и то же событие, поэтому показываем одну строку. Для
+// переноса они расходятся: запись завели давно, а переехала она только что - показываем
+// оба, иначе «5 мин назад» соврёт про возраст самой записи.
+function timeLine(n) {
+  const created = n.booking?.createdAt ? `запись создана ${formatMoment(n.booking.createdAt)}` : '';
+  const ago = timeAgo(n.createdAt);
+  if (!created) return ago;
+  if (n.type === 'booking_new') return created;
+  return `перенесена ${ago} · ${created}`;
+}
+
 function fullItemHtml(n) {
   const b = n.booking;
   const links = b ? messengerLinks(b.clientPhone, clientMessageText(b)) : [];
@@ -195,7 +221,7 @@ function fullItemHtml(n) {
       <div class="ntf-body">
         <div class="ntf-title">${escapeHtml(n.title)}</div>
         ${b ? bookingSummaryHtml(b) : `<div class="ntf-meta">${escapeHtml(n.body ?? '')}</div>`}
-        <div class="ntf-time">${escapeHtml(timeAgo(n.createdAt))}</div>
+        <div class="ntf-time">${escapeHtml(timeLine(n))}</div>
         ${actions.length ? `<div class="ntf-actions">${actions.join('')}</div>` : ''}
       </div>
     </div>`;
@@ -213,6 +239,7 @@ function compactItemHtml(n) {
         ${sub ? `<div class="msg-sub">${escapeHtml(sub)}</div>` : ''}
         <div class="msg-time">${escapeHtml(timeAgo(n.createdAt))}</div>
       </div>
+      <button class="msg-dismiss" type="button" data-dismiss="${escapeHtml(n.id)}" aria-label="Убрать из колокольчика" title="Убрать из колокольчика - в разделе «Уведомления» останется">${ICON_CLOSE}</button>
     </div>`;
 }
 
@@ -227,13 +254,21 @@ export function wireNotifications(staff) {
   const iconEl = document.getElementById('msgBellIcon');
   if (iconEl) iconEl.innerHTML = ICON_BELL;
 
-  // Один запрос кормит оба вида - и колокольчик, и раздел. Держим последний ответ,
-  // чтобы обработчики кликов не ходили за ним снова.
-  let cache = [];
+  // Списки у колокольчика и раздела теперь РАЗНЫЕ (правка Влада 20.08.2026):
+  // колокольчик показывает только неубранные (?scope=bell), раздел - весь журнал,
+  // включая убранные. Держим оба последних ответа, чтобы обработчики кликов не ходили
+  // за ними снова.
+  let bellCache = [];
+  let centerCache = [];
 
-  async function load() {
-    cache = await apiGet('/notifications');
-    return cache;
+  async function loadBell() {
+    bellCache = await apiGet('/notifications?scope=bell');
+    return bellCache;
+  }
+
+  async function loadCenter() {
+    centerCache = await apiGet('/notifications');
+    return centerCache;
   }
 
   async function refreshBadge() {
@@ -262,9 +297,9 @@ export function wireNotifications(staff) {
   async function renderCompact() {
     list.innerHTML = `<div style="padding:10px">${skeletonMarkup(3)}</div>`;
     try {
-      const items = await load();
+      const items = await loadBell();
       if (!items.length) {
-        list.innerHTML = '<div class="note" style="padding:10px">Новых записей нет</div>';
+        list.innerHTML = EMPTY_BELL_HTML;
         return;
       }
       const shown = items.slice(0, COMPACT_LIMIT);
@@ -278,7 +313,7 @@ export function wireNotifications(staff) {
           const id = item.dataset.ntfId;
           await markReadOnClick(item, id);
           const bookingId = item.dataset.bookingId;
-          const n = cache.find((x) => x.id === id);
+          const n = bellCache.find((x) => x.id === id);
           panel.classList.remove('open');
           // Клик по строке в колокольчике ведёт туда же, куда кнопка в разделе - в саму
           // запись. Не вышло (запись отменена, день не открылся) - открываем раздел,
@@ -287,6 +322,30 @@ export function wireNotifications(staff) {
           if (!opened && center) goToSection('notifications');
         });
       });
+      // Убрать из колокольчика. Строка уходит из шапки сразу, не дожидаясь ответа
+      // сервера - человек нажал крестик и ждёт, что она исчезнет; если запрос упадёт,
+      // следующий тик счётчика вернёт её на место сам.
+      list.querySelectorAll('[data-dismiss]').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation(); // клик по крестику не должен открывать запись
+          const id = btn.dataset.dismiss;
+          const item = btn.closest('.msg-item');
+          item?.remove();
+          bellCache = bellCache.filter((x) => x.id !== id);
+          if (!list.querySelector('.msg-item')) list.innerHTML = EMPTY_BELL_HTML;
+          try {
+            await apiPost(`/notifications/${id}/dismiss`);
+            refreshBadge();
+            // Раздел показывает ту же строку, но уже как прочитанную - перерисуем,
+            // если он открыт, чтобы два места не расходились на глазах
+            renderCenter();
+          } catch (err) {
+            showError(errorMessage(err, 'Не удалось убрать уведомление'));
+            renderCompact();
+          }
+        });
+      });
+
       list.querySelector('[data-open-center]')?.addEventListener('click', (e) => {
         e.stopPropagation();
         panel.classList.remove('open');
@@ -303,7 +362,7 @@ export function wireNotifications(staff) {
     if (!center) return;
     center.innerHTML = skeletonMarkup(3);
     try {
-      const items = await load();
+      const items = await loadCenter();
       if (!items.length) {
         center.innerHTML = '<p class="note">Пока ни одной новой записи. Здесь появится каждая запись клиента - сразу, как её создадут на сайте или в CRM</p>';
         return;
@@ -319,7 +378,7 @@ export function wireNotifications(staff) {
       center.querySelectorAll('[data-open-booking]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const card = btn.closest('.ntf-card');
-          const n = cache.find((x) => x.id === card?.dataset.ntfId);
+          const n = centerCache.find((x) => x.id === card?.dataset.ntfId);
           showSpinner(btn.closest('.ntf-actions'), 'Открываю запись');
           await markReadOnClick(card, card?.dataset.ntfId);
           const opened = await openBookingFromNotification(n?.booking);

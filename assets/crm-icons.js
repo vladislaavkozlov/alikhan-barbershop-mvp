@@ -53,3 +53,7 @@ export const ICON_ADD = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3
 export const ICON_BOOKING_NEW = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8h14"/><path d="M6.5 2.5v3M13.5 2.5v3"/><path d="M10 10.5v4M8 12.5h4"/></svg>`;
 export const ICON_BOOKING_MOVED_OUT = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8h14"/><path d="M6.5 2.5v3M13.5 2.5v3"/><path d="M7 12.5h6M10.5 10l2.5 2.5-2.5 2.5"/></svg>`;
 export const ICON_BOOKING_MOVED_IN = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8h14"/><path d="M6.5 2.5v3M13.5 2.5v3"/><path d="M13 12.5H7M9.5 10 7 12.5 9.5 15"/></svg>`;
+
+// Крестик «убрать из колокольчика» (20.08.2026). Тот же STROKE, что весь набор -
+// иконка живёт внутри строки уведомления и наследует её цвет
+export const ICON_CLOSE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>`;

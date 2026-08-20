@@ -759,3 +759,25 @@ body.app-shell-active #crmMain {
   /* на телефоне действия встают в колонку - иначе четыре кнопки связи ломают строку */
   .ntf-actions .btn { flex: 1 1 calc(50% - 4px); text-align: center; }
 }
+
+/* Крестик «убрать из колокольчика» (20.08.2026). Тихий по умолчанию - строка
+   уведомления читается как текст, а не как ряд кнопок; проявляется при наведении на
+   строку и всегда виден с клавиатуры (:focus-visible), иначе действие было бы
+   недоступно без мыши */
+.crm-navigation-ui .msg-item { position: relative; }
+.crm-navigation-ui .msg-dismiss {
+  flex-shrink: 0; align-self: flex-start;
+  width: 26px; height: 26px; padding: 4px; margin: -2px -4px 0 0;
+  display: grid; place-items: center;
+  background: none; border: none; border-radius: 6px;
+  color: var(--text-muted); opacity: 0; cursor: pointer;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.crm-navigation-ui .msg-dismiss svg { width: 14px; height: 14px; }
+.crm-navigation-ui .msg-item:hover .msg-dismiss,
+.crm-navigation-ui .msg-dismiss:focus-visible { opacity: 1; }
+.crm-navigation-ui .msg-dismiss:hover { background: var(--surface-2); color: var(--text); }
+@media (hover: none) {
+  /* на телефоне наведения нет - крестик виден всегда, иначе действие недостижимо */
+  .crm-navigation-ui .msg-dismiss { opacity: 1; }
+}

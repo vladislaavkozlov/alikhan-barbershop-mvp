@@ -76,6 +76,7 @@ import {
   handleNotificationsList,
   handleNotificationsUnreadCount,
   handleNotificationRead,
+  handleNotificationDismiss,
   handleNotificationsReadAll,
 } from './routes/notifications.js';
 import { handlePayrollSettings, handlePayroll, handleRevenueToday, handleDiscountSettings } from './routes/payroll.js';
@@ -151,6 +152,7 @@ const ROUTES = [
   { method: 'GET', path: 'notifications', auth: 'any-staff' },
   { method: 'GET', path: 'notifications/unread-count', auth: 'any-staff' },
   { method: 'POST', path: 'notifications/:id/read', auth: 'any-staff' },
+  { method: 'POST', path: 'notifications/:id/dismiss', auth: 'any-staff' },
   { method: 'POST', path: 'notifications/read-all', auth: 'any-staff' },
   // 17.08.2026: деньги (ставки, зарплаты, выручка) - только владелец и управляющий
   { method: 'GET', path: 'payroll-settings', auth: 'management' },
@@ -464,6 +466,11 @@ const server = createServer(async (req, res) => {
 
     if (parts[0] === 'notifications' && parts[1] && parts[2] === 'read' && parts.length === 3 && req.method === 'POST') {
       return handleNotificationRead(req, res, parts);
+    }
+
+    // Убрать из колокольчика - в разделе «Уведомления» строка остаётся
+    if (parts[0] === 'notifications' && parts[1] && parts[2] === 'dismiss' && parts.length === 3 && req.method === 'POST') {
+      return handleNotificationDismiss(req, res, parts);
     }
 
     if (parts[0] === 'notifications' && parts[1] === 'read-all' && parts.length === 2 && req.method === 'POST') {

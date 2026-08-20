@@ -16,6 +16,9 @@
 //   7. на карточке есть «Открыть запись» и кнопки связи с клиентом
 //   8. клик по «Открыть запись» уводит в «Расписание» на дату записи и открывает её
 //   9. колокольчик показывает ту же запись сжатой строкой
+//  14. в карточке видно, когда запись создали
+//  15. крестик убирает строку из колокольчика, в разделе она остаётся
+//  16. счётчик на колокольчике учитывает убранное
 import { withEphemeralServer, withStaticServer, makeChecker, hashPin, randomPin, daysFromToday } from './verify-lib.mjs';
 import { withBrowser } from './cdp.mjs';
 
@@ -143,6 +146,29 @@ try {
     });
     check('запись с опасным именем принята сервером (как и любая другая)', xssBooking.status === 200, JSON.stringify(xssBooking.data));
 
+    // ── 4c. время создания записи и скрытие из колокольчика (правка 20.08.2026) ──
+    check('лента отдаёт момент создания записи', typeof ownerItem?.booking?.createdAt === 'string' && ownerItem.booking.createdAt.length > 10, JSON.stringify(ownerItem?.booking?.createdAt));
+
+    // Скрываем уведомление о ВТОРОЙ (проверочной) записи, а не о первой: первая нужна
+    // ниже браузерным проверкам живой в колокольчике. Один и тот же прогон не может
+    // одновременно доказывать «строка видна в колокольчике» и «строка из него убрана»
+    // на одной и той же строке
+    const feedForDismiss = await api(apiUrl, '/notifications', 'GET', ownerToken);
+    const victim = feedForDismiss.data.find((n) => n.bookingId === xssBooking.data?.booking?.id);
+    check('уведомление о второй записи найдено', !!victim);
+    const bellBefore = await api(apiUrl, '/notifications?scope=bell', 'GET', ownerToken);
+    const countBefore = await api(apiUrl, '/notifications/unread-count', 'GET', ownerToken);
+    const dismissed = await api(apiUrl, `/notifications/${victim.id}/dismiss`, 'POST', ownerToken);
+    const bellAfter = await api(apiUrl, '/notifications?scope=bell', 'GET', ownerToken);
+    const centerAfter = await api(apiUrl, '/notifications', 'GET', ownerToken);
+    const countAfter = await api(apiUrl, '/notifications/unread-count', 'GET', ownerToken);
+    check('скрытие принято сервером', dismissed.status === 200, String(dismissed.status));
+    check('из колокольчика строка ушла', bellAfter.data.every((n) => n.id !== victim.id) && bellAfter.data.length === bellBefore.data.length - 1, `${bellBefore.data.length}→${bellAfter.data.length}`);
+    check('в разделе строка осталась', centerAfter.data.some((n) => n.id === victim.id));
+    check('убранное помечено скрытым и прочитанным', centerAfter.data.find((n) => n.id === victim.id)?.dismissed === true && centerAfter.data.find((n) => n.id === victim.id)?.read === true);
+    check('счётчик колокольчика уменьшился', countAfter.data.count === countBefore.data.count - 1, `${countBefore.data.count}→${countAfter.data.count}`);
+    check('чужое уведомление скрыть нельзя', (await api(apiUrl, `/notifications/${masterItem.id}/dismiss`, 'POST', ownerToken)).status === 200 && (await api(apiUrl, '/notifications', 'GET', masterToken)).data.find((n) => n.id === masterItem.id)?.dismissed === false);
+
     // ── 5. заявок на график больше нет ────────────────────────────────────────
     const reqList = await api(apiUrl, '/schedule-requests', 'GET', masterToken);
     const reqPost = await api(apiUrl, '/schedule-requests', 'POST', masterToken, {
@@ -184,6 +210,9 @@ try {
         check('обработчик из имени клиента не выполнился', JSON.parse(xssFlag) === false);
         check('опасное имя показано как обычный текст', JSON.parse(xssShownAsText) === true);
 
+        const createdLine = await s.eval(`document.querySelector('${cardSel} .ntf-time')?.innerText ?? ''`);
+        check('в карточке видно, когда запись создали', /запись создана/.test(createdLine) && /\d{1,2}:\d{2}/.test(createdLine), createdLine);
+
         const noReqBlock = await s.eval(`!document.getElementById('ownerReqList')`);
         check('блока заявок на график в разделе больше нет', JSON.parse(JSON.stringify(noReqBlock)) === true);
 
@@ -211,6 +240,26 @@ try {
         const bellText = await s.eval(`document.querySelector('#msgList')?.innerText ?? ''`);
         check('колокольчик показывает ту же запись', /Новая запись/.test(bellText) && /12:00/.test(bellText), bellText.slice(0, 200));
         check('в колокольчике нет кнопок связи - это сжатый вид', JSON.parse(await s.eval(`JSON.stringify(!document.querySelector('#msgList [data-msg-link]'))`)) === true);
+
+        // Снимок панели в состоянии наведения: крестик тихий по умолчанию и
+        // проявляется под курсором, а CDP-скриншот курсора не имеет - показываем его
+        // принудительно, чтобы глазами оценить именно то, что увидит человек
+        await s.eval(`document.querySelectorAll('.msg-dismiss').forEach(b => { b.style.opacity = 1; })`);
+        await sleep(200);
+        await s.screenshot('/tmp/verify-uvedomleniya-krestik.png');
+
+        // ── крестик: строка уходит из колокольчика, в разделе остаётся ──────
+        const bellCountBefore = JSON.parse(await s.eval(`JSON.stringify(document.querySelectorAll('#msgList .msg-item').length)`));
+        const targetNtf = await s.eval(`document.querySelector('#msgList .msg-item')?.dataset.ntfId ?? ''`);
+        await s.click('#msgList .msg-item [data-dismiss]');
+        await sleep(1200);
+        const bellCountAfter = JSON.parse(await s.eval(`JSON.stringify(document.querySelectorAll('#msgList .msg-item').length)`));
+        check('крестик убрал строку из колокольчика', bellCountAfter === bellCountBefore - 1, `${bellCountBefore}→${bellCountAfter}`);
+        check('убранной строки в колокольчике больше нет', JSON.parse(await s.eval(`JSON.stringify(!document.querySelector('#msgList .msg-item[data-ntf-id="${targetNtf}"]'))`)) === true);
+
+        await s.eval(`document.querySelector('.app-nav-item[data-section="notifications"], label[for="pt-e"]')?.click()`);
+        for (let i = 0; i < 60 && !JSON.parse(await s.eval('!!document.querySelector("#notifCenter .ntf-card")')); i++) await sleep(200);
+        check('в разделе убранная строка на месте', JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('#notifCenter .ntf-card[data-ntf-id="${targetNtf}"]'))`)) === true);
 
         await s.screenshot('/tmp/verify-uvedomleniya-kolokolchik.png');
 

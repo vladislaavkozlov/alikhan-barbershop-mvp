@@ -22,14 +22,18 @@ export async function handleNotificationsList(req, res, url) {
   const auth = await authenticate(req);
   if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
   const unreadOnly = url.searchParams.get('unreadOnly') === 'true';
+  // scope=bell - список для колокольчика: без убранных из него (миграция 052).
+  // Раздел «Уведомления» ходит без scope и получает полный журнал, включая убранные:
+  // «убрать» прячет уведомление из шапки, а не удаляет его.
+  const bellOnly = url.searchParams.get('scope') === 'bell';
   const canSeeClientPhone = BOOKING_OPERATOR_ROLES.includes(auth.role);
   // COALESCE(c.name, b.walkin_name) - тот же приём, что в списке записей: клиент без
   // телефона (запись «с улицы») хранит имя прямо на брони, иначе оно молча терялось бы.
   // Услуги собираем подзапросом в одну строку - в ленте они показываются как подпись
   // («Стрижка, борода»), отдельный список фронту здесь не нужен.
-  let query = `SELECT n.id, n.type, n.booking_id, n.title, n.body, n.read_at, n.created_at,
+  let query = `SELECT n.id, n.type, n.booking_id, n.title, n.body, n.read_at, n.created_at, n.dismissed_at,
                       b.date AS booking_date, b.start_time, b.end_time, b.status AS booking_status,
-                      b.master_id, m.name AS master_name,
+                      b.master_id, m.name AS master_name, b.created_at AS booking_created_at,
                       COALESCE(c.name, b.walkin_name) AS client_name, c.phone AS client_phone,
                       (SELECT string_agg(s.name, ', ' ORDER BY s.name)
                          FROM booking_services bs JOIN services s ON s.id = bs.service_id
@@ -41,6 +45,7 @@ export async function handleNotificationsList(req, res, url) {
                 WHERE n.staff_id = $1`;
   const params = [auth.id];
   if (unreadOnly) query += ' AND n.read_at IS NULL';
+  if (bellOnly) query += ' AND n.dismissed_at IS NULL';
   query += ' ORDER BY n.created_at DESC LIMIT 50';
   const result = await pool.query(query, params);
   return sendJson(
@@ -53,6 +58,7 @@ export async function handleNotificationsList(req, res, url) {
       title: r.title,
       body: r.body,
       read: r.read_at !== null,
+      dismissed: r.dismissed_at !== null,
       createdAt: r.created_at,
       // Запись могла быть удалена (ON DELETE CASCADE уносит и уведомление, но между
       // двумя запросами страница может держать старый список) - тогда всё это null,
@@ -67,6 +73,11 @@ export async function handleNotificationsList(req, res, url) {
             endTime: r.end_time,
             status: r.booking_status,
             masterId: r.master_id,
+            // Момент, когда запись реально создали - клиент на сайте или администратор
+            // в CRM (bookings.created_at). Не путать с createdAt самого уведомления:
+            // у переноса записи уведомление пересоздаётся заново, а запись остаётся той
+            // же и заведена раньше
+            createdAt: r.booking_created_at,
             masterName: r.master_name,
             clientName: r.client_name,
             clientPhone: canSeeClientPhone ? r.client_phone : null,
@@ -80,7 +91,12 @@ export async function handleNotificationsList(req, res, url) {
 export async function handleNotificationsUnreadCount(req, res) {
   const auth = await authenticate(req);
   if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-  const result = await pool.query('SELECT count(*)::int AS n FROM notifications WHERE staff_id = $1 AND read_at IS NULL', [auth.id]);
+  // Цифра на колокольчике обязана совпадать с тем, что человек в нём увидит, иначе она
+  // обещает письма, которых там нет - убранные из колокольчика в счёт не идут
+  const result = await pool.query(
+    'SELECT count(*)::int AS n FROM notifications WHERE staff_id = $1 AND read_at IS NULL AND dismissed_at IS NULL',
+    [auth.id]
+  );
   return sendJson(res, 200, { count: result.rows[0].n });
 }
 
@@ -88,6 +104,20 @@ export async function handleNotificationRead(req, res, parts) {
   const auth = await authenticate(req);
   if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
   await pool.query('UPDATE notifications SET read_at = now() WHERE id = $1 AND staff_id = $2 AND read_at IS NULL', [parts[1], auth.id]);
+  return sendJson(res, 200, { ok: true });
+}
+
+// POST /notifications/:id/dismiss - убрать из колокольчика (правка Влада 20.08.2026).
+// Заодно помечает прочитанным: человек, который убирает уведомление из шапки, его уже
+// увидел - иначе счётчик остался бы висеть на том, чего в списке больше нет.
+export async function handleNotificationDismiss(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
+  await pool.query(
+    `UPDATE notifications SET dismissed_at = now(), read_at = COALESCE(read_at, now())
+      WHERE id = $1 AND staff_id = $2 AND dismissed_at IS NULL`,
+    [parts[1], auth.id]
+  );
   return sendJson(res, 200, { ok: true });
 }
 
