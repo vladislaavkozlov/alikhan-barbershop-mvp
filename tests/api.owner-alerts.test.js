@@ -9,14 +9,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeOwnerAlerts } from '../api/server.mjs';
 
-function makeFakeClient({ staffRows = [], scheduledRows = [], pendingRows = [], riskRows = [] } = {}) {
+function makeFakeClient({ staffRows = [], scheduledRows = [], riskRows = [] } = {}) {
   const queries = [];
   return {
     queries,
     async query(sql, params) {
       queries.push({ sql, params });
       if (sql.includes('FROM master_weekly_schedule WHERE master_id = ANY')) return { rows: scheduledRows };
-      if (sql.includes('FROM schedule_change_requests r LEFT JOIN staff')) return { rows: pendingRows };
       if (sql.includes('FROM clients c JOIN bookings')) return { rows: riskRows };
       if (sql.includes('FROM staff WHERE employed')) return { rows: staffRows };
       throw new Error(`unexpected SQL in fake client: ${sql}`);
@@ -27,7 +26,7 @@ function makeFakeClient({ staffRows = [], scheduledRows = [], pendingRows = [], 
 test('computeOwnerAlerts: пустая база - все три списка пустые массивы, не ошибка', async () => {
   const client = makeFakeClient();
   const result = await computeOwnerAlerts(client);
-  assert.deepEqual(result, { mastersWithoutSchedule: [], pendingRequests: [], clientsAtRisk: [] });
+  assert.deepEqual(result, { mastersWithoutSchedule: [], clientsAtRisk: [] });
 });
 
 test('computeOwnerAlerts: мастер без единой рабочей строки в графике попадает в mastersWithoutSchedule с именем', async () => {
@@ -51,47 +50,9 @@ test('computeOwnerAlerts: все мастера с графиком - mastersWit
   assert.deepEqual(result.mastersWithoutSchedule, []);
 });
 
-test('computeOwnerAlerts: SQL заявок фильтрует ровно status=pending, не всю историю', async () => {
-  const client = makeFakeClient();
-  await computeOwnerAlerts(client);
-  const reqQuery = client.queries.find((q) => q.sql.includes('FROM schedule_change_requests'));
-  assert.match(reqQuery.sql, /status = 'pending'/);
-});
-
-test('computeOwnerAlerts: pending-заявка маппится с именем мастера и датами в формате YYYY-MM-DD', async () => {
-  const client = makeFakeClient({
-    pendingRows: [
-      {
-        id: 7,
-        master_id: 'master-3',
-        master_name: 'Елизавета',
-        request_type: 'day_off',
-        category: 'otgul',
-        date_from: new Date('2026-08-10T00:00:00Z'),
-        date_to: new Date('2026-08-10T00:00:00Z'),
-        start_time: null,
-        end_time: null,
-        master_comment: 'к врачу',
-        created_at: '2026-08-06T09:00:00Z',
-      },
-    ],
-  });
-  const result = await computeOwnerAlerts(client);
-  assert.equal(result.pendingRequests.length, 1);
-  assert.deepEqual(result.pendingRequests[0], {
-    id: 7,
-    masterId: 'master-3',
-    masterName: 'Елизавета',
-    requestType: 'day_off',
-    category: 'otgul',
-    dateFrom: '2026-08-10',
-    dateTo: '2026-08-10',
-    startTime: null,
-    endTime: null,
-    masterComment: 'к врачу',
-    createdAt: '2026-08-06T09:00:00Z',
-  });
-});
+// Тесты про pendingRequests удалены 20.08.2026: computeOwnerAlerts больше не собирает
+// список необработанных заявок - механизм заявок на отгул снят целиком (форма у мастера,
+// роуты /schedule-requests, уведомления). Ключа нет в ответе, проверять нечего.
 
 test('computeOwnerAlerts: клиенты в риске приходят через listClientsAtRisk без фильтра (владелец видит всех)', async () => {
   const client = makeFakeClient({

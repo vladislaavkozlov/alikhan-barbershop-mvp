@@ -58,25 +58,8 @@ export function findMastersMissingSchedule(serviceMasterIds, scheduledMasterIds)
   return serviceMasterIds.filter((id) => !scheduledMasterIds.has(id));
 }
 
-// FINAL_PRODUCT_DECISION.md MUST HAVE Epic 3 - владелец не должен узнавать о
-// пропавшем графике мастера только ручной curl-проверкой (реальный инцидент с
-// Мамедханом, PROJECT_UNDERSTANDING.md разд.7). Вызывается при входе владельца
-// (POST /auth/login). Дедуп - постоянный уникальный индекс notifications_master_dedup
-// (миграция 037, тот же приём, что notifications_schedreq_dedup) через ON CONFLICT
-// DO NOTHING внутри notifyStaff - если для этого мастера уже создавали уведомление
-// этого типа (когда-либо, не только непрочитанное), повторно не создаём даже если
-// график успел восстановиться и снова пропасть (простое решение по Окну 35).
-export async function notifyOwnerAboutMastersMissingSchedule(client, ownerId) {
-  const staffRes = await client.query('SELECT id, name FROM staff WHERE employed = true AND provides_services = true');
-  const serviceMasterIds = staffRes.rows.map((r) => r.id);
-  const scheduledIds = await mastersWithWorkingSchedule(client, serviceMasterIds);
-  const missingIds = findMastersMissingSchedule(serviceMasterIds, scheduledIds);
-  const nameById = new Map(staffRes.rows.map((r) => [r.id, r.name]));
-  for (const masterId of missingIds) {
-    await notifyStaff(client, ownerId, 'master_lost_schedule', {
-      relatedMasterId: masterId,
-      title: `У мастера ${nameById.get(masterId) ?? masterId} пропал график работы`,
-      body: 'Клиенты не могут записаться, пока график не будет настроен заново.',
-    });
-  }
-}
+// notifyOwnerAboutMastersMissingSchedule удалена 20.08.2026: уведомление
+// 'master_lost_schedule' снято из ленты (миграция 051 убрала тип из CHECK), а функция
+// без него не просто бесполезна - её вызов уронил бы INSERT на constraint. Расчёт
+// «кто без графика» жив в findMastersMissingSchedule выше и кормит баннер «Нет
+// рабочего графика» через GET /owner/alerts.

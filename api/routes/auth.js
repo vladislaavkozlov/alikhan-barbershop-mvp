@@ -3,7 +3,6 @@
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { verifyPin, createSession, authenticate } from '../lib/auth.js';
-import { notifyOwnerAboutMastersMissingSchedule } from '../lib/notify-core.js';
 
 export async function handleLogin(req, res) {
   const body = await readBody(req);
@@ -19,16 +18,12 @@ export async function handleLogin(req, res) {
     return sendJson(res, 401, { error: 'invalid_credentials' });
   }
   const { token, expiresAt } = await createSession(staff.id);
-  // Окно 35 - алерт "мастер без графика" считается при входе владельца, не
-  // фоновым кроном (по решению промпта - проверки при входе достаточно). Обёрнуто
-  // в try/catch: сбой этой проверки не должен ронять сам логин.
-  if (staff.role === 'owner') {
-    try {
-      await notifyOwnerAboutMastersMissingSchedule(pool, staff.id);
-    } catch (err) {
-      console.error('notifyOwnerAboutMastersMissingSchedule failed:', err);
-    }
-  }
+  // Уведомление "у мастера пропал график" (Окно 35) снято 20.08.2026 вместе с
+  // остальными не-записевыми типами: лента теперь только про записи клиентов, а
+  // сам источник инцидента исчез - график правит только владелец/администратор,
+  // мастер не может ни сменить его, ни попросить отгул через CRM.
+  // Расчёт «у кого нет рабочего графика» сохранился и продолжает работать в разделе
+  // «Клиенты» (api/routes/clients.js) - потеряно уведомление, не проверка.
   return sendJson(res, 200, {
     token,
     expiresAt,

@@ -289,29 +289,13 @@
               <p class="section-hint" style="margin:6px 0 10px">Только просмотр - график меняет владелец или администратор</p>
               <div id="weeklyEditor-self"></div>
 
-              <h4 style="margin-top:18px">Разовое изменение на дату</h4>
-              <p class="section-hint" style="margin:6px 0 10px">Отгул или отпуск на конкретную дату/диапазон - владелец получит уведомление и подтвердит или отклонит, время блокируется от онлайн-записи только после подтверждения</p>
-              <div class="field-grid">
-                <div class="field"><label>Тип</label>
-                  <select id="reqCategory">
-                    <option value="otgul">Отгул разовый</option>
-                    <option value="otpusk">Отпуск</option>
-                  </select>
-                </div>
-                <div class="field" id="reqDateFromWrap"><label>Дата</label><div id="reqDateFrom-slot"></div></div>
-                <div class="field" id="reqDateToWrap"><label>Дата по (если на несколько дней)</label><div id="reqDateTo-slot"></div></div>
-              </div>
-              <div class="toggle-row" id="reqFullDayWrap" style="border-bottom:none;padding:8px 0"><div class="tr-label">На весь день</div><label class="switch"><input type="checkbox" id="reqFullDay"><span class="track"></span><span class="knob"></span></label></div>
-              <div class="field-grid" id="reqTimeFields">
-                <div class="field"><label>Время с</label><div id="reqStartTime-slot"></div></div>
-                <div class="field"><label>Время до</label><div id="reqEndTime-slot"></div></div>
-              </div>
-              <div class="field"><label>Комментарий</label><input type="text" id="reqComment" placeholder="например «врач»"></div>
-              <button class="btn btn-ghost btn-sm" type="button" id="reqSubmitBtn">Отправить запрос</button>
-              <p class="payroll-note" id="reqResult"></p>
-
-              <h4 style="margin-top:18px">Мои запросы</h4>
-              <div id="reqHistory" class="breaks-list"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
+              <!-- Блок «Разовое изменение на дату» (отгул/отпуск заявкой владельцу) и
+                   история «Мои запросы» убраны 20.08.2026 (решение Влада): график мастера
+                   меняет только владелец или администратор, заявок из кабинета мастера
+                   больше нет. Вместе с формой сняты роуты /schedule-requests, уведомления
+                   о заявках (миграция 051) и модули assets/crm-schedule-request*.js -
+                   оставлять форму без роутов значило бы показывать кнопку, которая всегда
+                   отвечает 404 (тот же довод, что у смены PIN ниже). -->
 
               <!-- Смена PIN убрана 20.08.2026 (решение Влада): пины задаёт только
                    владелец, в разделе «Команда» внутри карточки сотрудника. Роут

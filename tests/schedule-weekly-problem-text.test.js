@@ -82,7 +82,7 @@ test('роуты отдают код в поле error - общий контра
   // Клиент читает код именно из error (describeError, assets/crm-toast.js): если роут
   // отдаст только внутреннее поле code, человек получит безымянную ошибку. Поймано
   // живым прогоном 17.08.2026, сначала так и было
-  for (const file of ['../api/routes/schedule.js', '../api/routes/schedule-requests.js']) {
+  for (const file of ['../api/routes/schedule.js']) {
     const src = readFileSync(new URL(file, import.meta.url), 'utf8');
     assert.match(src, /sendJson\(res, 400, \{ error: weeklyError\.code, \.\.\.weeklyError \}\)/, `${file} не отдаёт код в поле error`);
   }

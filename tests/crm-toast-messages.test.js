@@ -14,7 +14,7 @@ const { describeError, errorMessage, errorTextByCode } = await import('../assets
 test('каждый код ошибки сервера переведён на человеческий язык', async () => {
   const root = new URL('../', import.meta.url);
   const files = ['api/routes/services.js', 'api/routes/staff.js', 'api/routes/bookings.js', 'api/routes/schedule.js',
-    'api/routes/payroll.js', 'api/routes/clients.js', 'api/routes/auth.js', 'api/routes/schedule-requests.js',
+    'api/routes/payroll.js', 'api/routes/clients.js', 'api/routes/auth.js',
     'api/routes/notifications.js', 'api/server.mjs'];
   const codes = new Set();
   for (const file of files) {

@@ -847,21 +847,14 @@
          «Отменить» убрана по прямой правке Влада 07.08.2026. -->
     <div class="tab-panel panel-e">
       <section>
-        <div class="staff-list">
-          <details class="staff-card">
-            <summary>
-              <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><path d="M14.5 19l0.6-2.4 3.4-3.4a1 1 0 0 1 1.4 0l0.9 0.9a1 1 0 0 1 0 1.4l-3.4 3.4-2.4 0.6z" fill="var(--accent)" stroke="none"/></svg></div>
-              <div class="summary-meta"><div class="name">Заявки на изменение графика</div></div>
-              <span class="chevron">▸</span>
-            </summary>
-            <div class="staff-card-body">
-              <div id="ownerReqList" class="req-cards"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
-              <div class="break-row" style="margin-top:10px">
-                <button class="btn btn-ghost btn-sm" type="button" id="ownerReqReload">Обновить список</button>
-              </div>
-            </div>
-          </details>
-        </div>
+        <!-- Лента записей клиентов (20.08.2026). Рисует assets/crm-notifications.js
+             (renderCenter) - тот же источник, что кормит колокольчик в шапке, только
+             карточкой целиком: когда придёт клиент, кто он, к какому мастеру, за чем,
+             плюс «Открыть запись» и связь с клиентом в один клик.
+             Блок «Заявки на изменение графика», живший здесь с 07.08.2026, удалён
+             вместе со всем механизмом заявок (решение Влада). -->
+        <p class="section-hint" style="margin:0 0 12px">Каждая новая запись клиента - сразу, как её создали на сайте или в CRM</p>
+        <div id="notifCenter" class="ntf-list"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
       </section>
     </div>
 
@@ -873,7 +866,6 @@
 <script type="module">
   import { initCrmNavigationPanels, upgradeBookingPanel } from './assets/crm-navigation-panels.js';
   import { initCrmAuth } from './assets/crm-auth.js';
-  import { initOwnerScheduleRequests } from './assets/crm-schedule-requests.js';
   import { wireClientsRisk, renderRiskList } from './assets/crm-clients.js';
   import { wireScheduleAlerts, renderOwnerAlerts } from './assets/crm-schedule-alerts.js';
   import { initAppShell } from './assets/crm-app-shell.js';
@@ -888,7 +880,6 @@
   import './assets/crm-live.js';
 
   initCrmAuth(['owner', 'manager']);
-  const scheduleRequestsApi = initOwnerScheduleRequests();
   wireClientsRisk();
   wireScheduleAlerts();
   initAppShell('owner');
@@ -917,7 +908,7 @@
   window.__refreshOwnerDashboard = () => Promise.all([
     renderOwnerAlerts(),
     renderRiskList(),
-    scheduleRequestsApi?.refresh?.(),
+    window.__refreshNotifications?.(),
     window.__refreshTeamSchedules?.(),
     refreshFinance(),
   ]);

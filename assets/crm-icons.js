@@ -43,3 +43,13 @@ export const ICON_SERVICES = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://w
 export const ICON_ACCESS = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="10" r="4"/><path d="M11 10h6M14 10v2M16.5 10v2"/></svg>`;
 export const ICON_UPLOAD = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><path d="M10 13V3M6.5 6.5 10 3l3.5 3.5"/><path d="M4 11.5v3A2.5 2.5 0 0 0 6.5 17h7a2.5 2.5 0 0 0 2.5-2.5v-3"/></svg>`;
 export const ICON_ADD = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><path d="M10 4v12M4 10h12"/></svg>`;
+
+// Иконки ленты уведомлений (20.08.2026). Раньше типы записи рисовались эмодзи (📅/📤/📥,
+// Окна 14 и 55) - в узкой панели колокольчика это не бросалось в глаза, но в крупной
+// карточке раздела эмодзи стоит рядом с сайдбаром, набранным одним стилем штриховых
+// SVG, и выпадает из него: своя палитра, свой вес, свой рендер в каждой ОС.
+// Направление переноса по-прежнему различается стрелкой - мастеру в списке из десяти
+// строк важно видеть, ушла запись или пришла, не вчитываясь в текст.
+export const ICON_BOOKING_NEW = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8h14"/><path d="M6.5 2.5v3M13.5 2.5v3"/><path d="M10 10.5v4M8 12.5h4"/></svg>`;
+export const ICON_BOOKING_MOVED_OUT = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8h14"/><path d="M6.5 2.5v3M13.5 2.5v3"/><path d="M7 12.5h6M10.5 10l2.5 2.5-2.5 2.5"/></svg>`;
+export const ICON_BOOKING_MOVED_IN = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8h14"/><path d="M6.5 2.5v3M13.5 2.5v3"/><path d="M13 12.5H7M9.5 10 7 12.5 9.5 15"/></svg>`;

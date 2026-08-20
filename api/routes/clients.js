@@ -235,14 +235,11 @@ export async function listClientsAtRisk(client, { locationId, masterId } = {}) {
 
 // Окно 40 (06.08.2026) - агрегатор дашборда владельца "Сегодня"
 // (PRODUCT_ARCHITECTURE_PLAN разд.1, UX_UI_REDESIGN_SPECIFICATION разд.5). Один
-// роут вместо трёх - избегает N+1 запросов с фронта. Мастера без графика -
-// ровно тот же расчёт, что уже даёт notifyOwnerAboutMastersMissingSchedule выше
-// (findMastersMissingSchedule/mastersWithWorkingSchedule, Окно 35), не
-// пересчитывается заново. Клиенты на грани ухода - listClientsAtRisk без
-// фильтра (Окно 39), владелец видит всех. Единственный НОВЫЙ агрегат - список
-// необработанных заявок (schedule_change_requests, status='pending') - раньше
-// такого списка для владельца в едином виде не было (только полная история в
-// GET /schedule-requests, assets/crm-schedule-requests.js).
+// роут вместо двух - избегает N+1 запросов с фронта. Мастера без графика -
+// findMastersMissingSchedule/mastersWithWorkingSchedule (Окно 35): расчёт остался и
+// после того, как одноимённое уведомление сняли 20.08.2026, потому что баннер «Нет
+// рабочего графика» наверху «Расписания» кормится именно отсюда. Клиенты на грани
+// ухода - listClientsAtRisk без фильтра (Окно 39), владелец видит всех.
 export async function computeOwnerAlerts(client) {
   const staffRes = await client.query('SELECT id, name FROM staff WHERE employed = true AND provides_services = true');
   const serviceMasterIds = staffRes.rows.map((r) => r.id);
@@ -251,30 +248,14 @@ export async function computeOwnerAlerts(client) {
   const nameById = new Map(staffRes.rows.map((r) => [r.id, r.name]));
   const mastersWithoutSchedule = missingIds.map((id) => ({ id, name: nameById.get(id) ?? id }));
 
-  const pendingRes = await client.query(
-    `SELECT r.id, r.master_id, st.name AS master_name, r.request_type, r.category,
-            r.date_from, r.date_to, r.start_time, r.end_time, r.master_comment, r.created_at
-     FROM schedule_change_requests r LEFT JOIN staff st ON st.id = r.master_id
-     WHERE r.status = 'pending'
-     ORDER BY r.created_at ASC`
-  );
-  const pendingRequests = pendingRes.rows.map((r) => ({
-    id: r.id,
-    masterId: r.master_id,
-    masterName: r.master_name,
-    requestType: r.request_type,
-    category: r.category,
-    dateFrom: r.date_from instanceof Date ? r.date_from.toISOString().slice(0, 10) : r.date_from,
-    dateTo: r.date_to instanceof Date ? r.date_to.toISOString().slice(0, 10) : r.date_to,
-    startTime: r.start_time,
-    endTime: r.end_time,
-    masterComment: r.master_comment,
-    createdAt: r.created_at,
-  }));
+  // pendingRequests (необработанные заявки мастеров на отгул) убран 20.08.2026:
+  // механизм заявок снят целиком - формы у мастера нет, роутов /schedule-requests нет,
+  // показывать этот список больше негде. Ключ пропал и из ответа роута - потребителей
+  // у него не осталось ни одного (проверено грепом по assets/).
 
   const clientsAtRisk = await listClientsAtRisk(client, {});
 
-  return { mastersWithoutSchedule, pendingRequests, clientsAtRisk };
+  return { mastersWithoutSchedule, clientsAtRisk };
 }
 
 // ── /owner/alerts - Окно 40 (06.08.2026). Один агрегирующий роут для дашборда

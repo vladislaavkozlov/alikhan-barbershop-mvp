@@ -5,7 +5,6 @@
 import { el, formatMoney } from './crm-shared.js';
 import { applyAvatar } from './crm-avatar.js';
 import { renderWeeklySelfReadOnly } from './crm-schedule-editor.js';
-import { wireScheduleRequestForm } from './crm-schedule-request-form.js';
 import { sortByServiceOrder } from '../storage.js';
 
 // Задача Б.1 (ТЗ-готовность-к-продакшену, 01.08.2026): crm-master.html хардкодил
@@ -95,6 +94,9 @@ export function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
   // Поле «Ставка от выручки, %» (selfRateInput) удалено 17.08.2026 вместе с самим
   // блоком в crm-master.html - сотрудник не видит свой процент (правка Влада)
 
+  // Форма «Отгул / Отпуск на дату» и история запросов убраны 20.08.2026 (решение
+  // Влада): график мастера правит только владелец или администратор, заявок из
+  // кабинета мастера больше нет - вместе с формой сняты роуты /schedule-requests и
+  // уведомления о заявках. График здесь остаётся, но только для просмотра.
   renderWeeklySelfReadOnly(staff);
-  wireScheduleRequestForm(staff);
 }

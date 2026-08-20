@@ -45,9 +45,8 @@ export {
   planHolidayClose,
   HOLIDAY_CLOSE_MAX_DAYS,
 } from './lib/schedule-core.js';
-import { notifyStaff } from './lib/notify-core.js';
 import { addSubscriber, changesSnapshot, subscriberCount } from './lib/events.js';
-export { findMastersMissingSchedule, notifyOwnerAboutMastersMissingSchedule } from './lib/notify-core.js';
+export { findMastersMissingSchedule } from './lib/notify-core.js';
 // Ре-экспорт для tests/*.test.js, которые импортируют эти имена напрямую из
 // server.mjs (in-memory юниты без реального Postgres) - см. правило 6 плана
 // декомпозиции, plans/2026-08-07-server-mjs-decomposition.md.
@@ -73,11 +72,6 @@ import {
   handleMastersNextAvailability,
   handleMasterWeeklySchedule,
 } from './routes/schedule.js';
-import {
-  handleScheduleRequests,
-  handleScheduleRequestDecision,
-  handleScheduleRequestCancel,
-} from './routes/schedule-requests.js';
 import {
   handleNotificationsList,
   handleNotificationsUnreadCount,
@@ -154,10 +148,6 @@ const ROUTES = [
   { method: 'GET', path: 'masters-next-availability', auth: 'public' },
   { method: 'GET', path: 'master-weekly-schedule', auth: 'any-staff' },
   { method: 'PUT', path: 'master-weekly-schedule', auth: 'any-staff' },
-  { method: 'POST', path: 'schedule-requests', auth: 'any-staff' },
-  { method: 'GET', path: 'schedule-requests', auth: 'any-staff' },
-  { method: 'PATCH', path: 'schedule-requests/:id/decision', auth: 'management' },
-  { method: 'PATCH', path: 'schedule-requests/:id/cancel', auth: 'management' },
   { method: 'GET', path: 'notifications', auth: 'any-staff' },
   { method: 'GET', path: 'notifications/unread-count', auth: 'any-staff' },
   { method: 'POST', path: 'notifications/:id/read', auth: 'any-staff' },
@@ -454,38 +444,13 @@ const server = createServer(async (req, res) => {
       return handleMasterWeeklySchedule(req, res, url);
     }
 
-    // ── /schedule-requests - согласование графика (Задача 3, Окно 14, 02.08.2026).
-    // Мастер запрашивает перерыв/выходной → владелец получает уведомление →
-    // одобряет/отклоняет → только при одобрении время реально блокируется
-    // (applyScheduleDay + проверка в createBookingTx выше).
-    if (parts[0] === 'schedule-requests' && parts.length === 1) {
-      return handleScheduleRequests(req, res, url);
-    }
-
-    // ── /schedule-requests/:id/decision - owner-only (Задача 3, Окно 14). Admin -
-    // только просмотр списка выше, решает исключительно владелец (см. Ограничения
-    // промпта - Мамедхан approve/reject не получает).
-    if (parts[0] === 'schedule-requests' && parts[1] && parts[2] === 'decision' && parts.length === 3 && req.method === 'PATCH') {
-      return handleScheduleRequestDecision(req, res, parts);
-    }
-
-    // ── /schedule-requests/:id/cancel - owner-only (Окно 23, 04.08.2026). Отменяет
-    // УЖЕ ОДОБРЕННУЮ заявку на отгул/отпуск целиком: снимает блокировку со ВСЕХ дат
-    // диапазона одним действием и переводит саму заявку в 'cancelled'. До этого окна
-    // владелец мог только точечно сбросить одну дату (DELETE /schedule?masterId=&date=,
-    // кнопка "Сбросить к стандартному") - на трёхдневном отпуске это три отдельных
-    // действия, а статус заявки всё равно оставался "approved" и врал в истории.
-    //
-    // Откат каждой даты - ровно та же операция, что у DELETE /schedule: удаляем строку
-    // schedule_shifts, schedule_breaks уходят каскадом (002_schema.sql:90), и
-    // getEffectiveSchedule сам возвращается на недельный график/глобальный дефолт.
-    // Следствие, осознанное (то же, что у кнопки "Сбросить к стандартному"): если на
-    // дату из диапазона у мастера была ЕЩЁ и разовая правка владельца (свои часы на
-    // этот день), она удалится вместе с отгулом - отдельного слоя "чей это shift" в
-    // схеме нет, и заводить его в рамках этого окна никто не просил.
-    if (parts[0] === 'schedule-requests' && parts[1] && parts[2] === 'cancel' && parts.length === 3 && req.method === 'PATCH') {
-      return handleScheduleRequestCancel(req, res, parts);
-    }
+    // Роуты /schedule-requests сняты 20.08.2026 (решение Влада): мастер больше не
+    // подаёт заявки на отгул/отпуск - форма удалена из crm-master.html, блок заявок из
+    // crm-owner.html, уведомления о них из ленты (миграция 051). Отгул мастеру ставит
+    // владелец напрямую (POST /schedule на дату). Таблица schedule_change_requests
+    // осталась в базе с историей решений, но обработчиков к ней больше нет: держать
+    // открытый POST, который создаёт заявку, которую никто уже не увидит, - хуже, чем
+    // честный 404.
 
     // ── /notifications - Задача 5 (Окно 14, 02.08.2026). In-app поллинг, не push -
     // список/бейдж на странице, обновляется по таймеру фронтенда.
@@ -624,43 +589,12 @@ async function runMigrations() {
   }
 }
 
-// Задача 5 (Окно 14, 02.08.2026) - фоновый сканер "за 15 минут"/"время пришло" по
-// сегодняшним броням. Раз в минуту, не системный push - только заполняет таблицу
-// notifications, которую опрашивает уже открытая страница (см. GET /notifications
-// выше). Уникальные индексы миграции 015 защищают от дублей при каждом тике.
-// Узкие окна ниже [now, now+16мин) и (now-2мин, now] - grace-защита от лавины
-// уведомлений, если сервер был выключен и стартует спустя часы: старые брони, чьё
-// время реминдера/начала давно прошло, просто не попадают в окно, не бэкфилятся пачкой.
-async function scanBookingReminders() {
-  try {
-    const now = Date.now();
-    const todayStr = new Date(now + 3 * 60 * 60 * 1000).toISOString().slice(0, 10); // МСК = UTC+3 круглый год
-    const result = await pool.query(
-      `SELECT id, master_id, start_time FROM bookings WHERE date = $1 AND status != 'cancelled'`,
-      [todayStr]
-    );
-    for (const row of result.rows) {
-      const startMs = new Date(`${todayStr}T${row.start_time}:00+03:00`).getTime();
-      const minutesUntil = (startMs - now) / (1000 * 60);
-      if (minutesUntil >= 0 && minutesUntil <= 16) {
-        await notifyStaff(pool, row.master_id, 'booking_reminder_15', {
-          bookingId: row.id,
-          title: 'Через 15 минут запись',
-          body: row.start_time,
-        });
-      }
-      if (minutesUntil <= 0 && minutesUntil >= -2) {
-        await notifyStaff(pool, row.master_id, 'booking_start', {
-          bookingId: row.id,
-          title: 'Время записи наступило',
-          body: row.start_time,
-        });
-      }
-    }
-  } catch (err) {
-    console.error('scanBookingReminders упал (не критично, попробуем через минуту):', err.message);
-  }
-}
+// Фоновый сканер напоминаний («за 15 минут», «время пришло») снят 20.08.2026 по
+// решению Влада: «нужны уведомления только в момент записи, за 15 минут не нужно».
+// Уведомление о записи создаётся один раз, в момент её создания (notifyStaff в
+// createBookingTx). Типы 'booking_reminder_15'/'booking_start' убраны из CHECK
+// миграцией 051 - вернуть сканер без обратной миграции уже нельзя, INSERT упадёт.
+
 // Окно 17 (04.08.2026) - миграции/фоновый сканер/listen раньше запускались на верхнем
 // уровне модуля безусловно, поэтому импорт server.mjs (например из node --test для
 // юнитов на чистых функциях резолвера) тянул за собой реальное подключение к БД и
@@ -669,7 +603,6 @@ async function scanBookingReminders() {
 // при импорте как модуля - побочные эффекты не срабатывают.
 async function startServer() {
   await runMigrations();
-  setInterval(scanBookingReminders, 60 * 1000);
   server.listen(PORT, () => {
     console.log(`API alikhan-crm слушает порт ${PORT}`);
   });

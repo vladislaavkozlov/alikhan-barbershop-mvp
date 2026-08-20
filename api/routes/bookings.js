@@ -19,9 +19,19 @@ import { hasComboConflict } from '../lib/service-combos.js';
 // точкой день в день). Один запрос на два вызова - createBookingTx и перенос
 // (Окно 54, Задача C) - чтобы условие отбора адресатов не разъехалось между
 // созданием и переносом одной и той же брони.
-async function locationAdminIds(client, locationId) {
-  if (locationId == null) return [];
-  const res = await client.query(`SELECT id FROM staff WHERE role = 'admin' AND location_id = $1`, [locationId]);
+// Кому, кроме мастера, уходит уведомление о записи. Администратор - только своей
+// точки (он ведёт её день в день), владелец и управляющий - всегда: точки к ним не
+// привязаны, они отвечают за весь барбершоп. Владелец до 20.08.2026 в этот список не
+// попадал вовсе и о новых записях не узнавал ничего (решение Влада: должен узнавать,
+// точка у Алихана одна). Уволенные и лишённые доступа отсеиваются - иначе строки
+// копились бы в базе на людей, которые в CRM уже не войдут.
+async function bookingWatcherIds(client, locationId) {
+  const res = await client.query(
+    `SELECT id FROM staff
+      WHERE employed = true AND has_system_access = true
+        AND (role IN ('owner', 'manager') OR (role = 'admin' AND location_id = $1))`,
+    [locationId]
+  );
   return res.rows.map((r) => r.id);
 }
 
@@ -201,20 +211,23 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     for (const serviceId of serviceIds) {
       await client.query('INSERT INTO booking_services (booking_id, service_id) VALUES ($1, $2)', [bookingId, serviceId]);
     }
-    // Задача 5 (Окно 14) - мастер узнаёт о новой записи в личном кабинете сразу,
-    // без ожидания фонового сканера (тот покрывает только "за 15 минут"/"время пришло").
+    // Задача 5 (Окно 14) - мастер узнаёт о новой записи в личном кабинете сразу, в
+    // момент её создания. С 20.08.2026 это ЕДИНСТВЕННЫЙ момент, когда уведомление о
+    // записи появляется: напоминания «за 15 минут»/«время пришло» сняты вместе с
+    // фоновым сканером (решение Влада), возвращать их нельзя без обратной миграции к 051.
     await notifyStaff(client, masterId, 'booking_new', {
       bookingId,
       title: 'Новая запись',
       body: `${startTime}–${endTime}${clientName ? ' · ' + clientName : ''}`,
     });
-    // Задача 5 (Окно 14) - Мамедхан (admin) управляет точкой день в день, тоже
-    // получает уведомления о новых записях своей точки, только просмотр (Задача 3
-    // approve/reject остаётся исключительно у owner, здесь этого и нет).
-    for (const adminId of await locationAdminIds(client, locationId)) {
-      await notifyStaff(client, adminId, 'booking_new', {
+    // Владелец, управляющий и администратор точки. Мастеру, если он же владелец
+    // (у Алихана так и есть - master-1), второе уведомление не задвоится: дедуп-индекс
+    // notifications_booking_dedup стоит ровно на (staff_id, type, booking_id), и повтор
+    // молча гаснет через ON CONFLICT DO NOTHING - у человека остаётся первая строка.
+    for (const watcherId of await bookingWatcherIds(client, locationId)) {
+      await notifyStaff(client, watcherId, 'booking_new', {
         bookingId,
-        title: 'Новая запись на точке',
+        title: 'Новая запись',
         body: `${startTime}–${endTime}${clientName ? ' · ' + clientName : ''}`,
       });
     }
@@ -444,6 +457,12 @@ export async function handleBookings(req, res, url) {
     // успех: отказ по занятому времени ничего в расписании не поменял
     if (result.status === 200 && result.body?.ok !== false) {
       publish('bookings', { date: body.date, masterId: body.masterId, bookingId: result.body?.booking?.id ?? null, reason: 'created' });
+      // Та же запись создала уведомления мастеру и владельцу (notifyStaff в
+      // createBookingTx) - без этой строки лента и колокольчик узнавали бы о ней
+      // только со следующим тиком счётчика, до 45 секунд спустя, а раздел
+      // «Уведомления» не обновлялся бы вовсе. Тип 'notifications' в потоке был
+      // объявлен с самого начала (api/lib/events.js), но никто его не публиковал.
+      publish('notifications', { reason: 'booking-created' });
     }
     return sendJson(res, result.status, result.body);
   }
@@ -1024,8 +1043,8 @@ async function rescheduleBookingTx({ bookingId, masterId, date, startTime, isSta
       previous: previousSlot,
       next: nextSlot,
       masterNames: await masterNamesByIds(client, [booking.master_id, masterId]),
-      previousLocationAdminIds: await locationAdminIds(client, booking.location_id),
-      nextLocationAdminIds: await locationAdminIds(client, locationId),
+      previousLocationAdminIds: await bookingWatcherIds(client, booking.location_id),
+      nextLocationAdminIds: await bookingWatcherIds(client, locationId),
     });
     await applyRescheduleNotifications(client, notifyPlan);
     await client.query('COMMIT');
@@ -1100,6 +1119,9 @@ export async function handleBookingReschedule(req, res, parts) {
   // Перенос двигает карточку в календаре у всех, кто сейчас смотрит расписание
   if (result.status === 200 && result.body?.ok !== false) {
     publish('bookings', { bookingId, reason: 'rescheduled' });
+    // Перенос рассылает booking_moved_out/in - лента должна показать это сразу, тем
+    // же приёмом, что и создание записи выше
+    publish('notifications', { reason: 'booking-rescheduled' });
   }
   return sendJson(res, result.status, result.body);
 }
