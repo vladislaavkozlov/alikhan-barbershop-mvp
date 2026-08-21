@@ -124,7 +124,7 @@ function mediaMarkup(staff) {
   const profileHint = offDuty
     ? 'Сотрудник снят с приёма - на сайте его нет. Настройка сохранится и включится, когда вернёте на приём'
     : 'Профиль появится после настройки услуг и графика';
-  return `<div class="team-media-upload"><div><strong>Фото профиля</strong><small>После выбора можно подвинуть и приблизить кадр</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Выбрать фото</span><input class="team-file-native" name="avatar" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
+  return `<div class="team-media-upload"><div><strong>Фото профиля</strong><small>После выбора можно подвинуть и приблизить кадр. Сохранится сразу, кнопка «Сохранить изменения» для этого не нужна</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Выбрать фото</span><input class="team-file-native" name="avatar" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
   <div class="team-editor-grid"><div class="field"><label>Стаж</label><input name="experience" value="${esc(staff.experienceText)}" placeholder="Например, 6 лет"></div><div class="field"><label>Сильные стороны</label><input name="strengths" value="${esc(staff.strengthsText)}" placeholder="Например, фейды и борода"></div></div>
   <div class="field"><label>Курсы и сертификаты</label><textarea name="certificates" placeholder="Название курса или сертификата">${esc(staff.certificatesText)}</textarea></div>
   <div class="team-media-upload"><div><strong>Портфолио</strong><small>До 20 фото в JPEG, PNG или WebP, каждое до 8 МБ</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Добавить работы</span><input class="team-file-native" name="portfolio" type="file" multiple accept="image/jpeg,image/png,image/webp"></label></div>
@@ -436,11 +436,23 @@ async function uploadMedia(card, input) {
     const result = await uploadFile(card, file, kind, (percent) => { note.textContent = `Загружаю ${file.name}${percent == null ? '…' : `: ${percent}%`}`; });
     if (!result.ok) { noteFail(card, errorMessage(result, `${file.name}: не удалось загрузить`)); return; }
   }
-  note.textContent = kind === 'avatar' ? 'Фото профиля обновлено' : 'Фотографии загружены';
+  // Жалоба Влада 21.08.2026: «когда грузишь фото профиля, кнопка "Сохранить изменения"
+  // не становится доступной». Живой прогон (tools/verify-2026-08-21-foto-profilya.mjs)
+  // показал, что дело не в кнопке: фото уходит на сервер сразу, отдельным запросом, и
+  // кнопке тут нечего делать - она сохраняет ПОЛЯ карточки. Настоящая поломка была в
+  // обратной связи: подпись «Фото профиля обновлено» писалась в узел, который через
+  // строку затирала renderTeam() (замер дал пустой [data-card-note] после загрузки).
+  // Человек видел ровно ничего: серая кнопка и молчание, отсюда вывод «не сработало».
+  // Теперь сообщение живёт в тосте (он переживает перерисовку) и заново ставится в
+  // подпись УЖЕ НОВОЙ карточки после renderTeam.
+  const doneText = kind === 'avatar' ? 'Фото профиля сохранено' : 'Фотографии загружены';
   // Тот же файл, выбранный второй раз подряд, иначе не вызывает change - человек
   // не смог бы перекадрировать снимок, не выбрав сначала какой-нибудь другой
   input.value = '';
+  const staffId = card.dataset.staffId;
   await renderTeam();
+  showSuccess(doneText);
+  showNote(document.querySelector(`.team-editor-card[data-staff-id="${CSS.escape(staffId)}"]`), doneText);
   // Фото стоит не только в «Команде»: те же кружки в «Дне»/«Неделе»/«Месяце».
   // Перерисовываем расписание сразу, чтобы новое фото было видно без перезагрузки
   // страницы (Влад, 15.08.2026)
