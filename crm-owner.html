@@ -753,7 +753,8 @@
          Клиента без телефона (walk-in "зашёл мимо" без номера) в списке нет и не
          будет: система намеренно не связывает такие визиты между собой (решение
          Алихана, Окно 53), значит ни истории, ни суммы у такого человека не
-         существует. Об этом честно сказано строкой под списком, а не умолчанием.
+         существует. Строку-пояснение под списком Влад убрал 21.08.2026 (лишний текст
+         на экране); сам принцип не изменился.
 
          Разметку карточек рисует assets/crm-clients.js (renderClientsSection) тем же
          компонентом details.staff-card + .avatar-icon, что и остальные разделы
@@ -767,7 +768,6 @@
           <span class="clients-count" id="clientsCount"></span>
         </div>
         <div class="staff-list" id="clientsList"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
-        <p class="payroll-note" id="clientsFootnote" hidden>Клиенты, которых записали без телефона, в базе не заводятся - такие визиты система не связывает между собой.</p>
       </section>
     </div>
 

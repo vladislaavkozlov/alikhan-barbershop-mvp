@@ -60,6 +60,11 @@ try {
       await db.query(`INSERT INTO booking_services (booking_id, service_id) VALUES ($1, 'strizhka')`, [id]);
     }
 
+    // Счётчик неявок руками: прямая вставка брони со статусом no_show его не трогает
+    // (в проде его двигает PATCH /bookings/:id/status), а без него не проверить
+    // красную плашку риска в шапке карточки - её Влад видит на живой базе
+    await db.query(`UPDATE clients SET no_show_streak = 1 WHERE id = 'cl-2'`);
+
     // Ожидаемые деньги считаем ИЗ БАЗЫ (цена стрижки у мастера своя), а не литералом -
     // иначе прогон проверял бы мою арифметику, а не продукт
     const priceRow = await db.query(`SELECT price FROM master_services WHERE master_id = 'master-2' AND service_id = 'strizhka'`);
@@ -132,6 +137,11 @@ try {
         check('в разделе видны оба клиента с телефоном', cards.includes('QA Пётр Первый') && cards.includes('QA Второй Клиент'), JSON.stringify(cards));
         check('безымянного walk-in клиента в разделе нет', !cards.includes('QA Безымянный'), JSON.stringify(cards));
 
+        const riskChip = norm(await s.eval(`document.querySelector('.client-card[data-client-id="cl-2"] .client-chip--risk')?.innerText || ''`));
+        check('клиент с неявкой помечен красной плашкой риска, а не одним лишь текстом', riskChip.includes('стоит позвонить'), riskChip || 'плашки риска нет');
+        const newbieChip = norm(await s.eval(`document.querySelector('.client-card[data-client-id="cl-2"] .client-facts')?.innerText || ''`));
+        check('у клиента без визитов вместо двух нулей одна честная плашка', newbieChip.includes('Пока без визитов') && !newbieChip.includes('0 ₽'), newbieChip);
+
         const firstCardText = norm(await s.eval(`document.querySelector('.client-card[data-client-id="cl-1"]')?.innerText || ''`));
         const money = `${expectedRevenue.toLocaleString('ru-RU')} ₽`.replace(/\s/g, ' ');
         check('в свёрнутой строке сразу видно телефон, число визитов и сколько принёс',
@@ -162,6 +172,23 @@ try {
         await sleep(200);
         const foundByName = JSON.parse(await s.eval(`JSON.stringify([...document.querySelectorAll('#clientsList .client-card .name')].map(e => e.textContent.trim()))`));
         check('поиск по части имени работает без учёта регистра', foundByName.length === 1 && foundByName[0] === 'QA Пётр Первый', JSON.stringify(foundByName));
+
+        // 5.4 Цвета статусов в истории (правка Влада 21.08.2026) - тот же язык, что в
+        // календаре: проверяем не «класс присвоен», а что цвет реально применился
+        // Список к этому моменту перерисован поиском - карточка снова свёрнута, и
+        // мерить цвета в ней нечего, пока не раскроем (первая версия проверки честно
+        // получила пустой массив и провалилась - это и есть польза от замера)
+        await s.eval(`document.querySelector('.client-card[data-client-id="cl-1"] summary')?.click()`);
+        for (let i = 0; i < 60 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('.client-card[data-client-id="cl-1"] .client-visit'))`)); i++) await sleep(200);
+        const stripes = JSON.parse(await s.eval(`JSON.stringify([...document.querySelectorAll('.client-card[data-client-id="cl-1"] .client-visit')].map(v => ({
+          mod: v.className.replace('client-visit ', ''),
+          stripe: getComputedStyle(v).borderLeftColor,
+          badge: v.querySelector('.client-visit-status')?.innerText?.trim(),
+        })))`));
+        const planned = stripes.find((v) => v.mod.includes('planned'));
+        const done = stripes.find((v) => v.mod.includes('done'));
+        check('визит «ожидается» помечен золотой полосой и своей плашкой', !!planned && planned.badge === 'ожидается' && planned.stripe !== 'rgba(0, 0, 0, 0)', JSON.stringify(planned));
+        check('визит «обслужен» помечен своим цветом, отличным от «ожидается»', !!done && done.badge === 'обслужен' && done.stripe !== planned?.stripe, JSON.stringify(done));
 
         // 5.5 Кнопка «Развернуть все» - как в остальных разделах владельца (правка
         // Влада 21.08.2026 по проду: кнопки не было, потому что общий механизм

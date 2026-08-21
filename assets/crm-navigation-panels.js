@@ -31,7 +31,17 @@ export function initCrmNavigationPanels(root = document) {
     // одна на другую, и человек нажимал бы верхнюю наугад. Вложенным списком управляет
     // кнопка внешнего раздела (см. allPanels выше)
     if (list.parentElement?.closest('.staff-list')) return;
-    if (!panels.length || list.dataset.panelControlsWired) return;
+    if (!panels.length) return;
+    // Список уже с кнопкой, но содержимое могли перерисовать (поиск в «Клиентах»
+    // фильтрует список, заменяя карточки целиком). Обработчики вешать повторно
+    // нельзя, а вот подпись обязана сойтись с новым содержимым: иначе кнопка
+    // остаётся «Свернуть все» над свежим списком, где всё свёрнуто (найдено живым
+    // прогоном 21.08.2026, не на глаз)
+    if (list.dataset.panelControlsWired) {
+      const wiredButton = list.previousElementSibling?.querySelector('.panel-group-toggle');
+      if (wiredButton) syncToggle(wiredButton, list);
+      return;
+    }
     list.dataset.panelControlsWired = '1';
 
     const controls = doc.createElement('div');

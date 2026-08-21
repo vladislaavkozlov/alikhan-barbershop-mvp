@@ -848,14 +848,55 @@ body.app-shell-active #crmMain {
 
 /* Цифры клиента прямо в свёрнутой строке: имя, телефон и «сколько принёс» - это то,
    ради чего раздел открывают, раскрывать карточку ради них не нужно. На телефоне
-   колонки переносятся, поэтому это flex-wrap, а не таблица */
-.client-facts { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
-.client-facts .client-fact { color: var(--text-muted); font-size: 0.78rem; white-space: nowrap; }
-.client-facts .client-fact b { color: var(--text); font-weight: 600; }
-.client-facts .client-fact--risk { color: var(--danger); }
+   плашки переносятся, поэтому flex-wrap, а не таблица */
+.client-facts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.client-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--panel-bg-collapsed);
+  color: var(--text-muted); font-size: 0.75rem; line-height: 1.5; white-space: nowrap;
+}
+.client-chip b { color: var(--text); font-weight: 600; }
+/* Деньги - единственная плашка с акцентом: это та цифра, ради которой владелец
+   вообще открывает раздел, и она должна ловиться взглядом раньше остальных */
+.client-chip--money { border-color: rgba(216, 184, 124, 0.45); }
+.client-chip--money b { color: var(--accent); }
+.client-chip--source::before {
+  content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--wood);
+}
+/* Риск - тот же красный, что у неявки в расписании, и с точкой-маркером: одним
+   цветом отличать плашку от соседних мало, если человек не различает оттенки */
+.client-chip--risk {
+  border-color: rgba(242, 112, 92, 0.5); background: rgba(242, 112, 92, 0.12); color: var(--danger);
+}
+.client-chip--risk::before {
+  content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--danger);
+}
+/* Телефон в шапке - моноширинный: столбец номеров становится ровным, и глаз
+   сравнивает цифры, а не ширину букв */
+.client-card > summary .role {
+  font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
+}
 
-.client-visit { padding: 10px 0; border-bottom: 1px solid var(--border); }
+/* Визит в истории. Цветная полоса слева - ровно та же азбука, что у карточек записи
+   в календаре «Дня» (.appt--status-* в mockup-crm.css): зелёный - обслужен, красный -
+   не пришёл, золото - ожидается, серый - отменена */
+.client-visit {
+  padding: 10px 0 10px 12px; border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+}
 .client-visit:last-child { border-bottom: none; }
+.client-visit--done { border-left-color: var(--success); }
+.client-visit--noshow { border-left-color: var(--danger); }
+.client-visit--planned { border-left-color: var(--accent); }
+.client-visit--cancelled { border-left-color: var(--text-muted); }
+.client-visit-status {
+  padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+}
+.client-visit-status--done { background: rgba(127, 224, 166, 0.16); color: var(--success); }
+.client-visit-status--noshow { background: rgba(242, 112, 92, 0.16); color: var(--danger); }
+.client-visit-status--planned { background: rgba(216, 184, 124, 0.16); color: var(--accent); }
+.client-visit-status--cancelled { background: rgba(210, 208, 196, 0.14); color: var(--text-muted); text-decoration: line-through; }
 .client-visit-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
 .client-visit-date { font-weight: 600; font-size: 0.86rem; }
 .client-visit-meta { color: var(--text-muted); font-size: 0.78rem; }

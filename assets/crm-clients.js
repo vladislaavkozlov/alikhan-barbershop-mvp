@@ -221,18 +221,34 @@ export function filterClients(clients, query) {
   });
 }
 
+// Строка фактов под именем - набор отдельных «плашек», а не перечисление через
+// пробел (правка Влада 21.08.2026: «сделай симпатичнее сами шапки»). Слитный текст
+// «0 визитов принёс 0 ₽ с 19.08.2026 Пропустил последнюю запись» читался как одно
+// длинное предложение, в котором глазу не за что зацепиться.
+function chip(inner, modifier = '') {
+  return `<span class="client-chip${modifier}">${inner}</span>`;
+}
+
 function clientFacts(c) {
   const facts = [];
-  facts.push(`<span class="client-fact"><b>${c.visitsCount}</b> ${pluralVisits(c.visitsCount)}</span>`);
-  facts.push(`<span class="client-fact">принёс <b>${formatMoney(c.revenue)}</b></span>`);
+  // Новый клиент - одна честная плашка вместо двух нулей подряд: «0 визитов, принёс
+  // 0 ₽» технически верно, но выглядит как упрёк человеку, который просто записался
+  // впервые и ещё не пришёл
+  if (c.visitsCount === 0) {
+    facts.push(chip('Пока без визитов'));
+  } else {
+    facts.push(chip(`<b>${c.visitsCount}</b> ${pluralVisits(c.visitsCount)}`));
+    facts.push(chip(`принёс <b>${formatMoney(c.revenue)}</b>`, ' client-chip--money'));
+  }
   if (c.firstVisitDate) {
-    const source = CLIENT_SOURCE_LABELS[c.source];
+    facts.push(chip(`с нами с ${formatVisitDate(c.firstVisitDate)}`));
     // «Откуда» показываем только когда канал реально записан на первой брони.
     // Клиент, записанный до появления этого поля (миграция 050, 17.08.2026), источника
     // не имеет - и строка «Другое» тут была бы выдумкой, а не фактом.
-    facts.push(`<span class="client-fact">с ${formatVisitDate(c.firstVisitDate)}${source ? `, ${escapeHtml(source)}` : ''}</span>`);
+    const source = CLIENT_SOURCE_LABELS[c.source];
+    if (source) facts.push(chip(escapeHtml(source), ' client-chip--source'));
   }
-  if (c.risk?.label) facts.push(`<span class="client-fact client-fact--risk">${escapeHtml(c.risk.label)}</span>`);
+  if (c.risk?.label) facts.push(chip(escapeHtml(c.risk.label), ' client-chip--risk'));
   return facts.join('');
 }
 
@@ -277,17 +293,25 @@ function commentMarkup(text) {
   </details>`;
 }
 
+// Цвет статуса в истории - тот же язык, что в календаре «Дня» (assets/crm-calendar.js,
+// .appt--status-*): зелёный - обслужен, красный - не пришёл, золото - ожидается,
+// серый - отменена. Свою палитру не заводим: человек уже выучил эти цвета на
+// расписании, и второй словарь цветов означал бы, что их надо учить заново
+const STATUS_MOD = { planned: 'planned', done: 'done', cancelled: 'cancelled', no_show: 'noshow' };
+
 function visitMarkup(v) {
   const services = v.services.map((s) => escapeHtml(s.name)).join(', ') || '—';
-  const status = STATUS_LABEL[v.status] || escapeHtml(v.status);
+  const statusMod = STATUS_MOD[v.status] ?? 'planned';
+  const status = `<span class="client-visit-status client-visit-status--${statusMod}">${STATUS_LABEL[v.status] || escapeHtml(v.status)}</span>`;
   // Сумма - только у состоявшихся визитов: «ожидается» и «отменена» деньгами ещё
   // (или уже) не являются, и цифра рядом с ними читалась бы как выручка, которой нет.
   const sum = v.status === 'done' && v.price != null ? `<span class="client-visit-sum">${formatMoney(v.price)}</span>` : '';
   const comment = commentMarkup(v.staffComment);
-  return `<div class="client-visit">
+  return `<div class="client-visit client-visit--${statusMod}">
     <div class="client-visit-head">
       <span class="client-visit-date">${formatVisitDate(v.date)} ${escapeHtml(v.startTime)}</span>
-      <span class="client-visit-meta">${services} · ${escapeHtml(v.masterName || '')} · ${status}</span>
+      ${status}
+      <span class="client-visit-meta">${services} · ${escapeHtml(v.masterName || '')}</span>
       ${sum}
     </div>
     ${comment}
@@ -363,7 +387,6 @@ async function fetchClientHistory(details, body) {
 function paintClients() {
   const list = el('clientsList');
   const count = el('clientsCount');
-  const footnote = el('clientsFootnote');
   if (!list) return;
   const visible = filterClients(clientsCache, el('clientsSearch')?.value);
   if (count) {
@@ -374,7 +397,6 @@ function paintClients() {
           ? `Всего ${clientsCache.length}`
           : `Найдено ${visible.length} из ${clientsCache.length}`;
   }
-  if (footnote) footnote.hidden = clientsCache.length === 0;
   if (clientsCache.length === 0) {
     list.innerHTML = '<p class="payroll-note">Клиентов пока нет. Клиент появляется здесь сам, когда его записали с номером телефона</p>';
     return;
