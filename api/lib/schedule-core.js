@@ -4,6 +4,7 @@
 // staff, notifications, schedule, schedule-requests) - см. карту зависимостей в
 // plans/2026-08-07-server-mjs-decomposition.md.
 import { toMinutes, isoWeekday, intervalsOverlap, dateColToStr, shopNow } from './time.js';
+import { BOOKING_OPERATOR_ROLES } from './permissions.js';
 
 // Правка 03.08.2026: недельный график (master_weekly_schedule) действует бессрочно
 // (нет конечной даты), поэтому проверка конфликтов с уже существующими бронями при
@@ -56,14 +57,22 @@ export async function getEffectiveSchedule(client, masterId, date) {
 
 // Окно 22 (04.08.2026, Задача 1) - чистая функция, вынесена из GET /staff, чтобы
 // покрыть unit-тестом без реального Postgres (тот же приём, что уже применяется для
-// getEffectiveSchedule/isScheduleDayOff выше). viewerRole==='owner' видит всех
+// getEffectiveSchedule/isScheduleDayOff выше). Владелец видит всех
 // (+ hasWorkingSchedule на каждой строке-мастере, чтобы владелец сам увидел, кому
 // нужно донастроить график). Администратор тоже видит весь состав своей точки,
 // включая сотрудника без графика, но получает явный hasWorkingSchedule=false,
 // чтобы календарь и создание записи могли отдельно исключить его. Мастер видит
 // только себя. Не-мастеров фильтр не касается.
+//
+// 21.08.2026 - список ролей был литералом ('owner' || 'admin') и не получил роль
+// manager, когда её вводило Окно 57: управляющий проваливался в ветку для мастера, и
+// GET /staff молча вырезал из ответа КАЖДОГО, у кого ещё нет ни одного рабочего дня
+// в графике. То есть только что нанятый мастер был виден владельцу и невидим
+// управляющему - и в "Команде", и в "Финансах". Ровно те же грабли, что 13.08.2026
+// уже ловили в BOOKING_STAFF_ROLES ("список ролей, размноженный копией, расходится с
+// общим при первой же новой роли") - поэтому здесь теперь общий BOOKING_OPERATOR_ROLES
 export function filterStaffForViewer(staffRows, viewerRole, scheduledMasterIds) {
-  if (viewerRole === 'owner' || viewerRole === 'admin') {
+  if (BOOKING_OPERATOR_ROLES.includes(viewerRole)) {
     return staffRows.map((r) => (r.providesServices ? { ...r, hasWorkingSchedule: scheduledMasterIds.has(r.id) } : r));
   }
   return staffRows.filter((r) => !r.providesServices || scheduledMasterIds.has(r.id));

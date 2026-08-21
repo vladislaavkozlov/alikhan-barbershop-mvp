@@ -54,3 +54,21 @@ test('пустой scheduledMasterIds - мастеру скрыты все provi
     ['admin-1']
   );
 });
+
+// 21.08.2026 - роль manager (Окно 57) в список ролей этой функции не попала:
+// управляющий проваливался в ветку мастера, и GET /staff вырезал у него из ответа
+// каждого, у кого ещё нет рабочего дня в графике. Только что нанятый мастер был
+// виден владельцу и невидим управляющему - и в "Команде", и в "Финансах"
+test('управляющий видит состав так же, как владелец - включая мастера без графика', () => {
+  const forManager = filterStaffForViewer(STAFF, 'manager', SCHEDULED);
+  const forOwner = filterStaffForViewer(STAFF, 'owner', SCHEDULED);
+  assert.deepEqual(forManager.map((r) => r.id), forOwner.map((r) => r.id));
+  assert.deepEqual(forManager, forOwner);
+});
+
+test('управляющему тоже видно, кому график ещё не настроен (hasWorkingSchedule)', () => {
+  const forManager = filterStaffForViewer(STAFF, 'manager', new Set());
+  const masters = forManager.filter((r) => r.providesServices);
+  assert.ok(masters.length > 0);
+  assert.ok(masters.every((r) => r.hasWorkingSchedule === false), JSON.stringify(masters));
+});

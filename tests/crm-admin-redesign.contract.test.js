@@ -89,7 +89,11 @@ test('список сотрудников сохраняет мастера бе
   const schedule = await source('assets/crm-calendar.js');
   const staffRoute = await source('api/lib/schedule-core.js');
 
-  assert.match(staffRoute, /viewerRole === 'admin'/);
+  // 21.08.2026 - здесь стоял литерал `viewerRole === 'admin'`, и ровно этот литерал
+  // был багом: роль manager в него не попала, управляющий проваливался в ветку
+  // мастера и не видел сотрудника без графика. Проверяем не написание условия, а его
+  // смысл - ветка «видят весь состав» идёт по ОБЩЕМУ списку ролей-операторов записи
+  assert.match(staffRoute, /BOOKING_OPERATOR_ROLES\.includes\(viewerRole\)/);
   assert.match(staffRoute, /hasWorkingSchedule/);
   assert.match(schedule, /hasWorkingSchedule !== false/);
 });

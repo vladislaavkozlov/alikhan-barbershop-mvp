@@ -27,37 +27,12 @@
      пилюль для них больше нет. */
   .schedule-view-card .seg-panel { display: block; }
 
-  /* остальные radio-вкладки этой страницы: ЗП Алиовсад + Выручка */
-
-  #zp1-calc:checked ~ .panel-zp1-calc { display: block; }
-  #zp1-calc:checked ~ .seg-bar label[for="zp1-calc"] { background: var(--accent); color: var(--leather); }
-
-  /* та же вкладка "Расчёт ЗП" у карточек Мамедхана и Елизаветы (Окно 10 - вкладка "Выплаты ЗП" убрана, Алихан подтвердил, что она не нужна) */
-  #zp2-calc:checked ~ .panel-zp2-calc { display: block; }
-  #zp2-calc:checked ~ .seg-bar label[for="zp2-calc"] { background: var(--accent); color: var(--leather); }
-  #zp3-calc:checked ~ .panel-zp3-calc { display: block; }
-  #zp3-calc:checked ~ .seg-bar label[for="zp3-calc"] { background: var(--accent); color: var(--leather); }
-
-  #zp1p-day:checked ~ .panel-zp1p-day, #zp1p-week:checked ~ .panel-zp1p-week,
-  #zp1p-month:checked ~ .panel-zp1p-month, #zp1p-period:checked ~ .panel-zp1p-period { display: block; }
-  #zp1p-day:checked ~ .seg-bar label[for="zp1p-day"],
-  #zp1p-week:checked ~ .seg-bar label[for="zp1p-week"],
-  #zp1p-month:checked ~ .seg-bar label[for="zp1p-month"],
-  #zp1p-period:checked ~ .seg-bar label[for="zp1p-period"] { background: var(--accent); color: var(--leather); }
-
-  /* те же вкладки период-ЗП, теперь и у Мамедхана (zp2p) и Елизаветы (zp3p) - Блок В ТЗ-готовность-к-продакшену */
-  #zp2p-day:checked ~ .panel-zp2p-day, #zp2p-week:checked ~ .panel-zp2p-week,
-  #zp2p-month:checked ~ .panel-zp2p-month, #zp2p-period:checked ~ .panel-zp2p-period { display: block; }
-  #zp2p-day:checked ~ .seg-bar label[for="zp2p-day"],
-  #zp2p-week:checked ~ .seg-bar label[for="zp2p-week"],
-  #zp2p-month:checked ~ .seg-bar label[for="zp2p-month"],
-  #zp2p-period:checked ~ .seg-bar label[for="zp2p-period"] { background: var(--accent); color: var(--leather); }
-  #zp3p-day:checked ~ .panel-zp3p-day, #zp3p-week:checked ~ .panel-zp3p-week,
-  #zp3p-month:checked ~ .panel-zp3p-month, #zp3p-period:checked ~ .panel-zp3p-period { display: block; }
-  #zp3p-day:checked ~ .seg-bar label[for="zp3p-day"],
-  #zp3p-week:checked ~ .seg-bar label[for="zp3p-week"],
-  #zp3p-month:checked ~ .seg-bar label[for="zp3p-month"],
-  #zp3p-period:checked ~ .seg-bar label[for="zp3p-period"] { background: var(--accent); color: var(--leather); }
+  /* Карточки ЗП сотрудников (были zp1/zp2/zp3 - три захардкоженных набора radio с
+     собственным CSS-правилом на каждый id) убраны 21.08.2026: блок "Зарплаты
+     мастеров" строится по факту ответа /staff, а количество сотрудников заранее
+     неизвестно. Переключатель периода там - кнопки .master-pill (тот же приём и по
+     той же причине, что у переключателя мастеров в Расписании, см.
+     buildMasterSwitch в assets/crm-schedule-shared.js). */
 
   /* третья верхняя вкладка "Выручка" (только у владельца) */
   #pt-c:checked ~ .tab-bar label[for="pt-c"] { color: var(--accent); border-color: var(--accent); }
@@ -560,8 +535,6 @@
           <span class="chevron">▸</span>
         </summary>
         <div class="staff-card-body">
-        <p class="section-hint">Неделя/Месяц/Квартал/Год считается с начала периода по сегодня</p>
-
         <div class="seg-tabs">
           <input type="radio" name="rv-period-all" id="rvpa-day" checked>
           <input type="radio" name="rv-period-all" id="rvpa-week">
@@ -577,9 +550,9 @@
           </div>
           <div class="seg-panel panel-rvpa-day">
             <div class="stat-cards">
-              <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllDayRevenue">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">За день - реальная сумма по записям в базе на сегодня</div></div>
-              <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllDayPayroll">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">По ставке своего мастера от той же реальной выручки</div></div>
-              <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllDayNet">000 ₽ <span class="unsure">считаю…</span></div><div class="sc-note">Выручка минус зарплаты</div></div>
+              <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllDayRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
+              <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllDayPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
+              <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllDayNet">000 ₽ <span class="unsure">считаю…</span></div></div>
             </div>
           </div>
           <div class="seg-panel panel-rvpa-week"><div class="stat-cards">
@@ -621,126 +594,17 @@
           <span class="chevron">▸</span>
         </summary>
         <div class="staff-card-body">
-
-        <h3>Алиовсад</h3>
-        <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
-        <div class="seg-tabs">
-          <input type="radio" name="zp1-sub" id="zp1-calc" checked>
-          <div class="seg-bar">
-            <label for="zp1-calc">Расчёт ЗП</label>
-          </div>
-
-          <div class="seg-panel panel-zp1-calc">
-            <div class="seg-tabs">
-              <input type="radio" name="zp1-period" id="zp1p-day" checked>
-              <input type="radio" name="zp1-period" id="zp1p-week">
-              <input type="radio" name="zp1-period" id="zp1p-month">
-              <input type="radio" name="zp1-period" id="zp1p-period">
-              <div class="seg-bar">
-                <label for="zp1p-day">За день</label>
-                <label for="zp1p-week">За неделю</label>
-                <label for="zp1p-month">За месяц</label>
-                <label for="zp1p-period">Задать период</label>
-              </div>
-              <div class="seg-panel panel-zp1p-day">
-                <div class="payroll-sum"><span class="amount" id="payrollMaster1Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-              </div>
-              <div class="seg-panel panel-zp1p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster1Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
-              <div class="seg-panel panel-zp1p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster1Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
-              <div class="seg-panel panel-zp1p-period">
-                <div class="payroll-period-picker">
-                  <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
-                  <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
-                  <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-1">Показать</button>
-                </div>
-                <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <h3 style="margin-top:24px">Мамедхан</h3>
-        <h4>Зарплата <span class="badge badge-example">100% от выручки</span></h4>
-        <div class="seg-tabs">
-          <input type="radio" name="zp2-sub" id="zp2-calc" checked>
-          <div class="seg-bar">
-            <label for="zp2-calc">Расчёт ЗП</label>
-          </div>
-          <div class="seg-panel panel-zp2-calc">
-            <div class="seg-tabs">
-              <input type="radio" name="zp2-period" id="zp2p-day" checked>
-              <input type="radio" name="zp2-period" id="zp2p-week">
-              <input type="radio" name="zp2-period" id="zp2p-month">
-              <input type="radio" name="zp2-period" id="zp2p-period">
-              <div class="seg-bar">
-                <label for="zp2p-day">За день</label>
-                <label for="zp2p-week">За неделю</label>
-                <label for="zp2p-month">За месяц</label>
-                <label for="zp2p-period">Задать период</label>
-              </div>
-              <div class="seg-panel panel-zp2p-day">
-                <div class="payroll-sum"><span class="amount" id="payrollMaster2Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-              </div>
-              <div class="seg-panel panel-zp2p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster2Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
-              <div class="seg-panel panel-zp2p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster2Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
-              <div class="seg-panel panel-zp2p-period">
-                <div class="payroll-period-picker">
-                  <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
-                  <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
-                  <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-2">Показать</button>
-                </div>
-                <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <h3 style="margin-top:24px">Елизавета</h3>
-        <h4>Зарплата <span class="badge badge-example">40% по умолчанию, редактируется</span></h4>
-        <div class="field-grid">
-          <div class="field">
-            <label>Ставка от выручки, %</label>
-            <input type="number" min="0" max="100" id="elizavetaPctInput" value="40">
-          </div>
-        </div>
-        <button class="btn btn-ghost btn-sm" type="button" id="elizavetaPctSave">Сохранить ставку</button>
-        <p class="payroll-note" id="elizavetaPctNote"></p>
-        <div class="seg-tabs" style="margin-top:14px">
-          <input type="radio" name="zp3-sub" id="zp3-calc" checked>
-          <div class="seg-bar">
-            <label for="zp3-calc">Расчёт ЗП</label>
-          </div>
-          <div class="seg-panel panel-zp3-calc">
-            <div class="seg-tabs">
-              <input type="radio" name="zp3-period" id="zp3p-day" checked>
-              <input type="radio" name="zp3-period" id="zp3p-week">
-              <input type="radio" name="zp3-period" id="zp3p-month">
-              <input type="radio" name="zp3-period" id="zp3p-period">
-              <div class="seg-bar">
-                <label for="zp3p-day">За день</label>
-                <label for="zp3p-week">За неделю</label>
-                <label for="zp3p-month">За месяц</label>
-                <label for="zp3p-period">Задать период</label>
-              </div>
-              <div class="seg-panel panel-zp3p-day">
-                <div class="payroll-sum"><span class="amount" id="payrollMaster3Day">000 ₽ <span class="unsure">считаю…</span></span></div>
-                <p class="payroll-note">За сегодня, по ставке из поля выше</p>
-              </div>
-              <div class="seg-panel panel-zp3p-week"><div class="payroll-sum"><span class="amount" id="payrollMaster3Week">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За неделю - с понедельника по сегодня</p></div>
-              <div class="seg-panel panel-zp3p-month"><div class="payroll-sum"><span class="amount" id="payrollMaster3Month">000 ₽ <span class="unsure">считаю…</span></span></div><p class="payroll-note">За месяц - с 1 числа по сегодня</p></div>
-              <div class="seg-panel panel-zp3p-period">
-                <div class="payroll-period-picker">
-                  <div class="field"><label>С</label><div class="payroll-date-slot"></div></div>
-                  <div class="field"><label>По</label><div class="payroll-date-slot"></div></div>
-                  <button class="btn btn-ghost btn-sm" type="button" data-master-id="master-3">Показать</button>
-                </div>
-                <div class="payroll-sum"><span class="amount">— <span class="unsure">выберите даты и нажмите «Показать»</span></span></div>
-                <p class="payroll-note">По броням этого мастера за выбранный диапазон дат</p>
-              </div>
-            </div>
-          </div>
+        <!-- 21.08.2026 (правка Влада) - здесь были три захардкоженных набора разметки
+             (Алиовсад/Мамедхан/Елизавета, id zp1*/zp2*/zp3* и payrollMaster1..3*):
+             четвёртый сотрудник в них физически не помещался, поэтому включённый
+             тумблер "Принимает клиентов" не давал человеку попасть в "Финансы".
+             Теперь карточки строит assets/crm-payroll-cards.js по факту ответа
+             /staff - ровно тем же приёмом и по той же причине, что переключатель
+             мастеров в Расписании (buildMasterSwitch, assets/crm-schedule-shared.js).
+             Ставка "% от выручки" стала полем у КАЖДОГО, кто оказывает услуги, а не
+             только у Елизаветы. -->
+        <div class="staff-list payroll-staff-list" id="payrollStaffList">
+          <div class="crm-skeleton" role="status" aria-label="Считаю зарплаты"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div>
         </div>
         </div>
       </details>

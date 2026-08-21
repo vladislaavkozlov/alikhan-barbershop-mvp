@@ -781,3 +781,31 @@ body.app-shell-active #crmMain {
   /* на телефоне наведения нет - крестик виден всегда, иначе действие недостижимо */
   .crm-navigation-ui .msg-dismiss { opacity: 1; }
 }
+
+/* ---------- Карточки ЗП в разделе "Финансы" (21.08.2026) ----------
+   Блок "Зарплаты мастеров" строится по составу команды (assets/crm-payroll-cards.js),
+   поэтому переключатель периода - кнопки .master-pill, а не radio + правило
+   "#id:checked ~ .panel-id" на каждый id в <style> страницы. Видимость панели решает
+   атрибут hidden из JS. Правило написано явно (а не отдано браузерному [hidden]):
+   один класс с display перебивает UA-стиль по специфичности, и панель "залипла" бы
+   открытой - грабли, на которые проект уже наступал с .field-grid[hidden]. */
+.payroll-card .payroll-period-panel[hidden] { display: none; }
+.payroll-card .master-switch-row { margin-top: 20px; }
+/* Пилюли периода. Вид взят у .seg-bar label (radio-вкладки периодов по всей CRM), но
+   это <button>: количество карточек заранее неизвестно, а radio-схема требует своё
+   CSS-правило на каждый id. Класс СВОЙ, не master-pill-row: тот на телефоне
+   переключается в горизонтальную прокрутку, потому что имена мастеров непредсказуемо
+   длинные. Здесь подписи короткие и фиксированные ("За день"…"Задать период") -
+   для них честнее перенос на вторую строку, ровно как у остальных переключателей
+   периода (см. .seg-bar в @media mockup-crm.css) */
+.seg-bar.payroll-period-row button.payroll-period-pill {
+  cursor: pointer; padding: 7px 16px; border-radius: 999px; border: none; background: transparent;
+  font-size: 0.82rem; font-weight: 600; color: var(--text-muted); font-family: inherit;
+  flex-shrink: 0; white-space: nowrap;
+  transition: all 160ms var(--ease-out);
+}
+.seg-bar.payroll-period-row button.payroll-period-pill.active { background: var(--accent); color: var(--leather); }
+/* Строка подсказки под кнопкой пустая, пока сказать нечего - без этого пустой <p>
+   держал бы 18px отступа (margin у .payroll-note) и разрывал карточку */
+.payroll-card .payroll-note:empty { display: none; }
+.payroll-card .field-grid { margin-bottom: 10px; }

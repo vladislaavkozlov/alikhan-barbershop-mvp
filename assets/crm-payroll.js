@@ -2,58 +2,19 @@
 // plans/2026-08-07-crm-auth-decomposition.md). Периоды ЗП/выручки (Неделя/Месяц/
 // Квартал/Год, "Задать период" по произвольному диапазону) + рендер виджетов дат в
 // payroll-панелях. Код перенесён 1в1, поведение не менялось.
-import { el, todayStr, formatMoney, bookingPrice, payrollBookingAmount, pad2 } from './crm-shared.js';
-import { renderDateSelect } from './crm-widgets.js';
+import { el, todayStr, formatMoney, bookingPrice, paidBookings, payrollBookingAmount, pad2 } from './crm-shared.js';
 import { fetchJson, apiSend } from './crm-auth.js';
-import { errorMessage, reportError, showError } from './crm-toast.js';
-import { showSpinner } from './crm-loading.js';
+import { errorMessage, showError, showSuccess } from './crm-toast.js';
+import { setButtonBusy } from './crm-loading.js';
+import { renderPayrollCards, syncPctInputs } from './crm-payroll-cards.js';
 
-// Правка 03.08.2026 (Окно 16): "Задать период" в карточках ЗП (владелец/админ - по
-// мастеру, свой "Моя зарплата" у мастера) раньше был <input type="date"> без id,
-// найденный позиционно (первый/второй в панели) - renderStaffPayrollPeriods и
-// wireMasterPayrollPeriod ниже (Окно 37, 06.08.2026 - заменила calcCustomPayroll
-// из mockup-crm.js) так и продолжают искать позиционно, просто внутри .custom-date
-// вместо input. Здесь только рендер виджетов в пустые слоты .payroll-date-slot -
-// один проход на всю страницу, сколько бы панелей ни было.
-export function wirePayrollDateSlots() {
-  document.querySelectorAll('.payroll-date-slot').forEach((slot, i) => {
-    if (slot.dataset.wired) return;
-    slot.dataset.wired = '1';
-    renderDateSelect(slot, `payrollDate-${i}`, todayStr());
-  });
-}
-
-// "Моя зарплата → Задать период" (мастер, crm-master.html) - Окно 37 (06.08.2026,
-// Задача 2). Заменяет calcCustomPayroll (была в mockup-crm.js, глобальная
-// onclick-функция без доступа к сессии/fetchJson - реально работать не могла,
-// оставляла "000 ₽ пример"). Кнопка/поле дат уникальны для этой страницы (только
-// crm-master.html их использовал), поэтому no-op на crm-owner.html/crm-admin.html -
-// там свой отдельный обработчик в renderStaffPayrollPeriods ниже, не трогается.
-export function wireMasterPayrollPeriod(staff) {
-  const btn = el('myPayrollPeriodBtn');
-  if (!btn || btn.dataset.wired) return;
-  btn.dataset.wired = '1';
-  btn.addEventListener('click', async () => {
-    const panel = btn.closest('.seg-panel');
-    const dates = panel ? panel.querySelectorAll('.custom-date') : [];
-    const from = dates[0]?.dataset.value;
-    const to = dates[1]?.dataset.value;
-    const amountEl = el('myPayrollPeriodAmount');
-    if (!from || !to) {
-      if (amountEl) amountEl.innerHTML = `— <span class="unsure">укажите обе даты (с и по)</span>`;
-      return;
-    }
-    if (!amountEl) return;
-    amountEl.innerHTML = `— <span class="unsure">считаю…</span>`;
-    try {
-      const { payroll } = await fetchJson(`/payroll?masterId=${staff.id}&from=${from}&to=${to}`);
-      amountEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально, период ${from}–${to}</span>`;
-    } catch (err) {
-      amountEl.innerHTML = `— <span class="unsure">не удалось посчитать</span>`;
-      showError(errorMessage(err, 'Не удалось посчитать зарплату за период'));
-    }
-  });
-}
+// wirePayrollDateSlots и wireMasterPayrollPeriod удалены 21.08.2026. Первая
+// нумеровала слоты дат сквозным индексом по всей странице - несовместимо с
+// карточками ЗП, которые теперь появляются по составу команды (виджеты дат ставит
+// сама карточка, см. wireDateSlots в assets/crm-payroll-cards.js). Вторая
+// обслуживала блок "Моя зарплата → Задать период" в кабинете мастера, а сам блок
+// убран 17.08.2026 ("сотрудники не должны видеть свою зарплату") - кнопки
+// #myPayrollPeriodBtn на страницах не осталось, функция была мёртвой.
 
 // wireDiscountSettings удалена 17.08.2026 вместе с блоком "Управление скидками" в
 // "Финансах" владельца (правка Влада). Переключатель политики был единственным её
@@ -91,14 +52,20 @@ export function periodStartStr(period) {
 // Алихана одна точка, не две (уточнено самим Алиханом 01.08.2026), инфраструктура
 // location_id в базе остаётся нетронутой на будущее (франшиза по городам, см.
 // ТЗ-разработчику-корректировка).
-export async function renderRevenuePeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice) {
+//
+// 21.08.2026 - зарплата владельца и управляющего больше НЕ вычитается из общей суммы
+// (был Set ownerIds и фильтр по нему): у них теперь такая же редактируемая ставка,
+// как у любого мастера (правка Влада), и их комиссия входит в "Зарплаты мастеров"
+// наравне со всеми. При ставке 100% это значит, что "Чистый доход" по их собственным
+// визитам равен нулю - так и есть по правилу, которое стоит в поле.
+export async function renderRevenuePeriods(priceOf, pctOf, payrollFromActualPrice) {
   if (!el('rvAllWeekRevenue')) return; // элементов нет вне страницы владельца
 
   const today = todayStr();
   let bookings;
   try {
     const res = await fetchJson(`/bookings?from=${periodStartStr('year')}&to=${today}`);
-    bookings = res.bookings || [];
+    bookings = paidBookings(res.bookings);
   } catch {
     return; // "считаю…" останется как есть - основная ошибка уже показана в панели выше
   }
@@ -112,12 +79,13 @@ export async function renderRevenuePeriods(priceOf, pctOf, ownerIds, payrollFrom
     // отдельная база (08.08.2026, вечер): от фактической суммы, если владелец
     // включил "Управление скидками" и она вписана конкретной записи.
     const revenue = rows.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
-    const payroll = rows
-      .filter((b) => !ownerIds.has(b.masterId))
-      .reduce((sum, b) => sum + (payrollBookingAmount(b, priceOf, payrollFromActualPrice) * pctOf(b.masterId)) / 100, 0);
-    if (revenueEl) revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
-    if (payrollEl) payrollEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
-    if (netEl) netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;
+    const payroll = rows.reduce(
+      (sum, b) => sum + (payrollBookingAmount(b, priceOf, payrollFromActualPrice) * pctOf(b.masterId)) / 100,
+      0
+    );
+    if (revenueEl) revenueEl.textContent = formatMoney(revenue);
+    if (payrollEl) payrollEl.textContent = formatMoney(payroll);
+    if (netEl) netEl.textContent = formatMoney(revenue - payroll);
   };
 
   for (const [label, key] of [['Week', 'week'], ['Month', 'month'], ['Quarter', 'quarter'], ['Year', 'year']]) {
@@ -127,88 +95,125 @@ export async function renderRevenuePeriods(priceOf, pctOf, ownerIds, payrollFrom
   }
 }
 
-// Блок В (ТЗ-готовность-к-продакшену, 01.08.2026) - "ЗП по неделе/месяцу/периоду в
-// карточках сотрудников" (не своя, у владельца/админа) была "000 ₽ пример" нерабочим
-// текстом, даже с реально выбранными датами сумма не считалась. Та же логика уже
-// работает во "Выручке" (renderRevenuePeriods выше) и в "Моей зарплате" мастера
-// (myWeekEl/myMonthEl в renderLiveProof, crm-dashboard.js) - здесь тот же принцип
-// bookingPrice+pctOf, но по каждой карточке сотрудника отдельно. Свой отдельный
-// fetch годовых броней (не переиспользует renderRevenuePeriods) - та функция рано
-// выходит на crm-admin.html (там нет вкладки "Выручка" вообще), а карточки
-// сотрудников с ЗП есть и у owner, и у admin.
-export async function renderStaffPayrollPeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice) {
-  const masterIds = ['master-1', 'master-2', 'master-3'];
-  const hasAnyTarget = masterIds.some((id, idx) => el(`payrollMaster${idx + 1}Week`) || el(`payrollMaster${idx + 1}Month`));
-  if (!hasAnyTarget) return;
+// Блок "Зарплаты мастеров" (владелец, "Финансы"). Раньше функция знала три id
+// ('master-1'/'master-2'/'master-3') и три набора статичных узлов в разметке - то
+// есть новый сотрудник в неё не попадал в принципе (правка Влада 21.08.2026, п.6).
+// Теперь список приходит из /staff: карточка есть у каждого, у кого включено
+// "Принимает клиентов", включая владельца и управляющего. Разметку строит
+// assets/crm-payroll-cards.js, здесь - только цифры и сохранение ставки.
+export async function renderStaffPayrollPeriods({ staffList, priceOf, pctOf, pctByMaster, payrollFromActualPrice, onPctSaved }) {
+  const host = el('payrollStaffList');
+  if (!host) return; // не страница владельца
+
+  const rows = renderPayrollCards(host, staffList, pctByMaster);
+  syncPctInputs(rows, pctByMaster);
 
   const today = todayStr();
   let bookings;
   try {
     const res = await fetchJson(`/bookings?from=${periodStartStr('year')}&to=${today}`);
-    bookings = res.bookings || [];
+    bookings = paidBookings(res.bookings);
   } catch {
     return; // "считаю…" останется как было - основная ошибка уже показана в панели выше
   }
 
-  // amountFor - используется и сразу ниже (Неделя/Месяц), и в обработчике "Задать
-  // период" дальше по файлу (замыкание держит payrollFromActualPrice). Правка
-  // 08.08.2026 (вечер): payrollBookingAmount вместо чистой bookingPrice - от
+  // Правка 08.08.2026 (вечер): payrollBookingAmount вместо чистой bookingPrice - от
   // фактической суммы, если владелец включил "Управление скидками".
-  const amountFor = (masterId, rows) => {
-    if (ownerIds.has(masterId)) return null; // владелец комиссию себе не начисляет
-    const payrollBase = rows.reduce((sum, b) => sum + payrollBookingAmount(b, priceOf, payrollFromActualPrice), 0);
-    return (payrollBase * pctOf(masterId)) / 100;
-  };
-  const renderInto = (targetEl, masterId, rows) => {
-    if (!targetEl) return;
-    const amount = amountFor(masterId, rows);
-    targetEl.innerHTML =
-      amount === null
-        ? `Не начисляется <span class="unsure">реально</span>`
-        : `${formatMoney(amount)} <span class="unsure">реально</span>`;
-  };
+  const amountFor = (masterId, visits) =>
+    (visits.reduce((sum, b) => sum + payrollBookingAmount(b, priceOf, payrollFromActualPrice), 0) * pctOf(masterId)) / 100;
 
-  masterIds.forEach((masterId, idx) => {
-    const n = idx + 1;
-    const weekEl = el(`payrollMaster${n}Week`);
-    const monthEl = el(`payrollMaster${n}Month`);
-    if (!weekEl && !monthEl) return;
-    const rowsFor = (period) => {
-      const start = periodStartStr(period);
-      return bookings.filter((b) => b.masterId === masterId && b.date >= start && b.date <= today);
+  for (const { staff, card } of rows) {
+    const mine = bookings.filter((b) => b.masterId === staff.id);
+    const put = (period, from) => {
+      const target = card.querySelector(`[data-amount="${period}"]`);
+      if (target) target.textContent = formatMoney(amountFor(staff.id, mine.filter((b) => b.date >= from && b.date <= today)));
     };
-    renderInto(weekEl, masterId, rowsFor('week'));
-    renderInto(monthEl, masterId, rowsFor('month'));
-  });
+    const fillFixedPeriods = () => {
+      put('day', today);
+      put('week', periodStartStr('week'));
+      put('month', periodStartStr('month'));
+    };
+    fillFixedPeriods();
+    wireCustomPeriod(card, staff.id, mine, amountFor);
+    wirePctSave(card, staff, pctByMaster, fillFixedPeriods, onPctSaved);
+  }
+}
 
-  // "Задать период" (владелец/админ, по мастеру) - реальный расчёт по произвольному
-  // диапазону (data-master-id на кнопке, см. HTML). Свой отдельный обработчик от
-  // wireMasterPayrollPeriod выше (личная "Моя зарплата" мастера, crm-master.html,
-  // Окно 37) - этот блок вне скоупа Окна 37, не тронут.
-  document.querySelectorAll('.payroll-period-picker button[data-master-id]').forEach((btn) => {
-    if (btn.dataset.wired) return;
-    btn.dataset.wired = '1';
-    const masterId = btn.dataset.masterId;
-    btn.addEventListener('click', () => {
-      const panel = btn.closest('.seg-panel');
-      // Правка 03.08.2026 (Окно 16): было input[type="date"].value - теперь свой
-      // date-picker (.custom-date), значение читается из data-value.
-      const dates = panel.querySelectorAll('.custom-date');
-      const from = dates[0]?.dataset.value;
-      const to = dates[1]?.dataset.value;
-      const amountEl = panel.querySelector('.payroll-sum .amount');
-      const noteEl = panel.querySelector('.payroll-note');
-      if (!from || !to) {
-        reportError(noteEl, 'Укажите обе даты - с какого и по какое число считать');
-        return;
-      }
-      const rows = bookings.filter((b) => b.masterId === masterId && b.date >= from && b.date <= to);
-      if (amountEl) {
-        const amount = amountFor(masterId, rows);
-        amountEl.innerHTML =
-          amount === null ? `Не начисляется <span class="unsure">реально</span>` : `${formatMoney(amount)} <span class="unsure">реально</span>`;
-      }
-      if (noteEl) noteEl.textContent = `Период ${from}–${to}: посчитано по реальным броням за этот диапазон`;
-    });
+// "Задать период" - произвольный диапазон по уже загруженным броням. Замыкание с
+// bookings живёт ровно одно обновление данных, поэтому обработчик каждый раз ставится
+// на свежую кнопку (старый уходит вместе со старым узлом), а не гейтится dataset.wired
+function replaceHandler(node, handler) {
+  const fresh = node.cloneNode(true);
+  node.replaceWith(fresh);
+  fresh.addEventListener('click', handler);
+  return fresh;
+}
+
+function wireCustomPeriod(card, masterId, mine, amountFor) {
+  const panel = card.querySelector('[data-period-panel="period"]');
+  const btn = panel?.querySelector('[data-period-show]');
+  if (!btn) return;
+  replaceHandler(btn, () => {
+    // Правка 03.08.2026 (Окно 16): было input[type="date"].value - теперь свой
+    // date-picker (.custom-date), значение читается из data-value.
+    const dates = panel.querySelectorAll('.custom-date');
+    const from = dates[0]?.dataset.value;
+    const to = dates[1]?.dataset.value;
+    const amountEl = panel.querySelector('[data-amount="period"]');
+    if (!from || !to) {
+      showError('Укажите обе даты - с какого и по какое число считать');
+      return;
+    }
+    if (from > to) {
+      showError('Проверьте даты: начало должно быть раньше конца');
+      return;
+    }
+    if (amountEl) amountEl.textContent = formatMoney(amountFor(masterId, mine.filter((b) => b.date >= from && b.date <= to)));
+  });
+}
+
+// Ставка "% от выручки" - теперь у каждого, кто оказывает услуги (до 21.08.2026 поле
+// было только у Елизаветы, у владельца и Мамедхана стояла неизменяемая надпись
+// "Зарплата 100% от выручки"). Подсказка об ошибке идёт всплывающим сообщением, а не
+// строкой под кнопкой - правка Влада 21.08.2026 ("подсказки должны быть в
+// всплывающем окошке"), тот же довод, по которому 15.08.2026 появился crm-toast.js:
+// строку внизу длинной карточки приходится искать глазами.
+//
+// pctByMaster - ТОТ ЖЕ объект, который читает pctOf (см. computePricing,
+// assets/crm-dashboard.js), поэтому после записи в него суммы этой карточки
+// пересчитываются сразу, без перезагрузки. Остальной раздел ("Выручка", соседние
+// карточки) обновляет onPctSaved - там меняется и общая строка "Зарплаты мастеров"
+function wirePctSave(card, staff, pctByMaster, fillFixedPeriods, onPctSaved) {
+  const btn = card.querySelector('[data-pct-save]');
+  const input = card.querySelector('[data-pct-input]');
+  if (!btn || !input) return;
+  replaceHandler(btn, async (event) => {
+    const saveBtn = event.currentTarget;
+    const pct = Number(input.value);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      showError('Ставка должна быть числом от 0 до 100');
+      input.focus();
+      return;
+    }
+    setButtonBusy(saveBtn, true);
+    let saved = false;
+    try {
+      const res = await apiSend('/payroll-settings', 'PUT', { masterId: staff.id, pct });
+      if (!res.ok) throw Object.assign(new Error('payroll-settings'), { status: res.status, code: res.data?.error ?? null });
+      pctByMaster.set(staff.id, pct);
+      const note = card.querySelector('[data-pct-note]');
+      if (note) note.textContent = '';
+      fillFixedPeriods();
+      showSuccess(`${staff.name}: ставка ${pct}% сохранена`);
+      saved = true;
+    } catch (err) {
+      showError(errorMessage(err, 'Не удалось сохранить ставку'));
+    } finally {
+      setButtonBusy(saveBtn, false);
+    }
+    // Строго ПОСЛЕ снятия "занята": пересчёт раздела перевешивает обработчик на копию
+    // этой же кнопки (replaceHandler), а cloneNode копирует и disabled - кнопка
+    // осталась бы навсегда серой
+    if (saved) await onPctSaved?.();
   });
 }

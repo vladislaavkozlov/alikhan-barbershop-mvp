@@ -1,29 +1,28 @@
 // Декомпозиция crm-auth.js (Этап 1, 07.08.2026, structural refactoring - см.
 // plans/2026-08-07-crm-auth-decomposition.md). renderLiveProof - последний и самый
 // связанный вынесенный кусок: не только рендер цифр дашборда (выручка/ЗП дня,
-// "Моя зарплата" мастера, "Выручка сегодня" администратора, ставка Елизаветы), но
+// "Выручка сегодня" администратора), но
 // и ЕДИНСТВЕННЫЙ оркестратор, который одним Promise.all грузит staff/services/
 // bookings/master-services/payroll-settings и на этих же данных вызывает fan-out
 // всех остальных доменов (wire*/render* из других файлов) - ИМЕННО В ТОМ ЖЕ
 // ПОРЯДКЕ, что и в исходном файле. Порядок вызовов НЕ менялся при переносе -
 // некоторые из них (например блок "Моя зарплата" мастера) используют локальные
-// переменные priceOf/pctOf/ownerIds из этого же Promise.all и не могут быть подняты
+// переменные priceOf/pctOf из этого же Promise.all и не могут быть подняты
 // выше (в initCrmAuth/reveal()) без изменения поведения. Код перенесён 1в1.
-import { el, todayStr, formatMoney, bookingPrice, payrollBookingAmount } from './crm-shared.js';
+import { el, todayStr, formatMoney, bookingPrice, defaultPctFor, paidBookings, payrollBookingAmount } from './crm-shared.js';
 import { renderDateSelect, renderTimeSelect, timeSelectValue } from './crm-widgets.js';
-import { API, getToken, fetchJson, apiSend } from './crm-auth.js';
+import { fetchJson, apiSend } from './crm-auth.js';
 import { renderDayCalendar } from './crm-calendar.js';
 import { wireScheduleViews } from './crm-schedule-views.js';
 import { wirePortfolioEditors, wireRoleEditors } from './crm-staff-admin.js';
 import { wireScheduleEditor, wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 import { wireMasterServiceEditors } from './crm-master-services.js';
-import { wirePayrollDateSlots, wireMasterPayrollPeriod, renderRevenuePeriods, renderStaffPayrollPeriods, periodStartStr } from './crm-payroll.js';
+import { renderRevenuePeriods, renderStaffPayrollPeriods } from './crm-payroll.js';
 import { wireMasterSelfView, wireMasterSelfDataTab } from './crm-master-self.js';
 import { wireAdminSelfData } from './crm-admin-self.js';
 import { wireBookingStatusRadios, wireBookingServiceEdit, wireBookingDelete, wireBookingActualPrice } from './crm-booking-status.js';
 import { wireWalkIn } from './crm-walkin.js';
 import { wireMasterBookingView } from './crm-master-booking.js';
-import { reportError } from './crm-toast.js';
 
 // Живое доказательство, что это не рисунок - реальный запрос к Postgres на Amvera
 // при каждой загрузке страницы. /staff и /bookings уже сами фильтруют по роли на
@@ -48,15 +47,22 @@ function computePricing(staffList, services, masterServices, payrollRows) {
     masterServices.find((r) => r.masterId === masterId && r.serviceId === serviceId)?.price ??
     services.find((s) => s.id === serviceId)?.price ??
     0;
+  // 21.08.2026 - ставки больше нет только у трёх мастеров из сида (миграция 005):
+  // сотрудника заводят в "Команде", строки в master_payroll_settings у него ещё нет,
+  // и до этой правки он молча считался по 0%. Теперь ставка "не задана" честно
+  // отделена от "задана и равна нулю": владелец и управляющий по умолчанию 100%
+  // (прямая правка Влада), остальным 0 с подписью "ставка ещё не задана" в карточке -
+  // придумывать за Алихана процент новому мастеру нельзя. Один и тот же дефолт идёт и
+  // в поле карточки, и в расчёт, поэтому цифра на экране всегда соответствует полю.
   const pctByMaster = new Map(payrollRows.map((r) => [r.masterId, r.pct]));
-  const pctOf = (masterId) => pctByMaster.get(masterId) ?? 0;
-  const ownerIds = new Set(staffList.filter((s) => s.role === 'owner').map((s) => s.id));
-  return { priceOf, pctOf, ownerIds };
+  const staffById = new Map(staffList.map((s) => [s.id, s]));
+  const pctOf = (masterId) => pctByMaster.get(masterId) ?? defaultPctFor(staffById.get(masterId));
+  return { priceOf, pctOf, pctByMaster };
 }
 
 // Правка 08.08.2026 (вечер) - discount-settings читается тем же Promise.all, что и
 // staff/services/bookings/master-services/payroll-settings ниже (refreshFinance,
-// renderLiveProof), но не имеет отношения к priceOf/pctOf/ownerIds - отдельный
+// renderLiveProof), но не имеет отношения к priceOf/pctOf - отдельный
 // маленький helper вместо раздувания computePricing лишним несвязанным параметром.
 async function fetchPayrollFromActualPrice(fetchJsonFn) {
   try {
@@ -82,70 +88,31 @@ async function fetchPayrollSettings(fetchJsonFn) {
   }
 }
 
-// Владелец: "Выручка по точке → Все точки → День" (сумма по всем броням сегодня,
-// зарплата - по ставке КАЖДОГО мастера, без брони владельца самому себе) + карточка
-// КАЖДОГО мастера в "Сотрудники" → "Расчёт ЗП → За день" + ставка Елизаветы. Вынесено
-// из renderLiveProof в отдельную функцию (Окно 46, 08.08.2026) - чистый рендер
-// (fetch уже сделан снаружи, здесь только innerHTML/value), безопасно вызывать
-// повторно из кнопки "Обновить данные" (см. refreshFinance ниже). Клик по
-// elizavetaPctSave уже сам себя гейтит через saveBtn.dataset.wired - повторный
-// вызов не задвоит обработчик.
-function renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds, payrollFromActualPrice) {
+// Владелец: "Финансы" → "Выручка" → "День" - три карточки за сегодняшний день.
+// Вынесено из renderLiveProof в отдельную функцию (Окно 46, 08.08.2026) - чистый
+// рендер (fetch уже сделан снаружи), безопасно вызывать повторно из кнопки
+// "Обновить данные" (см. refreshFinance ниже).
+//
+// 21.08.2026 (правка Влада): в сумму идут только состоявшиеся визиты (paidBookings -
+// status='done', зелёная карточка в расписании), а зарплата больше не вычитает
+// владельца из базы - у него теперь такая же редактируемая ставка, как у мастеров.
+// Отсюда же убраны блок ставки Елизаветы и цикл по трём захардкоженным id мастеров:
+// и то и другое переехало в карточки, которые строятся по составу команды
+// (renderStaffPayrollPeriods, assets/crm-payroll.js).
+function renderFinanceDaySnapshot(bookings, priceOf, pctOf, payrollFromActualPrice) {
   const revenueEl = el('rvAllDayRevenue');
   const payrollEl = el('rvAllDayPayroll');
   const netEl = el('rvAllDayNet');
-  if (revenueEl && payrollEl && netEl) {
-    const revenue = bookings.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
-    const payrollBookings = bookings.filter((b) => !ownerIds.has(b.masterId));
-    const payroll = payrollBookings.reduce(
-      (sum, b) => sum + (payrollBookingAmount(b, priceOf, payrollFromActualPrice) * pctOf(b.masterId)) / 100,
-      0
-    );
-    revenueEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
-    payrollEl.innerHTML = `${formatMoney(payroll)} <span class="unsure">реально</span>`;
-    netEl.innerHTML = `${formatMoney(revenue - payroll)} <span class="unsure">реально</span>`;
-  }
-
-  // master-1/2/3 = порядок мастеров в /staff (Алиовсад/Мамедхан/Елизавета в макете -
-  // косметические имена поверх этих id).
-  ['master-1', 'master-2', 'master-3'].forEach((masterId, idx) => {
-    const cardEl = el(`payrollMaster${idx + 1}Day`);
-    if (!cardEl) return;
-    const theirs = bookings.filter((b) => b.masterId === masterId);
-    const theirPayrollBase = theirs.reduce((sum, b) => sum + payrollBookingAmount(b, priceOf, payrollFromActualPrice), 0);
-    cardEl.innerHTML = `${formatMoney((theirPayrollBase * pctOf(masterId)) / 100)} <span class="unsure">реально</span>`;
-  });
-
-  // Владелец: поле "Ставка от выручки, %" в карточке Елизаветы (Окно 10, разд.17.3
-  // ТЗ) - реальное, читает и пишет master_payroll_settings. Не автоматический порог
-  // 40→50%, владелец меняет число сам, когда сочтёт нужным.
-  const pctInput = el('elizavetaPctInput');
-  if (pctInput) {
-    pctInput.value = pctOf('master-3');
-    const saveBtn = el('elizavetaPctSave');
-    const pctNote = el('elizavetaPctNote');
-    if (saveBtn && !saveBtn.dataset.wired) {
-      saveBtn.dataset.wired = '1';
-      saveBtn.addEventListener('click', async () => {
-        const pct = Number(pctInput.value);
-        if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-          if (pctNote) pctNote.textContent = 'Ставка должна быть числом от 0 до 100';
-          return;
-        }
-        try {
-          const res = await fetch(`${API}/payroll-settings`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-            body: JSON.stringify({ masterId: 'master-3', pct }),
-          });
-          if (!res.ok) throw Object.assign(new Error('payroll-settings'), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
-          if (pctNote) pctNote.textContent = `Сохранено: ${pct}%. Обновите страницу, чтобы увидеть новую сумму в "Расчёт ЗП"`;
-        } catch (err) {
-          reportError(pctNote, err, 'Не удалось сохранить процент');
-        }
-      });
-    }
-  }
+  if (!revenueEl || !payrollEl || !netEl) return;
+  const paid = paidBookings(bookings);
+  const revenue = paid.reduce((sum, b) => sum + bookingPrice(b, priceOf), 0);
+  const payroll = paid.reduce(
+    (sum, b) => sum + (payrollBookingAmount(b, priceOf, payrollFromActualPrice) * pctOf(b.masterId)) / 100,
+    0
+  );
+  revenueEl.textContent = formatMoney(revenue);
+  payrollEl.textContent = formatMoney(payroll);
+  netEl.textContent = formatMoney(revenue - payroll);
 }
 
 // Окно 46 (08.08.2026) - кнопка "Обновить данные" (crm-owner.html) должна обновлять
@@ -167,20 +134,22 @@ function renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds, payrollFro
 // считаю…</span>) - переиспользован здесь для ПОВТОРНОЙ загрузки по кнопке.
 const FINANCE_LOADING_IDS = [
   'rvAllDayRevenue', 'rvAllDayPayroll', 'rvAllDayNet',
-  'payrollMaster1Day', 'payrollMaster2Day', 'payrollMaster3Day',
   'rvAllWeekRevenue', 'rvAllWeekPayroll', 'rvAllWeekNet',
   'rvAllMonthRevenue', 'rvAllMonthPayroll', 'rvAllMonthNet',
   'rvAllQuarterRevenue', 'rvAllQuarterPayroll', 'rvAllQuarterNet',
   'rvAllYearRevenue', 'rvAllYearPayroll', 'rvAllYearNet',
-  'payrollMaster1Week', 'payrollMaster1Month',
-  'payrollMaster2Week', 'payrollMaster2Month',
-  'payrollMaster3Week', 'payrollMaster3Month',
 ];
 function showFinanceLoading() {
   for (const id of FINANCE_LOADING_IDS) {
     const target = el(id);
     if (target) target.innerHTML = '000 ₽ <span class="unsure">считаю…</span>';
   }
+  // Карточки сотрудников - список, а не фиксированные id (21.08.2026): их состав
+  // приходит из /staff. "Задать период" не трогаем - там стоит цифра, которую человек
+  // только что сам запросил кнопкой, и подменять её на "считаю…" нечестно
+  document.querySelectorAll('.payroll-card [data-amount]:not([data-amount="period"])').forEach((target) => {
+    target.innerHTML = '000 ₽ <span class="unsure">считаю…</span>';
+  });
 }
 
 export async function refreshFinance() {
@@ -196,10 +165,10 @@ export async function refreshFinance() {
       fetchPayrollFromActualPrice(fetchJson),
     ]);
     const bookings = bookingsRes.bookings || [];
-    const { priceOf, pctOf, ownerIds } = computePricing(staffList, services, masterServices, payrollRows);
-    renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds, payrollFromActualPrice);
-    await renderRevenuePeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice);
-    await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice);
+    const { priceOf, pctOf, pctByMaster } = computePricing(staffList, services, masterServices, payrollRows);
+    renderFinanceDaySnapshot(bookings, priceOf, pctOf, payrollFromActualPrice);
+    await renderRevenuePeriods(priceOf, pctOf, payrollFromActualPrice);
+    await renderStaffPayrollPeriods({ staffList, priceOf, pctOf, pctByMaster, payrollFromActualPrice, onPctSaved: refreshFinance });
   } catch (err) {
     console.error('Не удалось обновить "Финансы":', err);
   }
@@ -215,7 +184,7 @@ export async function refreshRoleSnapshot(staff) {
   if (revenueTodayEl || unidentifiedTodayEl) {
     try {
       const { revenue, unidentifiedCount } = await fetchJson('/revenue/today');
-      if (revenueTodayEl) revenueTodayEl.innerHTML = `${formatMoney(revenue)} <span class="unsure">реально</span>`;
+      if (revenueTodayEl) revenueTodayEl.textContent = formatMoney(revenue);
       if (unidentifiedTodayEl) unidentifiedTodayEl.textContent = String(unidentifiedCount);
     } catch {
       // Сохраняем последнее успешно показанное значение при временной ошибке сети
@@ -234,8 +203,8 @@ export async function renderLiveProof(staff) {
       fetchPayrollFromActualPrice(fetchJson),
     ]);
     const bookings = bookingsRes.bookings || [];
-    const { priceOf, pctOf, ownerIds } = computePricing(staffList, services, masterServices, payrollRows);
-    renderFinanceDaySnapshot(bookings, priceOf, pctOf, ownerIds, payrollFromActualPrice);
+    const { priceOf, pctOf, pctByMaster } = computePricing(staffList, services, masterServices, payrollRows);
+    renderFinanceDaySnapshot(bookings, priceOf, pctOf, payrollFromActualPrice);
 
     // Мастер: "Моя зарплата" (День/Неделя/Месяц) - Окно 37 (06.08.2026, Задача 2).
     // Раньше День считался локально (bookingPrice×pctOf по уже загруженным bookings
@@ -303,12 +272,11 @@ export async function renderLiveProof(staff) {
     wireMasterSelfDataTab(selfWithMedia, services, masterServices, pctOf);
     wireAdminSelfData(staff, staffList);
     wireMasterServiceEditors(staff.role, services, masterServices);
-    wirePayrollDateSlots();
-    // wireDiscountSettings убрана 17.08.2026 вместе с блоком «Управление скидками»
-    wireMasterPayrollPeriod(staff);
+    // wirePayrollDateSlots/wireMasterPayrollPeriod убраны 21.08.2026 (виджеты дат
+    // ставит сама карточка ЗП; блока «Моя зарплата» у мастера нет с 17.08.2026)
 
-    await renderRevenuePeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice);
-    await renderStaffPayrollPeriods(priceOf, pctOf, ownerIds, payrollFromActualPrice);
+    await renderRevenuePeriods(priceOf, pctOf, payrollFromActualPrice);
+    await renderStaffPayrollPeriods({ staffList, priceOf, pctOf, pctByMaster, payrollFromActualPrice, onPctSaved: refreshFinance });
   } catch (err) {
     console.error('Не удалось загрузить данные CRM:', err);
   }

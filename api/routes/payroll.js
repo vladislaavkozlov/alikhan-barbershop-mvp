@@ -23,9 +23,14 @@ const MONEY_VIEWERS = MANAGEMENT_ROLES;
 // в assets/crm-auth.js (bookingPrice+pctOf, читает /bookings + /payroll-settings).
 // Здесь та же формула переносится на бэкенд как единственный источник цифры для
 // "Моей зарплаты" мастера (crm-master.html) - День/Неделя/Месяц/произвольный
-// период через один вызов, не три реализации. Статус брони намеренно НЕ
-// фильтруется - сохраняет 1:1 поведение уже работающих Недели/Месяца (регрессия
-// 0), фильтрация по статусу вне скоупа этого окна.
+// период через один вызов, не три реализации.
+// Правка Влада 21.08.2026 - в расчёт идут ТОЛЬКО состоявшиеся визиты (status='done',
+// зелёная карточка в расписании): "данные должны тянуться только по тем блокам, где
+// оплата фактически была зафиксирована... Ожидает - это только предположение, клиент
+// и отменить может". До этой правки статус не фильтровался вовсе (сознательно, ради
+// нулевой регрессии в Окне 37) - в зарплату попадали и запланированные брони, и
+// неявки, и отменённые. Тот же фильтр стоит на фронте во всех блоках "Финансов"
+// (paidBookings, assets/crm-payroll.js) - формула в двух местах не расходится.
 // Правка 08.08.2026 (вечер, Влад: "Али иногда говорит администратору 'пробей по
 // старой цене' - скидка клиенту") - bookings.actual_price (миграция 040) хранит
 // фактически взятую сумму, если она отличается от списочной цены услуг. Влияет ли
@@ -42,7 +47,8 @@ export async function computeMasterPayroll(client, masterId, from, to) {
   const payrollFromActualPrice = settingsRes.rows[0]?.payrollFromActualPrice ?? false;
 
   const bookingsRes = await client.query(
-    'SELECT id, service_id AS "serviceId", actual_price AS "actualPrice" FROM bookings WHERE master_id = $1 AND date >= $2 AND date <= $3',
+    `SELECT id, service_id AS "serviceId", actual_price AS "actualPrice" FROM bookings
+      WHERE master_id = $1 AND date >= $2 AND date <= $3 AND status = 'done'`,
     [masterId, from, to]
   );
   const bookingIds = bookingsRes.rows.map((r) => r.id);
@@ -174,6 +180,14 @@ export async function handlePayrollSettings(req, res, url) {
     const body = await readBody(req);
     if (!body.masterId || typeof body.pct !== 'number') {
       return sendJson(res, 400, { error: 'missing_fields' });
+    }
+    // Диапазон проверялся только CHECK-констрейнтом таблицы (миграция 005): запрос
+    // мимо интерфейса ронял вставку в 500 «Сервер не смог обработать запрос» вместо
+    // внятного отказа. С 21.08.2026 ставку правят у КАЖДОГО, кто оказывает услуги
+    // (раньше поле было одно, у Екатерины), поэтому проверка нужна на сервере, а не
+    // только в поле формы
+    if (!Number.isFinite(body.pct) || body.pct < 0 || body.pct > 100) {
+      return sendJson(res, 400, { error: 'invalid_pct' });
     }
     await pool.query(
       `INSERT INTO master_payroll_settings (master_id, pct) VALUES ($1, $2)

@@ -59,7 +59,7 @@ try {
         // ── Снимок ДО правки бэкенда ────────────────────────────────────────
         const before = await s.eval(`({
           revenue: document.getElementById('rvAllDayRevenue')?.textContent.trim(),
-          m1Day: document.getElementById('payrollMaster1Day')?.textContent.trim(),
+          m1Day: document.querySelector('.payroll-card[data-master-id="master-1"] [data-amount="day"]')?.textContent.trim(),
           schedCurrent: document.getElementById('schedCurrent-master-1')?.textContent.trim(),
           mondayIcon: document.getElementById('weekly-master-1-1-icon')?.className,
         })`);
@@ -130,7 +130,7 @@ try {
 
         const after = await s.eval(`({
           revenue: document.getElementById('rvAllDayRevenue')?.textContent.trim(),
-          m1Day: document.getElementById('payrollMaster1Day')?.textContent.trim(),
+          m1Day: document.querySelector('.payroll-card[data-master-id="master-1"] [data-amount="day"]')?.textContent.trim(),
           schedCurrent: document.getElementById('schedCurrent-master-1')?.textContent.trim(),
           mondayIcon: document.getElementById('weekly-master-1-1-icon')?.className,
           stillOnSameTab: document.getElementById('pt-b')?.checked === false && !!document.getElementById('crmMain'),
@@ -181,9 +181,10 @@ try {
           await sleep(900); // дожидаемся конца цикла (refreshBtn.disabled=false) перед следующим кликом
         }
 
-        // Ставка Елизаветы - тот же клик, что и раньше в поле (значение не меняем,
-        // просто жмём "Сохранить ставку").
-        await s.click('#elizavetaPctSave');
+        // Кнопка "Сохранить ставку" - тот же клик, что и раньше (значение не меняем).
+        // 21.08.2026: поле было единственным (#elizavetaPctSave у Екатерины), теперь
+        // оно есть в карточке каждого, кто оказывает услуги - жмём в карточке master-3
+        await s.click('.payroll-card[data-master-id="master-3"] [data-pct-save]');
         await sleep(500);
 
         // "Сохранить перерыв/выходной" мастера-1 - повторный клик с теми же полями
