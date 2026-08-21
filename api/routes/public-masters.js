@@ -1,13 +1,17 @@
 import { sendJson } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 
+// Порядок мастеров на сайте = порядок в CRM (created_at, id - как в GET /staff,
+// см. api/routes/staff.js). До 21.08.2026 здесь стоял ORDER BY s.name, и витрина
+// сортировала команду по алфавиту, а CRM - по дате заведения: списки расходились.
+//
 // Кого показываем публично = кого реально можно записать: работает, оказывает услуги,
 // услуги ему назначены и есть рабочий график. Флаг staff.public_profile_enabled сюда
 // НЕ входит осознанно (исправлено 13.08.2026): он управляет только витриной профиля
 // (стаж, сильные стороны, сертификаты, фото работ), а не доступностью записи. Пока он
 // стоял в WHERE, выключенный тумблер убирал мастера из формы записи целиком - после
 // релиза 12.08 (миграция 046 с DEFAULT false) так пропали все действующие мастера.
-const PUBLIC_MASTERS_SQL = `SELECT s.id,s.name,s.photo_url,s.experience_text,s.strengths_text,s.certificates_text,s.public_profile_enabled,sm.id AS media_id,sm.kind,sm.storage_key,sm.sort_order FROM staff s LEFT JOIN staff_media sm ON sm.staff_id=s.id WHERE s.employed=true AND s.provides_services=true AND EXISTS (SELECT 1 FROM master_services ms WHERE ms.master_id=s.id) AND EXISTS (SELECT 1 FROM master_weekly_schedule ws WHERE ws.master_id=s.id AND ws.is_working=true) ORDER BY s.name,sm.sort_order,sm.created_at`;
+const PUBLIC_MASTERS_SQL = `SELECT s.id,s.name,s.photo_url,s.experience_text,s.strengths_text,s.certificates_text,s.public_profile_enabled,sm.id AS media_id,sm.kind,sm.storage_key,sm.sort_order FROM staff s LEFT JOIN staff_media sm ON sm.staff_id=s.id WHERE s.employed=true AND s.provides_services=true AND EXISTS (SELECT 1 FROM master_services ms WHERE ms.master_id=s.id) AND EXISTS (SELECT 1 FROM master_weekly_schedule ws WHERE ws.master_id=s.id AND ws.is_working=true) ORDER BY s.created_at,s.id,sm.sort_order,sm.created_at`;
 
 const MASTER_SERVICES_SQL = `SELECT ms.master_id,s.id,s.name,ms.price,ms.duration_min,ms.is_top FROM master_services ms JOIN services s ON s.id=ms.service_id WHERE ms.master_id=ANY($1) ORDER BY s.sort_order,s.name`;
 
