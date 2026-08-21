@@ -514,6 +514,9 @@
       width:100%;
       height:100%;
       object-fit:cover;
+      /* кадр шире портрета: без сдвига низ фото занимает место, которое нужно
+         над головой - прижимаем к верху и весь запас уходит в воздух сверху */
+      object-position:center top;
       display:block;
     }
     .master-placeholder-tag{
@@ -1468,7 +1471,7 @@
     }
   
 .visible-team .master-card{display:flex!important;flex-direction:column!important;gap:12px;}
-.visible-team .master-avatar img{width:100%;height:100%;object-fit:cover;border-radius:16px;}
+.visible-team .master-avatar img{width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:16px;}
 .master-fallback{display:flex;align-items:center;justify-content:center;font-size:42px;font-weight:600;color:#d8bf8b;background:#1b211e;}
 </style>
 
