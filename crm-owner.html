@@ -48,6 +48,13 @@
   #pt-e:checked ~ .tab-bar label[for="pt-e"] { color: var(--accent); border-color: var(--accent); }
   #pt-e:checked ~ .panel-e { display: block; }
 
+  /* шестая вкладка "Клиенты" (21.08.2026, задача Влада) - в меню стоит между
+     "Командой" и "Финансами" (порядок задаёт ROLE_CONFIG.order, assets/crm-app-shell.js),
+     а слот radio взят следующий свободный: pt-c/pt-d/pt-e уже заняты своими панелями,
+     и перенумеровывать их значило бы трогать четыре чужих раздела ради одного нового */
+  #pt-f:checked ~ .tab-bar label[for="pt-f"] { color: var(--accent); border-color: var(--accent); }
+  #pt-f:checked ~ .panel-f { display: block; }
+
   /* период выручки (Окно 13, 01.08.2026 - переключатель по точкам убран, у Алихана
      одна точка, см. Задача 1 промпта корректировки) */
   #rvpa-day:checked ~ .seg-bar label[for="rvpa-day"],
@@ -124,9 +131,11 @@
     <input type="radio" name="pt" id="pt-c">
     <input type="radio" name="pt" id="pt-d">
     <input type="radio" name="pt" id="pt-e">
+    <input type="radio" name="pt" id="pt-f">
     <div class="tab-bar">
       <label for="pt-a">Расписание</label>
       <label for="pt-b">Команда</label>
+      <label for="pt-f">Клиенты</label>
       <label for="pt-c">Выручка</label>
       <label for="pt-d">Аналитика</label>
       <label for="pt-e">Уведомления</label>
@@ -409,8 +418,14 @@
                 <input id="bkActualPrice" type="text" inputmode="numeric" autocomplete="off" placeholder="как по услугам">
               </div>
               <div class="field field--wide">
-                <label for="bkStaffComment">Комментарий к записи</label>
-                <input id="bkStaffComment" type="text" maxlength="500" autocomplete="off" placeholder="например: владелец дал скидку постоянному клиенту">
+                <!-- 21.08.2026 (задача Влада) - однострочный input заменён на textarea и
+                     лимит поднят 500 -> 3000 знаков (BOOKING_COMMENT_MAX_LEN,
+                     api/routes/bookings.js - числа обязаны совпадать). Комментарий
+                     перестал быть только объяснением суммы: это заметка о клиенте,
+                     которую владелец читает в его карточке в разделе «Клиенты» спустя
+                     месяцы, и в одну строку она не помещается физически. -->
+                <label for="bkStaffComment">Комментарий к записи и клиенту</label>
+                <textarea id="bkStaffComment" rows="3" maxlength="3000" autocomplete="off" placeholder="например: владелец дал скидку постоянному клиенту; чем длиннее, тем лучше - заметка видна в карточке клиента"></textarea>
               </div>
             </div>
           </div>
@@ -728,6 +743,34 @@
       </section>
     </div>
 
+    <!-- ======================= КЛИЕНТЫ ======================= -->
+    <!-- Раздел "Клиенты" (21.08.2026, задача Влада). База клиентов не заводится
+         руками: она уже собрана записями - клиент попадает в неё в момент, когда его
+         записали с телефоном (INSERT ... ON CONFLICT (phone), api/routes/bookings.js).
+         Здесь только чтение и поиск, кнопки "добавить клиента" тут нет намеренно -
+         иначе появился бы второй способ завести человека и два ряда на одного клиента.
+
+         Клиента без телефона (walk-in "зашёл мимо" без номера) в списке нет и не
+         будет: система намеренно не связывает такие визиты между собой (решение
+         Алихана, Окно 53), значит ни истории, ни суммы у такого человека не
+         существует. Об этом честно сказано строкой под списком, а не умолчанием.
+
+         Разметку карточек рисует assets/crm-clients.js (renderClientsSection) тем же
+         компонентом details.staff-card + .avatar-icon, что и остальные разделы
+         владельца (CLAUDE.md, CRITICAL RULES) - история визитов подгружается в момент
+         раскрытия карточки, а не всем списком сразу. -->
+    <div class="tab-panel panel-f">
+      <section>
+        <div class="clients-toolbar">
+          <input id="clientsSearch" class="clients-search" type="search" autocomplete="off"
+                 placeholder="Поиск по имени или телефону" aria-label="Поиск клиента">
+          <span class="clients-count" id="clientsCount"></span>
+        </div>
+        <div class="staff-list" id="clientsList"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
+        <p class="payroll-note" id="clientsFootnote" hidden>Клиенты, которых записали без телефона, в базе не заводятся - такие визиты система не связывает между собой.</p>
+      </section>
+    </div>
+
   </div>
 </main>
 
@@ -736,7 +779,7 @@
 <script type="module">
   import { initCrmNavigationPanels, upgradeBookingPanel } from './assets/crm-navigation-panels.js';
   import { initCrmAuth } from './assets/crm-auth.js';
-  import { wireClientsRisk, renderRiskList } from './assets/crm-clients.js';
+  import { wireClientsRisk, renderRiskList, wireClientsSection, renderClientsSection } from './assets/crm-clients.js';
   import { wireScheduleAlerts, renderOwnerAlerts } from './assets/crm-schedule-alerts.js';
   import { initAppShell } from './assets/crm-app-shell.js';
   import { refreshFinance } from './assets/crm-dashboard.js';
@@ -751,6 +794,9 @@
 
   initCrmAuth(['owner', 'manager']);
   wireClientsRisk();
+  // Раздел «Клиенты» (21.08.2026). Сам подписывается на первый заход в раздел и
+  // тянет базу только тогда - см. wireClientsSection, assets/crm-clients.js
+  wireClientsSection();
   wireScheduleAlerts();
   initAppShell('owner');
 
@@ -781,6 +827,9 @@
     window.__refreshNotifications?.(),
     window.__refreshTeamSchedules?.(),
     refreshFinance(),
+    // «Клиенты» (21.08.2026) - тоже чистый рендер (fetch + innerHTML). Если раздел ещё
+    // ни разу не открывали, список пуст и функция просто перечитает его в фоне
+    renderClientsSection(),
   ]);
   initCrmRefreshControl();
   // «Команду» рисует событие crm:authenticated (assets/crm-team.js) - вход к этому

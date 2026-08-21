@@ -47,7 +47,7 @@ export async function getClientCard(client, clientId) {
 
   const visitsRes = await client.query(
     `SELECT b.id, b.date, b.start_time, b.end_time, b.status, b.master_id, b.location_id,
-            b.staff_comment, st.name AS master_name
+            b.staff_comment, b.client_source, st.name AS master_name
      FROM bookings b LEFT JOIN staff st ON st.id = b.master_id
      WHERE b.client_id = $1
      ORDER BY b.date DESC, b.start_time DESC`,
@@ -55,19 +55,31 @@ export async function getClientCard(client, clientId) {
   );
 
   const bookingIds = visitsRes.rows.map((r) => r.id);
+  // Цена услуги (21.08.2026, раздел «Клиенты») - та же формула, что в «Финансах»
+  // (computeMasterPayroll, api/routes/payroll.js): своя цена мастера в приоритете,
+  // общий прайс services - страховка на случай пары, которую не завели в
+  // master_services. Считаем по СПИСОЧНОЙ цене, не по actual_price: решение Влада
+  // 21.08.2026 - «сколько денег принёс клиент» и выручка в «Финансах» должны быть
+  // одним числом, а не двумя расходящимися.
   const servicesRes = bookingIds.length
     ? await client.query(
-        `SELECT bs.booking_id, bs.service_id, s.name AS service_name
-         FROM booking_services bs JOIN services s ON s.id = bs.service_id
+        `SELECT bs.booking_id, bs.service_id, s.name AS service_name,
+                COALESCE(ms.price, s.price, 0) AS price
+         FROM booking_services bs
+         JOIN services s ON s.id = bs.service_id
+         JOIN bookings b ON b.id = bs.booking_id
+         LEFT JOIN master_services ms ON ms.master_id = b.master_id AND ms.service_id = bs.service_id
          WHERE bs.booking_id = ANY($1)
          ORDER BY s.sort_order, s.name`,
         [bookingIds]
       )
     : { rows: [] };
   const servicesByBooking = new Map();
+  const priceByBooking = new Map();
   for (const r of servicesRes.rows) {
     if (!servicesByBooking.has(r.booking_id)) servicesByBooking.set(r.booking_id, []);
     servicesByBooking.get(r.booking_id).push({ id: r.service_id, name: r.service_name });
+    priceByBooking.set(r.booking_id, (priceByBooking.get(r.booking_id) ?? 0) + Number(r.price));
   }
 
   const visits = visitsRes.rows.map((r) => ({
@@ -80,6 +92,11 @@ export async function getClientCard(client, clientId) {
     masterName: r.master_name,
     locationId: r.location_id,
     services: servicesByBooking.get(r.id) ?? [],
+    // Сумма визита по прайсу и канал, по которому клиент пришёл именно на этот визит
+    // (миграция 050). Оба поля - сырьё для раздела «Клиенты» (21.08.2026): в карточке
+    // видно, сколько принёс каждый визит и откуда человек пришёл в первый раз.
+    price: priceByBooking.get(r.id) ?? 0,
+    clientSource: r.client_source ?? null,
     // Комментарий сотрудника к визиту (13.08.2026, миграция 048) - "почему сумма
     // отличалась". Именно история клиента - место, где его смотрят спустя время,
     // поэтому поле едет вместе с визитом. Мастеру срезается в
@@ -95,9 +112,37 @@ export async function getClientCard(client, clientId) {
     noShowStreak: row.no_show_streak,
     risk: describeClientRisk(row.no_show_streak),
     visits,
+    // Итоги по клиенту (21.08.2026) - считаются из ТОЙ ЖЕ истории визитов, что уедет
+    // на фронт, а не отдельным запросом: иначе у администратора, которому история
+    // срезается по его точке, цифры не сошлись бы со списком под ними. По той же
+    // причине их пересчитывает shapeClientCardForViewer после срезки.
+    totals: summarizeClientVisits(visits),
     // Готовое сырьё для "Записать снова" (Задача 2, фронтенд) - мастер/услуги
     // последнего визита, дата и время выбираются заново на актуальной доступности.
     lastVisit: lastVisitOf(visits),
+  };
+}
+
+// Итоги по истории визитов. Чистая функция ради офлайн-теста и ради того, чтобы
+// правило «что считается визитом» жило в одном месте:
+//   visitsCount / revenue - только состоявшиеся визиты (status = 'done'), ровно тот
+//     же фильтр, что в «Финансах» (computeMasterPayroll): «Ожидается» - это ещё не
+//     деньги, клиент может и отменить, отменённая бронь и неявка - тем более.
+//   firstVisitDate / source - первая НЕотменённая бронь: «когда и откуда пришёл»
+//     это про первое касание с салоном, а неявка таким касанием была (человека
+//     салон уже привлёк), отменённая запись - нет.
+// visits приходят отсортированными по дате вниз (getClientCard), поэтому первый
+// визит - последний подходящий элемент массива.
+export function summarizeClientVisits(visits) {
+  const done = visits.filter((v) => v.status === 'done');
+  const real = visits.filter((v) => v.status !== 'cancelled');
+  const first = real[real.length - 1] ?? null;
+  return {
+    visitsCount: done.length,
+    revenue: done.reduce((sum, v) => sum + (Number(v.price) || 0), 0),
+    firstVisitDate: first ? first.date : null,
+    lastVisitDate: done[0] ? done[0].date : null,
+    source: first ? first.clientSource ?? null : null,
   };
 }
 
@@ -176,6 +221,11 @@ export function resolveClientsQueryMode(searchParams) {
   const phone = searchParams.get('phone');
   if (phone !== null && phone.trim() !== '') return { mode: 'phone', phone };
   if (searchParams.get('risk') === 'true') return { mode: 'risk' };
+  // ?all=true - вся база клиентов для раздела «Клиенты» (21.08.2026). Отдельным
+  // параметром, а не «GET /clients без параметров»: пустой запрос уже означает
+  // ошибку missing_fields с Окна 39, и менять этот ответ значило бы тихо отдать
+  // всю базу телефонов тому, кто просто ошибся в адресе.
+  if (searchParams.get('all') === 'true') return { mode: 'all' };
   return { mode: 'invalid' };
 }
 
@@ -196,8 +246,14 @@ export function shapeClientCardForViewer(card, auth) {
   // /bookings: мастер не видит ни фактическую сумму, ни объяснение к ней (обычно
   // это "владелец дал скидку" - разговор владельца с администратором, не рабочая
   // информация мастера). Срезаем поле, а не весь визит: сам визит мастеру нужен.
-  const visits = auth.role === 'master' ? scoped.map(({ staffComment, ...rest }) => rest) : scoped;
-  const shaped = { ...card, visits, lastVisit: lastVisitOf(visits) };
+  // Мастеру срезаем и цену визита (21.08.2026): деньги - тот же уровень видимости,
+  // что фактическая сумма и комментарий к ней, и по итогам ниже он тоже не получает
+  // строки «принёс N рублей» (summarizeClientVisits на визитах без price даст 0, но
+  // мы не оставляем и этого - ключ revenue у мастера просто отсутствует).
+  const visits = auth.role === 'master' ? scoped.map(({ staffComment, price, ...rest }) => rest) : scoped;
+  const totals = summarizeClientVisits(visits);
+  if (auth.role === 'master') delete totals.revenue;
+  const shaped = { ...card, visits, totals, lastVisit: lastVisitOf(visits) };
   if (auth.role === 'master') {
     const { phone, ...withoutPhone } = shaped;
     return withoutPhone;
@@ -228,6 +284,74 @@ export async function listClientsAtRisk(client, { locationId, masterId } = {}) {
     id: r.id,
     name: r.name,
     phone: r.phone,
+    noShowStreak: r.no_show_streak,
+    risk: describeClientRisk(r.no_show_streak),
+  }));
+}
+
+// ── Вся база клиентов (21.08.2026, раздел «Клиенты» - задача Влада: «база данных
+// клиентов, их имена, номера телефонов, комментарии, откуда и когда пришли, история
+// записей, сколько денег принесли»). Один агрегирующий запрос вместо N+1: карточку
+// (getClientCard) фронт зовёт только для одного открытого клиента, список считается
+// на стороне базы.
+//
+// ЧЕСТНАЯ ГРАНИЦА, которую видно в интерфейсе: клиент без телефона (walk-in, миграция
+// 041) в этой базе не появляется вообще. Такие визиты намеренно не связываются между
+// собой (решение Алихана, Окно 53 - «который из сотни Сергеев»), у них нет client_id,
+// а значит нет ни истории, ни суммы «сколько принёс». Считать их отдельными клиентами
+// значило бы выдумать людей, которых система не опознавала.
+//
+// Деньги - списочная цена услуг состоявшихся визитов (та же формула, что в
+// «Финансах», решение Влада 21.08.2026), не actual_price и не sales.
+export async function listAllClients(client) {
+  const result = await client.query(
+    `WITH visit AS (
+       SELECT b.id, b.client_id, b.date, b.start_time, b.status, b.client_source, b.staff_comment,
+              COALESCE(SUM(COALESCE(ms.price, s.price, 0)), 0) AS price
+       FROM bookings b
+       LEFT JOIN booking_services bs ON bs.booking_id = b.id
+       LEFT JOIN services s ON s.id = bs.service_id
+       LEFT JOIN master_services ms ON ms.master_id = b.master_id AND ms.service_id = bs.service_id
+       WHERE b.client_id IS NOT NULL
+       GROUP BY b.id
+     ),
+     first_visit AS (
+       SELECT DISTINCT ON (client_id) client_id, date, client_source
+       FROM visit WHERE status <> 'cancelled'
+       ORDER BY client_id, date ASC, start_time ASC
+     ),
+     last_comment AS (
+       SELECT DISTINCT ON (client_id) client_id, staff_comment, date
+       FROM visit WHERE staff_comment IS NOT NULL
+       ORDER BY client_id, date DESC, start_time DESC
+     )
+     SELECT c.id, c.name, c.phone, c.no_show_streak,
+            COUNT(v.id) FILTER (WHERE v.status = 'done') AS visits_count,
+            COALESCE(SUM(v.price) FILTER (WHERE v.status = 'done'), 0) AS revenue,
+            MAX(v.date) FILTER (WHERE v.status = 'done') AS last_visit_date,
+            COUNT(v.id) FILTER (WHERE v.staff_comment IS NOT NULL) AS comments_count,
+            f.date AS first_visit_date, f.client_source AS source,
+            lc.staff_comment AS last_comment
+     FROM clients c
+     LEFT JOIN visit v ON v.client_id = c.id
+     LEFT JOIN first_visit f ON f.client_id = c.id
+     LEFT JOIN last_comment lc ON lc.client_id = c.id
+     GROUP BY c.id, c.name, c.phone, c.no_show_streak, f.date, f.client_source, lc.staff_comment
+     ORDER BY f.date DESC NULLS LAST, c.name`,
+    []
+  );
+  const asDate = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : d ?? null);
+  return result.rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    phone: r.phone,
+    visitsCount: Number(r.visits_count),
+    revenue: Number(r.revenue),
+    firstVisitDate: asDate(r.first_visit_date),
+    lastVisitDate: asDate(r.last_visit_date),
+    source: r.source ?? null,
+    commentsCount: Number(r.comments_count),
+    lastComment: r.last_comment ?? null,
     noShowStreak: r.no_show_streak,
     risk: describeClientRisk(r.no_show_streak),
   }));
@@ -280,6 +404,14 @@ export async function handleClientsAtRisk(req, res, url) {
   if (!requireRole(auth, BOOKING_STAFF_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
   const query = resolveClientsQueryMode(url.searchParams);
   if (query.mode === 'invalid') return sendJson(res, 400, { error: 'missing_fields' });
+  if (query.mode === 'all') {
+    // Вся база с телефонами - только владелец и управляющий (решение Влада
+    // 21.08.2026). Администратору и мастеру раздела «Клиенты» в интерфейсе нет, но
+    // проверка стоит на сервере: спрятанный пункт меню не защищает от прямого
+    // запроса к API, а здесь отдаётся телефон каждого клиента салона.
+    if (!canManageStaff(auth)) return sendJson(res, 403, { error: 'forbidden' });
+    return sendJson(res, 200, await listAllClients(pool));
+  }
   if (query.mode === 'phone') {
     const card = await findClientByPhone(pool, query.phone);
     if (!card) return sendJson(res, 404, { error: 'client_not_found' });
@@ -319,10 +451,13 @@ export async function handleClientCard(req, res, parts) {
     // к визиту (миграция 048) - тот же уровень видимости, что фактическая сумма, к
     // которой он написан: owner/admin. Срезаем именно поле, историю не трогаем.
     const { phone, ...cardWithoutPhone } = card;
-    return sendJson(res, 200, {
-      ...cardWithoutPhone,
-      visits: cardWithoutPhone.visits.map(({ staffComment, ...visit }) => visit),
-    });
+    // 21.08.2026 - вместе с комментарием срезается и цена визита (тот же уровень
+    // видимости, что фактическая сумма), а итоги пересчитываются уже без денег:
+    // иначе мастер получил бы «принёс N рублей» суммой, которую по строкам не видит.
+    const visits = cardWithoutPhone.visits.map(({ staffComment, price, ...visit }) => visit);
+    const totals = summarizeClientVisits(visits);
+    delete totals.revenue;
+    return sendJson(res, 200, { ...cardWithoutPhone, visits, totals });
   }
   return sendJson(res, 200, card);
 }

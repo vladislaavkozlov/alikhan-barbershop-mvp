@@ -203,7 +203,13 @@ test('shapeClientCardForViewer: администратор видит телеф
 
 test('shapeClientCardForViewer: владелец видит карточку целиком, ничего не срезано', () => {
   const shaped = shapeClientCardForViewer(FULL_CARD, { role: 'owner', id: 'owner-1', locationId: null });
-  assert.deepEqual(shaped, FULL_CARD);
+  // 21.08.2026 (раздел «Клиенты») карточка обзавелась итогами totals - их считает
+  // shapeClientCardForViewer из ТОЙ ЖЕ истории, что уедет на фронт, поэтому у
+  // владельца они появляются даже если в исходной фикстуре их не было. Всё
+  // остальное по-прежнему обязано совпадать один в один - это и проверяем.
+  const { totals, ...rest } = shaped;
+  assert.deepEqual(rest, FULL_CARD);
+  assert.equal(typeof totals.revenue, 'number');
 });
 
 test('shapeClientCardForViewer: клиент есть, но ни одного видимого этой роли визита - карточка отдаётся (клиент опознан), история пустая, lastVisit null', () => {

@@ -216,8 +216,12 @@
                 <input id="bkActualPrice" type="text" inputmode="numeric" autocomplete="off" placeholder="как по услугам">
               </div>
               <div class="field field--wide">
-                <label for="bkStaffComment">Комментарий к записи</label>
-                <input id="bkStaffComment" type="text" maxlength="500" autocomplete="off" placeholder="например: владелец дал скидку постоянному клиенту">
+                <!-- 21.08.2026 - то же изменение, что на crm-owner.html: textarea вместо
+                     однострочного поля, лимит 3000 (BOOKING_COMMENT_MAX_LEN). Комментарий
+                     пишет чаще всего именно администратор, а читает владелец в карточке
+                     клиента - поле обязано быть одинаковым на обеих страницах. -->
+                <label for="bkStaffComment">Комментарий к записи и клиенту</label>
+                <textarea id="bkStaffComment" rows="3" maxlength="3000" autocomplete="off" placeholder="например: владелец дал скидку постоянному клиенту; чем длиннее, тем лучше - заметка видна в карточке клиента"></textarea>
               </div>
             </div>
           </div>

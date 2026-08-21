@@ -26,6 +26,12 @@ export const ICON_SIDEBAR_TOGGLE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="ht
 
 // Окно 47 (09.08.2026) - раздел "Личные данные" мастера в sidebar. Профиль/анкета,
 // тот же line-art стиль (STROKE), не эмодзи - см. остальные иконки этого файла.
+// Раздел «Клиенты» (21.08.2026). Два человека, дальний - полупрозрачной обводки:
+// «Команда» рядом в меню уже занята парой людей другого рисунка (ICON_TEAM), и
+// одинаковые силуэты в соседних пунктах читались бы как один раздел. Тот же line-art
+// набор, тот же viewBox и та же обводка, что у остальных.
+export const ICON_CLIENTS = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="7" r="2.7"/><path d="M2.8 16.5c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8"/><path d="M13.6 5.1a2.5 2.5 0 0 1 0 4.8M15.6 16.5c0-2.2-.8-3.7-2.1-4.5" opacity="0.55"/></svg>`;
+
 export const ICON_PROFILE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="6.8" r="3"/><path d="M4 17c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg>`;
 
 // 16.08.2026 - вызов меню-шторки на телефоне (assets/crm-app-shell.js, mobile drawer).

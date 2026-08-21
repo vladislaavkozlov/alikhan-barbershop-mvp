@@ -1234,7 +1234,12 @@ export async function handleBookingReschedule(req, res, parts) {
 // владелец дал скидку"), и разводить его по двум роутам значило бы уметь сохранить
 // объяснение без цифры, которую оно объясняет. Чистая функция ради офлайн-теста:
 // вся валидация тут, роут ниже только применяет результат.
-export const BOOKING_COMMENT_MAX_LEN = 500;
+// Лимит поднят 500 -> 3000 (21.08.2026, задача Влада «комментарий должен содержать
+// до 3000 символов» - прямое требование заказчика). Колонка text, миграция не нужна:
+// ограничение живёт только здесь и в maxlength поля на фронте (crm-owner.html,
+// crm-admin.html), и эти два числа обязаны совпадать - иначе сотрудник допишет текст,
+// который сервер отвергнет уже после нажатия «Сохранить».
+export const BOOKING_COMMENT_MAX_LEN = 3000;
 export function normalizeStaffComment(raw) {
   if (raw === null || raw === undefined) return { value: null };
   if (typeof raw !== 'string') return { error: 'invalid_comment' };

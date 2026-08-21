@@ -18,6 +18,9 @@
 import { fetchJson } from './crm-auth.js';
 import { errorMessage, showError } from './crm-toast.js';
 import { showSkeleton, showSpinner } from './crm-loading.js';
+// Подписи каналов («Яндекс Карты», «2ГИС», …) для строки «откуда пришёл» в разделе
+// «Клиенты» - один словарь на весь проект, см. assets/client-source.js
+import { CLIENT_SOURCE_LABELS } from './client-source.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -166,4 +169,234 @@ export async function openClientCard(clientId) {
     visitsEl.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить карточку клиента'))}</span>`;
     showError(errorMessage(err, 'Не удалось загрузить карточку клиента'));
   }
+}
+
+// ── Раздел «Клиенты» (21.08.2026, задача Влада: «база данных клиентов - имена,
+// телефоны, комментарии, откуда и когда пришли, история записей, сколько денег
+// принесли»). Список кормится GET /clients?all=true (владелец/управляющий), история
+// конкретного клиента - тем же GET /clients/:id, что уже открывает карточку из
+// списка «стоит позвонить»: два экрана не должны знать форму карточки по-своему.
+//
+// История грузится в момент РАСКРЫТИЯ карточки, а не всем списком сразу: в списке
+// сотни клиентов, у каждого своя история визитов и услуг, и тянуть всё это ради
+// свёрнутых строк значило бы ждать раздел секундами вместо мгновенного открытия.
+
+// Что пришло с сервера в последний раз. Поиск фильтрует ЭТОТ массив на месте, не
+// дёргая сервер на каждую букву: база клиентов барбершопа - это тысячи строк максимум,
+// они уже в браузере, а запрос на каждое нажатие клавиши дал бы мигающий список.
+let clientsCache = [];
+
+function formatMoney(sum) {
+  return `${Number(sum || 0).toLocaleString('ru-RU')} ₽`;
+}
+
+function pluralVisits(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return 'визитов';
+  if (mod10 === 1) return 'визит';
+  if (mod10 >= 2 && mod10 <= 4) return 'визита';
+  return 'визитов';
+}
+
+// Только цифры - телефон в базе лежит сырой строкой (см. normalizePhoneKey,
+// api/routes/clients.js), и человек ищет «9188» не думая про скобки и пробелы.
+function digitsOf(value) {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+export function filterClients(clients, query) {
+  const q = String(query ?? '').trim().toLowerCase();
+  if (q === '') return clients;
+  const digits = digitsOf(q);
+  return clients.filter((c) => {
+    const byName = (c.name || '').toLowerCase().includes(q);
+    const byPhone = digits.length > 0 && digitsOf(c.phone).includes(digits);
+    return byName || byPhone;
+  });
+}
+
+function clientFacts(c) {
+  const facts = [];
+  facts.push(`<span class="client-fact"><b>${c.visitsCount}</b> ${pluralVisits(c.visitsCount)}</span>`);
+  facts.push(`<span class="client-fact">принёс <b>${formatMoney(c.revenue)}</b></span>`);
+  if (c.firstVisitDate) {
+    const source = CLIENT_SOURCE_LABELS[c.source];
+    // «Откуда» показываем только когда канал реально записан на первой брони.
+    // Клиент, записанный до появления этого поля (миграция 050, 17.08.2026), источника
+    // не имеет - и строка «Другое» тут была бы выдумкой, а не фактом.
+    facts.push(`<span class="client-fact">с ${formatVisitDate(c.firstVisitDate)}${source ? `, ${escapeHtml(source)}` : ''}</span>`);
+  }
+  if (c.risk?.label) facts.push(`<span class="client-fact client-fact--risk">${escapeHtml(c.risk.label)}</span>`);
+  return facts.join('');
+}
+
+const ICON_CLIENT_AVATAR =
+  '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="7" r="3"/><path d="M4 16.5c0-3.1 2.7-5 6-5s6 1.9 6 5"/></svg>';
+
+function clientCardMarkup(c) {
+  const phone = c.phone ? `<div class="role">${escapeHtml(c.phone)}</div>` : '';
+  return `<details class="staff-card client-card" data-client-id="${escapeHtml(c.id)}">
+    <summary>
+      <div class="avatar-icon" aria-hidden="true">${ICON_CLIENT_AVATAR}</div>
+      <div class="summary-meta">
+        <div class="name">${escapeHtml(c.name || 'Без имени')}</div>
+        ${phone}
+        <div class="client-facts">${clientFacts(c)}</div>
+      </div>
+      <span class="chevron">▸</span>
+    </summary>
+    <div class="staff-card-body" data-client-body><p class="payroll-note">Раскройте карточку, чтобы увидеть историю</p></div>
+  </details>`;
+}
+
+// Комментарий может быть на все 3000 знаков (лимит заказчика), а в истории клиента
+// таких визитов десяток. Длинный текст показываем свёрнутым: иначе одна заметка
+// выталкивает всю остальную историю за экран, и раздел перестаёт отвечать на главный
+// вопрос «когда человек приходил». Короткие (в один-два взгляда) не прячем вовсе -
+// клик ради двух строк был бы лишним движением.
+const COMMENT_PREVIEW_LEN = 220;
+
+function commentMarkup(text) {
+  if (!text) return '';
+  if (text.length <= COMMENT_PREVIEW_LEN) {
+    return `<span class="client-visit-comment" data-comment-full>${escapeHtml(text)}</span>`;
+  }
+  // Режем по границе слова, а не посреди него - обрывок «постоянный кли» читается
+  // как сбой интерфейса, а не как сокращение
+  const cut = text.slice(0, COMMENT_PREVIEW_LEN);
+  const preview = cut.slice(0, Math.max(cut.lastIndexOf(' '), COMMENT_PREVIEW_LEN - 30));
+  return `<details class="client-visit-comment client-visit-comment--long">
+    <summary><span class="client-comment-preview">${escapeHtml(preview)}…</span><span class="client-comment-more">Показать целиком</span></summary>
+    <span data-comment-full>${escapeHtml(text)}</span>
+  </details>`;
+}
+
+function visitMarkup(v) {
+  const services = v.services.map((s) => escapeHtml(s.name)).join(', ') || '—';
+  const status = STATUS_LABEL[v.status] || escapeHtml(v.status);
+  // Сумма - только у состоявшихся визитов: «ожидается» и «отменена» деньгами ещё
+  // (или уже) не являются, и цифра рядом с ними читалась бы как выручка, которой нет.
+  const sum = v.status === 'done' && v.price != null ? `<span class="client-visit-sum">${formatMoney(v.price)}</span>` : '';
+  const comment = commentMarkup(v.staffComment);
+  return `<div class="client-visit">
+    <div class="client-visit-head">
+      <span class="client-visit-date">${formatVisitDate(v.date)} ${escapeHtml(v.startTime)}</span>
+      <span class="client-visit-meta">${services} · ${escapeHtml(v.masterName || '')} · ${status}</span>
+      ${sum}
+    </div>
+    ${comment}
+  </div>`;
+}
+
+async function loadClientHistory(details) {
+  const body = details.querySelector('[data-client-body]');
+  if (!body || details.dataset.loaded === '1') return;
+  details.dataset.loaded = '1';
+  showSkeleton(body, 3);
+  try {
+    const card = await fetchJson(`/clients/${encodeURIComponent(details.dataset.clientId)}`);
+    const visits = card.visits.length
+      ? card.visits.map(visitMarkup).join('')
+      : '<p class="payroll-note">Визитов пока не было</p>';
+    const actions = [];
+    if (card.phone) actions.push(`<a class="btn btn-ghost btn-sm" href="tel:${escapeHtml(card.phone)}">Позвонить</a>`);
+    // «Записать снова» - та же кнопка и тот же контракт, что в карточке из списка
+    // «стоит позвонить» (openClientCard выше): мастер и услуги берутся с последнего
+    // визита, дата и время выбираются заново на актуальной доступности.
+    if (card.lastVisit && typeof window.openRebookBooking === 'function') {
+      actions.push('<button class="btn btn-primary btn-sm" type="button" data-rebook>Записать снова</button>');
+    }
+    body.innerHTML = `${visits}<div class="client-card-actions">${actions.join('')}</div>`;
+    const rebookBtn = body.querySelector('[data-rebook]');
+    if (rebookBtn) {
+      rebookBtn.addEventListener('click', () => {
+        window.openRebookBooking(
+          card.lastVisit.masterId,
+          card.lastVisit.masterName || '',
+          card.name,
+          card.phone,
+          card.lastVisit.services.map((s) => s.id)
+        );
+      });
+    }
+  } catch (err) {
+    // Повторная попытка при следующем раскрытии: снимаем отметку «загружено», иначе
+    // разовый сбой сети запирал бы карточку с текстом ошибки до перезагрузки страницы.
+    details.dataset.loaded = '';
+    body.innerHTML = `<p class="payroll-note">${escapeHtml(errorMessage(err, 'Не удалось загрузить историю клиента'))}</p>`;
+    showError(errorMessage(err, 'Не удалось загрузить историю клиента'));
+  }
+}
+
+function paintClients() {
+  const list = el('clientsList');
+  const count = el('clientsCount');
+  const footnote = el('clientsFootnote');
+  if (!list) return;
+  const visible = filterClients(clientsCache, el('clientsSearch')?.value);
+  if (count) {
+    count.textContent =
+      clientsCache.length === 0
+        ? ''
+        : visible.length === clientsCache.length
+          ? `Всего ${clientsCache.length}`
+          : `Найдено ${visible.length} из ${clientsCache.length}`;
+  }
+  if (footnote) footnote.hidden = clientsCache.length === 0;
+  if (clientsCache.length === 0) {
+    list.innerHTML = '<p class="payroll-note">Клиентов пока нет. Клиент появляется здесь сам, когда его записали с номером телефона</p>';
+    return;
+  }
+  if (visible.length === 0) {
+    list.innerHTML = '<p class="payroll-note">Никого не нашли. Попробуйте часть имени или последние цифры номера</p>';
+    return;
+  }
+  list.innerHTML = visible.map(clientCardMarkup).join('');
+  list.querySelectorAll('.client-card').forEach((details) => {
+    details.addEventListener('toggle', () => {
+      if (details.open) loadClientHistory(details);
+    });
+  });
+}
+
+// Раздел уже открывали хоть раз в этой сессии. От этого зависит, делает ли что-то
+// кнопка мягкого обновления: тянуть всю базу клиентов ради раздела, в который человек
+// ни разу не заходил, - лишний тяжёлый запрос на каждое нажатие «Обновить».
+let sectionLoaded = false;
+
+// Перечитывает базу клиентов. Идемпотентна (fetch + innerHTML, без навешивания
+// обработчиков на статичные узлы) - её можно звать из кнопки мягкого обновления
+// столько раз, сколько нужно, тот же контракт, что у renderRiskList выше.
+export async function renderClientsSection() {
+  const list = el('clientsList');
+  if (!list) return; // страница без раздела «Клиенты» - тихий no-op
+  if (!sectionLoaded) return; // раздел ни разу не открывали - обновлять нечего
+  await loadClients(list);
+}
+
+async function loadClients(list) {
+  showSkeleton(list, 3);
+  try {
+    clientsCache = await fetchJson('/clients?all=true');
+    paintClients();
+  } catch (err) {
+    list.innerHTML = `<p class="payroll-note">${escapeHtml(errorMessage(err, 'Не удалось загрузить базу клиентов'))}</p>`;
+    showError(errorMessage(err, 'Не удалось загрузить базу клиентов'));
+  }
+}
+
+export function wireClientsSection() {
+  const search = el('clientsSearch');
+  if (!search) return; // страница без раздела - обработчики вешать не на что
+  search.addEventListener('input', paintClients);
+
+  // Данные тянем в момент первого захода в раздел, а не при загрузке страницы: вся
+  // база клиентов - самый тяжёлый запрос кабинета, а владелец заходит сюда далеко не
+  // каждую сессию. Тот же приём, что у «Расписания» (crm:section, assets/crm-schedule-views.js).
+  document.addEventListener('crm:section', (e) => {
+    if (e.detail?.section !== 'clients' || sectionLoaded) return;
+    sectionLoaded = true;
+    loadClients(el('clientsList'));
+  });
 }

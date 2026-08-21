@@ -27,13 +27,21 @@
 // разделы, третий переехал в счётчик колокольчика без своего экрана). Вход по
 // умолчанию - "Расписание", не "Сегодня".
 //
+// 21.08.2026 (задача Влада) - пункт "Клиенты" вернулся в меню между "Командой" и
+// "Финансами" ровно по правилу, записанному выше: раздел наполнен реальной базой
+// клиентов (radio pt-f/panel-f, crm-owner.html; данные - GET /clients?all=true), а не
+// заглушкой "в разработке". Порядок в ROLE_CONFIG.order задан явно - место пункта в
+// меню решает он, а не порядок radio на странице. Только owner-набор разделов
+// (владелец и управляющий): у администратора и мастера этого раздела нет, и сервер
+// отдаёт им 403 на ?all=true, а не полагается на спрятанную кнопку.
+//
 // Правка Влада 07.08.2026 - добавлен пункт "Аналитика" (radio pt-d/panel-d,
 // свободный с Окна 36): переиспользован сразу с реальным содержимым
 // ("Возвращаемость клиентов", перенесена из "Сотрудники"), не пустой заглушкой -
 // тот же принцип, что уже применён к Клиентам/Настройкам выше (пункт появляется
 // в момент, когда раздел реально наполнен). Эмодзи-иконки заменены на SVG
 // (assets/crm-icons.js) - разный рендер эмодзи по ОС/браузерам ломал премиум-вид.
-import { ICON_SCHEDULE, ICON_TEAM, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE, ICON_MENU } from './crm-icons.js';
+import { ICON_SCHEDULE, ICON_TEAM, ICON_CLIENTS, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE, ICON_MENU } from './crm-icons.js';
 
 // Правка 07.08.2026 - добавлен пункт "Уведомления" (radio pt-e/panel-e, новый слот):
 // "Заявки мастеров на изменение графика" переехали сюда из "Расписания" целиком
@@ -52,11 +60,12 @@ const ROLE_CONFIG = {
   owner: {
     profileLabel: 'Владелец',
     defaultSection: 'schedule',
-    order: ['schedule', 'team', 'finance', 'analytics', 'notifications'],
-    radio: { schedule: 'pt-a', team: 'pt-b', finance: 'pt-c', analytics: 'pt-d', notifications: 'pt-e' },
+    order: ['schedule', 'team', 'clients', 'finance', 'analytics', 'notifications'],
+    radio: { schedule: 'pt-a', team: 'pt-b', clients: 'pt-f', finance: 'pt-c', analytics: 'pt-d', notifications: 'pt-e' },
     label: {
       schedule: 'Расписание',
       team: 'Команда',
+      clients: 'Клиенты',
       finance: 'Финансы',
       analytics: 'Аналитика',
       notifications: 'Уведомления',
@@ -64,6 +73,7 @@ const ROLE_CONFIG = {
     icon: {
       schedule: ICON_SCHEDULE,
       team: ICON_TEAM,
+      clients: ICON_CLIENTS,
       finance: ICON_FINANCE,
       analytics: ICON_ANALYTICS,
       notifications: ICON_BELL,

@@ -829,3 +829,64 @@ body.app-shell-active #crmMain {
    держал бы 18px отступа (margin у .payroll-note) и разрывал карточку */
 .payroll-card .payroll-note:empty { display: none; }
 .payroll-card .field-grid { margin-bottom: 10px; }
+
+/* ── Раздел «Клиенты» (21.08.2026, задача Влада) ───────────────────────────────
+   Новые стили идут сюда, а не в монолит mockup-crm.css - то же правило, по которому
+   сюда уехали токены редизайна владельца (CLAUDE.md, CRITICAL RULES). Сама карточка
+   клиента чужого CSS не заводит: это тот же details.staff-card, что у мастеров, здесь
+   только строка поиска сверху, сетка цифр под именем и строки истории визитов. */
+.clients-toolbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.clients-search {
+  flex: 1 1 260px; min-width: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+  color: var(--text); padding: 9px 16px; font-family: inherit; font-size: 0.88rem;
+}
+.clients-search::placeholder { color: var(--text-muted); opacity: 0.7; }
+.clients-count { color: var(--text-muted); font-size: 0.8rem; white-space: nowrap; }
+
+/* Цифры клиента прямо в свёрнутой строке: имя, телефон и «сколько принёс» - это то,
+   ради чего раздел открывают, раскрывать карточку ради них не нужно. На телефоне
+   колонки переносятся, поэтому это flex-wrap, а не таблица */
+.client-facts { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+.client-facts .client-fact { color: var(--text-muted); font-size: 0.78rem; white-space: nowrap; }
+.client-facts .client-fact b { color: var(--text); font-weight: 600; }
+.client-facts .client-fact--risk { color: var(--danger); }
+
+.client-visit { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.client-visit:last-child { border-bottom: none; }
+.client-visit-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.client-visit-date { font-weight: 600; font-size: 0.86rem; }
+.client-visit-meta { color: var(--text-muted); font-size: 0.78rem; }
+.client-visit-sum { color: var(--accent); font-size: 0.8rem; font-weight: 600; margin-left: auto; }
+/* Комментарий может быть длинным (лимит 3000 знаков, требование заказчика): текст
+   переносится и сохраняет переводы строк, которые сотрудник поставил сам - иначе
+   заметка «что обсудили с клиентом» слипается в одну простыню */
+.client-visit-comment {
+  display: block; margin-top: 6px; padding: 8px 12px;
+  background: var(--panel-bg-collapsed); border-left: 2px solid var(--wood); border-radius: 0 8px 8px 0;
+  color: var(--text-muted); font-size: 0.8rem; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.client-card-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+/* Свёрнутый длинный комментарий. Своя стрелка не нужна - роль «раскрыть» несёт
+   подпись «Показать целиком»; маркер списка у <summary> убираем, иначе браузер
+   рисует свой треугольник поверх чужой типографики карточки */
+/* Селектор нарочно длиннее нужного: этот <details> лежит ВНУТРИ карточки клиента,
+   а `details.staff-card summary` (mockup-crm.css) раскладывает любой вложенный
+   summary во flex-строку с отступами карточки - подпись «Показать целиком» из-за
+   этого уезжала вправо от обрывка текста вместо строки под ним (найдено живьём,
+   21.08.2026, замер getBoundingClientRect в прогоне) */
+.client-card details.client-visit-comment--long summary {
+  cursor: pointer; list-style: none; display: block; padding: 0; gap: 0;
+}
+.client-visit-comment--long summary::-webkit-details-marker { display: none; }
+.client-visit-comment--long[open] summary .client-comment-preview { display: none; }
+.client-visit-comment--long[open] summary .client-comment-more::after { content: ' ▴'; }
+.client-visit-comment--long summary .client-comment-more::after { content: ' ▾'; }
+/* Превью и подпись «Показать целиком» - две строки, а не одна: инлайном подпись
+   прижималась к концу обрывка и переносилась по слогам */
+.client-visit-comment--long .client-comment-preview { display: block; }
+.client-visit-comment--long .client-comment-more {
+  display: block; margin-top: 6px; color: var(--accent); font-weight: 600; font-size: 0.76rem;
+}

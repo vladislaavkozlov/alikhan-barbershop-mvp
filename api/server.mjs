@@ -83,7 +83,7 @@ import { handlePayrollSettings, handlePayroll, handleRevenueToday, handleDiscoun
 import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard } from './routes/clients.js';
 // Ре-экспорт для tests/*.test.js.
 export { describeClientRisk, getClientCard, listClientsAtRisk, computeOwnerAlerts } from './routes/clients.js';
-export { normalizePhoneKey, findClientByPhone, resolveClientsQueryMode, shapeClientCardForViewer } from './routes/clients.js';
+export { normalizePhoneKey, findClientByPhone, resolveClientsQueryMode, shapeClientCardForViewer, listAllClients, summarizeClientVisits } from './routes/clients.js';
 export { computeMasterPayroll, computeRevenueToday, countUnidentifiedToday } from './routes/payroll.js';
 
 const PORT = Number(process.env.PORT) || 8080;
