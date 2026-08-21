@@ -27,7 +27,7 @@ import { ICON_BELL, ICON_BOOKING_NEW, ICON_BOOKING_MOVED_IN, ICON_BOOKING_MOVED_
 // живым прогоном 10.08.2026: clientName = '<img src=x onerror=alert(1)>' доходил до
 // списка уведомлений мастера дословно).
 import { escapeHtml } from './crm-schedule-shared.js';
-import { errorMessage, showError } from './crm-toast.js';
+import { errorMessage, showError, showInfo } from './crm-toast.js';
 import { showSpinner, skeletonMarkup } from './crm-loading.js';
 
 const TOKEN_KEY = 'alikhan-crm:token';
@@ -145,12 +145,21 @@ export function clientMessageText(booking) {
   return `Здравствуйте, ${name}это барбершоп «Алихан». Ждём вас ${when}${master}${services}. Если планы изменятся - напишите, перенесём.`;
 }
 
-// Мессенджеры, в которые реально можно попасть ссылкой по номеру телефона.
+// Мессенджеры для связи с клиентом в один клик.
 //
-// МАКС здесь намеренно нет: у него нет ссылки на личный чат по номеру (аналога wa.me),
-// это ограничение самого мессенджера - личная ссылка вида max.ru/u/<хеш> есть только у
-// того, кто сам ею поделился. Автоматическая отправка клиенту в МАКС - отдельная
-// задача, она делается ботом и требует, чтобы клиент сам подписался на него.
+// MAX стоит особняком и работает НЕ как остальные три (правка Влада 21.08.2026 - «а
+// МАКСа нет! добавь MAX и в уведомления тоже»). У MAX нет ссылки на чат по номеру -
+// аналога wa.me не существует, это решение самого мессенджера ради приватности
+// (проверено 21.08.2026 по справке help.max.ru и обзорам форматов ссылок, не по
+// памяти). Личная ссылка max.ru/u/<хеш> есть только у того, кто сам ею поделился, а
+// отправка боту по номеру требует корпоративной регистрации бота И согласия клиента,
+// выданного этому боту заранее - это отдельная задача, не кнопка.
+//
+// Поэтому кнопка MAX делает ровно то, что человек делает руками, только без набора
+// номера: открывает web.max.ru и кладёт номер в буфер обмена, чтобы вставить его в
+// «Найти по номеру» (штатный поиск MAX по вкладке «Чаты»/«Контакты»). Честнее
+// работающая кнопка на два шага, чем ссылка в никуда или отсутствие мессенджера,
+// которым клиенты пользуются.
 export function messengerLinks(phone, text) {
   const digits = phoneDigits(phone);
   if (!digits) return [];
@@ -162,6 +171,8 @@ export function messengerLinks(phone, text) {
   const withText = (base) => (encoded ? `${base}${base.includes('?') ? '&' : '?'}text=${encoded}` : base);
   return [
     { key: 'whatsapp', label: 'WhatsApp', href: withText(`https://wa.me/${digits}`) },
+    // copyPhone - признак «ссылка сама в чат не приводит, номер нужен человеку в руки»
+    { key: 'max', label: 'MAX', href: 'https://web.max.ru', copyPhone: digits },
     // tg://resolve открывает установленное приложение Telegram. Веб-ссылки на чат по
     // номеру у Telegram не существует - t.me/<номер> ведёт в пустоту, поэтому её здесь
     // нет: лучше кнопка, которая открывает приложение, чем кнопка в никуда.
@@ -169,6 +180,41 @@ export function messengerLinks(phone, text) {
     { key: 'sms', label: 'СМС', href: encoded ? `sms:+${digits}?&body=${encoded}` : `sms:+${digits}` },
     { key: 'call', label: 'Позвонить', href: `tel:+${digits}` },
   ];
+}
+
+// Один ряд кнопок связи на оба места, где он есть: раздел «Уведомления» (карточка
+// записи) и карточка клиента в разделе «Клиенты» (assets/crm-clients.js). Разметку не
+// копируем во второй файл - разошлась бы при первой же правке.
+export function messengerButtonsHtml(phone, text) {
+  return messengerLinks(phone, text)
+    .map((l) => {
+      const copy = l.copyPhone ? ` data-copy-phone="${escapeHtml(l.copyPhone)}"` : '';
+      const hint = l.copyPhone ? ' title="Откроет MAX и скопирует номер - вставьте его в «Найти по номеру»"' : '';
+      return `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.href)}" target="_blank" rel="noopener noreferrer" data-msg-link="${l.key}"${copy}${hint}>${l.label}</a>`;
+    })
+    .join('');
+}
+
+// Клик по MAX: ссылка открывает мессенджер сама (обычный href), а мы кладём номер в
+// буфер и говорим человеку, что с ним делать. Обработчик делегированный - карточки
+// перерисовываются, вешать его на каждую кнопку заново было бы источником задвоений.
+export function wireMessengerLinks(root) {
+  if (!root || root.dataset.msgLinksWired === '1') return;
+  root.dataset.msgLinksWired = '1';
+  root.addEventListener('click', async (e) => {
+    const link = e.target.closest('[data-copy-phone]');
+    if (!link) return;
+    const phone = link.dataset.copyPhone;
+    try {
+      // clipboard доступен только на https/localhost - на проде это выполняется, но
+      // молча падать на локальном http-превью незачем, поэтому номер есть и в тексте
+      // подсказки: скопировать его руками можно всегда
+      await navigator.clipboard?.writeText(phone);
+      showInfo(`Номер +${phone} скопирован - в MAX нажмите «Найти по номеру» и вставьте его`);
+    } catch {
+      showInfo(`В MAX нажмите «Найти по номеру» и введите +${phone}`);
+    }
+  });
 }
 
 // Провалиться из уведомления в саму запись. Календарь листается по дате, поэтому идём
@@ -268,12 +314,9 @@ function timeLine(n) {
 
 function fullItemHtml(n) {
   const b = n.booking;
-  const links = b ? messengerLinks(b.clientPhone, clientMessageText(b)) : [];
   const actions = [];
   if (b) actions.push(`<button class="btn btn-ghost btn-sm" type="button" data-open-booking="${escapeHtml(b.id)}">Открыть запись</button>`);
-  links.forEach((l) => {
-    actions.push(`<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.href)}" target="_blank" rel="noopener noreferrer" data-msg-link="${l.key}">${l.label}</a>`);
-  });
+  if (b) actions.push(messengerButtonsHtml(b.clientPhone, clientMessageText(b)));
   // data-booking-id - адрес карточки по самой записи: по нему её находит живой прогон,
   // а сортировка ленты (свежее сверху) может поставить наверх любую другую
   return `<div class="ntf-card${n.read ? '' : ' ntf-card--unread'}" data-ntf-id="${escapeHtml(n.id)}" data-booking-id="${escapeHtml(b?.id ?? '')}">
@@ -428,6 +471,7 @@ export function wireNotifications(staff) {
         return;
       }
       center.innerHTML = items.map(fullItemHtml).join('');
+      wireMessengerLinks(center); // кнопка MAX копирует номер (см. messengerLinks выше)
 
       center.querySelectorAll('.ntf-card').forEach((card) => {
         card.addEventListener('click', (e) => {

@@ -31,7 +31,7 @@ import { initCrmNavigationPanels } from './crm-navigation-panels.js';
 // один путь «раздел Расписание → День на дату записи → карточка → её обработчик».
 // Задача Влада 21.08.2026: из истории клиента проваливаться в саму запись, а кнопки
 // связи держать рядом с «Записать снова», как в уведомлениях.
-import { messengerLinks, clientMessageText, openBookingFromNotification } from './crm-notifications.js';
+import { messengerButtonsHtml, clientMessageText, openBookingFromNotification, wireMessengerLinks } from './crm-notifications.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -444,11 +444,10 @@ async function fetchClientHistory(details, body) {
         status: upcoming.status,
       })
       : '';
-    messengerLinks(card.phone, messageText).forEach((l) => {
-      actions.push(`<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.href)}" target="_blank" rel="noopener noreferrer" data-msg-link="${l.key}">${l.label}</a>`);
-    });
+    actions.push(messengerButtonsHtml(card.phone, messageText));
     body.innerHTML = `${visits}<div class="client-card-actions">${actions.join('')}</div>`;
     wireVisitOpen(body);
+    wireMessengerLinks(body); // MAX: ссылки на чат по номеру у него нет, кнопка копирует номер
     const rebookBtn = body.querySelector('[data-rebook]');
     if (rebookBtn) {
       rebookBtn.addEventListener('click', () => {

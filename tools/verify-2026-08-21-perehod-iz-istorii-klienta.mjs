@@ -14,6 +14,9 @@
 //      записи, а не выдуманное приглашение
 //   7. клик по «Показать целиком» внутри визита раскрывает комментарий и НЕ уводит
 //      в расписание
+//   8. кнопка MAX есть и в карточке клиента, и в ленте «Уведомлений», ведёт на
+//      web.max.ru и несёт номер для поиска «Найти по номеру» (ссылки на чат по
+//      номеру у MAX не существует - см. messengerLinks, assets/crm-notifications.js)
 import { withEphemeralServer, withStaticServer, makeChecker, hashPin, randomPin, daysFromToday } from './verify-lib.mjs';
 import { withBrowser } from './cdp.mjs';
 
@@ -66,6 +69,13 @@ try {
     }
     // Длинный комментарий - ради проверки 7: «Показать целиком» внутри кликабельной строки
     await db.query(`UPDATE bookings SET staff_comment = $1 WHERE id = 'pv-b-past'`, [LONG_COMMENT]);
+    // Уведомление о новой записи - ради проверки 8. Пишем прямо в таблицу: боевой путь
+    // (POST /bookings с публичного сайта) уже проверен своим прогоном, здесь нужна
+    // лента с карточкой записи, а не повторная проверка самого уведомления
+    await db.query(
+      `INSERT INTO notifications (id, staff_id, type, title, booking_id)
+       VALUES ('pv-ntf', 'pv-boss', 'booking_new', 'Новая запись', 'pv-b-next')`
+    );
     const masterName = (await db.query(`SELECT name FROM staff WHERE id = 'master-2'`)).rows[0].name;
 
     await withStaticServer(apiUrl, async (siteUrl) => {
@@ -124,11 +134,16 @@ try {
 
         // ── 5-6. кнопки связи рядом с «Записать снова» ──────────────────────
         const actions = await j(`[...document.querySelectorAll('.client-card[data-client-id="pv-1"] .client-card-actions > *')].map(a => ({
-          label: a.innerText.trim(), href: a.getAttribute('href') || '', key: a.dataset.msgLink || '',
+          label: a.innerText.trim(), href: a.getAttribute('href') || '', key: a.dataset.msgLink || '', copyPhone: a.dataset.copyPhone || '',
         }))`);
         const labels = actions.map((a) => a.label);
-        check('рядом с «Записать снова» стоят все четыре кнопки связи из «Уведомлений»',
-          ['Записать снова', 'WhatsApp', 'Telegram', 'СМС', 'Позвонить'].every((l) => labels.includes(l)), JSON.stringify(labels));
+        check('рядом с «Записать снова» стоит весь ряд связи из «Уведомлений»',
+          ['Записать снова', 'WhatsApp', 'MAX', 'Telegram', 'СМС', 'Позвонить'].every((l) => labels.includes(l)), JSON.stringify(labels));
+        const max = actions.find((a) => a.key === 'max');
+        check('MAX стоит в ряду связи вместе с остальными',
+          !!max && max.label === 'MAX', JSON.stringify(labels));
+        check('кнопка MAX ведёт в веб-версию мессенджера и несёт номер для поиска',
+          max?.href === 'https://web.max.ru' && max?.copyPhone === '79185550077', JSON.stringify(max));
         const wa = actions.find((a) => a.key === 'whatsapp');
         const tg = actions.find((a) => a.key === 'telegram');
         const call = actions.find((a) => a.key === 'call');
@@ -176,6 +191,28 @@ try {
         check('клик по «Показать целиком» раскрывает комментарий и оставляет в «Клиентах»',
           afterComment.open === true && afterComment.section === 'Клиенты' && afterComment.len === 400, JSON.stringify(afterComment));
         await s.screenshot('/tmp/verify-perehod-iz-istorii-klienty.png');
+
+        // ── 8. тот же ряд в ленте «Уведомлений» ─────────────────────────────
+        await s.eval(`document.querySelector('.app-nav-item[data-section="notifications"]')?.click()`);
+        for (let i = 0; i < 80 && !(await j(`!!document.querySelector('#notifCenter .ntf-card')`)); i++) await sleep(200);
+        const ntfActions = await j(`[...document.querySelectorAll('#notifCenter .ntf-card .ntf-actions > *')].map(a => ({
+          label: a.innerText.trim(), href: a.getAttribute('href') || '', key: a.dataset.msgLink || '', copyPhone: a.dataset.copyPhone || '',
+        }))`);
+        const ntfLabels = ntfActions.map((a) => a.label);
+        check('в «Уведомлениях» ряд связи тоже с MAX',
+          ['Открыть запись', 'WhatsApp', 'MAX', 'Telegram', 'СМС', 'Позвонить'].every((l) => ntfLabels.includes(l)), JSON.stringify(ntfLabels));
+        const ntfMax = ntfActions.find((a) => a.key === 'max');
+        check('кнопка MAX в ленте несёт тот же номер и адрес веб-версии',
+          ntfMax?.href === 'https://web.max.ru' && ntfMax?.copyPhone === '79185550077', JSON.stringify(ntfMax));
+        // Клик по MAX кладёт номер в буфер и объясняет, что с ним делать. Проверяем
+        // именно тост: буфер в headless-браузере без разрешения недоступен, и молча
+        // «скопировали» было бы обещанием, которого человек не увидит
+        await s.eval(`document.querySelector('#notifCenter [data-copy-phone]')?.click()`);
+        await sleep(600);
+        const toast = await j(`(document.querySelector('.toast, .crm-toast')?.innerText || '').replace(/\\s+/g, ' ').trim()`);
+        check('клик по MAX подсказывает, что номер надо вставить в «Найти по номеру»',
+          /Найти по номеру/.test(toast) && /79185550077/.test(toast), toast);
+        await s.screenshot('/tmp/verify-max-v-uvedomleniyah.png');
       });
     });
   });
