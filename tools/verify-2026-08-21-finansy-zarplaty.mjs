@@ -258,6 +258,51 @@ try {
         const newPct = await db.query(`SELECT pct FROM master_payroll_settings WHERE master_id = 'zp-new'`);
         check('ставка нового мастера завелась в базе с нуля', Number(newPct.rows[0]?.pct) === 45, JSON.stringify(newPct.rows));
 
+        // ── Правки 21.08.2026 (вторая волна) ──────────────────────────────────
+        // Кнопка «Развернуть все» одна на раздел и раскрывает ВСЁ, включая карточки
+        // сотрудников внутри блока «Зарплаты мастеров»
+        const groupState = `(function(){
+          const list = document.querySelector('.panel-c > section > .staff-list');
+          return JSON.stringify({
+            кнопок: document.querySelectorAll('.panel-c .panel-group-controls, body > .panel-group-controls').length,
+            блоки: [...list.querySelectorAll(':scope > details.staff-card')].map((d) => d.open),
+            карточки: [...document.querySelectorAll('#payrollStaffList .payroll-card')].map((d) => d.open),
+          });
+        })()`;
+        await s.eval(`document.querySelectorAll('.panel-c details.staff-card').forEach((d) => d.removeAttribute('open'))`);
+        await sleep(300);
+        const btnBox = JSON.parse(await s.eval(`(function(){
+          const vis = [...document.querySelectorAll('.panel-group-toggle')].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && r.bottom <= innerHeight + 5; });
+          const r = vis[vis.length - 1].getBoundingClientRect();
+          return JSON.stringify({ x: r.x + r.width / 2, y: r.y + r.height / 2, видимых: vis.length });
+        })()`));
+        check('в разделе ровно одна плавающая кнопка «Развернуть все», не две наложенных', btnBox.видимых === 1, String(btnBox.видимых));
+        await s.clickAt(btnBox.x, btnBox.y);
+        await sleep(700);
+        const opened = JSON.parse(await s.eval(groupState));
+        check('«Развернуть все» раскрывает и «Выручку», и «Зарплаты мастеров»', opened.блоки.length === 2 && opened.блоки.every(Boolean), JSON.stringify(opened.блоки));
+        check('вместе с ними раскрываются и карточки сотрудников внутри', opened.карточки.length > 0 && opened.карточки.every(Boolean), JSON.stringify(opened.карточки));
+        await s.clickAt(btnBox.x, btnBox.y);
+        await sleep(700);
+        const closed = JSON.parse(await s.eval(groupState));
+        check('повторное нажатие сворачивает всё - оба блока и карточки', closed.блоки.every((v) => !v) && closed.карточки.every((v) => !v), JSON.stringify(closed));
+
+        // Карточки сотрудников лежат на полотне раздела, как в «Команде», а не на
+        // белом теле раскрытого родителя - иначе их цвет читается иначе, чем везде
+        await s.eval(`document.querySelectorAll('.panel-c > section > .staff-list > details.staff-card').forEach((d) => d.setAttribute('open',''))`);
+        await sleep(400);
+        const backdrop = JSON.parse(await s.eval(`(function(){
+          const canvas = getComputedStyle(document.body).backgroundColor;
+          const host = document.querySelector('#payrollStaffList');
+          const team = document.querySelector('.panel-b .staff-list');
+          return JSON.stringify({
+            подложкаФинансов: getComputedStyle(host).backgroundColor,
+            полотно: canvas,
+            подложкаКоманды: team ? getComputedStyle(team).backgroundColor : null,
+          });
+        })()`));
+        check('карточки ЗП лежат на том же полотне, что и карточки в «Команде»', backdrop.подложкаФинансов === backdrop.полотно, JSON.stringify(backdrop));
+
         // Снимок для глаз - оба блока раскрыты, иначе на картинке два свёрнутых
         // заголовка и по ней ничего не видно
         await s.eval(`document.querySelectorAll('.panel-c details.staff-card').forEach((d) => d.setAttribute('open',''))`);
@@ -266,6 +311,11 @@ try {
         await s.eval(`document.querySelector('#payrollStaffList')?.scrollIntoView({ block: 'start' })`);
         await sleep(400);
         await s.screenshot('/tmp/verify-finansy-zarplaty.png');
+        // Отдельный снимок закрытых карточек - именно на них Влад увидел разницу в цвете
+        await s.eval(`document.querySelectorAll('#payrollStaffList .payroll-card').forEach((d) => d.removeAttribute('open'))`);
+        await s.eval(`document.querySelector('#payrollStaffList')?.scrollIntoView({ block: 'center' })`);
+        await sleep(400);
+        await s.screenshot('/tmp/verify-finansy-zakrytye.png');
         await s.eval(`document.querySelector('#rvAllDayRevenue')?.scrollIntoView({ block: 'center' })`);
         await sleep(400);
         await s.screenshot('/tmp/verify-finansy-vyruchka.png');

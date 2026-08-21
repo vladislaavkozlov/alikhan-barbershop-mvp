@@ -2,9 +2,20 @@ function directPanels(list) {
   return [...list.querySelectorAll(':scope > details.staff-card')];
 }
 
+// «Развернуть все» - значит ВСЕ, включая карточки, вложенные в карточку (21.08.2026,
+// вторая правка Влада). Единственный такой случай сегодня - «Финансы»: блок «Зарплаты
+// мастеров» сам карточка, а внутри него список карточек сотрудников. До этой правки
+// кнопка трогала только два блока верхнего уровня, и человек, нажав «развернуть все»,
+// получал раскрытый блок с колонкой всё ещё закрытых карточек - выглядело так, будто
+// кнопка сработала наполовину. Там, где вложенных карточек нет («Команда»,
+// «Расписание», «Аналитика»), выборка совпадает с прежней и поведение не меняется
+function allPanels(list) {
+  return [...list.querySelectorAll('details.staff-card')];
+}
+
 function syncToggle(button, list) {
-  const panels = directPanels(list);
-  const allOpen = panels.every((panel) => panel.open);
+  const panels = allPanels(list);
+  const allOpen = panels.length > 0 && panels.every((panel) => panel.open);
   const action = allOpen ? 'Свернуть все' : 'Развернуть все';
   button.querySelector('.panel-group-toggle__label').textContent = action;
   button.setAttribute('aria-label', action);
@@ -15,6 +26,11 @@ export function initCrmNavigationPanels(root = document) {
   const doc = root.ownerDocument || root;
   root.querySelectorAll('.staff-list').forEach((list, index) => {
     const panels = directPanels(list);
+    // Список карточек ВНУТРИ карточки своей кнопки не получает: .panel-group-controls
+    // висит position:fixed в одном и том же углу экрана, две кнопки просто легли бы
+    // одна на другую, и человек нажимал бы верхнюю наугад. Вложенным списком управляет
+    // кнопка внешнего раздела (см. allPanels выше)
+    if (list.parentElement?.closest('.staff-list')) return;
     if (!panels.length || list.dataset.panelControlsWired) return;
     list.dataset.panelControlsWired = '1';
 
@@ -30,7 +46,7 @@ export function initCrmNavigationPanels(root = document) {
     list.before(controls);
 
     button.addEventListener('click', () => {
-      const currentPanels = directPanels(list);
+      const currentPanels = allPanels(list);
       const shouldOpen = !currentPanels.every((panel) => panel.open);
       currentPanels.forEach((panel) => { panel.open = shouldOpen; });
       syncToggle(button, list);
