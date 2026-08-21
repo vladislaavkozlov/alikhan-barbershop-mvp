@@ -125,8 +125,17 @@ try {
         check('Неделя: день, разошедшийся со стандартным графиком, помечен статусом "правка"', editStatus === 'edit', String(editStatus));
         const todayCellM2 = norm(await s.eval(`document.querySelector('#weekGrid .sm-cell[data-master-id="w65-m2"][data-date="${TODAY}"]')?.innerText`));
         check('Неделя: в ячейке мастера с записью стоит его собственная загрузка 10%', todayCellM2.includes('10%'), todayCellM2);
-        const todayCellM1 = norm(await s.eval(`document.querySelector('#weekGrid .sm-cell[data-master-id="w65-m1"][data-date="${TODAY}"]')?.innerText`));
-        check('Неделя: у мастера без записей в тот же день честные 0%, а не общий процент команды', todayCellM1.includes('0%'), todayCellM1);
+        check('Неделя: занятый день называет и число записей', todayCellM2.includes('1 зап.'), todayCellM2);
+        // Правка Влада 21.08.2026: пустой день не пишет «0%» - в ячейке остаются одни
+        // часы смены, а загрузка живёт в подсказке. Проверяем оба места сразу
+        const emptyCell = JSON.parse(await s.eval(`JSON.stringify((function(){
+          const cell = document.querySelector('#weekGrid .sm-cell[data-master-id="w65-m1"][data-date="${TODAY}"]');
+          return { text: cell.innerText.replace(/\\s+/g, ' ').trim(), title: cell.title, lines: cell.querySelectorAll('span').length };
+        })())`));
+        check('Неделя: день без записей показывает только часы, без «0%» и строки перерыва',
+          !emptyCell.text.includes('%') && !emptyCell.text.includes('перерыв') && emptyCell.text.includes('10:00'), JSON.stringify(emptyCell));
+        check('Неделя: загрузка пустого дня осталась в подсказке ячейки',
+          emptyCell.title.includes('загрузка 0%'), emptyCell.title);
 
         // 5. Клик по дате в шапке уводит в "День"
         const targetDate = weekShape.heads[3];
@@ -222,7 +231,7 @@ try {
           return { gridBottom: Math.round(grid.getBoundingClientRect().bottom), cellBottom: Math.round(last.getBoundingClientRect().bottom) };
         })())`));
         check('под нижним рядом ячеек есть место для полосы прокрутки',
-          scrollRoom.gridBottom - scrollRoom.cellBottom >= 10, JSON.stringify(scrollRoom));
+          scrollRoom.gridBottom - scrollRoom.cellBottom >= 20, JSON.stringify(scrollRoom));
 
         // Замер настоящих цветов "Дня" и матрицы - подгонять оформление на глаз по
         // памяти нельзя, сверяем computed-значения на одной и той же странице

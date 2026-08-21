@@ -177,3 +177,40 @@ test('разметка: плашка загрузки не берёт общий
   assert.match(html, /class="sm-cell-load sm-cell-load--busy"/);
   assert.doesNotMatch(html, /class="[^"]*\bis-busy\b/);
 });
+
+test('разметка: ячейка показывает только часы и занятость, без "0%" и строки перерыва', () => {
+  // Правка Влада 21.08.2026 «колонки набиты кучей инфы»: ноль повторялся в каждой
+  // второй ячейке, а перерыв всё равно обрывался многоточием. И то и другое осталось
+  // в подсказке (title) и в редакторе дня.
+  const base = {
+    masters: [MASTERS[0]],
+    from: '2026-08-17',
+    to: '2026-08-17',
+    weeklyByMasterId: new Map(),
+    holidayMap: new Map(),
+    today: '2026-08-01',
+  };
+  const withBreak = buildMatrixModel({
+    ...base,
+    schedulesByMasterId: new Map([['m1', [workDay('2026-08-17', '10:00', '20:00', [{ startTime: '13:00', endTime: '14:00' }])]]]),
+    bookings: [],
+  });
+  const html = matrixHtml(withBreak);
+  assert.match(html, /10:00–20:00/);
+  // Проверяем ВИДИМУЮ часть - в title «загрузка 0%» осталась намеренно
+  const visible = html.replace(/title="[^"]*"/g, '');
+  assert.doesNotMatch(visible, /0%/, 'пустой день не должен кричать нулём');
+  assert.doesNotMatch(visible, /перерыв/, 'строки перерыва в ячейке быть не должно');
+  assert.doesNotMatch(visible, /sm-cell-load/, 'плашки загрузки у пустого дня нет вовсе');
+  // Но в подсказке перерыв и загрузка есть - данные не потеряны
+  assert.match(html, /title="[^"]*перерыв 13:00–14:00[^"]*загрузка 0%/);
+
+  const busy = buildMatrixModel({
+    ...base,
+    schedulesByMasterId: new Map([['m1', [workDay('2026-08-17')]]]),
+    bookings: [{ masterId: 'm1', date: '2026-08-17', startTime: '11:00', endTime: '12:00', status: 'planned' }],
+  });
+  const busyHtml = matrixHtml(busy);
+  assert.match(busyHtml, /class="sm-cell-pct">10%</);
+  assert.match(busyHtml, /· 1 зап\./);
+});

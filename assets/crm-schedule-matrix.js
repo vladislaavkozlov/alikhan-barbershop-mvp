@@ -113,31 +113,26 @@ export function buildMatrixModel({ masters, from, to, schedulesByMasterId, booki
 }
 
 function cellInnerHtml(cell) {
-  // Подписи повторяют язык вида "День" (assets/mockup-crm.css): выходной там - трек
-  // со штриховкой и подписью "Выходной" курсивом (.schedule-track.day-off +
-  // .day-off-label), мастер без графика - сплошной приглушённый трек со словами
-  // (.schedule-track.no-schedule). Матрица говорит теми же словами и той же фактурой,
-  // просто в размере ячейки.
+  // В ячейке ровно два носителя смысла - часы смены и занятость. Правка Влада
+  // 21.08.2026 («колонки набиты кучей инфы»): убраны строка перерыва, которая всё
+  // равно не помещалась и обрывалась многоточием («перерыв 13:00…»), и «0%» у дней
+  // без записей - ноль повторялся в каждой второй ячейке и создавал шум ровно там,
+  // где смотреть не на что. Полные данные дня никуда не делись: они в подсказке
+  // (title, cellTitle ниже) и в редакторе дня, который открывается кликом.
   if (cell.missing) return '<span class="sm-cell-off">нет графика</span>';
   if (cell.isDayOff) return '<span class="sm-cell-off">Выходной</span>';
-  const breakLabel = cell.breaks.length ? `<span class="sm-cell-break">перерыв ${escapeHtml(cell.breaks[0].startTime)}–${escapeHtml(cell.breaks[0].endTime)}</span>` : '';
-  // Загрузка занятого дня - плашка в цвете записи из "Дня" (.appt--new), пустого -
-  // тихий текст: занятое обязано быть заметнее пустого (тот же принцип, которым в
-  // "Дне" колонку выходного сделали ТЕМНЕЕ рабочей, правка 13.08.2026).
-  // Модификатор именно "sm-cell-load--busy", НЕ общий ".is-busy": тот занят в проекте
-  // под состояние "кнопка ждёт ответа сервера" (assets/crm-loading.css) и делает текст
-  // прозрачным с крутящимся спиннером поверх. Живой замер 21.08.2026 показал у плашки
-  // color: rgba(0,0,0,0) - на экране был золотой овал со спиннером вместо "10% · 1".
-  const loadClass = cell.bookingCount > 0 ? 'sm-cell-load sm-cell-load--busy' : 'sm-cell-load';
-  return `<span class="sm-cell-hours">${escapeHtml(cell.startTime)}–${escapeHtml(cell.endTime)}</span>
-    ${breakLabel}
-    <span class="${loadClass}"><span class="sm-cell-pct">${cell.loadPct}%</span>${cell.bookingCount ? ` · ${cell.bookingCount} ${ruPluralBooking(cell.bookingCount).slice(0, 3)}.` : ''}</span>`;
+  const load = cell.bookingCount > 0
+    ? `<span class="sm-cell-load sm-cell-load--busy"><span class="sm-cell-pct">${cell.loadPct}%</span> · ${cell.bookingCount} ${ruPluralBooking(cell.bookingCount).slice(0, 3)}.</span>`
+    : '';
+  return `<span class="sm-cell-hours">${escapeHtml(cell.startTime)}–${escapeHtml(cell.endTime)}</span>${load}`;
 }
 
 function cellTitle(cell, masterName) {
   if (cell.missing) return `${masterName}: нет данных за этот день`;
   if (cell.isDayOff) return `${masterName}: выходной`;
-  return `${masterName}: ${cell.startTime}–${cell.endTime}, загрузка ${cell.loadPct}%, ${cell.bookingCount} ${ruPluralBooking(cell.bookingCount)}`;
+  // Перерыв виден только здесь и в редакторе дня - в самой ячейке для него нет места
+  const breakPart = cell.breaks.length ? `, перерыв ${cell.breaks[0].startTime}–${cell.breaks[0].endTime}` : '';
+  return `${masterName}: ${cell.startTime}–${cell.endTime}${breakPart}, загрузка ${cell.loadPct}%, ${cell.bookingCount} ${ruPluralBooking(cell.bookingCount)}`;
 }
 
 // editable=false (мастер на crm-master.html) - ячейка не открывает редактор графика,
