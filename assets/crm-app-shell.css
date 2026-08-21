@@ -890,6 +890,15 @@ body.app-shell-active #crmMain {
 .client-visit--noshow { border-left-color: var(--danger); }
 .client-visit--planned { border-left-color: var(--accent); }
 .client-visit--cancelled { border-left-color: var(--text-muted); }
+/* Строка визита, из которой можно провалиться в саму запись в расписании
+   (21.08.2026). Отдельной кнопки «открыть» нет намеренно - кликается вся строка,
+   поэтому ей нужны курсор и отклик на наведение, иначе кликабельность не видна */
+.client-visit--openable { cursor: pointer; border-radius: 0 8px 8px 0; transition: background 0.15s ease; }
+.client-visit--openable:hover { background: rgba(216, 184, 124, 0.08); }
+.client-visit--openable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Свёрнутый комментарий внутри - своё действие («Показать целиком»), рука над ним
+   не должна обещать переход в расписание */
+.client-visit--openable .client-visit-comment { cursor: auto; }
 .client-visit-status {
   padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; white-space: nowrap;
 }

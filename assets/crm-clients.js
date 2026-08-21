@@ -26,6 +26,12 @@ import { CLIENT_SOURCE_LABELS } from './client-source.js';
 // страницы он уже отработал, а карточек клиентов тогда ещё не было ни одной, и
 // кнопка просто не создавалась (нашёл Влад на проде 21.08.2026)
 import { initCrmNavigationPanels } from './crm-navigation-panels.js';
+// Связь с клиентом и переход в запись - тот же механизм, что в разделе «Уведомления»
+// (assets/crm-notifications.js): один набор кнопок WhatsApp/Telegram/СМС/Позвонить и
+// один путь «раздел Расписание → День на дату записи → карточка → её обработчик».
+// Задача Влада 21.08.2026: из истории клиента проваливаться в саму запись, а кнопки
+// связи держать рядом с «Записать снова», как в уведомлениях.
+import { messengerLinks, clientMessageText, openBookingFromNotification } from './crm-notifications.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -299,6 +305,14 @@ function commentMarkup(text) {
 // расписании, и второй словарь цветов означал бы, что их надо учить заново
 const STATUS_MOD = { planned: 'planned', done: 'done', cancelled: 'cancelled', no_show: 'noshow' };
 
+// Отменённой записи в расписании нет как карточки (buildCancelledCard,
+// assets/crm-calendar.js рисует её приглушённой и некликабельной, без data-id) -
+// значит и провалиться в неё некуда. Такую строку истории оставляем обычным текстом
+// с честной подсказкой, а не кнопкой, которая не сработает.
+function isOpenableVisit(v) {
+  return Boolean(v?.id && v?.date && v.status !== 'cancelled');
+}
+
 function visitMarkup(v) {
   const services = v.services.map((s) => escapeHtml(s.name)).join(', ') || '—';
   const statusMod = STATUS_MOD[v.status] ?? 'planned';
@@ -307,7 +321,16 @@ function visitMarkup(v) {
   // (или уже) не являются, и цифра рядом с ними читалась бы как выручка, которой нет.
   const sum = v.status === 'done' && v.price != null ? `<span class="client-visit-sum">${formatMoney(v.price)}</span>` : '';
   const comment = commentMarkup(v.staffComment);
-  return `<div class="client-visit client-visit--${statusMod}">
+  // Вся строка визита - одна кнопка перехода в расписание. Не отдельная иконка
+  // «открыть»: в истории десяток строк, и ряд иконок справа читался бы как ещё один
+  // столбец данных. Роль/tabindex/aria - чтобы с клавиатуры работало так же, как мышью.
+  const openable = isOpenableVisit(v);
+  const openAttrs = openable
+    ? ` role="button" tabindex="0" data-visit-id="${escapeHtml(v.id)}" data-visit-date="${escapeHtml(v.date)}" title="Открыть эту запись в расписании" aria-label="Открыть запись ${escapeHtml(formatVisitDate(v.date))} ${escapeHtml(v.startTime)} в расписании"`
+    : ' title="Отменённой записи в расписании нет"';
+  const openClass = openable ? ' client-visit--openable' : '';
+
+  return `<div class="client-visit client-visit--${statusMod}${openClass}"${openAttrs}>
     <div class="client-visit-head">
       <span class="client-visit-date">${formatVisitDate(v.date)} ${escapeHtml(v.startTime)}</span>
       ${status}
@@ -316,6 +339,48 @@ function visitMarkup(v) {
     </div>
     ${comment}
   </div>`;
+}
+
+// Ближайшая ПРЕДСТОЯЩАЯ запись клиента. visits приходят отсортированными по дате вниз
+// (getClientCard, api/routes/clients.js), поэтому ближайшая к сегодня - последняя из
+// запланированных. Прошедшие «ожидается» (статус не проставили) в текст напоминания не
+// берём: писать «ждём вас» про позавчера нельзя.
+function nextPlannedVisit(visits) {
+  const today = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10); // сутки барбершопа, МСК
+  const planned = (visits ?? []).filter((v) => v.status === 'planned' && v.date >= today);
+  return planned.length ? planned[planned.length - 1] : null;
+}
+
+// Клик по строке визита - переход в саму запись. Делегируем на теле карточки, а не
+// вешаем обработчик на каждую строку: строк в истории десятки, а карточек в разделе
+// сотни. Клики внутри свёрнутого комментария («Показать целиком») и по кнопкам
+// пропускаем - там своё действие.
+function wireVisitOpen(root) {
+  const openFrom = async (row) => {
+    if (!row || row.dataset.opening === '1') return;
+    row.dataset.opening = '1';
+    try {
+      const opened = await openBookingFromNotification({ id: row.dataset.visitId, date: row.dataset.visitDate });
+      // false - записи нет на том дне (например, её уже перенесли в другой день из
+      // другой вкладки). Молчать нельзя: человек нажал и ничего не увидел бы.
+      if (!opened) showError('Не удалось открыть запись в расписании - обновите страницу');
+    } catch (err) {
+      showError(errorMessage(err, 'Не удалось открыть запись в расписании'));
+    } finally {
+      delete row.dataset.opening;
+    }
+  };
+  root.addEventListener('click', (e) => {
+    if (e.target.closest('.client-visit-comment, button, a')) return;
+    openFrom(e.target.closest('.client-visit--openable'));
+  });
+  root.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const row = e.target.closest('.client-visit--openable');
+    if (!row || e.target.closest('.client-visit-comment, button, a')) return;
+    e.preventDefault();
+    openFrom(row);
+  });
 }
 
 // «Развернуть все» раскрывает разом ВСЕ карточки, а каждая тянет свою историю - на
@@ -355,14 +420,35 @@ async function fetchClientHistory(details, body) {
       ? card.visits.map(visitMarkup).join('')
       : '<p class="payroll-note">Визитов пока не было</p>';
     const actions = [];
-    if (card.phone) actions.push(`<a class="btn btn-ghost btn-sm" href="tel:${escapeHtml(card.phone)}">Позвонить</a>`);
     // «Записать снова» - та же кнопка и тот же контракт, что в карточке из списка
     // «стоит позвонить» (openClientCard выше): мастер и услуги берутся с последнего
     // визита, дата и время выбираются заново на актуальной доступности.
     if (card.lastVisit && typeof window.openRebookBooking === 'function') {
       actions.push('<button class="btn btn-primary btn-sm" type="button" data-rebook>Записать снова</button>');
     }
+    // Кнопки связи - ровно те же четыре, что в разделе «Уведомления»: сотрудник уже
+    // знает этот ряд и не должен учить второй. Прежняя одинокая «Позвонить» здесь
+    // была частным случаем этого набора и заменена им целиком.
+    //
+    // Текст подставляем только когда есть, о чём писать: у клиента с ближайшей
+    // запланированной записью это напоминание о ней, у остальных - пустой чат, а не
+    // выдуманное приглашение от лица барбершопа.
+    const upcoming = nextPlannedVisit(card.visits);
+    const messageText = upcoming
+      ? clientMessageText({
+        clientName: card.name,
+        date: upcoming.date,
+        startTime: upcoming.startTime,
+        masterName: upcoming.masterName,
+        serviceNames: upcoming.services.map((sv) => sv.name).join(', '),
+        status: upcoming.status,
+      })
+      : '';
+    messengerLinks(card.phone, messageText).forEach((l) => {
+      actions.push(`<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.href)}" target="_blank" rel="noopener noreferrer" data-msg-link="${l.key}">${l.label}</a>`);
+    });
     body.innerHTML = `${visits}<div class="client-card-actions">${actions.join('')}</div>`;
+    wireVisitOpen(body);
     const rebookBtn = body.querySelector('[data-rebook]');
     if (rebookBtn) {
       rebookBtn.addEventListener('click', () => {

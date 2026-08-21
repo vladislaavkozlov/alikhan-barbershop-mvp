@@ -154,14 +154,19 @@ export function clientMessageText(booking) {
 export function messengerLinks(phone, text) {
   const digits = phoneDigits(phone);
   if (!digits) return [];
-  const encoded = encodeURIComponent(text);
+  // Текста может не быть вовсе: в разделе «Клиенты» кнопки связи висят на человеке, а
+  // не на конкретной записи, и когда ближайшей записи нет - сочинять за сотрудника
+  // сообщение не из чего. Тогда открываем просто чат/набор номера, без подстановки:
+  // пустой ?text= оставил бы в WhatsApp пустую строку ввода с висящим параметром.
+  const encoded = encodeURIComponent(text ?? '');
+  const withText = (base) => (encoded ? `${base}${base.includes('?') ? '&' : '?'}text=${encoded}` : base);
   return [
-    { key: 'whatsapp', label: 'WhatsApp', href: `https://wa.me/${digits}?text=${encoded}` },
+    { key: 'whatsapp', label: 'WhatsApp', href: withText(`https://wa.me/${digits}`) },
     // tg://resolve открывает установленное приложение Telegram. Веб-ссылки на чат по
     // номеру у Telegram не существует - t.me/<номер> ведёт в пустоту, поэтому её здесь
     // нет: лучше кнопка, которая открывает приложение, чем кнопка в никуда.
     { key: 'telegram', label: 'Telegram', href: `tg://resolve?phone=${digits}` },
-    { key: 'sms', label: 'СМС', href: `sms:+${digits}?&body=${encoded}` },
+    { key: 'sms', label: 'СМС', href: encoded ? `sms:+${digits}?&body=${encoded}` : `sms:+${digits}` },
     { key: 'call', label: 'Позвонить', href: `tel:+${digits}` },
   ];
 }
@@ -169,19 +174,49 @@ export function messengerLinks(phone, text) {
 // Провалиться из уведомления в саму запись. Календарь листается по дате, поэтому идём
 // так: раздел «Расписание» → вид «День» на дату записи → карточка .appt[data-id] →
 // её штатный обработчик (тот же, что срабатывает на клик мышью).
-async function openBookingFromNotification(booking) {
+//
+// Экспортирован 21.08.2026: тем же переходом пользуется история визитов в разделе
+// «Клиенты» (assets/crm-clients.js) - «в каждой записи должна быть возможность
+// провалиться в эту запись в расписании». Двух реализаций одного перехода не заводим:
+// путь «раздел → день → карточка → её обработчик» один на всю CRM.
+export async function openBookingFromNotification(booking) {
   if (!booking?.date) return false;
   goToSection('schedule'); // на страницах без оболочки (admin/master) безопасно ничего не делает
-  try {
-    await window.__openScheduleDay?.(booking.date);
-  } catch {
-    // день не загрузился - ниже карточки не найдём и честно вернём false
+  // Вход в «Расписание» сам поднимает карточку «День» и грузит СЕГОДНЯШНИЙ день
+  // (raiseDayOnEnter, assets/crm-schedule-views.js). Наш переход на дату записи стартует
+  // одновременно с ним, и когда запись не на сегодня, ответ «сегодня» может прийти
+  // последним и затереть нужный день - карточки на экране не окажется. Гонка видна по
+  // коду (raiseDayOnEnter не знает про наш переход) и зависит от того, чей ответ придёт
+  // вторым, поэтому не один вызов, а несколько попыток с проверкой результата: живёт
+  // она ровно до первой отрисовки, дальше открытие дня стабильно.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      await window.__openScheduleDay?.(booking.date);
+    } catch {
+      // день не загрузился - карточки не найдём, пробуем ещё раз, потом вернём false
+    }
+    const card = await waitForBookingCard(booking.id);
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      (window.openBookingEdit || window.openBooking)?.(card);
+      return true;
+    }
   }
-  const card = document.querySelector(`.appt[data-id="${CSS.escape(booking.id)}"]`);
-  if (!card) return false;
-  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  (window.openBookingEdit || window.openBooking)?.(card);
-  return true;
+  return false;
+}
+
+// Карточка появляется не в тот же тик, что ответ сервера: день перерисовывается целиком.
+// Ждём её короткими интервалами, а не одним фиксированным таймаутом - на быстрой сети
+// переход остаётся мгновенным.
+async function waitForBookingCard(id, timeoutMs = 1200) {
+  const selector = `.appt[data-id="${CSS.escape(String(id))}"]`;
+  const deadline = Date.now() + timeoutMs;
+  let card = document.querySelector(selector);
+  while (!card && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
+    card = document.querySelector(selector);
+  }
+  return card;
 }
 
 function bookingSummaryHtml(booking, type) {
