@@ -21,6 +21,11 @@ import { showSkeleton, showSpinner } from './crm-loading.js';
 // Подписи каналов («Яндекс Карты», «2ГИС», …) для строки «откуда пришёл» в разделе
 // «Клиенты» - один словарь на весь проект, см. assets/client-source.js
 import { CLIENT_SOURCE_LABELS } from './client-source.js';
+// Кнопка «Развернуть все» над списком карточек - общий механизм разделов владельца
+// (assets/crm-navigation-panels.js). Зовём его ПОСЛЕ отрисовки списка: на загрузке
+// страницы он уже отработал, а карточек клиентов тогда ещё не было ни одной, и
+// кнопка просто не создавалась (нашёл Влад на проде 21.08.2026)
+import { initCrmNavigationPanels } from './crm-navigation-panels.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -289,11 +294,37 @@ function visitMarkup(v) {
   </div>`;
 }
 
-async function loadClientHistory(details) {
+// «Развернуть все» раскрывает разом ВСЕ карточки, а каждая тянет свою историю - на
+// живой базе это сотня одновременных запросов, от которых сервер начнёт отвечать
+// отказами, и человек увидит вместо истории красные строки. Поэтому грузим по
+// очереди, не больше четырёх одновременно: раскрытие остаётся мгновенным (карточка
+// открывается сразу, история дорисовывается по мере готовности), а поток запросов
+// остаётся посильным.
+const MAX_PARALLEL_HISTORY = 4;
+let running = 0;
+const queue = [];
+
+function pump() {
+  while (running < MAX_PARALLEL_HISTORY && queue.length > 0) {
+    const job = queue.shift();
+    running += 1;
+    job().finally(() => {
+      running -= 1;
+      pump();
+    });
+  }
+}
+
+function loadClientHistory(details) {
   const body = details.querySelector('[data-client-body]');
   if (!body || details.dataset.loaded === '1') return;
   details.dataset.loaded = '1';
   showSkeleton(body, 3);
+  queue.push(() => fetchClientHistory(details, body));
+  pump();
+}
+
+async function fetchClientHistory(details, body) {
   try {
     const card = await fetchJson(`/clients/${encodeURIComponent(details.dataset.clientId)}`);
     const visits = card.visits.length
@@ -358,6 +389,9 @@ function paintClients() {
       if (details.open) loadClientHistory(details);
     });
   });
+  // Кнопка появляется только когда в списке реально есть карточки - у пустого списка
+  // и у «никого не нашли» разворачивать нечего
+  initCrmNavigationPanels();
 }
 
 // Раздел уже открывали хоть раз в этой сессии. От этого зависит, делает ли что-то

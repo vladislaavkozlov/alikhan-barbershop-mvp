@@ -163,6 +163,26 @@ try {
         const foundByName = JSON.parse(await s.eval(`JSON.stringify([...document.querySelectorAll('#clientsList .client-card .name')].map(e => e.textContent.trim()))`));
         check('поиск по части имени работает без учёта регистра', foundByName.length === 1 && foundByName[0] === 'QA Пётр Первый', JSON.stringify(foundByName));
 
+        // 5.5 Кнопка «Развернуть все» - как в остальных разделах владельца (правка
+        // Влада 21.08.2026 по проду: кнопки не было, потому что общий механизм
+        // отрабатывал раньше, чем приходил список). Проверяем не наличие узла, а
+        // работу: раскрывает ВСЕ карточки и подтягивает историю каждой
+        await s.eval(`(function(){ const i = document.getElementById('clientsSearch'); i.value = ''; i.dispatchEvent(new Event('input')); })()`);
+        await sleep(300);
+        const toggleLabel = norm(await s.eval(`document.querySelector('#clientsList')?.previousElementSibling?.innerText || ''`));
+        check('над списком клиентов есть кнопка «Развернуть все»', toggleLabel.includes('Развернуть все'), toggleLabel || 'кнопки нет');
+        await s.eval(`document.querySelector('.panel-f .panel-group-toggle')?.click()`);
+        for (let i = 0; i < 60 && JSON.parse(await s.eval(`JSON.stringify(document.querySelectorAll('#clientsList .client-card[open]').length)`)) < 2; i++) await sleep(200);
+        const openedCards = JSON.parse(await s.eval(`JSON.stringify(document.querySelectorAll('#clientsList .client-card[open]').length)`));
+        check('«Развернуть все» раскрывает все карточки клиентов сразу', openedCards === 2, `раскрыто ${openedCards} из 2`);
+        for (let i = 0; i < 60 && JSON.parse(await s.eval(`JSON.stringify(document.querySelectorAll('#clientsList .client-card[open] .crm-skeleton').length)`)) > 0; i++) await sleep(200);
+        const historiesLoaded = JSON.parse(await s.eval(`JSON.stringify([...document.querySelectorAll('#clientsList .client-card[open] [data-client-body]')].filter(b => b.innerText.trim().length > 0).length)`));
+        check('история подтянулась в каждой раскрытой карточке, без пустых и красных', historiesLoaded === 2, `историй ${historiesLoaded} из 2`);
+        const labelAfter = norm(await s.eval(`document.querySelector('.panel-f .panel-group-toggle')?.innerText || ''`));
+        check('кнопка переключилась в «Свернуть все»', labelAfter.includes('Свернуть все'), labelAfter);
+        await s.eval(`document.querySelector('.panel-f .panel-group-toggle')?.click()`);
+        await sleep(300);
+
         // 6. ГЛАВНЫЙ ВОПРОС ВЛАДА 21.08.2026: «а если оплату в записи поставили
         // неверно, а потом переключили визит на красный (неявка) - цифры в Финансах и
         // в карточке клиента исправятся?». Проверяем не рассуждением, а деньгами на
