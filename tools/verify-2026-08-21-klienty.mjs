@@ -109,7 +109,13 @@ try {
     check('"откуда пришёл" - канал первой брони', c1?.source === 'yandex_maps', String(c1?.source));
     check('неявка визитом-за-деньги не считается, но клиента из базы не убирает', c2?.visitsCount === 0 && c2?.revenue === 0, JSON.stringify(c2));
     check('клиента без телефона (walk-in) в базе нет', list.every((c) => c.name !== 'QA Безымянный'), JSON.stringify(list.map((c) => c.name)));
-    check('комментарий виден в списке (последний по времени)', c1?.commentsCount === 1 && c1?.lastComment?.length === 3000, `${c1?.commentsCount} / ${c1?.lastComment?.length}`);
+    // 21.08.2026 (жалоба Влада «клиенты очень долго грузятся»): в списке приходит
+    // только НАЧАЛО комментария. Замер на 3000 клиентах: с полным текстом ответ весил
+    // 9,3 МБ и шёл 185 мс, с обрезкой - 1,08 МБ и 70 мс. Целиком комментарий отдаёт
+    // карточка клиента, по одному человеку за раз
+    check('в списке приходит начало комментария, а не весь текст', c1?.commentsCount === 1 && c1?.lastComment?.length === 120, `${c1?.commentsCount} / ${c1?.lastComment?.length}`);
+    const heavy = JSON.stringify(list).length;
+    check('ответ списка не раздут комментариями', heavy < 4000, `${heavy} байт на ${list.length} клиентов`);
 
     // ── Живой браузер ─────────────────────────────────────────────────────────
     await withStaticServer(apiUrl, async (siteUrl) => {

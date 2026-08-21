@@ -321,7 +321,12 @@ export async function listAllClients(client) {
        ORDER BY client_id, date ASC, start_time ASC
      ),
      last_comment AS (
-       SELECT DISTINCT ON (client_id) client_id, staff_comment, date
+       -- ТОЛЬКО НАЧАЛО текста, не весь комментарий (21.08.2026, Влад: «клиенты очень
+       -- долго грузятся»). Замер на 3000 клиентах: сам запрос 150-185 мс, а ответ
+       -- весил 9,3 МБ - полный комментарий до 3000 знаков на КАЖДОГО клиента, при том
+       -- что список его даже не показывает. Целиком комментарий приходит там, где он
+       -- нужен - в карточке клиента (GET /clients/:id), по одному человеку за раз
+       SELECT DISTINCT ON (client_id) client_id, left(staff_comment, 120) AS staff_comment, date
        FROM visit WHERE staff_comment IS NOT NULL
        ORDER BY client_id, date DESC, start_time DESC
      )
@@ -351,6 +356,7 @@ export async function listAllClients(client) {
     lastVisitDate: asDate(r.last_visit_date),
     source: r.source ?? null,
     commentsCount: Number(r.comments_count),
+    // Начало последнего комментария (до 120 знаков), не весь текст - см. CTE выше
     lastComment: r.last_comment ?? null,
     noShowStreak: r.no_show_streak,
     risk: describeClientRisk(r.no_show_streak),

@@ -101,3 +101,44 @@ export function defaultPctFor(_staff) {
 export function payrollStaff(staffList) {
   return (staffList ?? []).filter((s) => s?.providesServices);
 }
+
+// ── Просыпающийся сервер (21.08.2026, Влад: «жму войти - не заходит, обновил
+// несколько раз и тогда зашло»; «клиенты очень долго грузятся») ────────────────
+// Бэкенд на Amvera периодически уходит в спячку и первый запрос после простоя либо
+// висит десятки секунд, либо обрывается совсем: замер 21.08.2026 - обычный ответ
+// 170 мс, но в одном окне 17 000 мс, в другом полный обрыв по таймауту. Для человека
+// это выглядело как «CRM не пускает», хотя ни пароль, ни код ни при чём - помогало
+// именно повторное нажатие, то есть повторный запрос.
+//
+// Поэтому повтор делает сама система, а не человек. Повторяем ТОЛЬКО то, что
+// безопасно повторить: обрыв сети (запрос не дошёл) и ответы «сервер временно
+// недоступен» (502/503/504). Ответ 4xx - осмысленный отказ сервера (неверный PIN,
+// нет прав), его повторять бессмысленно и вредно: три попытки подряд с неверным
+// PIN выглядят в логах как подбор пароля.
+const WAKEUP_STATUSES = new Set([502, 503, 504]);
+
+export async function fetchWithWakeup(url, init, options = {}) {
+  const {
+    attempts = 3,
+    onWait = null,
+    fetchImpl = typeof fetch === 'function' ? fetch : null,
+    sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+    // Пауза растёт: 1.5 с, потом 4 с. Холодный старт контейнера занимает секунды,
+    // и три попытки подряд без пауз просто потратили бы их впустую
+    delays = [1500, 4000],
+  } = options;
+  let lastError = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const isLast = attempt === attempts - 1;
+    try {
+      const res = await fetchImpl(url, init);
+      if (!WAKEUP_STATUSES.has(res.status) || isLast) return res;
+    } catch (err) {
+      lastError = err;
+      if (isLast) throw err;
+    }
+    onWait?.(attempt + 1);
+    await sleep(delays[Math.min(attempt, delays.length - 1)]);
+  }
+  throw lastError ?? new Error('unreachable');
+}

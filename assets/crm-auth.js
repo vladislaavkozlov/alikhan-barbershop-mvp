@@ -4,7 +4,7 @@
 // admin.html, сессия подхватится и здесь без повторного входа.
 import { getMasters, getServices } from '../storage.js';
 import { wireNotifications } from './crm-notifications.js';
-import { el } from './crm-shared.js';
+import { el, fetchWithWakeup } from './crm-shared.js';
 import { describeError, markSessionActive, markSessionEnded, showError } from './crm-toast.js';
 import { hidePageLoader, showPageLoader } from './crm-loading.js';
 import { refreshRoleSnapshot, renderLiveProof } from './crm-dashboard.js';
@@ -62,11 +62,24 @@ function buildLoginGate() {
 }
 
 async function apiLogin(email, pin) {
-  const res = await fetch(`${API}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, pin }),
-  });
+  // Повтор на спящем сервере (21.08.2026) - вместе с честной подписью под кнопкой:
+  // человек должен видеть, что система ЖДЁТ сервер, а не молча игнорирует его нажатие
+  const res = await fetchWithWakeup(
+    `${API}/auth/login`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, pin }),
+    },
+    {
+      onWait: () => {
+        const hint = el('loginError');
+        if (!hint) return;
+        hint.hidden = false;
+        hint.textContent = 'Сервер просыпается, подождите несколько секунд…';
+      },
+    }
+  );
   // Раньше любой отказ на входе объяснялся «Неверный email или PIN» - и лежащий
   // сервер, и пропавшая сеть выглядели как ошибка в наборе PIN. Теперь причина
   // берётся из ответа: 401 так и останется про email и PIN, 503 скажет про сервер
@@ -93,7 +106,10 @@ async function requestError(res, path) {
 }
 
 export async function fetchJson(path) {
-  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+  // GET безопасно повторять - он ничего не меняет. Для POST/PUT/DELETE (apiSend ниже)
+  // повтор НЕ делаем: запрос мог дойти до сервера и выполниться, а обрыв случиться на
+  // обратном пути - повтор завёл бы вторую бронь на того же человека
+  const res = await fetchWithWakeup(`${API}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
   if (!res.ok) throw await requestError(res, path);
   return res.json();
 }
