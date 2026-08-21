@@ -158,3 +158,22 @@ test('разметка: имя клиента и мастера экраниру
   assert.doesNotMatch(html, /<img src=x/);
   assert.match(html, /&lt;img src=x/);
 });
+
+test('разметка: плашка загрузки не берёт общий класс .is-busy (он занят спиннером)', () => {
+  // .is-busy в assets/crm-loading.css - состояние "ждём сервер": color: transparent
+  // !important плюс крутящийся ::after. Совпадение имён давало золотой овал со
+  // спиннером вместо "10% · 1" (замер живьём 21.08.2026, color rgba(0,0,0,0)).
+  const model = buildMatrixModel({
+    masters: [MASTERS[0]],
+    from: '2026-08-17',
+    to: '2026-08-17',
+    schedulesByMasterId: new Map([['m1', [workDay('2026-08-17')]]]),
+    weeklyByMasterId: new Map(),
+    bookings: [{ masterId: 'm1', date: '2026-08-17', startTime: '11:00', endTime: '12:00', status: 'planned' }],
+    holidayMap: new Map(),
+    today: '2026-08-01',
+  });
+  const html = matrixHtml(model);
+  assert.match(html, /class="sm-cell-load sm-cell-load--busy"/);
+  assert.doesNotMatch(html, /class="[^"]*\bis-busy\b/);
+});

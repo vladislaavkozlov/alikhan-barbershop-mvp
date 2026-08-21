@@ -974,10 +974,10 @@ body.app-shell-active #crmMain {
 
 .sched-matrix {
   --sm-name-w: 148px;
-  --sm-col-w: 96px;
+  --sm-col-w: 104px;
   display: grid;
   grid-template-columns: var(--sm-name-w) repeat(var(--sm-cols, 7), var(--sm-col-w));
-  gap: 4px;
+  gap: 6px;
   /* max-content, иначе grid ужмётся в ширину экрана и колонки месяца схлопнутся в
      нечитаемые полоски вместо честного горизонтального скролла */
   width: max-content;
@@ -1013,15 +1013,19 @@ body.app-shell-active #crmMain {
   white-space: nowrap;
 }
 
+/* Шапка даты повторяет шапку колонки мастера в "Дне" (.schedule-col-head): по центру,
+   в столбик, с тонкой линией снизу */
 .sm-head {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 1px;
-  padding: 6px 2px;
+  padding: 6px 2px 7px;
+  margin-bottom: 2px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
   background: transparent;
   color: var(--text-muted);
   font-family: inherit;
@@ -1042,38 +1046,79 @@ body.app-shell-active #crmMain {
 /* Ячейка. Носителей смысла три и они независимы: часы смены (текст), статус дня
    (фон/полоса слева: обычный / разовая правка / выходной) и загрузка (% + число
    записей). Цвет - не единственный носитель: у каждой ячейки есть title словами. */
+/* Ячейка - это тот же "трек" мастера из вида "День" (.schedule-track,
+   assets/mockup-crm.css), просто размером в один день: те же 10px радиуса, та же
+   рамка и тот же фон. Правка 21.08.2026 по просьбе Влада - Неделя и Месяц должны
+   выглядеть продолжением "Дня", а не отдельным разделом с собственным языком. */
 .sm-cell {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 2px;
-  min-height: 58px;
-  padding: 6px 7px;
+  gap: 3px;
+  min-height: 62px;
+  padding: 7px 8px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-left-width: 4px;
+  border-left-color: transparent;
+  border-radius: 10px;
   background: var(--surface-2);
   color: var(--text);
   font-family: inherit;
   text-align: left;
   overflow: hidden;
 }
-button.sm-cell { cursor: pointer; transition: border-color 160ms var(--ease-out); }
-.sm-cell-hours { font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
+/* Подъём и тень на hover - ровно как у карточки записи в "Дне" (.appt:hover) */
+button.sm-cell {
+  cursor: pointer;
+  transition: transform 140ms var(--ease-out), box-shadow 140ms var(--ease-out), border-color 140ms var(--ease-out);
+}
+.sm-cell-hours { font-size: 0.74rem; font-weight: 700; white-space: nowrap; }
 .sm-cell-break { font-size: 0.6rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Загрузка занятого дня - плашка в цвете "ожидается" из "Дня" (.appt--new: заливка
+   #F3DCAB, тёмный текст, радиус 7px). Пустой день остаётся тихой серой строкой -
+   занятое обязано быть заметнее пустого */
 .sm-cell-load { font-size: 0.64rem; color: var(--text-muted); white-space: nowrap; }
+.sm-cell-load--busy {
+  align-self: flex-start;
+  background: #F3DCAB;
+  color: #241b08;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-weight: 600;
+}
 .sm-cell-pct { color: var(--accent); font-weight: 700; }
-.sm-cell-off { font-size: 0.68rem; color: var(--text-muted); font-style: italic; }
-.sm-cell--off { background: rgba(193, 85, 74, 0.08); border-style: dashed; }
-/* Разовая правка на дату - золотая полоса слева, тот же смысл, что у точки
-   .day-dot--edit в легенде под навигацией */
-.sm-cell--edit { border-left: 3px solid var(--accent); }
-.sm-cell.is-missing { background: transparent; border-style: dashed; }
+.sm-cell-load--busy .sm-cell-pct { color: inherit; }
+.sm-cell-off { font-size: 0.7rem; color: var(--text-muted); font-style: italic; }
+/* Выходной - та же диагональная штриховка на затемнённом фоне, что у колонки выходного
+   в "Дне" (.schedule-track.day-off). Пустое состояние тише занятого - это уже решённый
+   в проекте вопрос (правка 13.08.2026), матрица не заводит своего ответа */
+.sm-cell--off {
+  background-color: var(--panel-bg-collapsed);
+  background-image: repeating-linear-gradient(135deg, var(--panel-bg-light) 0 10px, transparent 10px 20px);
+  align-items: center;
+  justify-content: center;
+}
+/* Разовая правка на дату - золотая полоса слева шириной 4px, ровно как маркер статуса
+   у карточки записи в "Дне" (.appt--status-planned и соседи) */
+.sm-cell--edit { border-left-color: var(--accent); }
+/* Мастер без графика на эту дату - сплошной приглушённый фон и слова, без штриховки:
+   в "Дне" это отдельное состояние (.schedule-track.no-schedule), и путать его с
+   выходным нельзя (Окно 43) */
+.sm-cell.is-missing {
+  background: var(--surface-3);
+  align-items: center;
+  justify-content: center;
+}
 .sm-cell.is-today { box-shadow: inset 0 0 0 1px rgba(216, 184, 124, 0.45); }
 /* Hover только для мыши: на телефоне :hover залипает на последней тронутой ячейке и
    та стоит с золотой рамкой, будто выбрана (тот же разбор - .week-day-cell в
    mockup-crm.css, 16.08.2026) */
 @media (hover: hover) {
-  button.sm-cell:hover { border-color: var(--accent); }
+  button.sm-cell:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.5);
+  }
 }
 
 /* ── лента месяцев (#monthStrip) ─────────────────────────────────────────── */
@@ -1220,5 +1265,8 @@ button.sm-cell { cursor: pointer; transition: border-color 160ms var(--ease-out)
   border: 1px solid var(--border); background: var(--surface-2);
   margin-right: 5px; vertical-align: -2px; flex: none;
 }
-.sm-legend-chip--edit { border-left: 3px solid var(--accent); }
-.sm-legend-chip--off { border-style: dashed; background: rgba(193, 85, 74, 0.08); }
+.sm-legend-chip--edit { border-left: 4px solid var(--accent); }
+.sm-legend-chip--off {
+  background-color: var(--panel-bg-collapsed);
+  background-image: repeating-linear-gradient(135deg, var(--panel-bg-light) 0 5px, transparent 5px 10px);
+}

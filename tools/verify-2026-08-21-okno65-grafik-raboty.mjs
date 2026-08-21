@@ -191,6 +191,22 @@ try {
         const afterJump = norm(await s.eval(`document.getElementById('scheduleAnchor-month')?.textContent`));
         check('лента месяцев: тап по месяцу переводит график на него', afterJump.length > 0 && !afterJump.includes(String(new Date().getDate())), afterJump);
 
+        // Крупный план занятой ячейки - плашка загрузки должна ЧИТАТЬСЯ, а не быть
+        // золотым овалом (проверка глазами, автоматика такое не ловит)
+        const busyBox = JSON.parse(await s.eval(`JSON.stringify((function(){
+          const cell = document.querySelector('#weekGrid .sm-cell[data-master-id="w65-m2"][data-date="${TODAY}"]');
+          const load = cell.querySelector('.sm-cell-load');
+          const r = cell.getBoundingClientRect();
+          const lr = load.getBoundingClientRect();
+          const cs = getComputedStyle(load);
+          // clip в Page.captureScreenshot - координаты ДОКУМЕНТА, не вьюпорта: без
+          // прибавки скролла кадр уезжает в пустое место (проверено 21.08.2026)
+          return { text: load.innerText, cellW: Math.round(r.width), loadW: Math.round(lr.width), loadH: Math.round(lr.height), color: cs.color, bg: cs.backgroundColor, x: Math.round(r.x + window.scrollX), y: Math.round(r.y + window.scrollY) };
+        })())`));
+        console.log('  крупный план ячейки:', JSON.stringify(busyBox));
+        await s.send('Page.captureScreenshot', { format: 'png', clip: { x: busyBox.x - 10, y: busyBox.y - 30, width: 260, height: 130, scale: 4 } })
+          .then(async (res) => { const fs = await import('node:fs'); fs.writeFileSync('/tmp/okno65-cell-zoom.png', Buffer.from(res.data, 'base64')); });
+
         // Снимки для глаз (проверка автоматикой - не замена живому взгляду)
         await s.eval(`document.getElementById('scheduleCard-month')?.scrollIntoView({block:'start'})`);
         await sleep(500);
