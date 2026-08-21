@@ -37,6 +37,13 @@ test('«сервер временно недоступен» (503) повтор�
   assert.equal(fake.calls.length, 2);
 });
 
+test('«слишком много запросов» (429) повторяется - это защита хостинга, а не отказ по существу', async () => {
+  const fake = fakeFetch([{ status: 429 }, { status: 200 }]);
+  const res = await fetchWithWakeup('/x', {}, { fetchImpl: fake.impl, sleep: noSleep });
+  assert.equal(res.status, 200);
+  assert.equal(fake.calls.length, 2);
+});
+
 test('неверный PIN (401) НЕ повторяется - это осмысленный отказ, а не спящий сервер', async () => {
   const fake = fakeFetch([{ status: 401 }, { status: 200 }]);
   const res = await fetchWithWakeup('/auth/login', {}, { fetchImpl: fake.impl, sleep: noSleep });
