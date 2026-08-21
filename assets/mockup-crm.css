@@ -54,6 +54,18 @@
      Насыщенность плавно убывает с ростом светлоты (38%→25%): глубина в тенях,
      спокойствие в светлых поверхностях - иначе светлые уровни «кислят». */
   --panel-bg-collapsed: #202821;
+  /* Дорожка расписания (21.08.2026). Фон рабочей дорожки, выходного и "нет графика"
+     раньше жил литералами в двух местах - в .schedule-track здесь и в переопределении
+     светлой темы (assets/crm-theme-daylight.css). Пока это был один компонент, дублей
+     не было; с появлением графика работы (матрица Недели/Месяца, assets/crm-schedule-matrix.js)
+     тех же трёх состояний их стало два, и в светлой теме они разошлись - замер живьём
+     показал у ячейки #F7F3E9 против #FFFDF7 у дорожки "Дня" (жалоба Влада «цвет фона
+     карточек как фон в дне»). Теперь цвет один, а тема переопределяет ЕГО, а не каждое
+     место по отдельности. */
+  --track-bg: var(--surface-2);
+  --track-off-bg: var(--panel-bg-collapsed);
+  --track-off-stripe: var(--panel-bg-light);
+  --track-none-bg: var(--surface-3);
   --panel-bg-light: #242d27;
   --panel-bg: #2c362f;
 
@@ -586,7 +598,7 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .schedule-track {
   position: relative; border: 1px solid var(--border); border-radius: 10px;
   background-image: linear-gradient(var(--border) 1px, transparent 1px);
-  background-size: 100% 64px; background-color: var(--surface-2);
+  background-size: 100% 64px; background-color: var(--track-bg);
   /* Правка Влада 07.08.2026 - зафиксировано (было min-height): страница "прыгала"
      по высоте между выходным/пустым/заполненным днём. 640px = ровно 10 часовых
      слотов (10:00-20:00 × 64px), рабочее окно точки не меняется */
@@ -599,8 +611,8 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
    Теперь колонка выходного темнее рабочей (panel-bg-collapsed, 9%), а полосы
    едва светлее её самой - фактура читается, но внимание не тянет. */
 .schedule-track.day-off {
-  background-color: var(--panel-bg-collapsed);
-  background-image: repeating-linear-gradient(135deg, var(--panel-bg-light) 0 10px, transparent 10px 20px);
+  background-color: var(--track-off-bg);
+  background-image: repeating-linear-gradient(135deg, var(--track-off-stripe) 0 10px, transparent 10px 20px);
   display: flex; align-items: center; justify-content: center;
 }
 .day-off-label { color: var(--text-muted); font-size: 0.82rem; font-style: italic; }
@@ -609,7 +621,7 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
    Сплошной приглушённый фон вместо диагональной штриховки .day-off - штриховка уже
    занята значением "выходной", одинаковый вид перепутал бы два разных состояния. */
 .schedule-track.no-schedule {
-  background-image: none; background-color: var(--surface-3);
+  background-image: none; background-color: var(--track-none-bg);
   display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 16px;
 }
 .hour-gutter { width: 44px; flex-shrink: 0; }

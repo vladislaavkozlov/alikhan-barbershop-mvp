@@ -15,7 +15,7 @@
 // им нужно, через ctx (см. CLAUDE.md, "assets/crm-schedule-views.js" был крупнейшим
 // фронтенд-файлом проекта на момент аудита).
 import { mastersOf, upsertDayBooking } from './crm-calendar.js';
-import { viewAnchorLabel, YEAR_PANEL_YEAR } from './crm-schedule-shared.js';
+import { viewAnchorLabel, YEAR_PANEL_YEAR, mondayOf } from './crm-schedule-shared.js';
 import { wireDayView } from './crm-schedule-view-day.js';
 import { wireWeekView } from './crm-schedule-view-week.js';
 import { wireMonthView } from './crm-schedule-view-month.js';
@@ -145,8 +145,39 @@ export function wireScheduleViews(ctx) {
     else if (v === 'month') await view.loadMonth();
   }
 
+  // Окно 65 (21.08.2026) - при СМЕНЕ ДАТЫ соседние виды могут показывать уже не тот
+  // период. Поймано глазами на снимке прогона: подпись карточки говорила «Месяц ·
+  // Август 2026», а в сетке под ней стоял сентябрь. Механика: подпись-якорь рисуется
+  // из общей даты на каждый setView (Окно 25), а данные вида перечитываются только
+  // когда он активен - клик по дню в полоске возвращал дату в август, подпись Месяца
+  // менялась, содержимое оставалось сентябрьским.
+  // Перечитываем не всё подряд, а только те виды, у которых реально сменился ПЕРИОД:
+  // смена даты внутри той же недели Неделю не трогает, внутри того же месяца - Месяц.
+  // Открытый вид перечитывается сразу (человек смотрит на него), свёрнутый - помечается
+  // устаревшим и дочитывается при раскрытии (тот же приём, что staleViews выше).
+  function periodKeys(dateStr) {
+    return { week: mondayOf(dateStr), month: dateStr.slice(0, 7) };
+  }
+
+  async function syncPeriodDependentViews(activeView, before, after) {
+    const jobs = [];
+    for (const v of ['week', 'month']) {
+      if (v === activeView) continue;
+      if (before[v] === after[v]) continue;
+      const card = el(DETAILS_ID_BY_VIEW[v]);
+      // На crm-admin/crm-master карточек нет: там виден ровно один вид за раз, и
+      // неактивный физически не показан - его достаточно пометить устаревшим.
+      const visible = card ? card.open : false;
+      if (visible) jobs.push(v === 'week' ? view.loadWeek() : view.loadMonth());
+      else staleViews.add(v);
+    }
+    await Promise.all(jobs);
+  }
+
   async function setView(v, date) {
+    const before = periodKeys(scheduleViewState.date);
     if (date) scheduleViewState.date = date;
+    const after = periodKeys(scheduleViewState.date);
     scheduleViewState.view = v;
     staleViews.delete(v); // ниже вид грузится целиком - помечать нечего
     const radio = el(RADIO_ID_BY_VIEW[v]);
@@ -159,6 +190,7 @@ export function wireScheduleViews(ctx) {
     else if (v === 'week') await view.loadWeek();
     else if (v === 'month') await view.loadMonth();
     else if (v === 'year') await view.renderYear();
+    await syncPeriodDependentViews(v, before, after);
   }
 
   // ── Праздники (Окно 24, 05.08.2026) ──────────────────────────────────────

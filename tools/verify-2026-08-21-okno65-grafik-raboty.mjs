@@ -191,6 +191,53 @@ try {
         const afterJump = norm(await s.eval(`document.getElementById('scheduleAnchor-month')?.textContent`));
         check('лента месяцев: тап по месяцу переводит график на него', afterJump.length > 0 && !afterJump.includes(String(new Date().getDate())), afterJump);
 
+        // Регрессия, найденная глазами на снимке 21.08.2026: подпись карточки говорила
+        // «Месяц · Август», а в сетке под ней стоял сентябрь - вид не перечитывался при
+        // смене общей даты. Возвращаемся на сегодняшний день полоской и требуем, чтобы
+        // подпись и ПЕРВАЯ колонка сетки называли один и тот же месяц.
+        await s.eval(`(function(){ const d = document.getElementById('scheduleCard-day'); if (d && !d.open) d.querySelector('summary').click(); })()`);
+        await sleep(700);
+        await s.eval(`document.querySelector('#dayStrip .day-strip-day[data-strip-date="${TODAY}"]')?.click()`);
+        await sleep(2000);
+        const monthSync = JSON.parse(await s.eval(`JSON.stringify({
+          anchor: document.getElementById('scheduleAnchor-month')?.textContent?.trim(),
+          firstColumn: document.querySelector('#monthGrid .sm-head')?.dataset.openDay,
+          stripActive: document.querySelector('#monthStrip .month-strip-btn.is-active')?.textContent.trim(),
+        })`));
+        check('подпись Месяца, лента и сама сетка показывают один месяц после смены дня',
+          monthSync.firstColumn?.slice(0, 7) === TODAY.slice(0, 7), JSON.stringify(monthSync));
+
+        // Замер настоящих цветов "Дня" и матрицы - подгонять оформление на глаз по
+        // памяти нельзя, сверяем computed-значения на одной и той же странице
+        // Ставим "День" на понедельник - там у второго мастера выходной, иначе дорожку
+        // .day-off не с чем сравнивать (в прошлом замере она пришла null)
+        await s.eval(`document.querySelector('#dayStrip .day-strip-day[data-strip-date="${MONDAY}"]')?.click()`);
+        await sleep(1500);
+        const palette = JSON.parse(await s.eval(`JSON.stringify((function(){
+          const pick = (el) => { if (!el) return null; const cs = getComputedStyle(el); return { bg: cs.backgroundColor, img: cs.backgroundImage.slice(0, 90), border: cs.borderTopColor, radius: cs.borderTopLeftRadius }; };
+          return {
+            dayTrack: pick(document.querySelector('.panel-sp-day .schedule-track:not(.day-off)')),
+            dayOff: pick(document.querySelector('.panel-sp-day .schedule-track.day-off')),
+            cellWork: pick(document.querySelector('#weekGrid .sm-cell:not(.sm-cell--off)')),
+            cellOff: pick(document.querySelector('#weekGrid .sm-cell--off')),
+          };
+        })())`));
+        console.log('  цвета Дня и матрицы:', JSON.stringify(palette, null, 1));
+        console.log('  фон вокруг матрицы:', await s.eval(`JSON.stringify((function(){
+          const grid = document.getElementById('weekGrid');
+          const chain = [];
+          let el = grid;
+          while (el && chain.length < 6) { const bg = getComputedStyle(el).backgroundColor; if (bg !== 'rgba(0, 0, 0, 0)') chain.push({ el: el.className || el.tagName, bg }); el = el.parentElement; }
+          return { name: getComputedStyle(grid.querySelector('.sm-name')).backgroundColor, chain };
+        })())`));
+        // Жалоба Влада 21.08.2026: «выходные не такие серые, как в Дне, и фон карточек
+        // другой». Сверяем не на глаз, а вычисленным цветом на одной странице
+        check('фон рабочей ячейки графика совпадает с дорожкой "Дня"',
+          palette.cellWork?.bg === palette.dayTrack?.bg, `${palette.cellWork?.bg} vs ${palette.dayTrack?.bg}`);
+        check('выходной в графике окрашен ровно как выходной в "Дне"',
+          palette.cellOff?.bg === palette.dayOff?.bg && palette.cellOff?.img === palette.dayOff?.img,
+          `${palette.cellOff?.bg} vs ${palette.dayOff?.bg}`);
+
         // Крупный план занятой ячейки - плашка загрузки должна ЧИТАТЬСЯ, а не быть
         // золотым овалом (проверка глазами, автоматика такое не ловит)
         const busyBox = JSON.parse(await s.eval(`JSON.stringify((function(){
@@ -250,6 +297,13 @@ try {
         await s.eval(`document.getElementById('scheduleCard-week')?.scrollIntoView({block:'start'})`);
         await sleep(500);
         await s.screenshot('/tmp/okno65-owner-mobile-week.png');
+        // Часы обязаны помещаться целиком: обрезанное "10:00–20:0(" - враньё про смену
+        const hoursFit = JSON.parse(await s.eval(`JSON.stringify((function(){
+          const el = document.querySelector('#weekGrid .sm-cell-hours');
+          return { text: el.innerText, scrollW: el.scrollWidth, clientW: el.clientWidth };
+        })())`));
+        check('на телефоне часы смены помещаются в ячейку целиком',
+          hoursFit.scrollW <= hoursFit.clientW + 1, JSON.stringify(hoursFit));
 
         // ── Мастер ─────────────────────────────────────────────────────────
         await s.setViewport(1440, 1000);

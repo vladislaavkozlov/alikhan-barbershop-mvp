@@ -45,6 +45,14 @@
   --surface-2: #F7F3E9;
   --surface-3: #EBE5D6;
   --panel-bg-collapsed: #FFFDF7;
+  /* Дорожка расписания - те же три состояния, что в тёмной теме, но бумажные. Раньше
+     эти цвета стояли литералами прямо в правилах .schedule-track ниже; вынесены в
+     переменные 21.08.2026, чтобы график работы (Неделя/Месяц) красился ровно ими же,
+     а не своим набором (см. разбор в assets/mockup-crm.css у --track-bg) */
+  --track-bg: #FFFDF7;
+  --track-off-bg: #F0ECE1;
+  --track-off-stripe: rgba(27, 33, 28, 0.055);
+  --track-none-bg: #EFEADE;
   --panel-bg-light: #FBF8EF;
   --panel-bg: #FFFFFF;
   --popup-bg: #FFFDF7;
@@ -194,16 +202,10 @@ details.staff-card,
    поля». Теперь это разлинованный лист: белее полотна, часовые линии видимые,
    но не жирные. */
 .schedule-track {
-  background-color: #FFFDF7;
+  /* цвет фона приходит из --track-bg выше, здесь остаются только часовые линии и
+     подпор рамкой - их у ячейки графика нет, дорожка в этом уникальна */
   background-image: linear-gradient(rgba(27, 33, 28, 0.09) 1px, transparent 1px);
   box-shadow: inset 0 0 0 1px rgba(27, 33, 28, 0.05);
-}
-.schedule-track.day-off {
-  background-color: #F0ECE1;
-  background-image: repeating-linear-gradient(135deg, rgba(27, 33, 28, 0.055) 0 10px, transparent 10px 20px);
-}
-.schedule-track.no-schedule {
-  background-color: #EFEADE;
 }
 .panel-sp-day .hour-marks {
   background: rgba(255, 253, 247, 0.72);

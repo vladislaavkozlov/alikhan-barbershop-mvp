@@ -43,29 +43,16 @@ test('переключатели мастера удалены вместе со
   }
 });
 
-test('легенда показывает ровно те признаки, что есть в ячейках матрицы', () => {
-  // Прежняя легенда из трёх цветных точек (.day-dot) объясняла разметку СТАРОЙ сетки
-  // месяца - в матрице точек нет, статус несёт сама ячейка (полоса слева у правки,
-  // пунктир у выходного). Легенда, объясняющая несуществующее, хуже отсутствующей.
+test('легенды над сеткой нет ни на одной странице', () => {
+  // Убрана 21.08.2026 по просьбе Влада: три строки пояснений съедали экран на телефоне,
+  // а признаки читаются с самой ячейки (штриховка - выходной, полоса слева - правка).
+  // Подсказка про клик осталась в title каждой ячейки (assets/crm-schedule-matrix.js).
   for (const page of CRM_PAGES) {
     const html = read(page);
-    const legendIndex = html.indexOf('sm-legend', html.indexOf('panel-sp-month'));
-    const gridIndex = html.indexOf('id="monthGrid"');
-    assert.ok(legendIndex >= 0 && legendIndex < gridIndex, page);
-    const legend = html.slice(legendIndex, gridIndex);
-    assert.match(legend, /sm-legend-chip--edit/, page);
-    assert.match(legend, /sm-legend-chip--off/, page);
-    assert.doesNotMatch(legend, /day-dot--work/, `${page}: точка "обычный день" в матрице ничего не обозначает`);
-  }
-});
-
-test('у владельца и админа Неделя объясняет, что делает клик по ячейке и по дате', () => {
-  // Ячейка открывает редактор графика, шапка даты уводит в «День» - это не угадывается
-  // по виду, поэтому подпись обязана быть в разметке, а не только в title элементов.
-  for (const page of TEAM_PAGES) {
-    const html = read(page);
-    const weekPanel = html.slice(html.indexOf('panel-sp-week'), html.indexOf('id="weekGrid"'));
-    assert.match(weekPanel, /нажмите на ячейку/i, page);
+    assert.doesNotMatch(html, /sm-legend/, page);
+    assert.doesNotMatch(html, /Полоса слева/, page);
+    assert.doesNotMatch(html, /Штриховка - выходной/, page);
+    assert.doesNotMatch(html, /day-legend/, page);
   }
 });
 

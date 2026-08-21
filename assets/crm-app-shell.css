@@ -973,11 +973,11 @@ body.app-shell-active #crmMain {
 }
 
 .sched-matrix {
-  --sm-name-w: 148px;
-  --sm-col-w: 104px;
+  --sm-name-w: 88px;
+  --sm-col-w: 124px;
   display: grid;
   grid-template-columns: var(--sm-name-w) repeat(var(--sm-cols, 7), var(--sm-col-w));
-  gap: 6px;
+  gap: 8px;
   /* max-content, иначе grid ужмётся в ширину экрана и колонки месяца схлопнутся в
      нечитаемые полоски вместо честного горизонтального скролла */
   width: max-content;
@@ -986,31 +986,45 @@ body.app-shell-active #crmMain {
 
 /* Левая колонка с именами и угол над ней примораживаются при горизонтальном скролле:
    на 30 колонках месяца без этого через два экрана вправо уже непонятно, чья строка. */
+/* Колонка сотрудников. Правка 21.08.2026 (Влад): «убрать блоки за кружочками, имена
+   писать под кружком, как в Yclients» - имя в строку справа не помещалось ни на одной
+   разумной ширине и обрывалось многоточием на второй букве фамилии. Фон нужен даже
+   без видимой плашки: колонка приморожена (sticky) и обязана перекрывать уезжающие
+   под неё ячейки. Берём фон РАСКРЫТОЙ карточки раздела - переменная --owner-panel-active
+   (assets/crm-navigation-panels.css), та же, которой красится сама карточка: замер живьём
+   дал у карточки rgb(255,255,255) против rgb(247,243,233) у колонки, из-за чего колонка
+   и читалась как отдельная плашка. Фолбэк --surface-2 - для crm-admin/crm-master, где
+   карточек-панелей нет и переменная не объявлена. */
 .sm-corner,
 .sm-name {
   position: sticky;
   left: 0;
   z-index: 2;
-  background: var(--panel-bg-light);
+  background: var(--owner-panel-active, var(--surface-2));
 }
-.sm-corner { border-radius: 8px; }
 .sm-name {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px 6px 2px;
-  min-height: 58px;
-  border-radius: 8px;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 2px;
+  min-height: 78px;
   overflow: hidden;
 }
-.sm-name .avatar { width: 28px; height: 28px; font-size: 0.6rem; flex: none; }
+.sm-name .avatar { width: 38px; height: 38px; font-size: 0.7rem; flex: none; }
 .sm-name-text {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.15;
+  text-align: center;
+  /* Две строки максимум - ровно как имя мастера в шапке колонки "Дня"
+     (.panel-sp-day .schedule-col-head .name, -webkit-line-clamp: 2) */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
 }
 
 /* Шапка даты повторяет шапку колонки мастера в "Дне" (.schedule-col-head): по центру,
@@ -1020,8 +1034,8 @@ body.app-shell-active #crmMain {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  padding: 6px 2px 7px;
+  gap: 2px;
+  padding: 9px 2px 10px;
   margin-bottom: 2px;
   border: 1px solid transparent;
   border-bottom: 1px solid var(--border);
@@ -1033,8 +1047,8 @@ body.app-shell-active #crmMain {
   position: relative;
   transition: border-color 160ms var(--ease-out), color 160ms var(--ease-out);
 }
-.sm-head-num { font-size: 0.92rem; font-weight: 700; color: var(--text); line-height: 1.1; }
-.sm-head-wd { font-size: 0.66rem; text-transform: lowercase; }
+.sm-head-num { font-size: 1.05rem; font-weight: 700; color: var(--text); line-height: 1.1; }
+.sm-head-wd { font-size: 0.72rem; text-transform: lowercase; }
 .sm-head.is-weekend .sm-head-num { color: var(--danger); }
 .sm-head.is-today { border-color: var(--accent); }
 .sm-head.is-today .sm-head-num { color: var(--accent); }
@@ -1054,14 +1068,14 @@ body.app-shell-active #crmMain {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 3px;
-  min-height: 62px;
-  padding: 7px 8px;
+  gap: 5px;
+  min-height: 78px;
+  padding: 11px 12px;
   border: 1px solid var(--border);
   border-left-width: 4px;
   border-left-color: transparent;
   border-radius: 10px;
-  background: var(--surface-2);
+  background: var(--track-bg);
   color: var(--text);
   font-family: inherit;
   text-align: left;
@@ -1072,29 +1086,29 @@ button.sm-cell {
   cursor: pointer;
   transition: transform 140ms var(--ease-out), box-shadow 140ms var(--ease-out), border-color 140ms var(--ease-out);
 }
-.sm-cell-hours { font-size: 0.74rem; font-weight: 700; white-space: nowrap; }
-.sm-cell-break { font-size: 0.6rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sm-cell-hours { font-size: 0.82rem; font-weight: 700; white-space: nowrap; letter-spacing: 0.01em; }
+.sm-cell-break { font-size: 0.66rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Загрузка занятого дня - плашка в цвете "ожидается" из "Дня" (.appt--new: заливка
    #F3DCAB, тёмный текст, радиус 7px). Пустой день остаётся тихой серой строкой -
    занятое обязано быть заметнее пустого */
-.sm-cell-load { font-size: 0.64rem; color: var(--text-muted); white-space: nowrap; }
+.sm-cell-load { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
 .sm-cell-load--busy {
   align-self: flex-start;
   background: #F3DCAB;
   color: #241b08;
-  border-radius: 6px;
-  padding: 1px 6px;
+  border-radius: 7px;
+  padding: 2px 8px;
   font-weight: 600;
 }
 .sm-cell-pct { color: var(--accent); font-weight: 700; }
 .sm-cell-load--busy .sm-cell-pct { color: inherit; }
-.sm-cell-off { font-size: 0.7rem; color: var(--text-muted); font-style: italic; }
+.sm-cell-off { font-size: 0.76rem; color: var(--text-muted); font-style: italic; }
 /* Выходной - та же диагональная штриховка на затемнённом фоне, что у колонки выходного
    в "Дне" (.schedule-track.day-off). Пустое состояние тише занятого - это уже решённый
    в проекте вопрос (правка 13.08.2026), матрица не заводит своего ответа */
 .sm-cell--off {
-  background-color: var(--panel-bg-collapsed);
-  background-image: repeating-linear-gradient(135deg, var(--panel-bg-light) 0 10px, transparent 10px 20px);
+  background-color: var(--track-off-bg);
+  background-image: repeating-linear-gradient(135deg, var(--track-off-stripe) 0 10px, transparent 10px 20px);
   align-items: center;
   justify-content: center;
 }
@@ -1105,7 +1119,7 @@ button.sm-cell {
    в "Дне" это отдельное состояние (.schedule-track.no-schedule), и путать его с
    выходным нельзя (Окно 43) */
 .sm-cell.is-missing {
-  background: var(--surface-3);
+  background: var(--track-none-bg);
   align-items: center;
   justify-content: center;
 }
@@ -1233,40 +1247,23 @@ button.sm-cell {
     bottom: calc(86px + env(safe-area-inset-bottom, 0px));
   }
   .sched-matrix { --sm-name-w: 96px; --sm-col-w: 72px; }
-  /* Легенда на телефоне занимала три строки над самой сеткой - ужимаем, не выкидывая:
-     подсказка про клик по ячейке нужна именно там, где нет hover и title не увидеть */
-  .sm-legend { font-size: 0.72rem; gap: 2px 4px; margin-bottom: 8px; }
-  .sm-legend .legend-note { margin-left: 0; }
   .sm-name .avatar { width: 24px; height: 24px; }
   .sm-name-text { font-size: 0.72rem; }
 }
 
 @media (max-width: 430px) {
-  .sched-matrix { --sm-name-w: 80px; --sm-col-w: 74px; }
+  .sched-matrix { --sm-name-w: 62px; --sm-col-w: 100px; }
   .sm-cell-break { display: none; } /* на такой ширине строка перерыва не читается, она есть в title и в редакторе дня */
   /* Часы обязаны быть видны целиком: на 74px "10:00–20:00" в одну строку обрезалось
      многоточием ("10:00–20:..." на скриншоте прогона 21.08.2026) - переносим на две
      строки, это честнее обрезанного времени */
-  .sm-cell-hours { white-space: normal; font-size: 0.66rem; line-height: 1.2; }
-  .sm-cell { min-height: 62px; padding: 5px; }
+  .sm-cell-hours { white-space: nowrap; font-size: 0.72rem; }
+  .sm-cell { min-height: 70px; padding: 8px 7px; }
   .day-strip-num { font-size: 0.88rem; }
 }
 
-/* Легенда графика. Точки .day-dot (Окно 28) остались в проекте, но ЭТОТ вид ими не
-   пользуется: в матрице статус дня несёт сама ячейка - золотая полоса слева у разовой
-   правки и пунктирная рамка у выходного. Легенда обязана показывать ровно то, что
-   человек увидит в сетке, иначе она объясняет несуществующее (найдено глазами на
-   скриншоте прогона 21.08.2026: легенда обещала три цветных кружка, в сетке кружков нет). */
-.sm-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 0.8rem; margin: 4px 0 12px; }
-.sm-legend[hidden] { display: none; }
-.sm-legend .legend-note { margin-left: 10px; color: var(--text-muted); }
-.sm-legend-chip {
-  display: inline-block; width: 22px; height: 14px; border-radius: 4px;
-  border: 1px solid var(--border); background: var(--surface-2);
-  margin-right: 5px; vertical-align: -2px; flex: none;
-}
-.sm-legend-chip--edit { border-left: 4px solid var(--accent); }
-.sm-legend-chip--off {
-  background-color: var(--panel-bg-collapsed);
-  background-image: repeating-linear-gradient(135deg, var(--panel-bg-light) 0 5px, transparent 5px 10px);
-}
+/* Легенда графика убрана 21.08.2026 по просьбе Влада («убери надписи») - три строки
+   пояснений над сеткой съедали экран на телефоне, а сами признаки читаются с ячейки:
+   штриховка это выходной, полоса слева - правка на дату. Подсказка про клик осталась в
+   title каждой ячейки. Стили .sm-legend* удалены вместе с разметкой, чтобы не копить
+   мёртвые правила. */
