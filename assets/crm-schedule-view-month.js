@@ -10,8 +10,9 @@
 //     ячейке стоит честный % КОНКРЕТНОГО мастера;
 //   - leadingEmptyCells/monthWeekdayHeaderHtml - пустые ячейки до 1-го числа нужны
 //     только календарной сетке, у матрицы колонка = дата, выравнивать нечего.
-// Добавлена лента месяцев (#monthStrip) - прямо из скриншота Yclients: "авг сент окт
-// нояб дек" под навигацией, прыжок на месяц одним тапом вместо N нажатий на стрелку.
+// Период показывается между стрелками навигации (#monthNavLabel), как дата во вкладке
+// "День" - правка Влада 21.08.2026 вместо ленты месяцев ("авг сент окт нояб дек"),
+// которая заняла целую строку ради того же, что делают две стрелки.
 //
 // Модалка правки дня перенесена 1:1 (роуты POST/DELETE /schedule и контракт 409 не
 // менялись), с одной правкой: openDayEditModal принимает masterId - раньше мастер брался
@@ -19,45 +20,12 @@
 // называет сама ячейка матрицы (у каждой строки свой мастер).
 import {
   pad2, conflictListWithOpenButton, isDayOffShift, GLOBAL_DEFAULT_START, GLOBAL_DEFAULT_END,
-  fmtRu, escapeHtml, MONTH_LABEL, addMonths,
+  fmtRu, escapeHtml, addMonths,
 } from './crm-schedule-shared.js';
 import { buildMatrixModel, matrixHtml, loadMatrixData, wireMatrixClicks } from './crm-schedule-matrix.js';
 import { todayStr } from './crm-calendar.js';
 import { errorMessage, reportError, showError } from './crm-toast.js';
 import { showLoadingLine, showSkeleton } from './crm-loading.js';
-
-// Лента месяцев: сколько месяцев назад и вперёд от ТЕКУЩЕГО календарного показывать.
-// Назад один - смотреть прошлый месяц (зарплата, разбор загрузки) нужно регулярно,
-// глубже уже история, туда доходят стрелками. Вперёд шесть - горизонт планирования
-// графика и отпусков.
-export const MONTH_STRIP_BACK = 1;
-export const MONTH_STRIP_FORWARD = 6;
-
-// Чистая функция (проверяется офлайн-тестом): список месяцев ленты и какой активен.
-export function monthStripModel(anchorDate, today = todayStr()) {
-  const firstOfToday = `${today.slice(0, 7)}-01`;
-  const anchorMonth = anchorDate.slice(0, 7);
-  const months = [];
-  for (let i = -MONTH_STRIP_BACK; i <= MONTH_STRIP_FORWARD; i += 1) {
-    const first = addMonths(firstOfToday, i);
-    const [y, m] = first.split('-').map(Number);
-    months.push({
-      first,
-      year: y,
-      month: m,
-      label: MONTH_LABEL[m - 1],
-      isActive: first.slice(0, 7) === anchorMonth,
-    });
-  }
-  // Якорь может стоять вне ленты (пролистали стрелками далеко) - тогда добавляем этот
-  // месяц отдельным пунктом, чтобы активный элемент всегда был виден и лента не врала.
-  if (!months.some((m) => m.isActive)) {
-    const [y, m] = anchorMonth.split('-').map(Number);
-    months.push({ first: `${anchorMonth}-01`, year: y, month: m, label: MONTH_LABEL[m - 1], isActive: true });
-    months.sort((a, b) => a.first.localeCompare(b.first));
-  }
-  return months;
-}
 
 export function wireMonthView(ctx) {
   const {
@@ -237,29 +205,9 @@ export function wireMonthView(ctx) {
     return { firstOfMonth, lastOfMonth };
   }
 
-  function renderMonthStrip() {
-    const strip = document.getElementById('monthStrip');
-    if (!strip) return;
-    const months = monthStripModel(scheduleViewState.date);
-    const currentYear = Number(todayStr().slice(0, 4));
-    strip.innerHTML = months
-      .map((m) => `<button type="button" class="month-strip-btn${m.isActive ? ' is-active' : ''}" data-month-first="${m.first}">
-        <span class="month-strip-name">${m.label}</span>
-        ${m.year !== currentYear ? `<span class="month-strip-year">${m.year}</span>` : ''}
-      </button>`)
-      .join('');
-    strip.querySelectorAll('.month-strip-btn').forEach((btn) => {
-      btn.addEventListener('click', () => setView('month', btn.dataset.monthFirst));
-    });
-    // Активный месяц может оказаться за правым краем ленты на телефоне - подтягиваем
-    // его в видимую часть, иначе лента выглядит так, будто выбран самый левый месяц.
-    strip.querySelector('.month-strip-btn.is-active')?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  }
-
   async function loadMonth() {
     const grid = document.getElementById('monthGrid');
     if (!grid) return;
-    renderMonthStrip();
     const { firstOfMonth, lastOfMonth } = monthRange();
     showSkeleton(grid, 4, { tall: true });
     try {

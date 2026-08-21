@@ -234,13 +234,14 @@
           <details class="staff-card schedule-view-card" id="scheduleCard-week">
             <summary>
               <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><circle cx="5" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="7.33" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="9.66" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="12" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="14.33" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="16.66" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="19" cy="15.5" r="0.9" fill="currentColor" stroke="none"/></svg></div>
-              <div class="summary-meta"><div class="name">Неделя</div><div class="role" id="scheduleAnchor-week"></div></div>
+              <div class="summary-meta"><div class="name">Неделя</div></div>
               <span class="chevron">▸</span>
             </summary>
             <div class="staff-card-body">
               <div class="seg-panel panel-sp-week">
                 <div class="day-nav" id="weekNav">
                   <button type="button" class="day-nav-btn" id="weekNavPrev" aria-label="Предыдущая неделя">‹</button>
+                  <div class="day-nav-period" id="weekNavLabel"></div>
                   <button type="button" class="day-nav-btn" id="weekNavNext" aria-label="Следующая неделя">›</button>
                 </div>
                 <!-- Окно 65 (21.08.2026) - переключатель мастера убран: матрица показывает всю
@@ -254,19 +255,16 @@
           <details class="staff-card schedule-view-card" id="scheduleCard-month">
             <summary>
               <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/><circle cx="7" cy="12" r="0.85" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="0.85" fill="currentColor" stroke="none"/><circle cx="17" cy="12" r="0.85" fill="currentColor" stroke="none"/><circle cx="7" cy="15.2" r="0.85" fill="currentColor" stroke="none"/><circle cx="12" cy="15.2" r="0.85" fill="currentColor" stroke="none"/><circle cx="17" cy="15.2" r="0.85" fill="currentColor" stroke="none"/><circle cx="7" cy="18.4" r="0.85" fill="currentColor" stroke="none"/><circle cx="12" cy="18.4" r="0.85" fill="currentColor" stroke="none"/><circle cx="17" cy="18.4" r="0.85" fill="currentColor" stroke="none"/></svg></div>
-              <div class="summary-meta"><div class="name">Месяц</div><div class="role" id="scheduleAnchor-month"></div></div>
+              <div class="summary-meta"><div class="name">Месяц</div></div>
               <span class="chevron">▸</span>
             </summary>
             <div class="staff-card-body">
               <div class="seg-panel panel-sp-month">
                 <div class="day-nav" id="monthNav">
                   <button type="button" class="day-nav-btn" id="monthNavPrev" aria-label="Предыдущий месяц">‹</button>
+                  <div class="day-nav-period" id="monthNavLabel"></div>
                   <button type="button" class="day-nav-btn" id="monthNavNext" aria-label="Следующий месяц">›</button>
                 </div>
-                <!-- Окно 65 (21.08.2026) - лента месяцев вместо переключателя мастера: прыжок на
-                     нужный месяц одним тапом (скриншот Yclients), матрица и так показывает всю команду.
-                     Наполняет renderMonthStrip (assets/crm-schedule-view-month.js). -->
-                <div class="month-strip" id="monthStrip"></div>
                 <div class="month-grid" id="monthGrid"></div>
               </div>
             </div>

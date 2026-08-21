@@ -186,6 +186,23 @@ export function loadPercent(day, bookingsForDay) {
   return Math.min(100, Math.max(0, Math.round((bookedMin / availableMin) * 100)));
 }
 
+// Окно 65 (21.08.2026), правка Влада «сделай как во вкладке День»: период стоит МЕЖДУ
+// стрелками, а подписи-якоря в шапке карточки больше нет. Формат здесь короче, чем у
+// viewAnchorLabel ниже: между двумя кнопками помещается «27.07-02.08», но не
+// «Неделя · 27 июля - 2 августа», а слово «Неделя»/«Месяц» и так написано на карточке.
+export function navPeriodLabel(view, dateStr) {
+  if (view === 'week') {
+    const from = mondayOf(dateStr);
+    const to = addDays(from, 6);
+    return `${from.slice(8, 10)}.${from.slice(5, 7)}-${to.slice(8, 10)}.${to.slice(5, 7)}`;
+  }
+  if (view === 'month') {
+    const [y, m] = dateStr.split('-').map(Number);
+    return `${MONTH_LABEL[m - 1]} ${y}`;
+  }
+  return '';
+}
+
 export function viewAnchorLabel(view, dateStr) {
   const [y, m] = dateStr.split('-').map(Number);
   // День не подписывается здесь - дата и так видна и редактируема в date-picker

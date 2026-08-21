@@ -23,14 +23,25 @@ test('полоска дней есть на всех CRM-страницах и �
   }
 });
 
-test('лента месяцев есть на всех страницах и стоит перед сеткой месяца', () => {
+test('период показан между стрелками навигации, а не отдельной лентой месяцев', () => {
+  // Правка Влада 21.08.2026: лента «Июль Август Сентябрь…» убрана, показанный период
+  // стоит между ‹ и › - как дата во вкладке «День». Порядок узлов и проверяем.
   for (const page of CRM_PAGES) {
     const html = read(page);
-    const stripIndex = html.indexOf('id="monthStrip"');
-    const gridIndex = html.indexOf('id="monthGrid"');
-    assert.ok(stripIndex >= 0, `${page}: лента месяцев`);
-    assert.ok(stripIndex < gridIndex, `${page}: лента перед сеткой`);
+    assert.doesNotMatch(html, /monthStrip|month-strip/, `${page}: лента месяцев должна быть удалена`);
+    for (const view of ['week', 'month']) {
+      const prev = html.indexOf(`id="${view}NavPrev"`);
+      const label = html.indexOf(`id="${view}NavLabel"`);
+      const next = html.indexOf(`id="${view}NavNext"`);
+      assert.ok(prev >= 0 && label > prev && next > label, `${page}: подпись ${view} между стрелками`);
+    }
   }
+});
+
+test('дублирующих подписей-якорей в шапках карточек не осталось', () => {
+  // «Неделя · 17-23 августа» в шапке говорила то же, что подпись между стрелками
+  const html = read('crm-owner.html');
+  assert.doesNotMatch(html, /scheduleAnchor-week|scheduleAnchor-month/);
 });
 
 test('переключатели мастера удалены вместе со своей причиной существовать', () => {

@@ -969,7 +969,10 @@ body.app-shell-active #crmMain {
   /* Полоса прокрутки не должна дёргать вёрстку при перерисовке (тот же приём, что
      у .schedule-scroll в "Дне") */
   scrollbar-gutter: stable;
-  padding-bottom: 4px;
+  /* 16px, а не 4: на маке ползунок висит ПОВЕРХ содержимого и накрывал нижний ряд
+     ячеек - на снимке Влада 21.08.2026 он закрывал строку последнего мастера. Это его
+     собственная высота (~7px) плюс воздух, чтобы ячейка не упиралась в край карточки */
+  padding-bottom: 16px;
 }
 
 .sched-matrix {
@@ -1135,37 +1138,20 @@ button.sm-cell {
   }
 }
 
-/* ── лента месяцев (#monthStrip) ─────────────────────────────────────────── */
-.month-strip {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin: 4px 0 12px;
-  padding-bottom: 2px;
-}
-.month-strip::-webkit-scrollbar { display: none; }
-.month-strip-btn {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-  padding: 6px 14px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font-family: inherit;
-  font-size: 0.76rem;
+/* Лента месяцев (#monthStrip, «Июль Август Сентябрь…») убрана 21.08.2026 по просьбе
+   Влада: она занимала целую строку ради того, что делают две стрелки, а показанный
+   период теперь стоит между ними - как дата во вкладке «День». Стили удалены вместе
+   с разметкой, чтобы не копить мёртвые правила. */
+
+/* Подпись периода между стрелками навигации. Тот же вес и размер, что у виджета даты
+   в «Дне», поэтому три вкладки читаются как один элемент управления. */
+.day-nav-period {
+  font-size: 0.92rem;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 160ms var(--ease-out);
-}
-.month-strip-btn.is-active { background: var(--accent); border-color: var(--accent); color: var(--leather); }
-.month-strip-year { font-size: 0.58rem; opacity: 0.75; }
-@media (hover: hover) {
-  .month-strip-btn:not(.is-active):hover { border-color: var(--accent); color: var(--accent); }
+  color: var(--text);
+  min-width: 132px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── полоска дней недели под "Днём" (#dayStrip) ──────────────────────────── */

@@ -163,15 +163,19 @@ try {
           heads: document.querySelectorAll('#monthGrid .sm-head').length,
           scrollW: document.getElementById('monthGrid').scrollWidth,
           clientW: document.getElementById('monthGrid').clientWidth,
-          strip: [...document.querySelectorAll('#monthStrip .month-strip-btn')].map(b => b.textContent.trim()),
-          active: document.querySelector('#monthStrip .month-strip-btn.is-active')?.textContent.trim(),
+          label: document.getElementById('monthNavLabel')?.textContent.trim(),
+          weekLabel: document.getElementById('weekNavLabel')?.textContent.trim(),
+          anchors: document.querySelectorAll('#scheduleAnchor-week, #scheduleAnchor-month').length,
         })`));
         const daysInThisMonth = new Date(Date.UTC(Number(TODAY.slice(0, 4)), Number(TODAY.slice(5, 7)), 0)).getUTCDate();
         check('Месяц: колонка на каждый день месяца', monthShape.heads === daysInThisMonth, `${monthShape.heads} вместо ${daysInThisMonth}`);
         check('Месяц: матрица шире экрана - есть честный горизонтальный скролл',
           monthShape.scrollW > monthShape.clientW + 50, `${monthShape.scrollW} / ${monthShape.clientW}`);
-        check('Месяц: лента месяцев на месте и активен текущий месяц',
-          monthShape.strip.length >= 7 && Boolean(monthShape.active), JSON.stringify(monthShape));
+        check('Месяц: период назван между стрелками («Август 2026»), без ленты месяцев',
+          /^[А-Я][а-я]+ \d{4}$/.test(monthShape.label ?? ''), JSON.stringify(monthShape));
+        check('Неделя: период между стрелками в коротком формате «17.08-23.08»',
+          /^\d{2}\.\d{2}-\d{2}\.\d{2}$/.test(monthShape.weekLabel ?? ''), JSON.stringify(monthShape));
+        check('дублирующих подписей в шапках карточек не осталось', monthShape.anchors === 0, String(monthShape.anchors));
 
         // 3. Приморожена ли колонка имён при скролле вправо
         await s.eval(`document.getElementById('monthGrid').scrollLeft = 600`);
@@ -184,12 +188,16 @@ try {
         check('колонка с именами приморожена при скролле вправо (не уезжает за край)',
           stickyProof.scrollLeft > 300 && Math.abs(stickyProof.nameLeft - stickyProof.gridLeft) < 6, JSON.stringify(stickyProof));
 
-        // Прыжок по ленте месяцев
-        const nextMonthLabel = monthShape.strip[monthShape.strip.indexOf(monthShape.active) + 1];
-        await s.eval(`[...document.querySelectorAll('#monthStrip .month-strip-btn')].find(b => b.textContent.trim() === ${JSON.stringify(nextMonthLabel)})?.click()`);
-        await sleep(1500);
-        const afterJump = norm(await s.eval(`document.getElementById('scheduleAnchor-month')?.textContent`));
-        check('лента месяцев: тап по месяцу переводит график на него', afterJump.length > 0 && !afterJump.includes(String(new Date().getDate())), afterJump);
+        // Стрелка "следующий месяц" двигает и подпись, и саму сетку
+        await s.eval(`document.getElementById('monthNavNext')?.click()`);
+        await sleep(1800);
+        const afterJump = JSON.parse(await s.eval(`JSON.stringify({
+          label: document.getElementById('monthNavLabel')?.textContent.trim(),
+          firstColumn: document.querySelector('#monthGrid .sm-head')?.dataset.openDay,
+        })`));
+        const nextMonthIso = new Date(Date.UTC(Number(TODAY.slice(0, 4)), Number(TODAY.slice(5, 7)), 1)).toISOString().slice(0, 7);
+        check('стрелка вперёд переводит и подпись, и сетку на следующий месяц',
+          afterJump.firstColumn?.slice(0, 7) === nextMonthIso && afterJump.label !== monthShape.label, JSON.stringify(afterJump));
 
         // Регрессия, найденная глазами на снимке 21.08.2026: подпись карточки говорила
         // «Месяц · Август», а в сетке под ней стоял сентябрь - вид не перечитывался при
@@ -200,12 +208,21 @@ try {
         await s.eval(`document.querySelector('#dayStrip .day-strip-day[data-strip-date="${TODAY}"]')?.click()`);
         await sleep(2000);
         const monthSync = JSON.parse(await s.eval(`JSON.stringify({
-          anchor: document.getElementById('scheduleAnchor-month')?.textContent?.trim(),
+          label: document.getElementById('monthNavLabel')?.textContent?.trim(),
           firstColumn: document.querySelector('#monthGrid .sm-head')?.dataset.openDay,
-          stripActive: document.querySelector('#monthStrip .month-strip-btn.is-active')?.textContent.trim(),
         })`));
-        check('подпись Месяца, лента и сама сетка показывают один месяц после смены дня',
+        check('подпись Месяца и сама сетка показывают один месяц после смены дня',
           monthSync.firstColumn?.slice(0, 7) === TODAY.slice(0, 7), JSON.stringify(monthSync));
+
+        // Ползунок горизонтальной прокрутки не должен накрывать нижний ряд ячеек
+        const scrollRoom = JSON.parse(await s.eval(`JSON.stringify((function(){
+          const grid = document.getElementById('monthGrid');
+          const cells = grid.querySelectorAll('.sm-cell');
+          const last = cells[cells.length - 1];
+          return { gridBottom: Math.round(grid.getBoundingClientRect().bottom), cellBottom: Math.round(last.getBoundingClientRect().bottom) };
+        })())`));
+        check('под нижним рядом ячеек есть место для полосы прокрутки',
+          scrollRoom.gridBottom - scrollRoom.cellBottom >= 10, JSON.stringify(scrollRoom));
 
         // Замер настоящих цветов "Дня" и матрицы - подгонять оформление на глаз по
         // памяти нельзя, сверяем computed-значения на одной и той же странице

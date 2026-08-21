@@ -8,7 +8,7 @@
 // это второй, самостоятельный носитель ОДНОГО и того же состояния (выбранная дата,
 // scheduleViewState.date), у неё своя модель (какая неделя показана) и свой рендер,
 // который зовут и при смене даты, и при листании недели.
-import { WEEKDAY_SHORT, isoWeekdayOf, mondayOf, addDays, MONTH_GENITIVE } from './crm-schedule-shared.js';
+import { WEEKDAY_SHORT, isoWeekdayOf, mondayOf, addDays, MONTH_LABEL } from './crm-schedule-shared.js';
 import { todayStr } from './crm-calendar.js';
 
 // Чистая функция (офлайн-тест tests/schedule-daystrip.model.test.js): семь дней недели,
@@ -32,13 +32,16 @@ export function dayStripModel(selectedDate, today = todayStr()) {
 
 // Подпись месяца над полоской: неделя может лежать в двух месяцах сразу (30 сентября -
 // 6 октября), тогда названы оба - иначе строка "1 2 3 4 5 6 7" не говорит, какой это месяц.
+// Именительный падеж («Август 2026», «Июль-Август 2026»), а не родительный («августа
+// 2026») - правка Влада 21.08.2026: это заголовок периода, а не часть фразы про дату,
+// и он обязан читаться так же, как подпись месяца между стрелками (navPeriodLabel).
 export function dayStripMonthLabel(selectedDate) {
   const days = dayStripModel(selectedDate);
   const firstMonth = Number(days[0].date.slice(5, 7));
   const lastMonth = Number(days[6].date.slice(5, 7));
   const year = days[6].date.slice(0, 4);
-  if (firstMonth === lastMonth) return `${MONTH_GENITIVE[firstMonth - 1]} ${year}`;
-  return `${MONTH_GENITIVE[firstMonth - 1]} - ${MONTH_GENITIVE[lastMonth - 1]} ${year}`;
+  if (firstMonth === lastMonth) return `${MONTH_LABEL[firstMonth - 1]} ${year}`;
+  return `${MONTH_LABEL[firstMonth - 1]}-${MONTH_LABEL[lastMonth - 1]} ${year}`;
 }
 
 const DOCK_QUERY = '(max-width: 1023.98px)';

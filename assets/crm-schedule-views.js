@@ -15,7 +15,7 @@
 // им нужно, через ctx (см. CLAUDE.md, "assets/crm-schedule-views.js" был крупнейшим
 // фронтенд-файлом проекта на момент аудита).
 import { mastersOf, upsertDayBooking } from './crm-calendar.js';
-import { viewAnchorLabel, YEAR_PANEL_YEAR, mondayOf } from './crm-schedule-shared.js';
+import { viewAnchorLabel, navPeriodLabel, YEAR_PANEL_YEAR, mondayOf } from './crm-schedule-shared.js';
 import { wireDayView } from './crm-schedule-view-day.js';
 import { wireWeekView } from './crm-schedule-view-week.js';
 import { wireMonthView } from './crm-schedule-view-month.js';
@@ -89,6 +89,14 @@ export function wireScheduleViews(ctx) {
   const DETAILS_ID_BY_VIEW = { day: 'scheduleCard-day', week: 'scheduleCard-week', month: 'scheduleCard-month' };
 
   function renderViewAnchor() {
+    // Окно 65 (21.08.2026) - показанный период стоит МЕЖДУ стрелками навигации, как
+    // дата во вкладке «День» (правка Влада: «так минималистичнее»). Пишем обе подписи
+    // всегда, а не только у активного вида: дата общая (Окно 25), значит и Неделя, и
+    // Месяц называют период правильно, какая бы карточка сейчас ни была раскрыта.
+    const weekLabel = el('weekNavLabel');
+    if (weekLabel) weekLabel.textContent = navPeriodLabel('week', scheduleViewState.date);
+    const monthLabel = el('monthNavLabel');
+    if (monthLabel) monthLabel.textContent = navPeriodLabel('month', scheduleViewState.date);
     // crm-admin.html/crm-master.html - старый общий якорь над .seg-tabs, актуален,
     // потому что там виден только ОДИН активный вид за раз.
     const anchorEl = el('scheduleViewAnchor');
@@ -96,16 +104,10 @@ export function wireScheduleViews(ctx) {
       anchorEl.textContent = viewAnchorLabel(scheduleViewState.view, scheduleViewState.date);
       return;
     }
-    // crm-owner.html (Окно 45+) - День/Неделя/Месяц независимые карточки, общий якорь
-    // визуально "убегал" от своей карточки, когда открыта не она (правка 08.08.2026).
-    // Подпись живёт внутри каждой карточки (см. КОНВЕНЦИЯ-КАРТОЧКИ-РАЗДЕЛОВ.md) и
-    // обновляется всегда, не только для активного вида - у Недели/Месяца общая дата
-    // с Днём (Окно 25), так что обе подписи корректны независимо от того, какая
-    // карточка сейчас открыта.
-    const weekEl = el('scheduleAnchor-week');
-    if (weekEl) weekEl.textContent = viewAnchorLabel('week', scheduleViewState.date);
-    const monthEl = el('scheduleAnchor-month');
-    if (monthEl) monthEl.textContent = viewAnchorLabel('month', scheduleViewState.date);
+    // Подписи-якоря в шапках карточек («Неделя · 17-23 августа», «Месяц · Август 2026»)
+    // убраны 21.08.2026 по просьбе Влада: период теперь стоит между стрелками, и две
+    // подписи об одном и том же на одном экране были шумом. Сами узлы удалены из
+    // разметки, поэтому здесь их больше не ищем.
   }
 
   // Crossfade содержимого при смене вкладки (150ms, ease-out). Класс сначала
