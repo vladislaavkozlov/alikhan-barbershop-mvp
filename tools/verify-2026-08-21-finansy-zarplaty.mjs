@@ -303,6 +303,64 @@ try {
         })()`));
         check('карточки ЗП лежат на том же полотне, что и карточки в «Команде»', backdrop.подложкаФинансов === backdrop.полотно, JSON.stringify(backdrop));
 
+        // Календарь в «Задать период» не должен обрезаться краем карточки: он
+        // position:absolute, в поток не встаёт, и карточка под него не вырастает
+        const clipProbe = (sel) => `(function(){
+          const panel = document.querySelector(${JSON.stringify(sel)});
+          if (!panel || panel.hidden) return JSON.stringify({ ошибка: 'календарь не открыт' });
+          const pr = panel.getBoundingClientRect();
+          const режут = [];
+          let n = panel.parentElement;
+          while (n && n !== document.documentElement) {
+            const c = getComputedStyle(n);
+            const r = n.getBoundingClientRect();
+            if ((c.overflow !== 'visible' || c.overflowY !== 'visible') && r.bottom < pr.bottom - 1) {
+              режут.push({ узел: String(n.className || n.tagName).slice(0, 40), overflow: c.overflow, низ: Math.round(r.bottom) });
+            }
+            n = n.parentElement;
+          }
+          return JSON.stringify({ высота: Math.round(pr.height), низ: Math.round(pr.bottom), режут });
+        })()`;
+
+        await s.eval(`(function(){
+          const card = document.querySelector('.payroll-card[data-master-id="master-1"]');
+          card.setAttribute('open','');
+          card.querySelector('.payroll-period-pill[data-period="period"]').click();
+        })()`);
+        await sleep(400);
+        await s.eval(`document.querySelector('.payroll-card[data-master-id="master-1"] .custom-date-trigger')?.click()`);
+        await sleep(500);
+        const clip = JSON.parse(await s.eval(clipProbe('.payroll-card[data-master-id="master-1"] .custom-date-panel')));
+        check('календарь «Задать период» виден целиком, край карточки его не режет', Array.isArray(clip.режут) && clip.режут.length === 0, JSON.stringify(clip));
+        check('календарь не схлопнут в полоску (высота настоящая)', clip.высота > 200, String(clip.высота));
+        await s.eval(`document.querySelector('.payroll-card[data-master-id="master-1"] .custom-date-panel')?.scrollIntoView({ block: 'center' })`);
+        await sleep(400);
+        await s.screenshot('/tmp/verify-finansy-kalendar.png');
+        await s.eval(`document.querySelector('.payroll-card[data-master-id="master-1"] .custom-date-trigger')?.click()`);
+        await sleep(300);
+
+        // Та же обрезка была и в «Команде» - там виджеты дат живут в карточке
+        // сотрудника (разовые изменения графика). Правило общее, проверяем и там
+        await s.eval(`document.querySelector('#pt-b, [for="pt-b"]')?.click()`);
+        for (let i = 0; i < 100 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('.team-editor-card'))`)); i++) await sleep(200);
+        await sleep(800);
+        const teamOpened = JSON.parse(await s.eval(`(function(){
+          const card = document.querySelector('.team-editor-card');
+          if (!card) return 'false';
+          card.setAttribute('open','');
+          const t = card.querySelector('.custom-date-trigger');
+          if (!t) return 'false';
+          t.click();
+          return 'true';
+        })()`));
+        if (teamOpened) {
+          await sleep(500);
+          const teamClip = JSON.parse(await s.eval(clipProbe('.team-editor-card .custom-date-panel')));
+          check('в «Команде» календарь тоже не режется краем карточки', Array.isArray(teamClip.режут) && teamClip.режут.length === 0, JSON.stringify(teamClip));
+        }
+        await s.eval(`document.querySelector('#pt-c, [for="pt-c"]')?.click()`);
+        await sleep(600);
+
         // Снимок для глаз - оба блока раскрыты, иначе на картинке два свёрнутых
         // заголовка и по ней ничего не видно
         await s.eval(`document.querySelectorAll('.panel-c details.staff-card').forEach((d) => d.setAttribute('open',''))`);
