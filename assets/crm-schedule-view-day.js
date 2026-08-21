@@ -3,6 +3,7 @@
 // (тот же приём, что уже применяет сам crm-schedule-views.js к crm-auth.js/crm-calendar.js -
 // избегаем циклических импортов между модулями расписания).
 import { holidayNameOf, fmtRu, addDays } from './crm-schedule-shared.js';
+import { wireDayStrip } from './crm-schedule-daystrip.js';
 
 export function wireDayView(ctx) {
   const {
@@ -21,8 +22,14 @@ export function wireDayView(ctx) {
     noteEl.textContent = name ? `🎉 ${fmtRu(date)} - ${name}` : '';
   }
 
+  // Окно 65 (21.08.2026) - полоска дней недели (assets/crm-schedule-daystrip.js).
+  // Создаётся ОДИН раз здесь, перерисовывается на каждую загрузку дня: она показывает
+  // ту же выбранную дату, что и календарь под ней, просто в плотности недели.
+  const dayStrip = wireDayStrip({ scheduleViewState, setView: (v, date) => ctx.setView(v, date) });
+
   async function loadDay(date) {
     scheduleViewState.date = date;
+    dayStrip.render();
     // Виджет даты - часть того же состояния: до Окна 25 переход из Недели/Месяца
     // менял календарь, но оставлял в пикере старое число (jumpToDay его не трогал).
     const slot = document.getElementById('dayNavDate-slot');

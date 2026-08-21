@@ -940,3 +940,285 @@ body.app-shell-active #crmMain {
 .client-visit-comment--long .client-comment-more {
   display: block; margin-top: 6px; color: var(--accent); font-weight: 600; font-size: 0.76rem;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Окно 65 (21.08.2026) - "График работы": матрица мастера × даты + полоска дней
+   ───────────────────────────────────────────────────────────────────────────
+   Заказчик (Али) прислал два экрана Yclients и сказал, что наши "Неделя" и "Месяц"
+   ему неудобны. На тех экранах нет ни недельного, ни месячного календаря в нашем
+   прежнем смысле: есть ОДИН график команды (строка = мастер, колонка = дата, в
+   ячейке часы смены), у которого меняется только ширина окна дат, и полоска дат
+   внизу "Журнала" для прыжка по дням. Здесь стили обоих компонентов; разметку
+   строят assets/crm-schedule-matrix.js и assets/crm-schedule-daystrip.js.
+
+   Почему в этом файле, а не в mockup-crm.css: тот монолит - legacy, новые компоненты
+   редизайна идут сюда (CLAUDE.md, CRITICAL RULES). Всё оформление - на переменных
+   проекта, поэтому светлая тема (crm-theme-daylight.css) работает без своих правил.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* #weekGrid/#monthGrid остались теми же узлами, что и раньше (id не менялись -
+   их знают crm-schedule-view-week/month.js и тесты), но теперь это скролл-обёртки
+   матрицы, а не сами сетки. Прежние правила .week-grid/.month-grid из mockup-crm.css
+   (grid-template-columns: repeat(7, ...)) перебиваются здесь: файл подключён ПОСЛЕ
+   монолита на всех трёх CRM-страницах. */
+.week-grid,
+.month-grid {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Полоса прокрутки не должна дёргать вёрстку при перерисовке (тот же приём, что
+     у .schedule-scroll в "Дне") */
+  scrollbar-gutter: stable;
+  padding-bottom: 4px;
+}
+
+.sched-matrix {
+  --sm-name-w: 148px;
+  --sm-col-w: 96px;
+  display: grid;
+  grid-template-columns: var(--sm-name-w) repeat(var(--sm-cols, 7), var(--sm-col-w));
+  gap: 4px;
+  /* max-content, иначе grid ужмётся в ширину экрана и колонки месяца схлопнутся в
+     нечитаемые полоски вместо честного горизонтального скролла */
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Левая колонка с именами и угол над ней примораживаются при горизонтальном скролле:
+   на 30 колонках месяца без этого через два экрана вправо уже непонятно, чья строка. */
+.sm-corner,
+.sm-name {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--panel-bg-light);
+}
+.sm-corner { border-radius: 8px; }
+.sm-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 2px;
+  min-height: 58px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sm-name .avatar { width: 28px; height: 28px; font-size: 0.6rem; flex: none; }
+.sm-name-text {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sm-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 6px 2px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 160ms var(--ease-out), color 160ms var(--ease-out);
+}
+.sm-head-num { font-size: 0.92rem; font-weight: 700; color: var(--text); line-height: 1.1; }
+.sm-head-wd { font-size: 0.66rem; text-transform: lowercase; }
+.sm-head.is-weekend .sm-head-num { color: var(--danger); }
+.sm-head.is-today { border-color: var(--accent); }
+.sm-head.is-today .sm-head-num { color: var(--accent); }
+.sm-head-holiday { position: absolute; top: 1px; right: 3px; font-size: 0.56rem; }
+@media (hover: hover) {
+  .sm-head:hover { border-color: var(--accent); color: var(--accent); }
+}
+
+/* Ячейка. Носителей смысла три и они независимы: часы смены (текст), статус дня
+   (фон/полоса слева: обычный / разовая правка / выходной) и загрузка (% + число
+   записей). Цвет - не единственный носитель: у каждой ячейки есть title словами. */
+.sm-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 58px;
+  padding: 6px 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  overflow: hidden;
+}
+button.sm-cell { cursor: pointer; transition: border-color 160ms var(--ease-out); }
+.sm-cell-hours { font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
+.sm-cell-break { font-size: 0.6rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sm-cell-load { font-size: 0.64rem; color: var(--text-muted); white-space: nowrap; }
+.sm-cell-pct { color: var(--accent); font-weight: 700; }
+.sm-cell-off { font-size: 0.68rem; color: var(--text-muted); font-style: italic; }
+.sm-cell--off { background: rgba(193, 85, 74, 0.08); border-style: dashed; }
+/* Разовая правка на дату - золотая полоса слева, тот же смысл, что у точки
+   .day-dot--edit в легенде под навигацией */
+.sm-cell--edit { border-left: 3px solid var(--accent); }
+.sm-cell.is-missing { background: transparent; border-style: dashed; }
+.sm-cell.is-today { box-shadow: inset 0 0 0 1px rgba(216, 184, 124, 0.45); }
+/* Hover только для мыши: на телефоне :hover залипает на последней тронутой ячейке и
+   та стоит с золотой рамкой, будто выбрана (тот же разбор - .week-day-cell в
+   mockup-crm.css, 16.08.2026) */
+@media (hover: hover) {
+  button.sm-cell:hover { border-color: var(--accent); }
+}
+
+/* ── лента месяцев (#monthStrip) ─────────────────────────────────────────── */
+.month-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 4px 0 12px;
+  padding-bottom: 2px;
+}
+.month-strip::-webkit-scrollbar { display: none; }
+.month-strip-btn {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 160ms var(--ease-out);
+}
+.month-strip-btn.is-active { background: var(--accent); border-color: var(--accent); color: var(--leather); }
+.month-strip-year { font-size: 0.58rem; opacity: 0.75; }
+@media (hover: hover) {
+  .month-strip-btn:not(.is-active):hover { border-color: var(--accent); color: var(--accent); }
+}
+
+/* ── полоска дней недели под "Днём" (#dayStrip) ──────────────────────────── */
+.day-strip { margin-top: 14px; }
+.day-strip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.day-strip-month { font-size: 0.74rem; color: var(--text-muted); font-weight: 600; }
+.day-strip-arrow {
+  width: 28px; height: 28px; flex: none;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-2); color: var(--text);
+  font-size: 0.95rem; cursor: pointer; font-family: inherit;
+  transition: all 160ms var(--ease-out);
+}
+@media (hover: hover) {
+  .day-strip-arrow:hover { border-color: var(--accent); color: var(--accent); }
+}
+.day-strip-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.day-strip-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 2px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 160ms var(--ease-out);
+}
+.day-strip-wd { font-size: 0.62rem; text-transform: lowercase; }
+.day-strip-num { font-size: 0.95rem; font-weight: 700; color: var(--text); line-height: 1.15; }
+.day-strip-day.is-weekend .day-strip-num { color: var(--danger); }
+.day-strip-day.is-today { border-color: var(--accent); }
+.day-strip-day.is-selected { background: var(--accent); border-color: var(--accent); }
+.day-strip-day.is-selected .day-strip-num,
+.day-strip-day.is-selected .day-strip-wd { color: var(--leather); }
+@media (hover: hover) {
+  .day-strip-day:not(.is-selected):hover { border-color: var(--accent); }
+}
+
+/* Телефон/планшет - полоска пристыкована к низу экрана, ровно как в Yclients: палец
+   тянется к ней, а не к стрелкам вверху. Класс .is-docked ставит JS и снимает его,
+   когда панель "Дня" не на экране (свернули карточку, ушли в другой раздел) - см.
+   syncDock в assets/crm-schedule-daystrip.js, там же разбор, почему одного
+   position:sticky не хватило (живой прогон 21.08.2026).
+   z-index 30 - НИЖЕ шторки меню (59) и её затемнения (59), выше обычного контента:
+   открытое меню обязано перекрывать полоску, а не наоборот. */
+@media (max-width: 1023.98px) {
+  .day-strip.is-docked {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    margin: 0;
+    padding: 8px 14px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: var(--panel-bg-light);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -10px 24px -14px rgba(0, 0, 0, 0.7);
+  }
+  /* Пристыкованная полоска вынута из потока - возвращаем странице её высоту, иначе
+     последний блок раздела прячется под ней */
+  body.day-strip-docked {
+    padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Плавающая кнопка "Развернуть все" (assets/crm-navigation-panels.css, position:fixed
+     в правом нижнем углу) на телефоне ложилась ровно поверх полоски и закрывала два
+     последних дня недели - поймано глазами на скриншоте прогона, 21.08.2026. Пока
+     полоска пристыкована, кнопка поднимается ровно на её высоту. */
+  body.day-strip-docked.crm-navigation-ui .panel-group-controls {
+    bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  }
+  .sched-matrix { --sm-name-w: 96px; --sm-col-w: 72px; }
+  /* Легенда на телефоне занимала три строки над самой сеткой - ужимаем, не выкидывая:
+     подсказка про клик по ячейке нужна именно там, где нет hover и title не увидеть */
+  .sm-legend { font-size: 0.72rem; gap: 2px 4px; margin-bottom: 8px; }
+  .sm-legend .legend-note { margin-left: 0; }
+  .sm-name .avatar { width: 24px; height: 24px; }
+  .sm-name-text { font-size: 0.72rem; }
+}
+
+@media (max-width: 430px) {
+  .sched-matrix { --sm-name-w: 80px; --sm-col-w: 74px; }
+  .sm-cell-break { display: none; } /* на такой ширине строка перерыва не читается, она есть в title и в редакторе дня */
+  /* Часы обязаны быть видны целиком: на 74px "10:00–20:00" в одну строку обрезалось
+     многоточием ("10:00–20:..." на скриншоте прогона 21.08.2026) - переносим на две
+     строки, это честнее обрезанного времени */
+  .sm-cell-hours { white-space: normal; font-size: 0.66rem; line-height: 1.2; }
+  .sm-cell { min-height: 62px; padding: 5px; }
+  .day-strip-num { font-size: 0.88rem; }
+}
+
+/* Легенда графика. Точки .day-dot (Окно 28) остались в проекте, но ЭТОТ вид ими не
+   пользуется: в матрице статус дня несёт сама ячейка - золотая полоса слева у разовой
+   правки и пунктирная рамка у выходного. Легенда обязана показывать ровно то, что
+   человек увидит в сетке, иначе она объясняет несуществующее (найдено глазами на
+   скриншоте прогона 21.08.2026: легенда обещала три цветных кружка, в сетке кружков нет). */
+.sm-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 0.8rem; margin: 4px 0 12px; }
+.sm-legend[hidden] { display: none; }
+.sm-legend .legend-note { margin-left: 10px; color: var(--text-muted); }
+.sm-legend-chip {
+  display: inline-block; width: 22px; height: 14px; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  margin-right: 5px; vertical-align: -2px; flex: none;
+}
+.sm-legend-chip--edit { border-left: 3px solid var(--accent); }
+.sm-legend-chip--off { border-style: dashed; background: rgba(193, 85, 74, 0.08); }

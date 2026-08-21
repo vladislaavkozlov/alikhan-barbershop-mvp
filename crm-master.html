@@ -163,6 +163,10 @@
                 </div>
               </div>
             </div>
+            <!-- Окно 65 (21.08.2026) - полоска дней недели под календарём дня (скриншот Yclients
+                 от заказчика). На телефоне липнет к низу экрана - .day-strip, sticky,
+                 assets/crm-app-shell.css. Наполняет assets/crm-schedule-daystrip.js. -->
+            <div class="day-strip" id="dayStrip"></div>
           </div>
 
           <div class="seg-panel panel-sp-week">
@@ -180,7 +184,9 @@
               <button type="button" class="day-nav-btn" id="monthNavPrev" aria-label="Предыдущий месяц">‹</button>
               <button type="button" class="day-nav-btn" id="monthNavNext" aria-label="Следующий месяц">›</button>
             </div>
-            <p class="section-hint day-legend"><span class="day-dot day-dot--work"></span>Рабочий&nbsp; <span class="day-dot day-dot--edit"></span>Правка&nbsp; <span class="day-dot day-dot--off"></span>Выходной<span class="legend-note">- изменить может владелец или администратор</span></p>
+            <!-- Окно 65 (21.08.2026) - лента месяцев (renderMonthStrip). -->
+            <div class="month-strip" id="monthStrip"></div>
+            <p class="section-hint sm-legend"><span class="sm-legend-chip sm-legend-chip--edit"></span>Полоса слева - разовая правка на дату&nbsp; <span class="sm-legend-chip sm-legend-chip--off"></span>Пунктир - выходной<span class="legend-note">- изменить может владелец или администратор</span></p>
             <div class="month-grid" id="monthGrid"></div>
           </div>
 

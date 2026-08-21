@@ -222,6 +222,11 @@
                     <div class="schedule-grid"></div>
                   </div>
                 </div>
+                <!-- Окно 65 (21.08.2026) - полоска дней недели под календарём дня (скриншот
+                Yclients от заказчика: там переход на другой день делают ею, а не стрелками
+                по одному дню). На телефоне липнет к низу экрана - .day-strip, sticky,
+                assets/crm-app-shell.css. Наполняет assets/crm-schedule-daystrip.js. -->
+                <div class="day-strip" id="dayStrip"></div>
               </div>
             </div>
           </details>
@@ -238,9 +243,10 @@
                   <button type="button" class="day-nav-btn" id="weekNavPrev" aria-label="Предыдущая неделя">‹</button>
                   <button type="button" class="day-nav-btn" id="weekNavNext" aria-label="Следующая неделя">›</button>
                 </div>
-                <div class="master-switch-row" id="weekMasterSwitch"></div>
-                <!-- Заполняется wireScheduleViews (assets/crm-schedule-views.js) - 7 компактных
-                     ячеек (часы или Выходной + число записей), не часовая сетка с карточками -->
+                <!-- Окно 65 (21.08.2026) - переключатель мастера убран: матрица показывает всю
+                     команду сразу (строка = мастер, колонка = дата), выбирать одного больше незачем.
+                     Наполняет assets/crm-schedule-matrix.js через crm-schedule-view-week.js. -->
+                <p class="section-hint sm-legend"><span class="sm-legend-chip sm-legend-chip--edit"></span>Полоса слева - разовая правка на дату&nbsp; <span class="sm-legend-chip sm-legend-chip--off"></span>Пунктир - выходной<span class="legend-note">- нажмите на ячейку, чтобы изменить день, на дату сверху - чтобы открыть его</span></p>
                 <div class="week-grid" id="weekGrid"></div>
               </div>
             </div>
@@ -258,8 +264,11 @@
                   <button type="button" class="day-nav-btn" id="monthNavPrev" aria-label="Предыдущий месяц">‹</button>
                   <button type="button" class="day-nav-btn" id="monthNavNext" aria-label="Следующий месяц">›</button>
                 </div>
-                <div class="master-switch-row" id="monthMasterSwitch"></div>
-                <p class="section-hint day-legend" id="monthStatusLegend"><span class="day-dot day-dot--work"></span>Рабочий&nbsp; <span class="day-dot day-dot--edit"></span>Правка&nbsp; <span class="day-dot day-dot--off"></span>Выходной</p>
+                <!-- Окно 65 (21.08.2026) - лента месяцев вместо переключателя мастера: прыжок на
+                     нужный месяц одним тапом (скриншот Yclients), матрица и так показывает всю команду.
+                     Наполняет renderMonthStrip (assets/crm-schedule-view-month.js). -->
+                <div class="month-strip" id="monthStrip"></div>
+                <p class="section-hint sm-legend" id="monthStatusLegend"><span class="sm-legend-chip sm-legend-chip--edit"></span>Полоса слева - разовая правка на дату&nbsp; <span class="sm-legend-chip sm-legend-chip--off"></span>Пунктир - выходной</p>
                 <div class="month-grid" id="monthGrid"></div>
               </div>
             </div>

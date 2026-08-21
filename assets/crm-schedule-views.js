@@ -245,7 +245,7 @@ export function wireScheduleViews(ctx) {
   // было на момент создания геттера.
   let weekApi, monthApi;
   weekApi = wireWeekView({
-    masters, fetchJson, holidayMapForRange, scheduleViewState, setView, getMonthApi: () => monthApi,
+    masters, isSolo, fetchJson, holidayMapForRange, scheduleViewState, setView, getMonthApi: () => monthApi,
   });
   monthApi = wireMonthView({
     masters, isSolo, fetchJson, apiSend, holidayMapForRange, renderTimeSelect, timeSelectValue,
