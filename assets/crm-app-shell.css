@@ -1293,3 +1293,16 @@ button.sm-cell {
   .an-lapsed-row { flex-direction: column; align-items: stretch; gap: 8px; }
   .an-lapsed-actions { justify-content: flex-start; }
 }
+
+/* ---------- Личные данные мастера: только просмотр (22.08.2026) ----------
+   Правка Влада: мастер видит свои данные, но не правит - всё через владельца или
+   управляющего. Поля ввода заменены на пары «подпись - значение», поэтому нужен свой
+   компактный формат: тот же ритм, что у .field-grid, но без рамок инпутов. */
+.self-facts { display: grid; gap: 12px; margin: 10px 0 0; }
+.self-fact dt { font-size: 0.76rem; color: var(--text-muted); margin-bottom: 3px; }
+.self-fact dd { margin: 0; font-size: 0.92rem; color: var(--text); white-space: pre-line; }
+.self-fact dd.is-empty { color: var(--text-muted); font-style: italic; }
+@media (min-width: 640px) {
+  .self-facts { grid-template-columns: 1fr 1fr; }
+  .self-fact:nth-child(n+3) { grid-column: 1 / -1; }
+}

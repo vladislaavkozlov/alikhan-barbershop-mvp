@@ -60,17 +60,11 @@ export function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
   const nameEl = el('selfCardName');
   if (nameEl) nameEl.textContent = staff.name;
 
-  // Портфолио - переиспользуем wirePortfolioEditors как есть: переносим id-суффикс
-  // "-self" на реальный staff.id, чтобы el(`portfolioExperience-${masterId}`) внутри
-  // неё нашла именно эти поля.
-  const saveBtn = el('selfPortfolioSaveBtn');
-  if (saveBtn && saveBtn.dataset.masterId === 'self') {
-    saveBtn.dataset.masterId = staff.id;
-    ['portfolioExperience', 'portfolioStrengths', 'portfolioCertificates', 'portfolioBeforeAfter', 'portfolioNote'].forEach((prefix) => {
-      const node = document.getElementById(`${prefix}-self`);
-      if (node) node.id = `${prefix}-${staff.id}`;
-    });
-  }
+  // Портфолио - только просмотр (правка Влада 22.08.2026). Раньше здесь стояли поля
+  // ввода и кнопка «Сохранить портфолио» через общий wirePortfolioEditors, но сервер
+  // мастеру их сохранить всё равно не давал: PUT /staff/:id/portfolio закрыт до
+  // владельца и управляющего. Теперь тексты просто показываются.
+  renderSelfPortfolioView(staff);
 
   // Услуги - read-only список всех 8, отмечены те, что реально есть у ЭТОГО мастера
   // в master_services (назначает владелец в своей карточке "Сотрудники").
@@ -99,4 +93,34 @@ export function wireMasterSelfDataTab(staff, services, masterServices, pctOf) {
   // кабинета мастера больше нет - вместе с формой сняты роуты /schedule-requests и
   // уведомления о заявках. График здесь остаётся, но только для просмотра.
   renderWeeklySelfReadOnly(staff);
+}
+
+// Портфолио мастера в режиме чтения. Пустое поле не прячем: мастер должен видеть, что
+// строка вообще существует и сейчас не заполнена - иначе «стажа нет на экране» читается
+// как «система его потеряла». Заполняет владелец, об этом сказано один раз внизу блока,
+// а не подписью под каждой строкой
+export function renderSelfPortfolioView(staff) {
+  const host = el('selfPortfolioView');
+  if (!host) return;
+  const rows = [
+    ['Стаж', staff.experienceText],
+    ['Сильные стороны', staff.strengthsText],
+    ['Курсы и сертификаты', staff.certificatesText],
+    ['Фото «до-после»', staff.beforeAfterUrls],
+  ];
+  host.innerHTML = `
+    <dl class="self-facts">
+      ${rows
+        .map(([label, value]) => `<div class="self-fact">
+          <dt>${escapeHtml(label)}</dt>
+          <dd${value ? '' : ' class="is-empty"'}>${value ? escapeHtml(value) : 'Не заполнено'}</dd>
+        </div>`)
+        .join('')}
+    </dl>
+    <p class="section-hint" style="margin:10px 0 0">Заполняет владелец</p>
+  `;
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }

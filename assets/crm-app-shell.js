@@ -87,13 +87,18 @@ const ROLE_CONFIG = {
     label: { schedule: 'Расписание', team: 'Сотрудники', profile: 'Личные данные' },
     icon: { schedule: ICON_SCHEDULE, team: ICON_TEAM, profile: ICON_PROFILE },
   },
+  // «Моя зарплата» убрана из меню 22.08.2026 (правка Влада). Сама вкладка исчезла
+  // ещё 17.08.2026 вместе с правкой «сотрудники не должны видеть свою зарплату,
+  // проценты и тд», а пункт меню остался и вёл в пустую панель pt-b - зарплату он не
+  // показывал, но выглядел как раздел, которого нет. Роут /payroll для роли master
+  // закрыт с того же дня (MONEY_VIEWERS, api/routes/payroll.js), сервер тут ни при чём
   master: {
     profileLabel: 'Мастер',
     defaultSection: 'today',
-    order: ['today', 'payroll', 'profile'],
-    radio: { today: 'pt-a', payroll: 'pt-b', profile: 'pt-c' },
-    label: { today: 'Мой день', payroll: 'Моя зарплата', profile: 'Личные данные' },
-    icon: { today: ICON_SCHEDULE, payroll: ICON_FINANCE, profile: ICON_PROFILE },
+    order: ['today', 'profile'],
+    radio: { today: 'pt-a', profile: 'pt-c' },
+    label: { today: 'Мой день', profile: 'Личные данные' },
+    icon: { today: ICON_SCHEDULE, profile: ICON_PROFILE },
   },
 };
 

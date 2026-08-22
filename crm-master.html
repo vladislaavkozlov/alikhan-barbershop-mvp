@@ -272,7 +272,6 @@
       <section>
         <!-- Правка 07.08.2026 - убран дублирующий <h2>Личные данные</h2>: название вкладки
              уже видно в active-состоянии таб-бара выше. -->
-        <p class="section-hint">Портфолио редактируете сами, остальное назначает владелец</p>
         <div class="staff-list">
           <details class="staff-card" open>
             <summary>
@@ -284,19 +283,22 @@
               <span class="chevron">▸</span>
             </summary>
             <div class="staff-card-body">
+              <!-- Портфолио стало только на просмотр (правка Влада 22.08.2026:
+                   «сделай так, чтобы они могли только смотреть свои данные, но не
+                   могли их менять, всё корректируется через владельца или
+                   управляющего»). Здесь были поля ввода и кнопка «Сохранить
+                   портфолио» - при том что сервер УЖЕ отвечал мастеру 401 на
+                   PUT /staff/:id/portfolio (роут закрыт до management, реестр
+                   api/server.mjs). То есть кнопка не «давала лишние права», а просто
+                   всегда падала с ошибкой - ровно тот случай, из-за которого отсюда
+                   раньше убрали смену PIN и заявки на график: показывать контрол,
+                   которому сервер всегда отказывает, нельзя.
+                   Значения рисует assets/crm-master-self.js (renderSelfPortfolioView). -->
               <h4>Портфолио</h4>
-              <p class="section-hint" style="margin:6px 0 10px">Стаж, сильные стороны, курсы/сертификаты, фото «до-после» - заполните сами, видно клиентам и владельцу</p>
-              <div class="field-grid">
-                <div class="field"><label>Стаж</label><input type="text" id="portfolioExperience-self" placeholder="например «5 лет барбером»"></div>
-                <div class="field"><label>Сильные стороны</label><input type="text" id="portfolioStrengths-self" placeholder="например «фейды, оформление бороды»"></div>
-              </div>
-              <div class="field"><label>Курсы / сертификаты (по одному на строку)</label><textarea id="portfolioCertificates-self" rows="2"></textarea></div>
-              <div class="field"><label>Фото «до-после» (ссылки, по одной на строку)</label><textarea id="portfolioBeforeAfter-self" rows="2" placeholder="https://..."></textarea></div>
-              <button class="btn btn-ghost btn-sm portfolio-save" type="button" id="selfPortfolioSaveBtn" data-master-id="self">Сохранить портфолио</button>
-              <p class="payroll-note" id="portfolioNote-self"></p>
+              <div id="selfPortfolioView"></div>
 
               <h4>Услуги</h4>
-              <p class="section-hint" style="margin:6px 0 10px">Какие услуги вы оказываете и с какой длительностью - назначает владелец в своей карточке «Сотрудники»</p>
+              <p class="section-hint" style="margin:6px 0 10px">Назначает владелец</p>
               <div class="service-picker readonly" id="selfServicePicker"></div>
 
               <!-- Поле «Ставка от выручки, %» удалено 17.08.2026 (правка Влада:
@@ -305,7 +307,7 @@
                    владельца и управляющего -->
 
               <h4>График работы</h4>
-              <p class="section-hint" style="margin:6px 0 10px">Только просмотр - график меняет владелец или администратор</p>
+              <p class="section-hint" style="margin:6px 0 10px">Меняет владелец или администратор</p>
               <div id="weeklyEditor-self"></div>
 
               <!-- Блок «Разовое изменение на дату» (отгул/отпуск заявкой владельцу) и
