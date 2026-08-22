@@ -1306,3 +1306,90 @@ button.sm-cell {
   .self-facts { grid-template-columns: 1fr 1fr; }
   .self-fact:nth-child(n+3) { grid-column: 1 / -1; }
 }
+
+/* ---------- Срок обновления стрижки при закрытии визита (Окно 59, 22.08.2026) ----------
+   Блок стоит внутри формы записи, сразу под статусом визита. Своей палитры не заводит:
+   те же токены, что у остальной формы. Мастер работает с ним стоя, между клиентами -
+   поэтому кнопки крупные (не меньше 40px по высоте), а подсказка со сценарием разговора
+   читается сверху вниз одним взглядом, не абзацем. */
+.renew-block {
+  margin-top: 12px; padding: 12px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  display: grid; gap: 10px;
+}
+.renew-title { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+/* Сценарий разговора: мастер не должен помнить методику - он читает и говорит */
+.renew-hint { display: grid; gap: 3px; font-size: 0.78rem; line-height: 1.35; color: var(--text-muted); }
+.renew-days-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.renew-quick-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.renew-quick {
+  min-height: 40px; padding: 0 14px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 0.85rem; font-weight: 600;
+}
+.renew-quick:hover { border-color: var(--accent); color: var(--accent); }
+.renew-quick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.renew-days-field, .renew-note-field { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.renew-days-field span, .renew-note-field span { font-size: 0.78rem; color: var(--text-muted); }
+.renew-days-field input {
+  width: 84px; min-height: 40px; padding: 0 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 0.9rem; font-variant-numeric: tabular-nums;
+}
+/* Поле срока гаснет, когда выбрано «не обсуждали»: месяц ставит сервер, и спорить с
+   ним полем нельзя - иначе метрика обсуждённых сроков потеряла бы смысл */
+.renew-days-field input:disabled { opacity: 0.55; cursor: not-allowed; }
+.renew-note-field { flex-direction: column; align-items: stretch; gap: 4px; }
+.renew-note-field input {
+  min-height: 40px; padding: 0 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 0.9rem;
+}
+.renew-summary { font-size: 0.82rem; font-weight: 600; color: var(--accent); min-height: 1.1em; }
+.renew-reasons { display: grid; gap: 6px; }
+.renew-reason {
+  display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+  font-size: 0.84rem; color: var(--text); background: var(--surface);
+}
+.renew-reason:has(input:checked) {
+  border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+.renew-reason input { accent-color: var(--accent); }
+.renew-recommended-row { display: flex; }
+.renew-recommended-row .renew-days-field { flex-direction: column; align-items: flex-start; gap: 4px; }
+.renew-setby { margin: 0; font-size: 0.76rem; color: var(--text-muted); }
+/* 360px: ничего не выталкивается за экран - быстрые кнопки переносятся, поле «дней»
+   встаёт на свою строку, кнопки формы под блоком остаются на месте */
+@media (max-width: 420px) {
+  .renew-days-row { flex-direction: column; align-items: stretch; }
+  .renew-quick-row { justify-content: flex-start; }
+  .renew-days-field { justify-content: space-between; }
+  .renew-days-field input { width: 100%; max-width: 120px; }
+}
+/* Почему кнопка «Сохранить изменения» серая. Формулировка намеренно без слова
+   «ошибка»: «не обсуждали» - законный ответ мастера, а не провинность */
+.renew-required-note { margin: 0; font-size: 0.78rem; line-height: 1.35; color: var(--text-muted); }
+
+/* Срок обновления стрижки в карточке клиента (Окно 59). Тот же язык, что у блока в
+   форме закрытия визита - это одни и те же данные, показанные в двух местах */
+.client-renew {
+  margin: 0 0 12px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  display: grid; gap: 6px;
+}
+.client-renew-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.client-renew-label { font-size: 0.78rem; color: var(--text-muted); }
+.client-renew-value { font-size: 0.88rem; color: var(--text); }
+.client-renew-empty { color: var(--text-muted); font-style: italic; }
+.client-renew-head .btn { margin-left: auto; }
+.client-renew-note { font-size: 0.8rem; color: var(--text); }
+.client-renew-setby { font-size: 0.74rem; color: var(--text-muted); }
+.client-renew-form { display: grid; gap: 8px; margin-top: 4px; }
+.client-renew-field { display: grid; gap: 4px; font-size: 0.76rem; color: var(--text-muted); }
+.client-renew-field input {
+  min-height: 40px; padding: 0 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit;
+}
+.client-renew-field:not(.client-renew-field--wide) input { max-width: 120px; font-variant-numeric: tabular-nums; }

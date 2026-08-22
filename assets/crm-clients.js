@@ -15,9 +15,9 @@
 // считает риск-клиентов отдельным fetch'ем для общего бейджа) - renderRiskList()
 // ниже сразу выходит по guard'у и ничего не делает на этой странице, сам модуль не
 // удалён и вернётся к полноценному рендеру, когда появится раздел "Клиенты".
-import { fetchJson } from './crm-auth.js';
-import { errorMessage, showError } from './crm-toast.js';
-import { showSkeleton, showSpinner } from './crm-loading.js';
+import { fetchJson, apiSend } from './crm-auth.js';
+import { errorMessage, showError, showSuccess } from './crm-toast.js';
+import { showSkeleton, showSpinner, setButtonBusy } from './crm-loading.js';
 // Подписи каналов («Яндекс Карты», «2ГИС», …) для строки «откуда пришёл» в разделе
 // «Клиенты» - один словарь на весь проект, см. assets/client-source.js
 import { CLIENT_SOURCE_LABELS } from './client-source.js';
@@ -32,6 +32,9 @@ import { initCrmNavigationPanels } from './crm-navigation-panels.js';
 // Задача Влада 21.08.2026: из истории клиента проваливаться в саму запись, а кнопки
 // связи держать рядом с «Записать снова», как в уведомлениях.
 import { messengerButtonsHtml, clientMessageText, openBookingFromNotification, wireMessengerLinks } from './crm-notifications.js';
+// Срок обновления стрижки (Окно 59, 22.08.2026) - словарь подписей один на весь
+// проект, тот же, что в форме закрытия визита
+import { RENEW_REASON_LABELS, RENEW_REASON_SHORT } from './renew-reason.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -404,6 +407,112 @@ function pump() {
   }
 }
 
+// ── Срок обновления стрижки в карточке клиента (Окно 59, 22.08.2026) ────────
+// Основное место ввода - закрытие визита, здесь поправка задним числом («договорились
+// на месяц, а он уезжает до октября»). Показываем то же, что записал мастер, плюс кто
+// и когда это сделал: отдельной таблицы истории в v1 нет осознанно, «кто поставил
+// последним» отвечает на вопрос владельца «с кого спросить».
+function renewDaysText(days) {
+  const n = Number(days);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n % 7 === 0) {
+    const weeks = n / 7;
+    return `${weeks} ${weeks === 1 ? 'неделя' : weeks >= 2 && weeks <= 4 ? 'недели' : 'недель'}`;
+  }
+  return `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'день' : n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14) ? 'дня' : 'дней'}`;
+}
+
+function renewSectionMarkup(card) {
+  const renew = card.renew ?? {};
+  const daysText = renewDaysText(renew.days);
+  const reason = renew.reason ? RENEW_REASON_SHORT[renew.reason] ?? renew.reason : null;
+  const when = renew.setAt ? formatVisitDate(String(renew.setAt).slice(0, 10)) : '';
+  const setBy = renew.setByName && when ? `${escapeHtml(renew.setByName)}, ${escapeHtml(when)}` : '';
+  // Срока нет - так и пишем. Подставлять сюда «месяц по умолчанию» нельзя: месяц
+  // ставится только осознанным выбором «не обсуждали», и выдуманный срок на экране
+  // владельца выглядел бы как договорённость, которой не было
+  const value = daysText
+    ? `<b>${escapeHtml(daysText)}</b>${reason ? ` - ${escapeHtml(reason)}` : ''}`
+    : '<span class="client-renew-empty">Срок не поставлен - появится, когда мастер закроет визит</span>';
+  const note = renew.note ? `<div class="client-renew-note">${escapeHtml(renew.note)}</div>` : '';
+  // Причины - радио-чипы, а не нативный select: тёмную тему CRM он не наследует
+  // (правило проекта про свои темизированные виджеты), и список тут короткий -
+  // пять пунктов читаются целиком, без раскрытия
+  const cardId = escapeHtml(card.id);
+  const options = Object.entries(RENEW_REASON_LABELS)
+    .map(
+      ([key, label]) => `<label class="renew-reason">
+        <input type="radio" name="clientRenewReason-${cardId}" value="${escapeHtml(key)}"${key === renew.reason ? ' checked' : ''}>
+        <span>${escapeHtml(label)}</span>
+      </label>`
+    )
+    .join('');
+  return `<div class="client-renew" data-client-renew>
+    <div class="client-renew-head">
+      <span class="client-renew-label">Приходит снова через</span>
+      <span class="client-renew-value">${value}</span>
+      <button type="button" class="btn btn-ghost btn-sm" data-renew-edit>Изменить</button>
+    </div>
+    ${note}
+    ${setBy ? `<div class="client-renew-setby">Поставил ${setBy}</div>` : ''}
+    <div class="client-renew-form" data-renew-form hidden>
+      <label class="client-renew-field"><span>дней</span>
+        <input type="text" inputmode="numeric" autocomplete="off" data-renew-days value="${escapeHtml(renew.days ?? '')}" placeholder="28">
+      </label>
+      <div class="client-renew-field client-renew-field--wide"><span>почему так</span>
+        <div class="renew-reasons" data-renew-reasons>${options}</div>
+      </div>
+      <label class="client-renew-field client-renew-field--wide"><span>комментарий</span>
+        <input type="text" maxlength="300" autocomplete="off" data-renew-note value="${escapeHtml(renew.note ?? '')}">
+      </label>
+      <button type="button" class="btn btn-primary btn-sm" data-renew-save>Сохранить срок</button>
+      <p class="payroll-note" data-renew-result hidden></p>
+    </div>
+  </div>`;
+}
+
+// Правка срока из карточки. Роут тот же, что и у закрытия визита по смыслу, но свой
+// (PATCH /clients/:id/renew) - здесь нет брони, к которой можно было бы прицепиться
+function wireRenewEditor(root, clientId) {
+  const host = root.querySelector('[data-client-renew]');
+  if (!host) return;
+  const form = host.querySelector('[data-renew-form]');
+  host.querySelector('[data-renew-edit]')?.addEventListener('click', () => {
+    if (form) form.hidden = !form.hidden;
+  });
+  host.querySelector('[data-renew-save]')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const result = host.querySelector('[data-renew-result]');
+    const days = Number(host.querySelector('[data-renew-days]')?.value);
+    const reason = host.querySelector('[data-renew-reasons] input:checked')?.value;
+    const note = host.querySelector('[data-renew-note]')?.value ?? '';
+    setButtonBusy(btn, true);
+    try {
+      const out = await apiSend(`/clients/${encodeURIComponent(clientId)}/renew`, 'PATCH', {
+        renew: { days, reason, note },
+      });
+      if (!out.ok) throw out;
+      const saved = out.data?.renew ?? {};
+      const valueEl = host.querySelector('.client-renew-value');
+      const daysText = renewDaysText(saved.days);
+      const short = saved.reason ? RENEW_REASON_SHORT[saved.reason] ?? saved.reason : null;
+      if (valueEl && daysText) valueEl.innerHTML = `<b>${escapeHtml(daysText)}</b>${short ? ` - ${escapeHtml(short)}` : ''}`;
+      if (result) {
+        result.hidden = false;
+        result.textContent = 'Срок сохранён';
+      }
+      showSuccess('Срок сохранён');
+    } catch (err) {
+      if (result) {
+        result.hidden = false;
+        result.textContent = errorMessage(err, 'Не удалось сохранить срок');
+      }
+    } finally {
+      setButtonBusy(btn, false);
+    }
+  });
+}
+
 function loadClientHistory(details) {
   const body = details.querySelector('[data-client-body]');
   if (!body || details.dataset.loaded === '1') return;
@@ -445,8 +554,9 @@ async function fetchClientHistory(details, body) {
       })
       : '';
     actions.push(messengerButtonsHtml(card.phone, messageText));
-    body.innerHTML = `${visits}<div class="client-card-actions">${actions.join('')}</div>`;
+    body.innerHTML = `${renewSectionMarkup(card)}${visits}<div class="client-card-actions">${actions.join('')}</div>`;
     wireVisitOpen(body);
+    wireRenewEditor(body, card.id);
     wireMessengerLinks(body); // MAX: ссылки на чат по номеру у него нет, кнопка копирует номер
     const rebookBtn = body.querySelector('[data-rebook]');
     if (rebookBtn) {

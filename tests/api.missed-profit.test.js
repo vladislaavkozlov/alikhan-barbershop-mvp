@@ -5,6 +5,11 @@
 // живым прогоном, здесь - разбор людей на три состояния и рубли по ним. Главное, что
 // эти тесты держат: деньги считаются тем же резолвером цены, что и зарплата, и «нет
 // данных» не превращается в ноль.
+//
+// last_date - последний визит клиента на конец периода (может быть и до его начала),
+// period_last_date - последний визит ВНУТРИ периода. Разделение появилось после живого
+// прогона 22.08.2026: считать отвал только по клиентам с визитом внутри окна значило
+// прятать самых потерянных - см. loadClientVisits, api/routes/missed-profit.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeMissedProfit, isDateStr } from '../api/routes/missed-profit.js';
@@ -45,7 +50,7 @@ test('просроченный клиент: пропущенные визиты
     ...PRICE_ROWS,
     clients: [
       {
-        client_id: 'c1', visits: 1, first_date: '2026-06-01', last_date: '2026-06-01',
+        client_id: 'c1', visits: 1, first_date: '2026-06-01', period_last_date: '2026-06-01', last_date: '2026-06-01',
         booking_id: 'b1', master_id: 'm1', service_id: null,
         name: 'Иван', phone: '+79990001111', renew_days: 28, renew_days_recommended: 28, renew_reason: 'recommended',
       },
@@ -66,7 +71,7 @@ test('клиент в сроке в потери не попадает вовс�
     ...PRICE_ROWS,
     clients: [
       {
-        client_id: 'c1', visits: 2, first_date: '2026-07-25', last_date: '2026-08-15',
+        client_id: 'c1', visits: 2, first_date: '2026-07-25', period_last_date: '2026-08-15', last_date: '2026-08-15',
         booking_id: 'b1', master_id: 'm1', service_id: null,
         name: 'Пётр', phone: '+79990002222', renew_days: 28, renew_days_recommended: 28, renew_reason: 'recommended',
       },
@@ -83,7 +88,7 @@ test('разрежённый: согласились ходить вдвое р�
     ...PRICE_ROWS,
     clients: [
       {
-        client_id: 'c1', visits: 3, first_date: '2026-05-01', last_date: '2026-08-20',
+        client_id: 'c1', visits: 3, first_date: '2026-05-01', period_last_date: '2026-08-20', last_date: '2026-08-20',
         booking_id: 'b1', master_id: 'm1', service_id: null,
         name: 'Сергей', phone: '+79990003333', renew_days: 56, renew_days_recommended: 28, renew_reason: 'price',
       },
@@ -126,7 +131,7 @@ test('клиент без своей цены у мастера считаетс
     services: [{ id: 'spa', price: 3000 }],
     clients: [
       {
-        client_id: 'c1', visits: 1, first_date: '2026-06-01', last_date: '2026-06-01',
+        client_id: 'c1', visits: 1, first_date: '2026-06-01', period_last_date: '2026-06-01', last_date: '2026-06-01',
         booking_id: 'b1', master_id: 'm1', service_id: null,
         name: 'Иван', phone: '+79990001111', renew_days: 28, renew_days_recommended: null, renew_reason: 'hair',
       },
@@ -141,7 +146,7 @@ test('пустой срок у клиента читается как месяц
     ...PRICE_ROWS,
     clients: [
       {
-        client_id: 'c1', visits: 1, first_date: '2026-06-01', last_date: '2026-06-01',
+        client_id: 'c1', visits: 1, first_date: '2026-06-01', period_last_date: '2026-06-01', last_date: '2026-06-01',
         booking_id: 'b1', master_id: 'm1', service_id: null,
         name: 'Без срока', phone: '+79990004444', renew_days: null, renew_days_recommended: null, renew_reason: null,
       },
@@ -152,4 +157,46 @@ test('пустой срок у клиента читается как месяц
   assert.equal(out.overdue[0].renewDays, 30);
   // 82 дня при сроке 30 - два пропущенных визита
   assert.equal(out.overdue[0].missedVisits, 2);
+});
+
+// Регрессия на дефект, найденный живым прогоном 22.08.2026: карточка за «Месяц»
+// показывала только клиентов с визитом внутри месяца - то есть чем дольше человек
+// потерян, тем меньше был шанс его увидеть. Считаем не «когда он был последний раз», а
+// «сколько его визитов должно было состояться в этом окне и не состоялось».
+test('клиент, пропавший ДО начала периода, всё равно виден в окне периода', async () => {
+  const db = fakeDb({
+    ...PRICE_ROWS,
+    clients: [
+      {
+        client_id: 'c1', visits: 0, first_date: null, period_last_date: null, last_date: '2026-05-01',
+        booking_id: 'b1', master_id: 'm1', service_id: null,
+        name: 'Давно пропал', phone: '+79990005555', renew_days: 28, renew_days_recommended: null, renew_reason: 'recommended',
+      },
+    ],
+  });
+  // Окно - только август. Визитов внутри него нет вовсе, но сроки 27.07+28=24.08? нет:
+  // сроки клиента приходятся на 29.05, 26.06, 24.07, 21.08 - в августовское окно попал
+  // ровно один пропущенный визит
+  const out = await computeMissedProfit(db, '2026-08-01', TODAY, TODAY);
+  assert.equal(out.overdue.length, 1);
+  assert.equal(out.overdue[0].missedVisits, 1);
+  assert.equal(out.lostLapsed, 2000);
+});
+
+test('один и тот же пропавший клиент не считается потерей в каждом периоде заново', async () => {
+  const db = fakeDb({
+    ...PRICE_ROWS,
+    clients: [
+      {
+        client_id: 'c1', visits: 0, first_date: null, period_last_date: null, last_date: '2026-05-01',
+        booking_id: 'b1', master_id: 'm1', service_id: null,
+        name: 'Давно пропал', phone: '+79990005555', renew_days: 28, renew_days_recommended: null, renew_reason: 'recommended',
+      },
+    ],
+  });
+  // Узкое окно между сроками (сроки - 29.05, 26.06, 24.07, 21.08): в первую неделю
+  // августа не приходится ни один, и клиента в этой карточке нет
+  const out = await computeMissedProfit(db, '2026-08-01', '2026-08-07', TODAY);
+  assert.equal(out.overdue.length, 0);
+  assert.equal(out.total, null, 'ни визитов, ни неявок, ни пропущенных сроков - считать не из чего');
 });

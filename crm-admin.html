@@ -196,6 +196,39 @@
               <label for="st-no">Не пришёл</label>
             </div>
             <p class="commission-note" id="bk-status-note" hidden></p>
+          <!-- Окно 59 (22.08.2026) - срок, через который клиент придёт снова. Стоит
+               рядом со статусом визита намеренно: разговор про срок происходит в конце
+               стрижки, а поле в карточке клиента не заполнил бы никто. Блок появляется
+               только при статусе «Обслужен» и только у визита с телефоном - walk-in без
+               телефона система между визитами не связывает, напоминать некому.
+               Содержимое кнопок, причин и подсказки рисует assets/crm-renew-field.js
+               из общего словаря (assets/renew-reason.js), чтобы подписи на всех
+               страницах были одни и те же. -->
+          <div class="renew-block" id="wfRenew" hidden>
+            <div class="renew-title">Когда клиенту прийти снова</div>
+            <div class="renew-hint" id="wfRenewHint"></div>
+            <div class="renew-days-row">
+              <div class="renew-quick-row" id="wfRenewQuick"></div>
+              <label class="renew-days-field">
+                <span>дней</span>
+                <input id="wfRenewDays" type="text" inputmode="numeric" autocomplete="off" placeholder="28">
+              </label>
+            </div>
+            <div class="renew-summary" id="wfRenewSummary"></div>
+            <div class="renew-reasons" id="wfRenewReasons"></div>
+            <div class="renew-recommended-row" id="wfRenewRecommendedRow" hidden>
+              <label class="renew-days-field">
+                <span>А правильно для этой стрижки, дней</span>
+                <input id="wfRenewRecommended" type="text" inputmode="numeric" autocomplete="off" placeholder="28">
+              </label>
+            </div>
+            <label class="renew-note-field">
+              <span>Комментарий к сроку</span>
+              <input id="wfRenewNote" type="text" maxlength="300" autocomplete="off" placeholder="например: уезжает до октября">
+            </label>
+            <p class="renew-setby" id="wfRenewSetBy" hidden></p>
+            <p class="renew-required-note" id="wfRenewRequiredNote" hidden>Выберите срок и причину - без этого визит не закрыть. Не обсуждали срок с клиентом? Так и отметьте, это нормальный ответ</p>
+          </div>
             <div class="noshow-banner" id="bk-noshow-banner" hidden>
               <span class="ico">⚠</span>
               <span></span>

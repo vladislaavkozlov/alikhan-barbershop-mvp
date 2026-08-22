@@ -23,7 +23,7 @@ import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { MANAGEMENT_ROLES } from '../lib/permissions.js';
 import { loadPriceResolver } from '../lib/pricing.js';
-import { classifyClient, missedVisits, shortfallVisits, summarizeMissedProfit, daysBetween, renewDaysOf } from '../lib/renew.js';
+import { classifyClient, missedVisitsInWindow, shortfallVisits, summarizeMissedProfit, daysBetween, renewDaysOf } from '../lib/renew.js';
 
 // Тот же круг, что и вся остальная «Финансы»: владелец и управляющий (правка Влада
 // 17.08.2026 - «администратору не даём данных к финансам»). Здесь и деньги, и телефоны
@@ -45,25 +45,37 @@ export function isDateStr(v) {
 // раз был, когда впервые и когда последний раз, его срок, и последний визит целиком
 // (мастер и услуги) - по нему считается цена типичного визита этого человека.
 async function loadClientVisits(db, from, to) {
+  // ВАЖНО (найдено живым прогоном 22.08.2026): «до конца периода», а не «внутри
+  // периода». Первая версия брала клиентов, чей последний визит попал в окно, - и на
+  // вкладке «Месяц» карточка прятала как раз самых потерянных: кто не приходил три
+  // месяца, в границы месяца не попадал вовсе. Теперь берём последний визит человека
+  // на конец периода, а сколько его визитов пропало ИМЕННО в окне, считает
+  // missedVisitsInWindow (api/lib/renew.js).
+  //
+  // Разрежённость, наоборот, считается по визитам ВНУТРИ окна: она про то, как человек
+  // ходил в этот период, и визиты годовой давности к ней отношения не имеют.
   const res = await db.query(
-    `WITH period AS (
+    `WITH done AS (
        SELECT b.* FROM bookings b
-       WHERE b.status = 'done' AND b.client_id IS NOT NULL AND b.date >= $1 AND b.date <= $2
+       WHERE b.status = 'done' AND b.client_id IS NOT NULL AND b.date <= $2
+     ),
+     period AS (
+       SELECT * FROM done WHERE date >= $1
      ),
      agg AS (
-       SELECT client_id, count(*)::int AS visits, min(date) AS first_date, max(date) AS last_date
+       SELECT client_id, count(*)::int AS visits, min(date) AS first_date, max(date) AS period_last_date
        FROM period GROUP BY client_id
      ),
      last_visit AS (
-       SELECT DISTINCT ON (client_id) client_id, id AS booking_id, master_id, service_id
-       FROM period ORDER BY client_id, date DESC, start_time DESC
+       SELECT DISTINCT ON (client_id) client_id, id AS booking_id, master_id, service_id, date AS last_date
+       FROM done ORDER BY client_id, date DESC, start_time DESC
      )
-     SELECT a.client_id, a.visits, a.first_date, a.last_date,
-            l.booking_id, l.master_id, l.service_id,
+     SELECT l.client_id, coalesce(a.visits, 0) AS visits, a.first_date, a.period_last_date,
+            l.last_date, l.booking_id, l.master_id, l.service_id,
             c.name, c.phone, c.renew_days, c.renew_days_recommended, c.renew_reason
-     FROM agg a
-     JOIN last_visit l ON l.client_id = a.client_id
-     JOIN clients c ON c.id = a.client_id`,
+     FROM last_visit l
+     LEFT JOIN agg a ON a.client_id = l.client_id
+     JOIN clients c ON c.id = l.client_id`,
     [from, to]
   );
   return res.rows;
@@ -118,7 +130,9 @@ export async function computeMissedProfit(db, from, to, todayDate = new Date().t
   const sparse = [];
   for (const r of rows) {
     const lastVisitDate = dstr(r.last_date);
-    const spanDays = daysBetween(dstr(r.first_date), lastVisitDate);
+    // Размах визитов ВНУТРИ периода - основа разрежённости (см. комментарий в
+    // loadClientVisits): как человек ходил именно в это окно
+    const spanDays = daysBetween(dstr(r.first_date), dstr(r.period_last_date));
     const state = classifyClient({
       lastVisitDate,
       renewDays: r.renew_days,
@@ -139,7 +153,11 @@ export async function computeMissedProfit(db, from, to, todayDate = new Date().t
       visitPrice: price,
     };
     if (state === 'overdue') {
-      const missed = missedVisits(lastVisitDate, r.renew_days, todayDate);
+      const missed = missedVisitsInWindow(lastVisitDate, r.renew_days, { from, to, today: todayDate });
+      // Клиент просрочен, но ни один его пропущенный визит не пришёлся на это окно
+      // (потерян раньше и уже показан в прошлом периоде) - в карточку периода он не
+      // идёт. Иначе один и тот же человек считался бы потерей каждый месяц заново
+      if (missed === 0) continue;
       overdue.push({ ...base, missedVisits: missed, amount: missed * price, daysLate: daysBetween(lastVisitDate, todayDate) - renewDaysOf(r.renew_days) });
     } else if (state === 'sparse') {
       const shortfall = shortfallVisits({ visits: r.visits, spanDays, renewDays: r.renew_days, recommendedDays: r.renew_days_recommended });
@@ -157,7 +175,10 @@ export async function computeMissedProfit(db, from, to, todayDate = new Date().t
 
   // «Нет данных» - это отсутствие состоявшихся визитов И неявок за период. Ноль рублей
   // на пустом периоде читался бы как «вы ничего не упустили», а это другое сообщение
-  const hasData = rows.length > 0 || noShowRows.length > 0;
+  // «Нет данных» - в окне не было ни одного состоявшегося визита, ни одной неявки и
+  // ни одного пропущенного срока. Просто «строк не пришло» тут мало: последний визит
+  // мог быть до периода, и клиент всё равно попадает в расчёт
+  const hasData = rows.some((r) => Number(r.visits) > 0) || noShowRows.length > 0 || overdue.length > 0;
   const summary = summarizeMissedProfit({ overdue, sparse, noShowAmounts: noShows.map((n) => n.amount), hasData });
 
   return { from, to, ...summary, overdue, sparse, noShows };

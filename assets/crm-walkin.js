@@ -9,6 +9,9 @@ import { renderDateSelect, renderTimeSelect, timeSelectValue, dateSelectValue } 
 import { API, getToken } from './crm-auth.js';
 import { renderLiveProof } from './crm-dashboard.js';
 import { RADIO_ID_TO_STATUS, applyNoShowStreakAfterStatus } from './crm-booking-status.js';
+// Срок обновления стрижки (Окно 59, 22.08.2026) - поле живёт в этой же форме и
+// уезжает на сервер вместе со статусом «Обслужен», одним запросом и одной транзакцией
+import { wireRenewField, setRenewPrefill, setRenewVisible, renewFieldPayload, renewFieldSnapshot, isRenewVisible } from './crm-renew-field.js';
 // Признак «принимает клиентов сейчас» - общий с колонками календаря (mastersOf),
 // чтобы список мастеров в форме записи и в дне не мог разойтись
 import { acceptsClients } from './crm-calendar.js';
@@ -170,6 +173,9 @@ function editStateSnapshot() {
     actualPrice: (el('bkActualPrice')?.value ?? '').trim(),
     comment: (el('bkStaffComment')?.value ?? '').trim(),
     status: checkedStatusRadioId(),
+    // Срок возврата (Окно 59) - в снимке, иначе смена срока не считалась бы правкой и
+    // кнопка «Сохранить изменения» осталась бы серой
+    renew: renewFieldSnapshot(),
   };
 }
 
@@ -185,9 +191,16 @@ function isEditDirty() {
 function updateSubmitState() {
   const btn = el('wfSubmit');
   if (!btn) return;
+  // Срок возврата (Окно 59) - обязателен, когда визит закрывают у клиента с телефоном.
+  // Кнопка гаснет заранее, а не даёт нажать и получить отказ сервера: мастер стоит у
+  // кресла, и лишний круг «нажал - прочитал ошибку - вернулся» тут дороже всего.
+  // Обязательность всё равно проверяет сервер - это подсказка, а не защита.
+  const renewMissing = editMode && isRenewVisible() && !renewFieldPayload();
   btn.disabled = editMode
-    ? selected.size === 0 || !isEditDirty()
+    ? selected.size === 0 || !isEditDirty() || renewMissing
     : selected.size === 0;
+  const why = el('wfRenewRequiredNote');
+  if (why) why.hidden = !renewMissing;
 }
 
 // Поля, которые меняются мимо renderSummary: дата (customdate:change), время и мастер
@@ -206,8 +219,25 @@ function wireDirtyWatchers() {
   }
   // Статус визита - обычные radio внутри формы, change всплывает
   form.addEventListener('change', (e) => {
-    if (e.target?.name === 'bstatus') updateSubmitState();
+    if (e.target?.name === 'bstatus') {
+      syncRenewVisibility();
+      updateSubmitState();
+    }
   });
+  el('wfClientPhone')?.addEventListener('input', syncRenewVisibility);
+  wireRenewField(updateSubmitState);
+}
+
+// Спрашивать про срок имеет смысл ровно в двух условиях сразу: визит отмечают
+// состоявшимся И у него есть клиент с телефоном. Телефон читаем из ПОЛЯ, а не из
+// сохранённой записи: администратор мог вписать номер только что, и к моменту
+// сохранения клиент у брони уже появится (submitEdit шлёт клиента первым шагом).
+// Walk-in без телефона поле не спрашивает вовсе - система намеренно не связывает такие
+// визиты между собой, напоминать некому.
+function syncRenewVisibility() {
+  const done = checkedStatusRadioId() === 'st-came';
+  const hasPhone = !!phoneKeyOf(el('wfClientPhone')?.value ?? '');
+  setRenewVisible(editMode && done && hasPhone);
 }
 
 // Та же нормализация, что на бэкенде (normalizePhoneKey, api/routes/clients.js) -
@@ -564,6 +594,25 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     return btn;
   }
 
+  // Тихая подгрузка срока по телефону открытой записи (Окно 59). Отдельно от
+  // lookupClientByPhone: тот рассказывает про клиента подсказкой над формой (это про
+  // ручной ввод номера), а здесь нужно только заполнить поле срока. Ошибку глотаем
+  // молча - сеть отвалилась, поле останется пустым, и сервер всё равно не даст
+  // закрыть визит без срока, если его нет.
+  async function loadRenewForPhone(rawPhone) {
+    if (!phoneKeyOf(rawPhone)) return;
+    try {
+      const res = await fetch(`${API}/clients?phone=${encodeURIComponent(rawPhone)}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) return;
+      const card = await res.json();
+      setRenewPrefill(card.renew ?? null);
+    } catch {
+      /* поле останется пустым - обязательность держит сервер, не эта подгрузка */
+    }
+  }
+
   async function lookupClientByPhone(rawPhone) {
     const key = phoneKeyOf(rawPhone);
     if (!key) {
@@ -592,6 +641,10 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       // опечатку"). Уже набранное вручную имя не затираем - администратор мог начать
       // с имени, а телефон дописать после.
       if (!clientNameEl.value.trim()) clientNameEl.value = card.name || '';
+      // Договорённость о сроке с прошлого визита - в поле сразу (Окно 59). Мастер
+      // меняет её, только если договорились иначе; допрашивать постоянного клиента
+      // каждый раз нельзя, он начнёт штамповать что попало
+      setRenewPrefill(card.renew ?? null);
       const visitsCount = card.visits?.length ?? 0;
       const visitsText = visitsCount > 0
         ? `${visitsCount} ${ruPluralVisits(visitsCount)}`
@@ -728,12 +781,21 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         window.renderBookingActualPrice?.(editBooking.actualPrice ?? null, editBooking.staffComment ?? '');
         window.syncBookingActualPrice?.(currentServicesTotal());
         window.updateNoShowUi?.();
+        // Срок возврата (Окно 59): сначала чистим поле от прошлой открытой записи,
+        // потом тихо подтягиваем договорённость этого клиента. Тихо - потому что
+        // подсказка «клиент найден, N визитов» относится к вводу телефона руками, а
+        // здесь запись уже открыта и эта строка была бы шумом
+        setRenewPrefill(null);
+        loadRenewForPhone(editBooking.clientPhone || '');
+        syncRenewVisibility();
         // Снимок "как было" - последним шагом, когда все поля записи уже отрисованы
         // (дата/время выше, услуги в renderPicker, сумма и комментарий строкой выше).
         // До этого момента любой промежуточный снимок был бы неполным, и кнопка
         // "Сохранить изменения" ожила бы сама собой сразу после открытия записи.
         editBaseline = editStateSnapshot();
       } else {
+        setRenewVisible(false);
+        setRenewPrefill(null);
         editBaseline = null;
         delete form.dataset.bookingId;
         delete form.dataset.bookingMasterId;
@@ -962,11 +1024,18 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       // именно то, что в базе ещё не так.
       const prevStatus = form.dataset.realStatus || editBooking.status || 'planned';
       const wantedStatus = RADIO_ID_TO_STATUS[checkedStatusRadioId()];
-      if (wantedStatus && wantedStatus !== prevStatus) {
+      // Срок возврата уезжает ТЕМ ЖЕ запросом, что и статус (Окно 59): сервер пишет
+      // оба одной транзакцией, иначе мог бы остаться закрытый визит без срока. Шлём
+      // и когда статус не изменился, но срок поправили - у уже закрытого визита это
+      // единственный способ дописать договорённость, не открывая карточку клиента.
+      const renew = renewFieldPayload();
+      const renewChanged = !!editBaseline && editBaseline.renew !== renewFieldSnapshot();
+      const needStatusCall = (wantedStatus && wantedStatus !== prevStatus) || (wantedStatus === 'done' && renewChanged && renew);
+      if (needStatusCall) {
         const str = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/status`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ status: wantedStatus }),
+          body: JSON.stringify({ status: wantedStatus, ...(renew ? { renew } : {}) }),
         });
         if (!str.ok) throw Object.assign(new Error('статус визита'), { status: str.status, code: (await str.json().catch(() => null))?.error ?? null });
         form.dataset.realStatus = wantedStatus;
