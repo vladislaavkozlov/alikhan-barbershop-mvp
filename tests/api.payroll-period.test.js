@@ -5,6 +5,11 @@
 // client, что уже применён в tests/api.masters-next-availability.test.js - реальная
 // фильтрация по датам/ролям живёт в SQL и проверяется живым прогоном (DoD этого
 // окна), здесь - только арифметика резолвера на фиксированном наборе строк.
+//
+// 22.08.2026 (Окно 59): в строках master_services появился masterId - резолвер цены
+// переехал в общий api/lib/pricing.js и выбирает прайс по ПАРЕ мастер+услуга, потому
+// что недополученную прибыль считают по клиентам разных мастеров. Фикстуры дополнены
+// тем же полем, которое реальный SELECT отдавал и раньше; арифметика не изменилась.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeMasterPayroll } from '../api/server.mjs';
@@ -28,7 +33,7 @@ test('computeMasterPayroll: одна бронь, одна услуга (booking_
     pctRows: [{ pct: 50 }],
     bookingsRows: [{ id: 'b1', serviceId: null }],
     linkRows: [{ bookingId: 'b1', serviceId: 'strizhka' }],
-    masterServiceRows: [{ serviceId: 'strizhka', price: 2000 }],
+    masterServiceRows: [{ masterId: 'm1', serviceId: 'strizhka', price: 2000 }],
   });
   const result = await computeMasterPayroll(client, 'm1', '2026-08-01', '2026-08-07');
   assert.equal(result.revenue, 2000);
@@ -44,8 +49,8 @@ test('computeMasterPayroll: бронь с несколькими услугам�
       { bookingId: 'b1', serviceId: 'boroda' },
     ],
     masterServiceRows: [
-      { serviceId: 'strizhka', price: 2000 },
-      { serviceId: 'boroda', price: 1600 },
+      { masterId: 'm1', serviceId: 'strizhka', price: 2000 },
+      { masterId: 'm1', serviceId: 'boroda', price: 1600 },
     ],
   });
   const result = await computeMasterPayroll(client, 'm1', '2026-08-01', '2026-08-07');
@@ -65,8 +70,8 @@ test('computeMasterPayroll: несколько броней за период с
       { bookingId: 'b2', serviceId: 'boroda' },
     ],
     masterServiceRows: [
-      { serviceId: 'strizhka', price: 2000 },
-      { serviceId: 'boroda', price: 1600 },
+      { masterId: 'm1', serviceId: 'strizhka', price: 2000 },
+      { masterId: 'm1', serviceId: 'boroda', price: 1600 },
     ],
   });
   const result = await computeMasterPayroll(client, 'm1', '2026-08-01', '2026-08-31');
@@ -79,7 +84,7 @@ test('computeMasterPayroll: старая бронь без booking_services (т�
     pctRows: [{ pct: 100 }],
     bookingsRows: [{ id: 'b-old', serviceId: 'strizhka' }],
     linkRows: [], // нет строк в booking_services для этой брони
-    masterServiceRows: [{ serviceId: 'strizhka', price: 2000 }],
+    masterServiceRows: [{ masterId: 'm1', serviceId: 'strizhka', price: 2000 }],
   });
   const result = await computeMasterPayroll(client, 'm1', '2026-08-01', '2026-08-07');
   assert.equal(result.revenue, 2000);
@@ -102,7 +107,7 @@ test('computeMasterPayroll: у мастера нет строки в master_payr
     pctRows: [],
     bookingsRows: [{ id: 'b1', serviceId: null }],
     linkRows: [{ bookingId: 'b1', serviceId: 'strizhka' }],
-    masterServiceRows: [{ serviceId: 'strizhka', price: 2000 }],
+    masterServiceRows: [{ masterId: 'm1', serviceId: 'strizhka', price: 2000 }],
   });
   const result = await computeMasterPayroll(client, 'm1', '2026-08-01', '2026-08-07');
   assert.equal(result.revenue, 2000);
