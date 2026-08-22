@@ -78,7 +78,7 @@ function statCard({ label, value, note, lead = false, action = null }) {
   // action - кнопка «N не вернулись» под цифрой. Кнопка, а не ссылка: никакой
   // навигации не происходит, список раскрывается тут же
   const actionHtml = action
-    ? `<button type="button" class="sc-action" data-lapsed-months="${escapeHtml(action.months)}" data-lapsed-master="${escapeHtml(action.masterId)}" data-lapsed-title="${escapeHtml(label)}">${escapeHtml(action.count)} не ${plural(action.count, 'вернулся', 'вернулись', 'вернулись')}</button>`
+    ? `<button type="button" class="sc-action" data-lapsed-months="${escapeHtml(action.months)}" data-lapsed-master="${escapeHtml(action.masterId)}" data-lapsed-title="${escapeHtml(label)}" title="Были один раз и больше месяца не приходили">${escapeHtml(action.count)} не ${plural(action.count, 'вернулся', 'вернулись', 'вернулись')}</button>`
     : '';
   return `<div class="stat-card${lead ? ' stat-card--net' : ''}">
     <div class="sc-label">${escapeHtml(label)}</div>
@@ -131,9 +131,18 @@ export function retentionHtml(data, periodLabel) {
     ? statCard({ label: 'Без телефона', value: String(unlinkedVisits), note: 'Визиты, клиента не опознать' })
     : '';
 
+  // Клиенты, которые были один раз совсем недавно, в проценте не участвуют: месяца с
+  // их визита ещё не прошло, и судить о них рано (правка Влада 22.08.2026 - «он что,
+  // каждый день стричься должен?»). Молча выкинуть их из расчёта нельзя - тогда цифры
+  // не сойдутся с тем, что владелец видит в записях, поэтому они стоят своей карточкой
+  const waiting = salon.waiting ?? 0;
+  const waitingCard = waiting > 0
+    ? statCard({ label: 'Пришли недавно', value: String(waiting), note: 'Ещё рано судить, ждём месяц' })
+    : '';
+
   return `
     <div class="stat-cards">${salonCard}</div>
-    ${masterCards || unlinkedCard ? `<div class="stat-cards">${masterCards}${unlinkedCard}</div>` : ''}
+    ${masterCards || unlinkedCard || waitingCard ? `<div class="stat-cards">${masterCards}${waitingCard}${unlinkedCard}</div>` : ''}
     <div class="an-lapsed" id="anLapsed" hidden></div>
   `;
 }

@@ -21,10 +21,11 @@ import {
 
 const KEYS = ['yandex_maps', '2gis', 'instagram', 'telegram', 'vk', 'referral', 'walkin', 'other'];
 
-function fakeDb({ salon = [{ clients: 0, returned: 0, visits: 0 }], masters = [], unlinked = [{ n: 0 }], staff = [], sources = [] } = {}) {
+function fakeDb({ salon = [{ clients: 0, returned: 0, visits: 0, waiting: 0 }], masters = [], unlinked = [{ n: 0 }], staff = [], sources = [] } = {}) {
   return {
     async query(sql) {
       if (sql.includes('GROUP BY b.master_id, b.client_id')) return { rows: masters };
+      if (sql.includes('FROM mature')) return { rows: salon };
       if (sql.includes('GROUP BY b.client_id')) return { rows: salon };
       if (sql.includes('client_id IS NULL')) return { rows: unlinked };
       if (sql.includes('FROM staff')) return { rows: staff };
@@ -51,7 +52,7 @@ test('parseMonths: принимает только периоды, которы�
 
 test('возвращаемость: салон и мастера считаются от своей базы', async () => {
   const db = fakeDb({
-    salon: [{ clients: 10, returned: 6, visits: 22 }],
+    salon: [{ clients: 10, returned: 6, visits: 22, waiting: 2 }],
     masters: [
       { master_id: 'm1', clients: 8, returned: 4, visits: 14 },
       { master_id: 'm2', clients: 4, returned: 1, visits: 5 },
@@ -67,6 +68,8 @@ test('возвращаемость: салон и мастера считают�
   const result = await computeRetention(db, 6);
   assert.equal(result.months, 6);
   assert.equal(result.salon.pct, 60);
+  assert.equal(result.salon.waiting, 2, 'недавние клиенты вынесены отдельно, а не влиты в процент');
+  assert.equal(result.graceMonths, 1);
   assert.equal(result.unlinkedVisits, 3);
   // Администратор услуг не оказывает - в списке его нет; мастер без визитов есть
   assert.deepEqual(result.masters.map((m) => m.masterId), ['m1', 'm2', 'm3']);
@@ -193,4 +196,29 @@ test('визиты без телефона считаются отдельно �
     },
   };
   assert.deepEqual(await computeUnlinkedVisits(db), { visits: 12, visitsMonth: 3 });
+});
+
+// ── Окно ожидания: месяц после визита (22.08.2026) ──────────────────────────
+// Правка Влада: «клиентов, которые не вернулись, нужно считать с месяца после визита.
+// Там Гэндальф 19.08 пишет не вернулся - он каждый день что ли стричься должен?»
+test('окно ожидания применяется к ОБЕИМ цифрам - и к проценту, и к списку', async () => {
+  const captured = [];
+  const db = fakeDb({ salon: [{ clients: 5, returned: 3, visits: 9, waiting: 4 }] });
+  const origQuery = db.query.bind(db);
+  db.query = async (sql, params) => { captured.push(sql); return origQuery(sql, params); };
+  const result = await computeRetention(db, 6);
+  // Знаменатель процента - только «созревшие» клиенты, свежие ждут своего часа
+  const salonSql = captured.find((q) => q.includes('FROM mature'));
+  assert.match(salonSql, /n >= 2 OR last_date <= CURRENT_DATE - make_interval\(months => 1\)/);
+  const masterSql = captured.find((q) => q.includes('GROUP BY b.master_id, b.client_id'));
+  assert.match(masterSql, /n >= 2 OR last_date <= CURRENT_DATE - make_interval\(months => 1\)/);
+  assert.equal(result.salon.waiting, 4);
+});
+
+test('невернувшиеся: клиент, приходивший на этой неделе, в список не попадает', async () => {
+  const capture = [];
+  const db = fakeLapsedDb([], { capture: (sql) => capture.push(sql) });
+  await computeLapsedClients(db, 3);
+  // Один визит И с него прошёл месяц - оба условия, иначе список разойдётся с процентом
+  assert.match(capture[0], /HAVING count\(\*\) = 1 AND max\(b\.date\) <= CURRENT_DATE - make_interval\(months => 1\)/);
 });

@@ -43,6 +43,22 @@ const ANALYTICS_VIEWERS = MANAGEMENT_ROLES;
 // Окна периодов - ровно те, что уже стоят переключателями в разделе. Список закрытый:
 // произвольное число месяцев из адресной строки не принимаем, иначе запрос «за 999
 // месяцев» пойдёт полным перебором таблицы.
+// Сколько времени человеку даётся на возвращение, прежде чем считать, что он не
+// вернулся (правка Влада 22.08.2026: «клиентов, которые не вернулись, нужно считать с
+// месяца после визита. Там Гэндальф 19.08 пишет не вернулся - он каждый день что ли
+// стричься должен?»). До этой правки невернувшимся числился каждый, кто за период был
+// ровно раз - включая клиента, который приходил вчера и физически не успел бы прийти
+// снова.
+//
+// Месяц - не абстрактная осторожность, а шаг самой услуги: стрижка живёт примерно
+// столько, и раньше человека ждать незачем.
+//
+// Окно действует на ОБЕ цифры, не только на список: клиент, впервые пришедший на
+// прошлой неделе, выпадает и из знаменателя возвращаемости. Иначе процент падал бы от
+// каждого новичка - салон привёл новых людей, а показатель лояльности за это наказывал.
+// Клиента с двумя визитами окно не касается: он уже вернулся, ждать нечего.
+const RETURN_GRACE_MONTHS = 1;
+
 export const RETENTION_MONTHS = [3, 6, 12, 24, 36];
 export const SOURCE_MONTHS = [1, 3, 6, 12];
 
@@ -82,24 +98,30 @@ export function shapeSourceRows(counts, keys) {
 // может), иначе возвращаемость считалась бы по намерениям, а не по приходам.
 export async function computeRetention(db, months) {
   const periodSql = `b.date > CURRENT_DATE - make_interval(months => $1) AND b.date <= CURRENT_DATE`;
+  // «Успел ли клиент вернуться»: либо он уже приходил больше раза, либо с его
+  // единственного визита прошло не меньше месяца. Всё остальное - слишком рано судить
+  const matureSql = `n >= 2 OR last_date <= CURRENT_DATE - make_interval(months => ${RETURN_GRACE_MONTHS})`;
 
   const [salonRes, masterRes, unlinkedRes, staffRes] = await Promise.all([
     db.query(
       `WITH visits AS (
-         SELECT b.client_id, count(*) AS n
+         SELECT b.client_id, count(*) AS n, max(b.date) AS last_date
          FROM bookings b
          WHERE b.status = 'done' AND b.client_id IS NOT NULL AND ${periodSql}
          GROUP BY b.client_id
+       ), mature AS (
+         SELECT * FROM visits WHERE ${matureSql}
        )
        SELECT count(*)::int AS clients,
               count(*) FILTER (WHERE n >= 2)::int AS returned,
-              coalesce(sum(n), 0)::int AS visits
-       FROM visits`,
+              coalesce(sum(n), 0)::int AS visits,
+              (SELECT count(*)::int FROM visits) - count(*)::int AS waiting
+       FROM mature`,
       [months]
     ),
     db.query(
       `WITH visits AS (
-         SELECT b.master_id, b.client_id, count(*) AS n
+         SELECT b.master_id, b.client_id, count(*) AS n, max(b.date) AS last_date
          FROM bookings b
          WHERE b.status = 'done' AND b.client_id IS NOT NULL AND b.master_id IS NOT NULL AND ${periodSql}
          GROUP BY b.master_id, b.client_id
@@ -108,6 +130,7 @@ export async function computeRetention(db, months) {
               count(*) FILTER (WHERE n >= 2)::int AS returned,
               coalesce(sum(n), 0)::int AS visits
        FROM visits
+       WHERE ${matureSql}
        GROUP BY master_id`,
       [months]
     ),
@@ -143,13 +166,18 @@ export async function computeRetention(db, months) {
       };
     });
 
-  const salon = salonRes.rows[0] ?? { clients: 0, returned: 0, visits: 0 };
+  const salon = salonRes.rows[0] ?? { clients: 0, returned: 0, visits: 0, waiting: 0 };
   return {
     months,
+    graceMonths: RETURN_GRACE_MONTHS,
     salon: {
       clients: salon.clients,
       returned: salon.returned,
       visits: salon.visits,
+      // waiting - клиенты, которые были один раз совсем недавно: судить о них рано,
+      // поэтому в проценте их нет. Число отдаём, чтобы интерфейс мог сказать об этом
+      // прямо, а не делал вид, что таких людей не существует
+      waiting: salon.waiting ?? 0,
       pct: percentOf(salon.returned, salon.clients),
     },
     unlinkedVisits: unlinkedRes.rows[0]?.n ?? 0,
@@ -189,9 +217,9 @@ export async function computeClientSources(db, months, sourceKeys) {
 // - работа: владелец видит, кому именно можно позвонить.
 //
 // «Не вернулся» здесь ровно то же, что и в проценте выше, иначе список не сойдётся с
-// цифрой, под которой он стоит: ОДИН состоявшийся визит за период. С masterId - один
-// визит к этому мастеру (клиент мог за это время сходить к другому, для мастера он всё
-// равно не вернулся).
+// цифрой, под которой он стоит: ОДИН состоявшийся визит за период И с него прошло не
+// меньше RETURN_GRACE_MONTHS. С masterId - один визит к этому мастеру (клиент мог за
+// это время сходить к другому, для мастера он всё равно не вернулся).
 //
 // Клиенты без телефона в список не попадают физически: у визита без client_id нет ни
 // имени в базе, ни номера, звонить некому. Их количество отдаётся отдельным числом
@@ -215,7 +243,9 @@ export async function computeLapsedClients(db, months, masterId = null) {
        FROM bookings b
        WHERE b.status = 'done' AND b.client_id IS NOT NULL${masterFilter} AND ${period}
        GROUP BY b.client_id
-       HAVING count(*) = 1
+       -- Тот же порог, что и в проценте выше (RETURN_GRACE_MONTHS): человек, который
+       -- был один раз на прошлой неделе, не «не вернулся» - ему просто рано снова
+       HAVING count(*) = 1 AND max(b.date) <= CURRENT_DATE - make_interval(months => ${RETURN_GRACE_MONTHS})
      )
      SELECT c.id, c.name, c.phone, v.last_date
      FROM visits v JOIN clients c ON c.id = v.client_id

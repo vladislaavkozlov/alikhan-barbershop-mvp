@@ -7,10 +7,15 @@
 // видит на экране, а не то, что вернул JSON.
 //
 // Раскладка фикстуры (все визиты - в пределах последних 3 месяцев, status='done'):
-//   мастер m1: клиент c1 (2 визита), клиент c2 (1 визит)  → 1 из 2 = 50%
-//   мастер m2: клиент c1 (1 визит),  клиент c3 (2 визита) → 1 из 2 = 50%
-//   мастер m3: визитов нет                                 → прочерк, не 0%
-//   салон: c1 (3 визита), c2 (1), c3 (2) → вернулись 2 из 3 = 67%
+// Окно ожидания (правка Влада 22.08.2026): клиент, у которого единственный визит был
+// меньше месяца назад, в расчёт не идёт вовсе - ему рано возвращаться. Здесь это c2
+// (был 20 дней назад) и визит c1 к мастеру m2 (5 дней назад).
+//   мастер m1: c1 (2 визита), c4 (1 визит, 50 дней назад), c2 (свежий - вне расчёта)
+//              → 1 из 2 = 50%, не вернулся c4
+//   мастер m2: c3 (2 визита), c1 (свежий - вне расчёта)    → 1 из 1 = 100%
+//   мастер m3: визитов нет                                  → прочерк, не 0%
+//   салон: c1 (3 визита), c3 (2) вернулись, c4 (1 давно) нет, c2 ждёт своего месяца
+//          → 2 из 3 = 67%, «пришли недавно» = 1
 //   плюс 1 визит без client_id (walk-in без телефона) - в расчёт не входит, о нём
 //   раздел говорит отдельной строкой
 // Каналы за МЕСЯЦ (вкладка по умолчанию; считаются все записи периода, включая
@@ -41,7 +46,7 @@ try {
         [id, name, `${id}@alikhan.test`, hashPin(randomPin())]
       );
     }
-    for (const [id, name] of [['an-c1', 'QA Клиент 1'], ['an-c2', 'QA Клиент 2'], ['an-c3', 'QA Клиент 3']]) {
+    for (const [id, name] of [['an-c1', 'QA Клиент 1'], ['an-c2', 'QA Клиент 2'], ['an-c3', 'QA Клиент 3'], ['an-c4', 'QA Клиент 4']]) {
       await db.query('INSERT INTO clients (id, name, phone) VALUES ($1, $2, $3)', [id, name, `+7999000${id.slice(-1)}111`]);
     }
 
@@ -64,27 +69,30 @@ try {
       }
     }
 
-    let seq = 0;
-    async function booking({ master, client = null, days, status = 'done', source = null }) {
-      seq += 1;
+    // id брони задаётся явно, а не автосчётчиком: проверки ниже ищут конкретные записи
+    // в карточке дня, и добавление любой новой фикстуры в середину списка не должно
+    // молча переименовывать чужие записи (на этом прогон один раз уже споткнулся)
+    async function booking({ id, master, client = null, days, status = 'done', source = null }) {
       await db.query(
         `INSERT INTO bookings (id, location_id, master_id, client_id, date, start_time, end_time, status, channel, walkin_name, client_source)
          VALUES ($1, 1, $2, $3, $4, '11:00', '12:00', $5, 'admin', $6, $7)`,
-        [`an-b${seq}`, master, client, daysFromToday(-days), status, client ? null : 'QA Прохожий', source]
+        [id, master, client, daysFromToday(-days), status, client ? null : 'QA Прохожий', source]
       );
     }
 
-    await booking({ master: 'an-m1', client: 'an-c1', days: 40, source: 'yandex_maps' });
-    await booking({ master: 'an-m1', client: 'an-c1', days: 10, source: 'yandex_maps' });
-    await booking({ master: 'an-m1', client: 'an-c2', days: 20, source: '2gis' });
-    await booking({ master: 'an-m2', client: 'an-c1', days: 5, source: 'instagram' });
-    await booking({ master: 'an-m2', client: 'an-c3', days: 30, source: '2gis' });
-    await booking({ master: 'an-m2', client: 'an-c3', days: 3, source: null });
+    // Пропал давно (50 дней) - именно он и есть «не вернулся»
+    await booking({ id: 'an-lapsed', master: 'an-m1', client: 'an-c4', days: 50, source: 'referral' });
+    await booking({ id: 'an-c1-40', master: 'an-m1', client: 'an-c1', days: 40, source: 'yandex_maps' });
+    await booking({ id: 'an-withphone', master: 'an-m1', client: 'an-c1', days: 10, source: 'yandex_maps' });
+    await booking({ id: 'an-c2-20', master: 'an-m1', client: 'an-c2', days: 20, source: '2gis' });
+    await booking({ id: 'an-c1-5', master: 'an-m2', client: 'an-c1', days: 5, source: 'instagram' });
+    await booking({ id: 'an-c3-30', master: 'an-m2', client: 'an-c3', days: 30, source: '2gis' });
+    await booking({ id: 'an-c3-3', master: 'an-m2', client: 'an-c3', days: 3, source: null });
     // Отменённая запись: в возвращаемость не идёт (визита не было), в каналы идёт
     // (площадка свою работу сделала - человек записался)
-    await booking({ master: 'an-m1', client: 'an-c2', days: 2, status: 'cancelled', source: 'yandex_maps' });
+    await booking({ id: 'an-cancelled', master: 'an-m1', client: 'an-c2', days: 2, status: 'cancelled', source: 'yandex_maps' });
     // Визит без телефона клиента - вне расчёта возвращаемости, отдельной оговоркой
-    await booking({ master: 'an-m1', client: null, days: 7, source: 'walkin' });
+    await booking({ id: 'an-walkin', master: 'an-m1', client: null, days: 7, source: 'walkin' });
 
     await withStaticServer(apiUrl, async (siteUrl) => {
       await withBrowser(async (s) => {
@@ -132,8 +140,12 @@ try {
         check('мастер 1: 1 из 2 его клиентов вернулись = 50%',
           norm(byName['QA Мастер Первый']?.value) === '50%' && norm(byName['QA Мастер Первый']?.note) === '1 из 2',
           JSON.stringify(byName['QA Мастер Первый']));
-        check('мастер 2: 1 из 2 его клиентов вернулись = 50%',
-          norm(byName['QA Мастер Второй']?.value) === '50%', JSON.stringify(byName['QA Мастер Второй']));
+        check('мастер 2: клиент, что был у него на этой неделе, в расчёт не взят - 1 из 1 = 100%',
+          norm(byName['QA Мастер Второй']?.value) === '100%' && norm(byName['QA Мастер Второй']?.note) === '1 из 1',
+          JSON.stringify(byName['QA Мастер Второй']));
+        check('недавний клиент показан отдельной карточкой «Пришли недавно», а не потерян',
+          norm(byName['Пришли недавно']?.value) === '1' && /Ещё рано судить/.test(norm(byName['Пришли недавно']?.note)),
+          JSON.stringify(byName['Пришли недавно']));
         check('мастер без визитов: прочерк и честная подпись, а не 0%',
           norm(byName['QA Мастер Без Записей']?.value) === '—' && norm(byName['QA Мастер Без Записей']?.note) === 'Нет визитов',
           JSON.stringify(byName['QA Мастер Без Записей']));
@@ -195,8 +207,8 @@ try {
           links: document.querySelectorAll('#anLapsed [data-msg-link]').length,
         })`));
         // Не вернулся ровно один: c2 был у салона один раз (c1 и c3 приходили дважды)
-        check('список показывает именно того клиента, который был один раз',
-          lapsed.names.length === 1 && norm(lapsed.names[0]) === 'QA Клиент 2', JSON.stringify(lapsed.names));
+        check('в списке только тот, кто пропал давно - клиента с визитом 20 дней назад в нём нет',
+          lapsed.names.length === 1 && norm(lapsed.names[0]) === 'QA Клиент 4', JSON.stringify(lapsed.names));
         check('в строке клиента есть дата последнего визита и кнопки связи',
           /\d{2}\.\d{2}\.\d{4}/.test(norm(lapsed.when)) && lapsed.links > 0, JSON.stringify(lapsed));
 
@@ -212,7 +224,7 @@ try {
           counter: document.getElementById('clientsCount')?.textContent,
         })`));
         check('клик по имени переводит в раздел «Клиенты» с раскрытой карточкой этого клиента',
-          jumped.section === 'clients' && /QA Клиент 2/.test(norm(jumped.openCard)), JSON.stringify(jumped));
+          jumped.section === 'clients' && /QA Клиент 4/.test(norm(jumped.openCard)), JSON.stringify(jumped));
         check('в «Клиентах» виден счётчик визитов без телефона, самих таких строк в списке нет',
           /без телефона: 1/.test(norm(jumped.counter)) && !/Прохожий/.test(norm(jumped.openCard)), norm(jumped.counter));
 
@@ -236,7 +248,7 @@ try {
         await s.screenshot('/tmp/analitika-desktop.png');
 
         // ── Заглушка «без номера» в карточке записи ───────────────────────
-        // Визит без телефона (an-b8, 7 дней назад) - в карточке дня на его месте
+        // Визит без телефона (an-walkin, 7 дней назад) - в карточке дня на его месте
         // должна стоять метка, а не пустота: пустое место читается как «не
         // подгрузилось», хотя номера у человека просто нет
         await s.eval(`document.querySelector('.app-nav-item[data-section=\"schedule\"]')?.click()`);
@@ -245,8 +257,8 @@ try {
         // иначе прогон проверял бы пустой экран и рапортовал ложный успех
         for (let i = 0; i < 60 && !JSON.parse(await s.eval('!!window.__openScheduleDay')); i++) await sleep(200);
         await s.eval(`window.__openScheduleDay('${daysFromToday(-7)}')`);
-        for (let i = 0; i < 80 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('.appt[data-id=\"an-b8\"]'))`)); i++) await sleep(200);
-        const walkinCard = JSON.parse(await s.eval(`JSON.stringify({ text: document.querySelector('.appt[data-id="an-b8"]')?.textContent })`));
+        for (let i = 0; i < 80 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('.appt[data-id=\"an-walkin\"]'))`)); i++) await sleep(200);
+        const walkinCard = JSON.parse(await s.eval(`JSON.stringify({ text: document.querySelector('.appt[data-id="an-walkin"]')?.textContent })`));
         check('запись без телефона помечена «без номера», а не показана пустой строкой',
           /без номера/.test(norm(walkinCard.text)), norm(walkinCard.text));
 
@@ -254,8 +266,8 @@ try {
         // стояло бы на всех подряд и ничего не означало. Запись живёт на другом дне,
         // поэтому переводим календарь туда
         await s.eval(`window.__openScheduleDay('${daysFromToday(-10)}')`);
-        for (let i = 0; i < 80 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('.appt[data-id=\"an-b2\"]'))`)); i++) await sleep(200);
-        const phoneCard = JSON.parse(await s.eval(`JSON.stringify({ text: document.querySelector('.appt[data-id="an-b2"]')?.textContent })`));
+        for (let i = 0; i < 80 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('.appt[data-id=\"an-withphone\"]'))`)); i++) await sleep(200);
+        const phoneCard = JSON.parse(await s.eval(`JSON.stringify({ text: document.querySelector('.appt[data-id="an-withphone"]')?.textContent })`));
         check('записи с номером метка не приписывается',
           !!phoneCard.text && !/без номера/.test(norm(phoneCard.text)), norm(phoneCard.text).slice(0, 120));
 
