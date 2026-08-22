@@ -83,10 +83,11 @@ import { handlePayrollSettings, handlePayroll, handleRevenueToday, handleDiscoun
 import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard } from './routes/clients.js';
 // Раздел «Аналитика» владельца (22.08.2026) - возвращаемость по мастерам и каналы
 // привлечения. Считает по уже существующим полям броней, своих таблиц не заводит.
-import { handleAnalyticsRetention, handleAnalyticsSources } from './routes/analytics.js';
+import { handleAnalyticsRetention, handleAnalyticsSources, handleAnalyticsLapsed, handleAnalyticsUnlinked } from './routes/analytics.js';
 // Ре-экспорт для tests/*.test.js.
 export { describeClientRisk, getClientCard, listClientsAtRisk, computeOwnerAlerts } from './routes/clients.js';
 export { percentOf, shapeSourceRows, parseMonths, RETENTION_MONTHS, SOURCE_MONTHS } from './routes/analytics.js';
+export { computeLapsedClients, computeUnlinkedVisits } from './routes/analytics.js';
 export { normalizePhoneKey, findClientByPhone, resolveClientsQueryMode, shapeClientCardForViewer, listAllClients, summarizeClientVisits } from './routes/clients.js';
 export { computeMasterPayroll, computeRevenueToday, countUnidentifiedToday } from './routes/payroll.js';
 
@@ -171,6 +172,8 @@ const ROUTES = [
   // Аналитика салона - тот же круг, что и деньги: владелец и управляющий
   { method: 'GET', path: 'analytics/retention', auth: 'management' },
   { method: 'GET', path: 'analytics/sources', auth: 'management' },
+  { method: 'GET', path: 'analytics/lapsed', auth: 'management' },
+  { method: 'GET', path: 'analytics/unlinked', auth: 'management' },
   // Живое обновление кабинетов (17.08.2026). /events - поток событий от сервера,
   // /changes - его фолбэк опросом на случай, если прокси не пропустит долгое
   // соединение. Обоим достаточно любого валидного токена: они не отдают данных,
@@ -543,6 +546,16 @@ const server = createServer(async (req, res) => {
     }
     if (parts[0] === 'analytics' && parts[1] === 'sources' && parts.length === 2 && req.method === 'GET') {
       return handleAnalyticsSources(req, res, url);
+    }
+    // lapsed - поимённо те, кто за период пришёл ровно один раз (правка Влада
+    // 22.08.2026: из цифры возвращаемости нужен переход к самим клиентам). unlinked -
+    // сколько всего визитов без телефона: в списке клиентов их нет намеренно, но
+    // считать их система обязана.
+    if (parts[0] === 'analytics' && parts[1] === 'lapsed' && parts.length === 2 && req.method === 'GET') {
+      return handleAnalyticsLapsed(req, res, url);
+    }
+    if (parts[0] === 'analytics' && parts[1] === 'unlinked' && parts.length === 2 && req.method === 'GET') {
+      return handleAnalyticsUnlinked(req, res);
     }
 
     // ── /clients?risk=true - Окно 39 (06.08.2026, Задача 1). Список "требует

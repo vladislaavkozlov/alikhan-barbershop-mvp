@@ -45,6 +45,25 @@ try {
       await db.query('INSERT INTO clients (id, name, phone) VALUES ($1, $2, $3)', [id, name, `+7999000${id.slice(-1)}111`]);
     }
 
+    // График мастерам нужен не ради самих цифр (возвращаемость считается по броням),
+    // а ради вида «День»: без рабочего графика колонок в дне нет, и проверка метки
+    // «без номера» на карточке записи смотрела бы в пустой экран
+    for (const id of ['an-m1', 'an-m2', 'an-m3']) {
+      for (let weekday = 1; weekday <= 7; weekday += 1) {
+        await db.query(
+          `INSERT INTO master_weekly_schedule (master_id, weekday, is_working, work_start, work_end)
+           VALUES ($1, $2, true, '10:00', '20:00')`,
+          [id, weekday]
+        );
+      }
+      for (const day of [daysFromToday(-7), daysFromToday(-10)]) {
+        await db.query(
+          `INSERT INTO schedule_shifts (master_id, date, start_time, end_time) VALUES ($1, $2, '10:00', '20:00')`,
+          [id, day]
+        );
+      }
+    }
+
     let seq = 0;
     async function booking({ master, client = null, days, status = 'done', source = null }) {
       seq += 1;
@@ -82,6 +101,12 @@ try {
         // До захода в раздел данные не тянутся - раздел грузится по первому открытию
         await s.eval(`document.querySelector('.app-nav-item[data-section="analytics"]')?.click()`);
         for (let i = 0; i < 60 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('#anRet3 .stat-card'))`)); i++) await sleep(200);
+        // Карточки раздела свёрнуты по умолчанию - человек их раскрывает кликом по
+        // заголовку. Раскрываем тем же кликом, а не выставлением open=true: дальше
+        // проверяется настоящая кликабельность кнопки внутри, а внутри свёрнутого
+        // блока «клик» через JS проходит по невидимому элементу и ничего не доказывает
+        await s.eval(`document.querySelectorAll('.panel-d details.staff-card summary').forEach(el => el.click())`);
+        await sleep(500);
 
         const ret = JSON.parse(await s.eval(`JSON.stringify({
           lead: document.querySelector('#anRet3 .stat-card--net .sc-value')?.textContent,
@@ -97,23 +122,26 @@ try {
 
         check('возвращаемость салона - реальная цифра (2 из 3 = 67%), не «00% пример»',
           norm(ret.lead) === '67%' && !ret.example, JSON.stringify(ret.lead));
-        check('под цифрой салона видна база расчёта (2 из 3 клиентов)',
-          /2 из 3/.test(norm(ret.leadNote)), norm(ret.leadNote));
+        check('под цифрой салона видна база расчёта (2 из 3)',
+          norm(ret.leadNote) === '2 из 3', norm(ret.leadNote));
 
         const byName = Object.fromEntries(ret.cards.map((c) => [norm(c.label), c]));
         check('возвращаемость по сотрудникам: показаны все трое мастеров',
           ['QA Мастер Первый', 'QA Мастер Второй', 'QA Мастер Без Записей'].every((n) => byName[n]),
           Object.keys(byName).join(' | '));
         check('мастер 1: 1 из 2 его клиентов вернулись = 50%',
-          norm(byName['QA Мастер Первый']?.value) === '50%' && /1 из 2/.test(norm(byName['QA Мастер Первый']?.note)),
+          norm(byName['QA Мастер Первый']?.value) === '50%' && norm(byName['QA Мастер Первый']?.note) === '1 из 2',
           JSON.stringify(byName['QA Мастер Первый']));
         check('мастер 2: 1 из 2 его клиентов вернулись = 50%',
           norm(byName['QA Мастер Второй']?.value) === '50%', JSON.stringify(byName['QA Мастер Второй']));
         check('мастер без визитов: прочерк и честная подпись, а не 0%',
-          norm(byName['QA Мастер Без Записей']?.value) === '—' && /Нет состоявшихся визитов/.test(norm(byName['QA Мастер Без Записей']?.note)),
+          norm(byName['QA Мастер Без Записей']?.value) === '—' && norm(byName['QA Мастер Без Записей']?.note) === 'Нет визитов',
           JSON.stringify(byName['QA Мастер Без Записей']));
-        check('визит без телефона клиента не молчит - о нём сказано отдельной строкой',
-          /Не учтено 1 визит/.test(norm(ret.text)), norm(ret.text).slice(-200));
+        check('визит без телефона показан карточкой-заглушкой, а не абзацем',
+          norm(byName['Без телефона']?.value) === '1' && norm(byName['Без телефона']?.note) === 'Визиты, клиента не опознать',
+          JSON.stringify(byName['Без телефона']));
+        check('лишних абзацев-пояснений в возвращаемости не осталось (минимализм)',
+          JSON.parse(await s.eval(`JSON.stringify(document.querySelectorAll('#anRet3 .payroll-note').length)`)) === 0);
 
         // ── Каналы привлечения ────────────────────────────────────────────
         const src = JSON.parse(await s.eval(`JSON.stringify({
@@ -141,8 +169,56 @@ try {
         check('каналы: запись без источника - строка «Источник не указан», а не выдуманный канал',
           norm(srcByName['Источник не указан']?.note) === '1 запись', JSON.stringify(srcByName['Источник не указан']));
         check('каналы: заглушек «00% пример» в разделе не осталось', !src.example, norm(src.text).slice(0, 160));
-        check('каналы: под карточками названо общее число записей периода (7)',
-          /Всего записей за месяц: 7/.test(norm(src.text)), norm(src.text).slice(-260));
+        check('каналы: под карточками названо общее число записей периода (7), одной короткой строкой',
+          norm(src.text).endsWith('Всего записей: 7'), norm(src.text).slice(-120));
+
+        // ── Кто не вернулся: список поимённо ──────────────────────────────
+        const lapsedBtnText = JSON.parse(await s.eval(`JSON.stringify(document.querySelector('#anRet3 .stat-card--net .sc-action')?.textContent)`));
+        check('на карточке салона есть вход в список невернувшихся (1 клиент)',
+          norm(lapsedBtnText) === '1 не вернулся', norm(lapsedBtnText));
+
+        // Настоящий хит-тест: жмём по координатам кнопки, а не программным .click() -
+        // так ловится случай, когда кнопка есть в DOM, но перекрыта или схлопнута
+        const btnBox = JSON.parse(await s.eval(`(function(){
+          const b = document.querySelector('#anRet3 .stat-card--net .sc-action');
+          if (!b) return 'null';
+          const r = b.getBoundingClientRect();
+          return JSON.stringify({ x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) });
+        })()`));
+        check('кнопка «не вернулись» действительно кликабельна (не перекрыта)',
+          btnBox && Number.isFinite(btnBox.x), JSON.stringify(btnBox));
+        await s.clickAt(btnBox.x, btnBox.y);
+        for (let i = 0; i < 40 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('#anLapsed .an-lapsed-row'))`)); i++) await sleep(150);
+        const lapsed = JSON.parse(await s.eval(`JSON.stringify({
+          names: [...document.querySelectorAll('#anLapsed .an-lapsed-name')].map(b => b.textContent),
+          when: document.querySelector('#anLapsed .an-lapsed-when')?.textContent,
+          links: document.querySelectorAll('#anLapsed [data-msg-link]').length,
+        })`));
+        // Не вернулся ровно один: c2 был у салона один раз (c1 и c3 приходили дважды)
+        check('список показывает именно того клиента, который был один раз',
+          lapsed.names.length === 1 && norm(lapsed.names[0]) === 'QA Клиент 2', JSON.stringify(lapsed.names));
+        check('в строке клиента есть дата последнего визита и кнопки связи',
+          /\d{2}\.\d{2}\.\d{4}/.test(norm(lapsed.when)) && lapsed.links > 0, JSON.stringify(lapsed));
+
+        await s.screenshot('/tmp/analitika-lapsed.png');
+
+        // Переход в карточку клиента - тот же раздел «Клиенты», что открыл бы человек
+        await s.eval(`document.querySelector('#anLapsed .an-lapsed-name')?.click()`);
+        for (let i = 0; i < 60 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('.client-card[open]'))`)); i++) await sleep(200);
+        const jumped = JSON.parse(await s.eval(`JSON.stringify({
+          section: document.querySelector('.app-nav-item[aria-current="true"]')?.dataset.section,
+          search: document.getElementById('clientsSearch')?.value,
+          openCard: document.querySelector('.client-card[open]')?.textContent?.slice(0, 40),
+          counter: document.getElementById('clientsCount')?.textContent,
+        })`));
+        check('клик по имени переводит в раздел «Клиенты» с раскрытой карточкой этого клиента',
+          jumped.section === 'clients' && /QA Клиент 2/.test(norm(jumped.openCard)), JSON.stringify(jumped));
+        check('в «Клиентах» виден счётчик визитов без телефона, самих таких строк в списке нет',
+          /без телефона: 1/.test(norm(jumped.counter)) && !/Прохожий/.test(norm(jumped.openCard)), norm(jumped.counter));
+
+        // Возвращаемся в аналитику для остальных проверок
+        await s.eval(`document.querySelector('.app-nav-item[data-section="analytics"]')?.click()`);
+        await sleep(400);
 
         // ── Переключение периода догружает данные ─────────────────────────
         await s.eval(`(function(){ const r = document.getElementById('rt1-12'); r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); })()`);
@@ -153,12 +229,38 @@ try {
           note: document.querySelector('#anRet12 .stat-card--net .sc-note')?.textContent,
         })`));
         check('переключение периода на «1 год» показывает свою панель с данными',
-          year.visible && norm(year.lead) === '67%' && /за год/.test(norm(year.note)), JSON.stringify(year));
+          year.visible && norm(year.lead) === '67%' && norm(year.note) === '2 из 3', JSON.stringify(year));
 
         // Снимки для показа владельцу - то же состояние, что проверено выше
-        await s.eval(`document.querySelectorAll('.panel-d details.staff-card').forEach(d => d.open = true)`);
         await sleep(400);
         await s.screenshot('/tmp/analitika-desktop.png');
+
+        // ── Заглушка «без номера» в карточке записи ───────────────────────
+        // Визит без телефона (an-b8, 7 дней назад) - в карточке дня на его месте
+        // должна стоять метка, а не пустота: пустое место читается как «не
+        // подгрузилось», хотя номера у человека просто нет
+        await s.eval(`document.querySelector('.app-nav-item[data-section=\"schedule\"]')?.click()`);
+        // Переход к дате умеет только уже проинициализированное «Расписание»
+        // (window.__openScheduleDay появляется при первом входе в раздел) - ждём его,
+        // иначе прогон проверял бы пустой экран и рапортовал ложный успех
+        for (let i = 0; i < 60 && !JSON.parse(await s.eval('!!window.__openScheduleDay')); i++) await sleep(200);
+        await s.eval(`window.__openScheduleDay('${daysFromToday(-7)}')`);
+        for (let i = 0; i < 80 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('.appt[data-id=\"an-b8\"]'))`)); i++) await sleep(200);
+        const walkinCard = JSON.parse(await s.eval(`JSON.stringify({ text: document.querySelector('.appt[data-id="an-b8"]')?.textContent })`));
+        check('запись без телефона помечена «без номера», а не показана пустой строкой',
+          /без номера/.test(norm(walkinCard.text)), norm(walkinCard.text));
+
+        // Контроль: у записи С телефоном метки быть не должно - иначе «без номера»
+        // стояло бы на всех подряд и ничего не означало. Запись живёт на другом дне,
+        // поэтому переводим календарь туда
+        await s.eval(`window.__openScheduleDay('${daysFromToday(-10)}')`);
+        for (let i = 0; i < 80 && !JSON.parse(await s.eval(`JSON.stringify(!!document.querySelector('.appt[data-id=\"an-b2\"]'))`)); i++) await sleep(200);
+        const phoneCard = JSON.parse(await s.eval(`JSON.stringify({ text: document.querySelector('.appt[data-id="an-b2"]')?.textContent })`));
+        check('записи с номером метка не приписывается',
+          !!phoneCard.text && !/без номера/.test(norm(phoneCard.text)), norm(phoneCard.text).slice(0, 120));
+
+        await s.eval(`document.querySelector('.app-nav-item[data-section="analytics"]')?.click()`);
+        await sleep(400);
 
         // ── Мобильный стандарт ────────────────────────────────────────────
         await s.setViewport(360, 780, true);

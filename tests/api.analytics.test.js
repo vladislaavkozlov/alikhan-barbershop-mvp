@@ -10,6 +10,8 @@ import assert from 'node:assert/strict';
 import {
   computeRetention,
   computeClientSources,
+  computeLapsedClients,
+  computeUnlinkedVisits,
   percentOf,
   shapeSourceRows,
   parseMonths,
@@ -138,4 +140,57 @@ test('каналы: пустой период не делит на ноль', as
   const result = await computeClientSources(fakeDb(), 12, KEYS);
   assert.equal(result.total, 0);
   assert.ok(result.rows.every((r) => r.pct === null));
+});
+
+// ── Кто не вернулся (22.08.2026) ────────────────────────────────────────────
+function fakeLapsedDb(rows, { capture } = {}) {
+  return {
+    async query(sql, params) {
+      if (capture) capture(sql, params);
+      return { rows };
+    },
+  };
+}
+
+test('невернувшиеся: список сходится с процентом - только те, кто был ровно раз', async () => {
+  const capture = [];
+  const db = fakeLapsedDb(
+    [{ id: 'c1', name: 'Иван', phone: '+79990001111', last_date: new Date('2026-06-01T00:00:00Z') }],
+    { capture: (sql, params) => capture.push({ sql, params }) }
+  );
+  const result = await computeLapsedClients(db, 6);
+  assert.equal(result.months, 6);
+  assert.equal(result.masterId, null);
+  assert.equal(result.truncated, false);
+  assert.deepEqual(result.clients, [{ clientId: 'c1', name: 'Иван', phone: '+79990001111', lastVisit: '2026-06-01' }]);
+  // Тот же критерий, что у процента выше: один состоявшийся визит за период
+  assert.match(capture[0].sql, /HAVING count\(\*\) = 1/);
+  assert.match(capture[0].sql, /status = 'done'/);
+  assert.deepEqual(capture[0].params, [6]);
+});
+
+test('невернувшиеся по мастеру: id уезжает параметром, а не склейкой строки', async () => {
+  const capture = [];
+  const db = fakeLapsedDb([], { capture: (sql, params) => capture.push({ sql, params }) });
+  await computeLapsedClients(db, 3, "m1'; DROP TABLE bookings; --");
+  assert.deepEqual(capture[0].params, [3, "m1'; DROP TABLE bookings; --"]);
+  assert.ok(!capture[0].sql.includes('DROP TABLE'), 'id не должен попадать в текст запроса');
+  assert.match(capture[0].sql, /b\.master_id = \$2/);
+});
+
+test('невернувшиеся: длинный список честно помечен обрезанным', async () => {
+  const rows = Array.from({ length: 201 }, (_, i) => ({ id: `c${i}`, name: `Клиент ${i}`, phone: null, last_date: '2026-07-01' }));
+  const result = await computeLapsedClients(fakeLapsedDb(rows), 12);
+  assert.equal(result.clients.length, 200);
+  assert.equal(result.truncated, true);
+});
+
+test('визиты без телефона считаются отдельно от базы клиентов', async () => {
+  const db = {
+    async query(sql) {
+      assert.match(sql, /client_id IS NULL/);
+      return { rows: [{ visits: 12, visits_month: 3 }] };
+    },
+  };
+  assert.deepEqual(await computeUnlinkedVisits(db), { visits: 12, visitsMonth: 3 });
 });

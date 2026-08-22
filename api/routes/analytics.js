@@ -183,6 +183,75 @@ export async function computeClientSources(db, months, sourceKeys) {
   return { months, ...shapeSourceRows(counts, sourceKeys) };
 }
 
+// ── Кто не вернулся ─────────────────────────────────────────────────────────
+// Список под цифрой возвращаемости (правка Влада 22.08.2026: «нужна возможность
+// перехода на клиентов, которые не вернулись»). Процент без имён - справка, с именами
+// - работа: владелец видит, кому именно можно позвонить.
+//
+// «Не вернулся» здесь ровно то же, что и в проценте выше, иначе список не сойдётся с
+// цифрой, под которой он стоит: ОДИН состоявшийся визит за период. С masterId - один
+// визит к этому мастеру (клиент мог за это время сходить к другому, для мастера он всё
+// равно не вернулся).
+//
+// Клиенты без телефона в список не попадают физически: у визита без client_id нет ни
+// имени в базе, ни номера, звонить некому. Их количество отдаётся отдельным числом
+// (см. unlinkedVisits у computeRetention) и показывается заглушкой.
+const LAPSED_LIMIT = 200;
+
+export async function computeLapsedClients(db, months, masterId = null) {
+  const params = [months];
+  let masterFilter = '';
+  if (masterId) {
+    params.push(masterId);
+    masterFilter = ` AND b.master_id = $${params.length}`;
+  }
+  const period = `b.date > CURRENT_DATE - make_interval(months => $1) AND b.date <= CURRENT_DATE`;
+
+  // Сортировка по дате последнего визита: чем раньше человек был, тем выше он в
+  // списке - обзванивать логично начиная с тех, кто пропал давно
+  const res = await db.query(
+    `WITH visits AS (
+       SELECT b.client_id, count(*) AS n, max(b.date) AS last_date
+       FROM bookings b
+       WHERE b.status = 'done' AND b.client_id IS NOT NULL${masterFilter} AND ${period}
+       GROUP BY b.client_id
+       HAVING count(*) = 1
+     )
+     SELECT c.id, c.name, c.phone, v.last_date
+     FROM visits v JOIN clients c ON c.id = v.client_id
+     ORDER BY v.last_date, c.name
+     LIMIT ${LAPSED_LIMIT + 1}`,
+    params
+  );
+
+  const rows = res.rows.slice(0, LAPSED_LIMIT).map((r) => ({
+    clientId: r.id,
+    name: r.name,
+    phone: r.phone,
+    lastVisit: r.last_date instanceof Date ? r.last_date.toISOString().slice(0, 10) : r.last_date,
+  }));
+  // truncated - честный признак, что показаны не все: молча обрезанный список владелец
+  // принял бы за полный и решил, что обзвонил всех
+  return { months, masterId: masterId ?? null, clients: rows, truncated: res.rows.length > LAPSED_LIMIT };
+}
+
+// Визиты без телефона за всё время - для раздела «Клиенты» (правка Влада 22.08.2026:
+// «в записях клиентов их не учитывать, но считать, сколько таких»). В списке клиентов
+// таких людей нет и не будет: без номера система намеренно не связывает их визиты
+// между собой, и строка в базе на каждый приход означала бы десяток «разных» людей с
+// одним именем. Но не показывать их вовсе - значит делать вид, что этих визитов не
+// было, поэтому счётчик отдаётся отдельно.
+export async function computeUnlinkedVisits(db) {
+  const res = await db.query(
+    `SELECT count(*)::int AS visits,
+            count(*) FILTER (WHERE b.date > CURRENT_DATE - make_interval(months => 1))::int AS visits_month
+     FROM bookings b
+     WHERE b.status = 'done' AND b.client_id IS NULL`
+  );
+  const row = res.rows[0] ?? { visits: 0, visits_month: 0 };
+  return { visits: row.visits, visitsMonth: row.visits_month };
+}
+
 export async function handleAnalyticsRetention(req, res, url) {
   const auth = await authenticate(req);
   if (!requireRole(auth, ANALYTICS_VIEWERS)) return sendJson(res, 403, { error: 'forbidden' });
@@ -197,4 +266,22 @@ export async function handleAnalyticsSources(req, res, url) {
   const months = parseMonths(url.searchParams.get('months'), SOURCE_MONTHS);
   if (months === null) return sendJson(res, 400, { error: 'invalid_months' });
   return sendJson(res, 200, await computeClientSources(pool, months, CLIENT_SOURCE_KEYS));
+}
+
+export async function handleAnalyticsLapsed(req, res, url) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, ANALYTICS_VIEWERS)) return sendJson(res, 403, { error: 'forbidden' });
+  const months = parseMonths(url.searchParams.get('months'), RETENTION_MONTHS);
+  if (months === null) return sendJson(res, 400, { error: 'invalid_months' });
+  // masterId приходит из ответа /analytics/retention, но проверяется всё равно: он
+  // едет в SQL параметром, а не строкой, и несуществующий id даст пустой список, а
+  // не ошибку - список «кто не вернулся к несуществующему мастеру» пуст по факту
+  const masterId = url.searchParams.get('masterId');
+  return sendJson(res, 200, await computeLapsedClients(pool, months, masterId || null));
+}
+
+export async function handleAnalyticsUnlinked(req, res) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, ANALYTICS_VIEWERS)) return sendJson(res, 403, { error: 'forbidden' });
+  return sendJson(res, 200, await computeUnlinkedVisits(pool));
 }

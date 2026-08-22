@@ -209,7 +209,15 @@ export function buildApptCard(booking, { masterName, services, priceOf }) {
   const topBadge = booking.masterTier === 'top'
     ? `<span class="appt-top-tier" title="${escapeHtml(masterTierLabel('top'))}">топ</span>`
     : '';
-  const detailLine = [phone, sourceLabel].filter(Boolean).join(' · ');
+  // Заглушка вместо номера (правка Влада 22.08.2026: «по клиентам, которые пришли без
+  // телефона, нужна заглушка, чтобы было понятно, что номера у них нет»). Пустое место
+  // в карточке читается как «данные не подгрузились» или «администратор поленился» -
+  // а это штатный случай: человек зашёл мимо и номер не оставил. Метка ставится только
+  // тем, у кого поле телефона в ответе вообще есть (у мастера его нет по правам, и
+  // писать ему «без номера» про клиента с номером было бы враньём)
+  const phoneKnown = Object.prototype.hasOwnProperty.call(booking, 'clientPhone');
+  const phoneLabel = phone || (phoneKnown ? 'без номера' : '');
+  const detailLine = [phoneLabel, sourceLabel].filter(Boolean).join(' · ');
   // Разделитель между меткой и данными - та же точка, что уже разделяет клиента и
   // услугу строкой выше: без неё "+1 новый клиент +79001112233" читается одной
   // слипшейся строкой (видно на снимке живого прогона до правки).

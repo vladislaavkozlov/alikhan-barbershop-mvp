@@ -469,18 +469,42 @@ async function fetchClientHistory(details, body) {
   }
 }
 
+// Счётчик визитов без телефона за всё время (GET /analytics/unlinked). Держим в
+// модуле, а не в разметке: он приходит отдельным запросом и не должен задерживать
+// сам список - пока счётчик едет, список уже виден, а число просто дорисуется
+let unlinkedVisitsCount = 0;
+
+async function loadUnlinkedCount() {
+  try {
+    const data = await fetchJson('/analytics/unlinked');
+    unlinkedVisitsCount = Number(data?.visits) || 0;
+    paintClients();
+  } catch {
+    // Счётчик - справка рядом с основным списком. Не приехал (нет прав, сеть) -
+    // молчим: показывать ошибку вместо числа значило бы кричать о неважном
+    unlinkedVisitsCount = 0;
+  }
+}
+
 function paintClients() {
   const list = el('clientsList');
   const count = el('clientsCount');
   if (!list) return;
   const visible = filterClients(clientsCache, el('clientsSearch')?.value);
   if (count) {
+    // Визиты без телефона (правка Влада 22.08.2026: «в записях клиентов их не
+    // учитывать, но считать, сколько таких»). В самом списке таких людей нет и не
+    // будет - без номера система намеренно не связывает их визиты между собой, и
+    // строка на каждый приход означала бы десяток «разных» людей с одним именем.
+    // Но и делать вид, что этих визитов не было, нельзя - поэтому число стоит рядом
+    // с «Всего N», отдельным фактом, а не строкой списка
+    const unlinked = unlinkedVisitsCount > 0 ? ` · без телефона: ${unlinkedVisitsCount}` : '';
     count.textContent =
       clientsCache.length === 0
         ? ''
         : visible.length === clientsCache.length
-          ? `Всего ${clientsCache.length}`
-          : `Найдено ${visible.length} из ${clientsCache.length}`;
+          ? `Всего ${clientsCache.length}${unlinked}`
+          : `Найдено ${visible.length} из ${clientsCache.length}${unlinked}`;
   }
   if (clientsCache.length === 0) {
     list.innerHTML = '<p class="payroll-note">Клиентов пока нет. Клиент появляется здесь сам, когда его записали с номером телефона</p>';
@@ -513,7 +537,9 @@ export async function renderClientsSection() {
   const list = el('clientsList');
   if (!list) return; // страница без раздела «Клиенты» - тихий no-op
   if (!sectionLoaded) return; // раздел ни разу не открывали - обновлять нечего
-  await loadClients(list);
+  // Счётчик визитов без телефона перечитываем вместе со списком: он живёт в той же
+  // строке и от тех же данных, устареть отдельно от списка не должен
+  await Promise.all([loadClients(list), loadUnlinkedCount()]);
 }
 
 async function loadClients(list) {
@@ -539,5 +565,6 @@ export function wireClientsSection() {
     if (e.detail?.section !== 'clients' || sectionLoaded) return;
     sectionLoaded = true;
     loadClients(el('clientsList'));
+    loadUnlinkedCount();
   });
 }

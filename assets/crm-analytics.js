@@ -17,6 +17,9 @@ import { errorMessage } from './crm-toast.js';
 // Подписи каналов («Яндекс Карты», «2ГИС», …) - один словарь на весь проект
 // (assets/client-source.js). Сервер отдаёт ключи, человеческие названия живут здесь
 import { CLIENT_SOURCE_LABELS } from './client-source.js';
+// Кнопки связи (WhatsApp/Telegram/MAX/СМС/Позвонить) - тот же набор, что в
+// «Уведомлениях» и в истории клиента. Своего второго набора кнопок в проекте нет
+import { messengerButtonsHtml, wireMessengerLinks } from './crm-notifications.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -71,52 +74,67 @@ function plural(n, one, few, many) {
   return many;
 }
 
-function statCard({ label, value, note, lead = false }) {
+function statCard({ label, value, note, lead = false, action = null }) {
+  // action - кнопка «N не вернулись» под цифрой. Кнопка, а не ссылка: никакой
+  // навигации не происходит, список раскрывается тут же
+  const actionHtml = action
+    ? `<button type="button" class="sc-action" data-lapsed-months="${escapeHtml(action.months)}" data-lapsed-master="${escapeHtml(action.masterId)}" data-lapsed-title="${escapeHtml(label)}">${escapeHtml(action.count)} не ${plural(action.count, 'вернулся', 'вернулись', 'вернулись')}</button>`
+    : '';
   return `<div class="stat-card${lead ? ' stat-card--net' : ''}">
     <div class="sc-label">${escapeHtml(label)}</div>
     <div class="sc-value">${escapeHtml(value)}</div>
     ${note ? `<div class="sc-note">${escapeHtml(note)}</div>` : ''}
+    ${actionHtml}
   </div>`;
 }
 
 // ── Возвращаемость ──────────────────────────────────────────────────────────
+// Правка Влада 22.08.2026: «куча непонятных надписей, минимализм нарушен». Абзацы-
+// пояснения (чем цифра мастера отличается от цифры салона, почему визит без телефона
+// не считается) убраны из экрана: цифра и короткая подпись под ней - всё. Смысл, ради
+// которого эти абзацы писались, никуда не делся - он остался в комментариях кода и в
+// самих формулировках подписей, но читать лекцию каждый раз, когда владелец открыл
+// раздел, незачем.
 export function retentionHtml(data, periodLabel) {
   const { salon, masters = [], unlinkedVisits = 0 } = data;
   if (!salon || salon.clients === 0) {
-    return `<p class="payroll-note">За этот период (${escapeHtml(periodLabel)}) состоявшихся визитов с записанным клиентом не было - считать возвращаемость не из чего</p>`;
+    return `<p class="payroll-note">Визитов ${escapeHtml(periodLabel)} не было</p>`;
   }
 
+  // Кнопка «не вернулись» на карточке - вход в список поимённо (см. wireLapsed).
+  // Число на ней - те же клиенты, что не попали в процент: пришли один раз
+  const lapsedSalon = salon.clients - salon.returned;
   const salonCard = statCard({
     lead: true,
-    label: 'Вернулись повторно, весь салон',
+    label: 'Вернулись повторно',
     value: pctText(salon.pct),
-    note: `${salon.returned} из ${salon.clients} ${plural(salon.clients, 'клиента', 'клиентов', 'клиентов')} приходили ${periodLabel} больше одного раза`,
+    note: `${salon.returned} из ${salon.clients}`,
+    action: lapsedSalon > 0 ? { months: data.months, masterId: '', count: lapsedSalon } : null,
   });
 
-  // По сотруднику клиент считается вернувшимся, если пришёл к НЕМУ повторно - иначе
-  // цифра мастера мерила бы лояльность салона, а не его личную работу. Сумма по
-  // мастерам поэтому не обязана сходиться с цифрой салона, и это сказано словами,
-  // а не оставлено владельцу на догадки
-  const masterCards = masters.length
-    ? masters
-        .map((m) =>
-          statCard({
-            label: m.employed ? m.name : `${m.name} (не работает)`,
-            value: pctText(m.pct),
-            note:
-              m.clients === 0
-                ? 'Нет состоявшихся визитов за период'
-                : `${m.returned} из ${m.clients} ${plural(m.clients, 'клиента', 'клиентов', 'клиентов')} вернулись к нему снова`,
-          })
-        )
-        .join('')
+  const masterCards = masters
+    .map((m) =>
+      statCard({
+        label: m.employed ? m.name : `${m.name} (не работает)`,
+        value: pctText(m.pct),
+        note: m.clients === 0 ? 'Нет визитов' : `${m.returned} из ${m.clients}`,
+        action: m.clients - m.returned > 0 ? { months: data.months, masterId: m.masterId, count: m.clients - m.returned } : null,
+      })
+    )
+    .join('');
+
+  // Заглушка «без телефона» (правка Влада 22.08.2026). Такие визиты были и раньше -
+  // они просто молчали текстовой оговоркой в подвале. Теперь это карточка в общем ряду:
+  // визит в статистике учтён, а то, что человека за ним не опознать, видно сразу и не
+  // выглядит как ошибка расчёта
+  const unlinkedCard = unlinkedVisits > 0
+    ? statCard({ label: 'Без телефона', value: String(unlinkedVisits), note: 'Визиты, клиента не опознать' })
     : '';
 
   return `
     <div class="stat-cards">${salonCard}</div>
-    <p class="payroll-note">Ниже - тот же показатель по каждому сотруднику: доля его клиентов, которые пришли к нему ещё раз ${escapeHtml(periodLabel)}. Сумма по сотрудникам не равна цифре салона: клиент, сходивший к двум мастерам по разу, для салона вернулся, а для каждого из них - нет</p>
-    ${masterCards ? `<div class="stat-cards">${masterCards}</div>` : '<p class="payroll-note">В салоне пока нет сотрудников, оказывающих услуги</p>'}
-    ${unlinkedVisits > 0 ? `<p class="payroll-note">Не учтено ${escapeHtml(unlinkedVisits)} ${plural(unlinkedVisits, 'визит', 'визита', 'визитов')} без телефона клиента: такие визиты система намеренно не связывает между собой, вернулся человек или нет - ей неизвестно</p>` : ''}
+    ${masterCards || unlinkedCard ? `<div class="stat-cards">${masterCards}${unlinkedCard}</div>` : ''}
+    <div class="an-lapsed" id="anLapsed" hidden></div>
   `;
 }
 
@@ -124,13 +142,13 @@ export function retentionHtml(data, periodLabel) {
 export function sourcesHtml(data, periodLabel) {
   const { total = 0, rows = [] } = data;
   if (total === 0) {
-    return `<p class="payroll-note">За этот период (${escapeHtml(periodLabel)}) записей не было</p>`;
+    return `<p class="payroll-note">Записей ${escapeHtml(periodLabel)} не было</p>`;
   }
 
   const cards = rows
     .map((row) =>
       statCard({
-        // key === null - записи, у которых источник не проставлен. Это не канал и
+        // key === null - записи, у которых источник не проставлен. Это не канал, и
         // подписан он честно: клиент мог прийти по звонку, а мог просто остаться
         // незаполненным в карточке
         label: row.key ? CLIENT_SOURCE_LABELS[row.key] ?? row.key : 'Источник не указан',
@@ -142,8 +160,89 @@ export function sourcesHtml(data, periodLabel) {
 
   return `
     <div class="stat-cards">${cards}</div>
-    <p class="payroll-note">Всего записей ${escapeHtml(periodLabel)}: ${escapeHtml(total)}. Источник берётся с самой записи: с сайта он определяется по ссылке, по которой человек пришёл (карточка организации в Яндекс Картах, 2ГИС, соцсети), в салоне его проставляет администратор в поле «Откуда клиент»</p>
+    <p class="payroll-note">Всего записей: ${escapeHtml(total)}</p>
   `;
+}
+
+// ── Кто не вернулся: список поимённо ────────────────────────────────────────
+// Открывается кнопкой на карточке (правка Влада 22.08.2026: «нужна возможность
+// перехода на клиентов, которые не вернулись»). Список рисуется под карточками, а не
+// в модалке: это продолжение той же цифры, а не отдельный экран.
+function lapsedListHtml(data, title) {
+  const { clients = [], truncated } = data;
+  if (clients.length === 0) return `<p class="payroll-note">${escapeHtml(title)}: таких клиентов нет</p>`;
+  const rows = clients
+    .map((c) => {
+      const phone = c.phone || '';
+      const when = c.lastVisit ? c.lastVisit.split('-').reverse().join('.') : '';
+      return `<div class="an-lapsed-row">
+        <div class="an-lapsed-who">
+          <button type="button" class="an-lapsed-name" data-client-phone="${escapeHtml(phone)}">${escapeHtml(c.name || 'Без имени')}</button>
+          <span class="an-lapsed-when">${escapeHtml(when)}</span>
+        </div>
+        <div class="an-lapsed-actions">${phone ? messengerButtonsHtml(phone, lapsedMessageText(c)) : ''}</div>
+      </div>`;
+    })
+    .join('');
+  return `
+    <div class="an-lapsed-head">
+      <span>${escapeHtml(title)}</span>
+      <button type="button" class="btn btn-ghost btn-sm" id="anLapsedClose">Скрыть</button>
+    </div>
+    ${rows}
+    ${truncated ? '<p class="payroll-note">Показаны первые 200</p>' : ''}
+  `;
+}
+
+// Текст сообщения клиенту, который был один раз и не вернулся. Ни скидок, ни акций
+// система не придумывает - только повод написать; что предлагать, решает салон
+export function lapsedMessageText(client) {
+  const name = client?.name ? `${client.name}, ` : '';
+  return `Здравствуйте, ${name}это барбершоп «Алихан». Давно вас не видели - будем рады снова записать вас к мастеру. Подобрать удобное время?`;
+}
+
+// Переход в карточку клиента (правка Влада 22.08.2026). Своего экрана клиента
+// аналитика не рисует: раздел «Клиенты» уже умеет всё - историю визитов, деньги,
+// связь, повторную запись. Поэтому «переход» здесь буквальный - тот же клик по пункту
+// меню, что сделал бы человек, плюс поиск по номеру и раскрытая карточка.
+async function goToClient(phone) {
+  document.querySelector('.app-nav-item[data-section="clients"]')?.click();
+  const search = document.getElementById('clientsSearch');
+  if (!search) return;
+  search.value = phone;
+  search.dispatchEvent(new Event('input', { bubbles: true }));
+  // Раздел мог открываться впервые - список тянется с сервера, карточки появятся не
+  // мгновенно. Ждём их, но недолго: не дождались - человек уже в разделе с готовым
+  // поиском по номеру, дальше он справится сам
+  for (let i = 0; i < 40; i++) {
+    const card = document.querySelector('.client-card');
+    if (card) {
+      card.open = true;
+      card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+// Список «кто не вернулся» - под карточками, один на раздел: открыли список по другому
+// мастеру - предыдущий заменяется, а не копится вторым блоком
+async function openLapsed(btn) {
+  const host = document.getElementById('anLapsed');
+  if (!host) return;
+  const months = btn.dataset.lapsedMonths;
+  const masterId = btn.dataset.lapsedMaster || '';
+  const title = masterId ? `Не вернулись к мастеру: ${btn.dataset.lapsedTitle}` : 'Не вернулись';
+  host.hidden = false;
+  host.innerHTML = SKELETON;
+  host.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  try {
+    const path = `/analytics/lapsed?months=${encodeURIComponent(months)}${masterId ? `&masterId=${encodeURIComponent(masterId)}` : ''}`;
+    host.innerHTML = lapsedListHtml(await loadCached(path), title);
+    wireMessengerLinks(host);
+  } catch (e) {
+    host.innerHTML = `<p class="payroll-note">${escapeHtml(errorMessage(e))}</p>`;
+  }
 }
 
 async function paint(host, path, render, periodLabel) {
@@ -203,6 +302,21 @@ export function wireAnalytics() {
   for (const period of SOURCE_PERIODS) {
     document.getElementById(period.radio)?.addEventListener('change', () => paintSources(period));
   }
+
+  // Клики по кнопке «N не вернулись», по имени в списке и по «Скрыть» - одним
+  // делегированным обработчиком на панель: карточки перерисовываются при каждой смене
+  // периода, и вешать обработчики на каждую кнопку заново значило бы их задваивать
+  const panel = document.querySelector('.tab-panel.panel-d');
+  panel?.addEventListener('click', (e) => {
+    const lapsedBtn = e.target.closest('[data-lapsed-months]');
+    if (lapsedBtn) return void openLapsed(lapsedBtn);
+    const nameBtn = e.target.closest('.an-lapsed-name');
+    if (nameBtn) return void goToClient(nameBtn.dataset.clientPhone || '');
+    if (e.target.closest('#anLapsedClose')) {
+      const host = document.getElementById('anLapsed');
+      if (host) { host.hidden = true; host.innerHTML = ''; }
+    }
+  });
 
   // Данные тянем в момент первого захода в раздел, а не при загрузке страницы - тот
   // же приём, что у «Клиентов» и «Расписания» (crm:section, assets/crm-app-shell.js)
