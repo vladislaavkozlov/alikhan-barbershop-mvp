@@ -695,11 +695,17 @@
             <label for="rt1-24">2 года</label>
             <label for="rt1-36">3 года</label>
           </div>
-          <div class="seg-panel panel-rt1-3"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div></div></div></div>
-          <div class="seg-panel panel-rt1-6"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 6 месяцев</div></div></div></div>
-          <div class="seg-panel panel-rt1-12"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 1 год</div></div></div></div>
-          <div class="seg-panel panel-rt1-24"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 2 года</div></div></div></div>
-          <div class="seg-panel panel-rt1-36"><div class="stat-cards"><div class="stat-card"><div class="sc-label">Вернулись повторно</div><div class="sc-value">00% <span class="unsure">пример</span></div><div class="sc-note">За 3 года</div></div></div></div>
+          <!-- Содержимое панелей рисует assets/crm-analytics.js по ответу сервера
+               (GET /analytics/retention). Статичные "00% пример", стоявшие здесь с
+               Окна 42, убраны 22.08.2026 вместе с появлением реального расчёта:
+               показатель по салону + тот же показатель по каждому сотруднику
+               (задача Влада "возвращаемость по сотрудникам"). Панели пустые до
+               первого захода в раздел - данные тянутся тогда, а не на загрузке. -->
+          <div class="seg-panel panel-rt1-3"><div id="anRet3"></div></div>
+          <div class="seg-panel panel-rt1-6"><div id="anRet6"></div></div>
+          <div class="seg-panel panel-rt1-12"><div id="anRet12"></div></div>
+          <div class="seg-panel panel-rt1-24"><div id="anRet24"></div></div>
+          <div class="seg-panel panel-rt1-36"><div id="anRet36"></div></div>
         </div>
         </div>
       </details>
@@ -722,22 +728,18 @@
             <label for="wi1-6m">Полгода</label>
             <label for="wi1-year">Год</label>
           </div>
-          <div class="seg-panel panel-wi1-month"><div class="stat-cards">
-            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          </div></div>
-          <div class="seg-panel panel-wi1-3m"><div class="stat-cards">
-            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          </div></div>
-          <div class="seg-panel panel-wi1-6m"><div class="stat-cards">
-            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          </div></div>
-          <div class="seg-panel panel-wi1-year"><div class="stat-cards">
-            <div class="stat-card"><div class="sc-label">По предварительной записи</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-            <div class="stat-card"><div class="sc-label">Без записи (walk-in)</div><div class="sc-value">00% <span class="unsure">пример</span></div></div>
-          </div></div>
+          <!-- Каналы привлечения рисует assets/crm-analytics.js (GET
+               /analytics/sources): Яндекс Карты, 2ГИС, соцсети, по рекомендации,
+               зашёл мимо, плюс честная строка "источник не указан". Считается по
+               полю самой записи (bookings.client_source, миграция 050) - с сайта
+               канал определяется по ссылке перехода, в салоне его ставит
+               администратор в поле "Откуда клиент". Прежние "00% пример" (запись/
+               без записи) убраны 22.08.2026 - разрез "зашёл мимо" вошёл в общий
+               список каналов, отдельной парой заглушек он больше не нужен. -->
+          <div class="seg-panel panel-wi1-month"><div id="anSrc1"></div></div>
+          <div class="seg-panel panel-wi1-3m"><div id="anSrc3"></div></div>
+          <div class="seg-panel panel-wi1-6m"><div id="anSrc6"></div></div>
+          <div class="seg-panel panel-wi1-year"><div id="anSrc12"></div></div>
         </div>
         </div>
       </details>
@@ -803,6 +805,9 @@
   import { initAppShell } from './assets/crm-app-shell.js';
   import { refreshFinance } from './assets/crm-dashboard.js';
   import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
+  // Раздел «Аналитика» (22.08.2026) - возвращаемость по салону и по сотрудникам,
+  // каналы привлечения. Данные тянет при первом заходе в раздел, см. wireAnalytics
+  import { wireAnalytics, refreshAnalytics } from './assets/crm-analytics.js';
   // Модуль подключён ради самого себя: он сам подписан на событие входа и рисует
   // «Команду» после проверки сессии, вызывать его отсюда руками не нужно
   import './assets/crm-team.js';
@@ -817,6 +822,7 @@
   // тянет базу только тогда - см. wireClientsSection, assets/crm-clients.js
   wireClientsSection();
   wireScheduleAlerts();
+  wireAnalytics();
   initAppShell('owner');
 
   // Окно 45 (08.08.2026) - мягкое обновление: перечитывает данные всех уже
@@ -835,9 +841,9 @@
   // раз - повторный вызов задвоил бы клики). refreshFinance (crm-dashboard.js) и
   // window.__refreshTeamSchedules (crm-schedule-editor.js) - отдельные идемпотентные
   // функции, которые только перечитывают и перерисовывают данные, тот же приём, что
-  // уже применён для window.__refreshScheduleViews. "Аналитика" (panel-d) не входит
-  // в список - там нет ни одного реального запроса к серверу (только "00% пример"),
-  // обновлять нечего.
+  // уже применён для window.__refreshScheduleViews. "Аналитика" (panel-d) в список
+  // добавлена 22.08.2026 - до этого дня раздел действительно нечего было обновлять
+  // ("00% пример" вместо цифр), теперь он считается на сервере как все остальные.
   upgradeBookingPanel();
   initCrmNavigationPanels();
   window.__refreshOwnerDashboard = () => Promise.all([
@@ -849,6 +855,9 @@
     // «Клиенты» (21.08.2026) - тоже чистый рендер (fetch + innerHTML). Если раздел ещё
     // ни разу не открывали, список пуст и функция просто перечитает его в фоне
     renderClientsSection(),
+    // «Аналитика» (22.08.2026) - тем же правилом: раздел, который ни разу не
+    // открывали, ничего не перечитывает (см. refreshAnalytics)
+    refreshAnalytics(),
   ]);
   initCrmRefreshControl();
   // «Команду» рисует событие crm:authenticated (assets/crm-team.js) - вход к этому

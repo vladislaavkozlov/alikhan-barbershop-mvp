@@ -81,8 +81,12 @@ import {
 } from './routes/notifications.js';
 import { handlePayrollSettings, handlePayroll, handleRevenueToday, handleDiscountSettings } from './routes/payroll.js';
 import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard } from './routes/clients.js';
+// Раздел «Аналитика» владельца (22.08.2026) - возвращаемость по мастерам и каналы
+// привлечения. Считает по уже существующим полям броней, своих таблиц не заводит.
+import { handleAnalyticsRetention, handleAnalyticsSources } from './routes/analytics.js';
 // Ре-экспорт для tests/*.test.js.
 export { describeClientRisk, getClientCard, listClientsAtRisk, computeOwnerAlerts } from './routes/clients.js';
+export { percentOf, shapeSourceRows, parseMonths, RETENTION_MONTHS, SOURCE_MONTHS } from './routes/analytics.js';
 export { normalizePhoneKey, findClientByPhone, resolveClientsQueryMode, shapeClientCardForViewer, listAllClients, summarizeClientVisits } from './routes/clients.js';
 export { computeMasterPayroll, computeRevenueToday, countUnidentifiedToday } from './routes/payroll.js';
 
@@ -164,6 +168,9 @@ const ROUTES = [
   { method: 'GET', path: 'clients', auth: 'any-staff' },
   { method: 'GET', path: 'clients/:id', auth: 'any-staff' },
   { method: 'GET', path: 'owner/alerts', auth: 'management' },
+  // Аналитика салона - тот же круг, что и деньги: владелец и управляющий
+  { method: 'GET', path: 'analytics/retention', auth: 'management' },
+  { method: 'GET', path: 'analytics/sources', auth: 'management' },
   // Живое обновление кабинетов (17.08.2026). /events - поток событий от сервера,
   // /changes - его фолбэк опросом на случай, если прокси не пропустит долгое
   // соединение. Обоим достаточно любого валидного токена: они не отдают данных,
@@ -521,6 +528,21 @@ const server = createServer(async (req, res) => {
     // (мастера без графика, необработанные заявки, клиенты в риске) одним запросом.
     if (parts[0] === 'owner' && parts[1] === 'alerts' && parts.length === 2 && req.method === 'GET') {
       return handleOwnerAlerts(req, res);
+    }
+
+    // ── /analytics/* (22.08.2026, задача Влада) - раздел «Аналитика» владельца.
+    // retention - возвращаемость по салону И по каждому мастеру за 3/6/12/24/36
+    // месяцев, sources - распределение записей по каналам привлечения (Яндекс Карты,
+    // 2ГИС, Инстаграм, …) за 1/3/6/12 месяцев. Оба считаются из уже существующих
+    // полей броней (status/client_id и client_source, миграция 050) - новых таблиц
+    // задача не потребовала. Словарь допустимых каналов аналитика берёт оттуда же,
+    // откуда его берёт запись брони (CLIENT_SOURCE_KEYS, api/routes/bookings.js) -
+    // второго списка каналов в системе нет.
+    if (parts[0] === 'analytics' && parts[1] === 'retention' && parts.length === 2 && req.method === 'GET') {
+      return handleAnalyticsRetention(req, res, url);
+    }
+    if (parts[0] === 'analytics' && parts[1] === 'sources' && parts.length === 2 && req.method === 'GET') {
+      return handleAnalyticsSources(req, res, url);
     }
 
     // ── /clients?risk=true - Окно 39 (06.08.2026, Задача 1). Список "требует
