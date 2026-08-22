@@ -35,6 +35,7 @@ import { MANAGEMENT_ROLES } from '../lib/permissions.js';
 // указан».
 import { CLIENT_SOURCE_KEYS } from './bookings.js';
 import { dateColToStr } from '../lib/time.js';
+import { DEFAULT_RENEW_DAYS } from '../lib/renew.js';
 
 // Аналитика салона целиком - тот же круг, что и деньги (17.08.2026: владелец и
 // управляющий). Администратору и мастеру раздела «Аналитика» в кабинете нет, но
@@ -51,14 +52,22 @@ const ANALYTICS_VIEWERS = MANAGEMENT_ROLES;
 // ровно раз - включая клиента, который приходил вчера и физически не успел бы прийти
 // снова.
 //
-// Месяц - не абстрактная осторожность, а шаг самой услуги: стрижка живёт примерно
-// столько, и раньше человека ждать незачем.
+// Окно 59 (22.08.2026) заменило общий месяц на СРОК КОНКРЕТНОГО КЛИЕНТА
+// (clients.renew_days, миграция 056). Смысл окна не изменился - «слишком рано судить»
+// осталось ровно там же, поменялся только источник срока: месяц был одной цифрой на
+// всех, а стрижки и волосы разные, и клиент, с которым мастер договорился на две
+// недели, пропадал на месяц незамеченным. Пустой срок читается как месяц
+// (DEFAULT_RENEW_DAYS) - та же цифра, что стояла здесь константой, поэтому на
+// клиентах без срока поведение не изменилось ни на день.
 //
 // Окно действует на ОБЕ цифры, не только на список: клиент, впервые пришедший на
 // прошлой неделе, выпадает и из знаменателя возвращаемости. Иначе процент падал бы от
 // каждого новичка - салон привёл новых людей, а показатель лояльности за это наказывал.
 // Клиента с двумя визитами окно не касается: он уже вернулся, ждать нечего.
-const RETURN_GRACE_MONTHS = 1;
+//
+// Формула ОДНА на возвращаемость и на список невернувшихся - иначе процент и имена
+// под ним разошлись бы, и владелец обзвонил бы не тех.
+const OVERDUE_SQL = `last_date + make_interval(days => renew_days) < CURRENT_DATE`;
 
 export const RETENTION_MONTHS = [3, 6, 12, 24, 36];
 export const SOURCE_MONTHS = [1, 3, 6, 12];
@@ -101,15 +110,16 @@ export async function computeRetention(db, months) {
   const periodSql = `b.date > CURRENT_DATE - make_interval(months => $1) AND b.date <= CURRENT_DATE`;
   // «Успел ли клиент вернуться»: либо он уже приходил больше раза, либо с его
   // единственного визита прошло не меньше месяца. Всё остальное - слишком рано судить
-  const matureSql = `n >= 2 OR last_date <= CURRENT_DATE - make_interval(months => ${RETURN_GRACE_MONTHS})`;
+  const matureSql = `n >= 2 OR ${OVERDUE_SQL}`;
 
   const [salonRes, masterRes, unlinkedRes, staffRes] = await Promise.all([
     db.query(
       `WITH visits AS (
-         SELECT b.client_id, count(*) AS n, max(b.date) AS last_date
-         FROM bookings b
+         SELECT b.client_id, count(*) AS n, max(b.date) AS last_date,
+                coalesce(c.renew_days, ${DEFAULT_RENEW_DAYS}) AS renew_days
+         FROM bookings b JOIN clients c ON c.id = b.client_id
          WHERE b.status = 'done' AND b.client_id IS NOT NULL AND ${periodSql}
-         GROUP BY b.client_id
+         GROUP BY b.client_id, c.renew_days
        ), mature AS (
          SELECT * FROM visits WHERE ${matureSql}
        )
@@ -122,10 +132,11 @@ export async function computeRetention(db, months) {
     ),
     db.query(
       `WITH visits AS (
-         SELECT b.master_id, b.client_id, count(*) AS n, max(b.date) AS last_date
-         FROM bookings b
+         SELECT b.master_id, b.client_id, count(*) AS n, max(b.date) AS last_date,
+                coalesce(c.renew_days, ${DEFAULT_RENEW_DAYS}) AS renew_days
+         FROM bookings b JOIN clients c ON c.id = b.client_id
          WHERE b.status = 'done' AND b.client_id IS NOT NULL AND b.master_id IS NOT NULL AND ${periodSql}
-         GROUP BY b.master_id, b.client_id
+         GROUP BY b.master_id, b.client_id, c.renew_days
        )
        SELECT master_id, count(*)::int AS clients,
               count(*) FILTER (WHERE n >= 2)::int AS returned,
@@ -173,7 +184,9 @@ export async function computeRetention(db, months) {
   const salon = salonRes.rows[0] ?? { clients: 0, returned: 0, visits: 0, waiting: 0 };
   return {
     months,
-    graceMonths: RETURN_GRACE_MONTHS,
+    // graceMonths больше не отдаём: единого окна на всех нет, у каждого клиента свой
+    // срок. Фронт им и не пользовался - подпись «ждём месяц» стоит текстом
+    defaultRenewDays: DEFAULT_RENEW_DAYS,
     salon: {
       clients: salon.clients,
       returned: salon.returned,
@@ -243,15 +256,18 @@ export async function computeLapsedClients(db, months, masterId = null) {
   // списке - обзванивать логично начиная с тех, кто пропал давно
   const res = await db.query(
     `WITH visits AS (
-       SELECT b.client_id, count(*) AS n, max(b.date) AS last_date
-       FROM bookings b
+       SELECT b.client_id, count(*) AS n, max(b.date) AS last_date,
+              coalesce(c.renew_days, ${DEFAULT_RENEW_DAYS}) AS renew_days
+       FROM bookings b JOIN clients c ON c.id = b.client_id
        WHERE b.status = 'done' AND b.client_id IS NOT NULL${masterFilter} AND ${period}
-       GROUP BY b.client_id
-       -- Тот же порог, что и в проценте выше (RETURN_GRACE_MONTHS): человек, который
-       -- был один раз на прошлой неделе, не «не вернулся» - ему просто рано снова
-       HAVING count(*) = 1 AND max(b.date) <= CURRENT_DATE - make_interval(months => ${RETURN_GRACE_MONTHS})
+       GROUP BY b.client_id, c.renew_days
+       -- Тот же порог, что и в проценте выше (OVERDUE_SQL): человек, который был один
+       -- раз на прошлой неделе, не «не вернулся» - ему просто рано снова. С Окна 59
+       -- порог считается по сроку САМОГО клиента, а не по общему месяцу
+       HAVING count(*) = 1
+          AND max(b.date) + make_interval(days => coalesce(c.renew_days, ${DEFAULT_RENEW_DAYS})) < CURRENT_DATE
      )
-     SELECT c.id, c.name, c.phone, v.last_date
+     SELECT c.id, c.name, c.phone, v.last_date, v.renew_days
      FROM visits v JOIN clients c ON c.id = v.client_id
      ORDER BY v.last_date, c.name
      LIMIT ${LAPSED_LIMIT + 1}`,
@@ -263,6 +279,10 @@ export async function computeLapsedClients(db, months, masterId = null) {
     name: r.name,
     phone: r.phone,
     lastVisit: r.last_date instanceof Date ? r.last_date.toISOString().slice(0, 10) : r.last_date,
+    // Срок клиента едет вместе со строкой: список «кто не вернулся» и список «кому
+    // звонить сейчас» в «Финансах» говорят об одних и тех же людях, и подпись
+    // «договаривались на 4 недели» объясняет, почему человек тут оказался
+    renewDays: r.renew_days ?? null,
   }));
   // truncated - честный признак, что показаны не все: молча обрезанный список владелец
   // принял бы за полный и решил, что обзвонил всех
@@ -284,6 +304,68 @@ export async function computeUnlinkedVisits(db) {
   );
   const row = res.rows[0] ?? { visits: 0, visits_month: 0 };
   return { visits: row.visits, visitsMonth: row.visits_month };
+}
+
+// ── Доля обсуждённых сроков по мастерам ─────────────────────────────────────
+// Метрика Окна 59 (22.08.2026). Мерить ЗАПОЛНЕННОСТЬ поля бессмысленно - срок
+// обязателен при закрытии визита, она всегда будет 100%. Смысл в другом: у скольких
+// клиентов мастера срок реально ПРОГОВОРЁН, то есть причина не «не обсуждали».
+//
+// Это то, что владелец может требовать с мастера, и одновременно честный индикатор,
+// насколько можно верить главной сумме в «Финансах»: если половина сроков поставлена
+// месяц по умолчанию, то и недополученная прибыль посчитана по умолчанию тоже.
+//
+// Вариант «не обсуждали» - законный ответ, а не провинность, поэтому врать мастеру
+// смысла нет: поставил месяц по умолчанию - метрика это показала, и разговор владельца
+// с мастером идёт про работу, а не про заполнение полей.
+export async function computeRenewDiscussed(db, months) {
+  const periodSql = `b.date > CURRENT_DATE - make_interval(months => $1) AND b.date <= CURRENT_DATE`;
+  const [byMasterRes, staffRes] = await Promise.all([
+    db.query(
+      `WITH active AS (
+         SELECT DISTINCT b.master_id, b.client_id, c.renew_reason
+         FROM bookings b JOIN clients c ON c.id = b.client_id
+         WHERE b.status = 'done' AND b.client_id IS NOT NULL AND b.master_id IS NOT NULL AND ${periodSql}
+       )
+       SELECT master_id, count(*)::int AS clients,
+              count(*) FILTER (WHERE renew_reason IS NOT NULL AND renew_reason <> 'not_discussed')::int AS discussed
+       FROM active GROUP BY master_id`,
+      [months]
+    ),
+    db.query(`SELECT id, name, employed, employment_ended_at, provides_services FROM staff ORDER BY created_at, id`),
+  ]);
+
+  const byMaster = new Map(byMasterRes.rows.map((r) => [r.master_id, r]));
+  // Тот же состав списка, что у возвращаемости: все, кто сейчас оказывает услуги, плюс
+  // те, у кого визиты в периоде были, хоть человек уже и не работает
+  const masters = staffRes.rows
+    .filter((s) => (s.provides_services && s.employed) || byMaster.has(s.id))
+    .map((s) => {
+      const agg = byMaster.get(s.id);
+      const clients = agg ? agg.clients : 0;
+      const discussed = agg ? agg.discussed : 0;
+      return {
+        masterId: s.id,
+        name: s.name,
+        employed: !!s.employed,
+        employmentEndedAt: dateColToStr(s.employment_ended_at) ?? null,
+        clients,
+        discussed,
+        pct: percentOf(discussed, clients),
+      };
+    });
+
+  const clients = masters.reduce((sum, m) => sum + m.clients, 0);
+  const discussed = masters.reduce((sum, m) => sum + m.discussed, 0);
+  return { months, salon: { clients, discussed, pct: percentOf(discussed, clients) }, masters };
+}
+
+export async function handleAnalyticsRenewDiscussed(req, res, url) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, ANALYTICS_VIEWERS)) return sendJson(res, 403, { error: 'forbidden' });
+  const months = parseMonths(url.searchParams.get('months'), RETENTION_MONTHS);
+  if (months === null) return sendJson(res, 400, { error: 'invalid_months' });
+  return sendJson(res, 200, await computeRenewDiscussed(pool, months));
 }
 
 export async function handleAnalyticsRetention(req, res, url) {

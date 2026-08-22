@@ -14,6 +14,7 @@ import { findClientIdByPhone } from './clients.js';
 // кабинеты сразу, чтобы запись появлялась в расписании без кнопки «Обновить»
 import { publish } from '../lib/events.js';
 import { hasComboConflict } from '../lib/service-combos.js';
+import { normalizeRenewInput } from '../lib/renew-reason.js';
 
 // Админы точки - адресаты уведомлений о её записях (Окно 14: Мамедхан управляет
 // точкой день в день). Один запрос на два вызова - createBookingTx и перенос
@@ -644,6 +645,22 @@ export async function handleBookingCancel(req, res, parts) {
 // для отмены есть отдельный /bookings/:id/cancel с проверкой порога 2 часа
 // (Задача 2), общий сеттер статуса не должен давать возможность обойти эту
 // проверку.
+//
+// Окно 59 (22.08.2026) - вместе со статусом 'done' сюда приезжает срок, через
+// который клиент должен вернуться (body.renew). Место выбрано принципиально: разговор
+// про срок происходит в конце стрижки, и поле, спрятанное в карточке клиента, не
+// заполнил бы никто. Правила:
+//   - у клиента с телефоном закрыть визит без срока НЕЛЬЗЯ. Если срока нет ни в
+//     запросе, ни у самого клиента с прошлого визита - 400 renew_required;
+//   - если срок у клиента уже стоит, а в запросе его нет - визит закрывается молча,
+//     старая договорённость остаётся в силе. Допрашивать постоянного клиента каждый
+//     раз нельзя: мастер начнёт штамповать что попало, и метрика умрёт;
+//   - визит без client_id (walk-in без телефона, миграция 041) срок не спрашивает
+//     вовсе: система намеренно не связывает такие визиты между собой, напоминать
+//     некому;
+//   - откат статуса ('done' обратно в 'planned'/'no_show') срок НЕ стирает.
+//     Договорённость состоялась в разговоре, ошибка в статусе её не отменяет.
+// Статус и срок пишутся одной транзакцией - иначе остался бы закрытый визит без срока.
 export async function handleBookingStatus(req, res, parts) {
   const auth = await authenticate(req);
   if (!requireRole(auth, BOOKING_STAFF_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
@@ -666,10 +683,35 @@ export async function handleBookingStatus(req, res, parts) {
     return sendJson(res, 403, { error: 'forbidden' });
   }
 
+  // Срок разбираем ДО открытия транзакции: отказ по нему - это отказ всего запроса,
+  // и держать ради него открытое соединение незачем. Сам факт «срок обязателен»
+  // проверяется по СОСТОЯНИЮ базы (есть ли уже срок у клиента), а не по тому, что
+  // прислал фронт - спрятать поле в вёрстке и закрыть визит мимо него не выйдет.
+  let renew = null;
+  if (body.status === 'done' && booking.client_id) {
+    const hasRenew = body.renew !== undefined && body.renew !== null;
+    if (hasRenew) {
+      const parsed = normalizeRenewInput(body.renew);
+      if (!parsed.ok) return sendJson(res, 400, { error: parsed.error });
+      renew = parsed.value;
+    } else {
+      const existing = await pool.query('SELECT renew_days FROM clients WHERE id = $1', [booking.client_id]);
+      if (existing.rows[0]?.renew_days == null) return sendJson(res, 400, { error: 'renew_required' });
+    }
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query('UPDATE bookings SET status = $1 WHERE id = $2', [body.status, bookingId]);
+    if (renew) {
+      await client.query(
+        `UPDATE clients SET renew_days = $1, renew_days_recommended = $2, renew_reason = $3,
+                            renew_note = $4, renew_set_by = $5, renew_set_at = now()
+          WHERE id = $6`,
+        [renew.days, renew.recommendedDays, renew.reason, renew.note, auth.id ?? null, booking.client_id]
+      );
+    }
     // Правка 03.08.2026 (кнопка "Клиент не пришёл" в bd-1 - раньше не вызывала
     // этот эндпоинт вообще): проверяем ПРЕЖНИЙ статус (booking.status), не только
     // новый - иначе повторный клик/повторный PATCH на уже no_show booking удваивал
@@ -702,7 +744,10 @@ export async function handleBookingStatus(req, res, parts) {
     client.release();
   }
   publish('bookings', { bookingId, reason: 'status', status: body.status });
-  return sendJson(res, 200, { ok: true, status: body.status });
+  // renew в ответе - чтобы форма закрытия визита показала мастеру, что именно
+  // записано, и не пересчитывала это у себя (при причине «не обсуждали» срок ставит
+  // сервер, а не поле в интерфейсе)
+  return sendJson(res, 200, { ok: true, status: body.status, renew });
 }
 
 // ── /bookings/:id/services - добавление услуги(й) К УЖЕ СУЩЕСТВУЮЩЕЙ записи

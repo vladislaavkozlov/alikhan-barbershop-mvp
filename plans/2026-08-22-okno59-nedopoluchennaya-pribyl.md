@@ -47,16 +47,16 @@
       разрежённый / просроченный), пропущенные визиты, деньги
 - [x] Тесты: `tests/renew-math.test.js`, `tests/api.payroll-period.test.js` зелёный
 
-### Ф2. Бэкенд-роуты [ ]
-- [ ] `handleBookingStatus`: срок обязателен при `done` + `client_id`, одна транзакция,
+### Ф2. Бэкенд-роуты [x]
+- [x] `handleBookingStatus`: срок обязателен при `done` + `client_id`, одна транзакция,
       откат статуса срок не стирает
-- [ ] `PATCH /clients/:id/renew` + срок в карточке клиента (телефон мастеру по-прежнему нет)
-- [ ] `analytics`: `RETURN_GRACE_MONTHS` → `renew_days` в возвращаемости И в списке
+- [x] `PATCH /clients/:id/renew` + срок в карточке клиента (телефон мастеру по-прежнему нет)
+- [x] `analytics`: `RETURN_GRACE_MONTHS` → `renew_days` в возвращаемости И в списке
       невернувшихся (одна формула на оба)
-- [ ] `GET /analytics/renew-discussed` - доля обсуждённых сроков по мастерам
-- [ ] `GET /finance/missed-profit` + `GET /finance/missed-profit/clients` (списки
+- [x] `GET /analytics/renew-discussed` - доля обсуждённых сроков по мастерам
+- [x] `GET /finance/missed-profit` + `GET /finance/missed-profit/clients` (списки
       «кому звонить» / «кому объяснить срок»)
-- [ ] Тесты на каждый пункт
+- [x] Тесты на каждый пункт
 
 ### Ф3. Фронт: ввод при закрытии визита [ ]
 - [ ] Поле срока + причина + комментарий в `#walkinForm` (owner, admin), появляется

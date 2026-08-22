@@ -1,12 +1,14 @@
 // GET /owner/alerts, GET /clients?risk=true, GET /clients?phone=, GET /clients/:id -
 // вынесено из server.mjs при декомпозиции (Этап 2 структурного рефакторинга,
 // 07.08.2026), код перенесён без изменений; ветка ?phone= добавлена Окном 54.
-import { sendJson } from '../lib/http.js';
+import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { mastersWithWorkingSchedule } from '../lib/schedule-core.js';
 import { canManageStaff, BOOKING_STAFF_ROLES } from '../lib/permissions.js';
 import { findMastersMissingSchedule } from '../lib/notify-core.js';
+import { normalizeRenewInput } from '../lib/renew-reason.js';
+import { publish } from '../lib/events.js';
 
 // Окно 39 (06.08.2026) - индикатор риска ухода клиента. no_show_streak уже
 // собирается (Окно 13) и уже управляет requiresPrepayment (>=2, см. createBookingTx
@@ -38,8 +40,16 @@ export function describeClientRisk(noShowStreak) {
 // принцип, что у computeRevenueToday/computeMasterPayroll) - видимость телефона и
 // scoping по точке/мастеру решает вызывающий роут по auth.role, не эта функция.
 export async function getClientCard(client, clientId) {
+  // renew_* (Окно 59, миграция 056) - срок обновления стрижки и почему он такой.
+  // Имя того, кто ставил срок последним, берём тут же джойном: в карточке нужна
+  // строка «Алиовсад, 22.08», а не служебный id. Отдельной таблицы истории в v1 нет
+  // осознанно - см. комментарий в миграции.
   const clientRes = await client.query(
-    'SELECT id, name, phone, birthday, no_show_streak FROM clients WHERE id = $1',
+    `SELECT c.id, c.name, c.phone, c.birthday, c.no_show_streak,
+            c.renew_days, c.renew_days_recommended, c.renew_reason, c.renew_note,
+            c.renew_set_by, c.renew_set_at, st.name AS renew_set_by_name
+     FROM clients c LEFT JOIN staff st ON st.id = c.renew_set_by
+     WHERE c.id = $1`,
     [clientId]
   );
   if (clientRes.rows.length === 0) return null;
@@ -111,6 +121,17 @@ export async function getClientCard(client, clientId) {
     birthday: row.birthday instanceof Date ? row.birthday.toISOString().slice(0, 10) : row.birthday,
     noShowStreak: row.no_show_streak,
     risk: describeClientRisk(row.no_show_streak),
+    // Срок в карточке - тот же объект, что принимает PATCH /clients/:id/renew: одно
+    // и то же представление на чтение и на запись, чтобы форма не собирала его заново
+    renew: {
+      days: row.renew_days ?? null,
+      recommendedDays: row.renew_days_recommended ?? null,
+      reason: row.renew_reason ?? null,
+      note: row.renew_note ?? null,
+      setBy: row.renew_set_by ?? null,
+      setByName: row.renew_set_by_name ?? null,
+      setAt: row.renew_set_at instanceof Date ? row.renew_set_at.toISOString() : row.renew_set_at ?? null,
+    },
     visits,
     // Итоги по клиенту (21.08.2026) - считаются из ТОЙ ЖЕ истории визитов, что уедет
     // на фронт, а не отдельным запросом: иначе у администратора, которому история
@@ -428,6 +449,59 @@ export async function handleClientsAtRisk(req, res, url) {
   const list = await listClientsAtRisk(pool, { locationId, masterId });
   const shaped = auth.role === 'master' ? list.map(({ phone, ...rest }) => rest) : list;
   return sendJson(res, 200, shaped);
+}
+
+// ── PATCH /clients/:id/renew - срок обновления стрижки из карточки клиента (Окно 59,
+// 22.08.2026). Основное место ввода - закрытие визита (PATCH /bookings/:id/status),
+// здесь же поправка задним числом: «договорились на месяц, а он в отпуске до октября».
+//
+// Права - ровно те же, что на простановку статуса брони (BOOKING_STAFF_ROLES) и с той
+// же матрицей scope, что у GET /clients/:id: администратор правит клиента своей точки,
+// мастер - только того, у кого был визит У НЕГО. Новой дыры в правах это не открывает:
+// телефон в ответе мастеру по-прежнему срезается (правило 002_schema.sql:48).
+export async function handleClientRenew(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, BOOKING_STAFF_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
+  const clientId = decodeURIComponent(parts[1]);
+  const body = await readBody(req);
+  const parsed = normalizeRenewInput(body?.renew ?? body);
+  if (!parsed.ok) return sendJson(res, 400, { error: parsed.error });
+
+  // Существование клиента проверяется ДО scope-проверки - 404 одинаков для всех ролей
+  // и не палит, есть такой клиент или просто чужой (тот же приём, что в handleClientCard)
+  const card = await getClientCard(pool, clientId);
+  if (!card) return sendJson(res, 404, { error: 'client_not_found' });
+  if (auth.role === 'admin' && !card.visits.some((v) => v.locationId === auth.locationId)) {
+    return sendJson(res, 403, { error: 'forbidden' });
+  }
+  if (auth.role === 'master' && !card.visits.some((v) => v.masterId === auth.id)) {
+    return sendJson(res, 403, { error: 'forbidden' });
+  }
+
+  const renew = parsed.value;
+  const saved = await pool.query(
+    `UPDATE clients SET renew_days = $1, renew_days_recommended = $2, renew_reason = $3,
+                        renew_note = $4, renew_set_by = $5, renew_set_at = now()
+      WHERE id = $6
+      RETURNING renew_days, renew_days_recommended, renew_reason, renew_note, renew_set_by, renew_set_at`,
+    [renew.days, renew.recommendedDays, renew.reason, renew.note, auth.id ?? null, clientId]
+  );
+  const row = saved.rows[0];
+  // Живое обновление открытых вкладок - тот же канал, что у статуса брони: срок влияет
+  // на «Недополученную прибыль», и она не должна показывать вчерашнюю картину
+  publish('bookings', { clientId, reason: 'renew' });
+  return sendJson(res, 200, {
+    ok: true,
+    renew: {
+      days: row.renew_days,
+      recommendedDays: row.renew_days_recommended ?? null,
+      reason: row.renew_reason,
+      note: row.renew_note ?? null,
+      setBy: row.renew_set_by ?? null,
+      setByName: auth.name ?? null,
+      setAt: row.renew_set_at instanceof Date ? row.renew_set_at.toISOString() : row.renew_set_at ?? null,
+    },
+  });
 }
 
 // ── /clients/:id - Окно 39 (06.08.2026, Задача 1). Карточка клиента через
