@@ -443,3 +443,47 @@
   .crm-navigation-ui .team-editor-section .sc-name,
   .crm-navigation-ui .team-editor-section .sc-meta { min-width: 0; }
 }
+
+/* ── Уволенные (22.08.2026) ─────────────────────────────────────────────────
+   Архивный блок внизу раздела «Сотрудники»: свёрнут по умолчанию, визуально
+   приглушён, но карточка внутри - тот же details.staff-card, что и у
+   работающих (КОНВЕНЦИЯ: не изобретать вёрстку карточки заново). Приглушение
+   идёт цветом контейнера, не opacity на карточке: opacity гасит и текст полей,
+   а их в архиве как раз читают. */
+.crm-navigation-ui .team-fired-group { margin-top: 18px; }
+.crm-navigation-ui .team-fired-toggle {
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  padding: 4px 12px 12px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+.crm-navigation-ui .team-fired-toggle > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 2px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--text-muted);
+}
+.crm-navigation-ui .team-fired-toggle > summary::-webkit-details-marker { display: none; }
+.crm-navigation-ui .team-fired-title { font-weight: 600; }
+.crm-navigation-ui .team-fired-count {
+  min-width: 22px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: .78rem;
+  text-align: center;
+}
+.crm-navigation-ui .team-fired-toggle > summary .chevron { margin-left: auto; transition: transform .15s ease; }
+.crm-navigation-ui .team-fired-toggle[open] > summary .chevron { transform: rotate(90deg); }
+
+/* Секция «Состав команды» в карточке - те же отступы, что у остальных секций */
+.crm-navigation-ui .team-employment { display: grid; gap: 10px; }
+.crm-navigation-ui .team-employment-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.crm-navigation-ui .team-employment-actions .payroll-note { flex: 1 1 100%; margin: 0; }
+
+/* Карточка уволенного в «Финансах» - помечена рамкой, а не спрятана: суммы за
+   отработанные периоды остаются полноценной строкой отчёта */
+.crm-navigation-ui .payroll-card-fired { border-style: dashed; }

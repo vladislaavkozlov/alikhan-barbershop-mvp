@@ -166,8 +166,8 @@ function staffCard(staff, viewerRole, locations, viewerId) {
     : locked
       ? 'Услуги владельца меняет только он сам'
       : 'Выберите услуги и укажите длительность';
-  return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-role="${esc(staff.role)}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
-  ${section('Основное', detailsTitle, ICON_DETAILS,`<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'employed', title: 'Работает в компании', description: 'Сотрудник остаётся в активном составе', checked: staff.employed, disabled: employmentLocked })}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: fieldsLocked })}</div>`)}
+  return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-role="${esc(staff.role)}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}${staff.employed === false ? ` · ${esc(firedNote(staff))}` : ''}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
+  ${section('Основное', detailsTitle, ICON_DETAILS,`<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: fieldsLocked })}</div>`)}
   ${/* Фото, портфолио и витрина на сайте - управление составом медиа, а оно на сервере
        management-only (POST/DELETE /staff/:id/media). Администратору секцию не рисуем
        вовсе: кнопка «Выбрать фото» у него давала бы только 401 в ответ. */''}
@@ -190,7 +190,44 @@ function staffCard(staff, viewerRole, locations, viewerId) {
        и другая надпись, и признак data-schedule-only, по которому saveCardSteps
        останавливается сразу после графика и не шлёт PUT /staff, /portfolio, /role -
        они вернули бы ему 401 и «Не удалось сохранить» поверх уже сохранённого. */''}
+  ${/* Увольнение (22.08.2026). Раньше здесь был тумблер «Работает в компании» рядом с
+       «Принимает клиентов» - два похожих переключателя, из которых один тихо обрывал
+       человеку вход и убирал его с сайта. Теперь это отдельное названное действие с
+       подтверждением, где прямым текстом сказано, что произойдёт и что останется.
+       Своё сохранение ему не нужно: PUT /staff/:id/employment уходит сразу по кнопке,
+       не подхватывая несохранённые правки соседних полей. */''}
+  ${employmentSection(staff, employmentLocked)}
   <div class="team-editor-actions"><button class="btn btn-primary" type="button" data-save ${canManage ? '' : 'data-schedule-only'} disabled>${canManage ? 'Сохранить изменения' : 'Сохранить график'}</button><p class="payroll-note" data-card-note aria-live="polite"></p></div></div></details>`;
+}
+
+// Подпись уволенного - одна на карточку и на её свёрнутый вид: дату увольнения видно
+// в списке сразу, не раскрывая карточку (иначе блок «Уволенные» отвечает только на
+// вопрос «кто ушёл», но не «когда»)
+function firedNote(staff) {
+  const since = humanDate(staff.employmentEndedAt);
+  return since ? `Не работает с ${since}` : 'Не работает';
+}
+
+// Секция «Состав команды». У работающего - кнопка «Уволить», у уволенного - дата и
+// возврат в команду. Замок тот же, что на сервере (guardAccountLockout): владельца и
+// самого себя уволить нельзя - вместо кнопки объяснение, почему её нет.
+function employmentSection(staff, employmentLocked) {
+  const fired = staff.employed === false;
+  if (fired) {
+    return section('Состав команды', firedNote(staff), ICON_PROFILE,
+      `<div class="team-employment" data-employment data-staff-id="${esc(staff.id)}" data-employed="0">
+        <p class="payroll-note">История записей, выручки и статистики за отработанные периоды сохранена - она видна в «Финансах» и «Аналитике»</p>
+        <div class="team-employment-actions" data-employment-actions></div>
+      </div>`);
+  }
+  if (employmentLocked) {
+    return section('Состав команды', 'Работает в компании', ICON_PROFILE,
+      `<div class="team-employment" data-employed="1"><p class="payroll-note">${staff.protectedOwner ? 'Владельца уволить нельзя' : 'Себя уволить нельзя - это закрыло бы вам вход в CRM'}</p></div>`);
+  }
+  return section('Состав команды', 'Работает в компании', ICON_PROFILE,
+    `<div class="team-employment" data-employment data-staff-id="${esc(staff.id)}" data-employed="1">
+      <div class="team-employment-actions" data-employment-actions></div>
+    </div>`);
 }
 
 // Даты и время здесь - слоты под кастомные виджеты проекта (.custom-date /
@@ -339,7 +376,8 @@ async function saveCardSteps(card) {
     phone: value('phone').value,
     email: value('email').value,
     locationId: value('locationId')?.value || null,
-    employed: value('employed').checked,
+    // employed сюда больше не идёт (22.08.2026) - трудоустройство меняет только
+    // PUT /staff/:id/employment. Сервер без этого поля оставляет колонку как есть
     providesServices: value('providesServices').checked,
     // hasSystemAccess намеренно не отправляется - тумблера больше нет, сервер
     // сохраняет текущее значение колонки (см. handleStaffUpdate)
@@ -524,7 +562,7 @@ async function saveException(root) {
 // Поля, которые уезжают на сервер по кнопке "Сохранить изменения". Услуги, график и
 // фотографии сохраняются сами по себе, отдельными запросами - их правка кнопку не
 // касается, поэтому в снимок они не входят.
-const SAVED_FIELDS = ['name', 'phone', 'email', 'locationId', 'employed', 'providesServices', 'publicProfileEnabled', 'experience', 'strengths', 'certificates'];
+const SAVED_FIELDS = ['name', 'phone', 'email', 'locationId', 'providesServices', 'publicProfileEnabled', 'experience', 'strengths', 'certificates'];
 
 function cardSnapshot(card) {
   const values = SAVED_FIELDS.map((name) => {
@@ -636,8 +674,58 @@ async function savePin(button) {
   showSuccess(text);
 }
 
+// Увольнение и возврат в команду. Подтверждение - двухшаговая замена кнопки прямо в
+// секции, конвенция проекта (нативный window.confirm не используется, см.
+// assets/crm-booking-status.js wireBookingDelete). В тексте подтверждения сказано и
+// что оборвётся, и что сохранится: владелец салона должен понимать, что «уволить» в
+// CRM не стирает ни выручку, ни статистику - иначе он побоится нажать и будет держать
+// в команде людей, которые давно ушли
+function wireEmployment(root) {
+  root.querySelectorAll('[data-employment]').forEach((zone) => {
+    const staffId = zone.dataset.staffId;
+    const employed = zone.dataset.employed === '1';
+    const actions = zone.querySelector('[data-employment-actions]');
+    // Именно .team-editor-card, а не ближайший [data-staff-id]: он есть и у самой
+    // зоны увольнения, и closest вернул бы её же - в подтверждении вместо имени
+    // человека стояло безликое «Сотрудник» (видно на скриншоте 22.08.2026)
+    const card = zone.closest('.team-editor-card');
+    const name = card?.querySelector('.summary-meta .name')?.textContent?.trim() || 'Сотрудник';
+
+    const renderIdle = () => {
+      actions.innerHTML = employed
+        ? '<button type="button" class="btn btn-danger btn-sm" data-fire>Уволить</button>'
+        : '<button type="button" class="btn btn-ghost btn-sm" data-rehire>Вернуть в команду</button>';
+      actions.querySelector('[data-fire]')?.addEventListener('click', renderConfirmFire);
+      actions.querySelector('[data-rehire]')?.addEventListener('click', () => apply(true));
+    };
+
+    const renderConfirmFire = () => {
+      actions.innerHTML = `<p class="payroll-note">Уволить «${esc(name)}»? Он пропадёт из расписания и с сайта записи, вход в CRM закроется сразу. Записи, выручка и статистика за отработанные периоды останутся на месте. Будущие записи к нему перенесите на другого мастера</p>
+        <button type="button" class="btn btn-danger btn-sm" data-fire-yes>Да, уволить</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-fire-no>Отмена</button>`;
+      actions.querySelector('[data-fire-yes]').addEventListener('click', () => apply(false));
+      actions.querySelector('[data-fire-no]').addEventListener('click', renderIdle);
+    };
+
+    const apply = async (nextEmployed) => {
+      showNoteSpinner(zone, nextEmployed ? 'Возвращаю в команду' : 'Оформляю увольнение');
+      const result = await apiSend(`/staff/${encodeURIComponent(staffId)}/employment`, 'PUT', { employed: nextEmployed });
+      if (!result.ok) return noteApiFail(zone, result, nextEmployed ? 'Не удалось вернуть в команду' : 'Не удалось уволить');
+      showSuccess(nextEmployed ? `${name} снова в команде` : `${name} уволен`);
+      // Полная перезагрузка, а не renderTeam: состав команды меняет колонки в
+      // «Расписании», а они собираются один раз при инициализации страницы (та же
+      // причина, по которой перезагружается смена «Принимает клиентов», см. saveCard)
+      await new Promise((done) => setTimeout(done, 800));
+      window.location.reload();
+    };
+
+    if (actions) renderIdle();
+  });
+}
+
 function wire(root) {
   wirePhoneFields(root);
+  wireEmployment(root);
   root.querySelectorAll('[data-save]').forEach((button) => button.addEventListener('click', () => saveCard(button.closest('[data-staff-id]'))));
   root.querySelectorAll('[data-pin-save]').forEach((button) => button.addEventListener('click', () => savePin(button)));
   root.querySelectorAll('input[type=file]').forEach((input) => input.addEventListener('change', () => uploadMedia(input.closest('[data-staff-id]'), input)));
@@ -720,7 +808,16 @@ export async function renderTeam() {
     // Заведение сотрудника - POST /staff, тоже management. Администратору карточку
     // «Добавить сотрудника» не показываем (16.08.2026): раньше её тут не мог увидеть
     // никто, кроме владельца и управляющего, потому что раздел был только у них.
-    host.innerHTML = rows.map((staff) => staffCard(staff, me.staff.role, locations, me.staff.id)).join('') + (canEdit ? addCard(locations) : '');
+    // Уволенные отделены от действующего состава (22.08.2026). До этого они лежали в
+    // общем списке вперемешку и ничем не отличались - владелец не мог сказать, кто у
+    // него сейчас работает. Блок «Уволенные» свёрнут: это архив, к нему обращаются
+    // редко, но данные из него никуда не деваются
+    const active = rows.filter((staff) => staff.employed !== false);
+    const fired = rows.filter((staff) => staff.employed === false);
+    const cardsOf = (list) => list.map((staff) => staffCard(staff, me.staff.role, locations, me.staff.id)).join('');
+    host.innerHTML = cardsOf(active)
+      + (canEdit ? addCard(locations) : '')
+      + (fired.length ? `<section class="team-fired-group"><details class="team-fired-toggle"><summary><span class="team-fired-title">Уволенные</span><span class="team-fired-count">${fired.length}</span><span class="chevron">▸</span></summary><p class="payroll-note">Не работают в компании. Записи, выручка и статистика за отработанные периоды сохранены</p>${cardsOf(fired)}</details></section>` : '');
     openStaffIds.forEach((staffId) => host.querySelector(`.team-editor-card[data-staff-id="${CSS.escape(staffId)}"]`)?.setAttribute('open', ''));
     const canEditSchedule = SCHEDULE_EDITORS.includes(me.staff.role);
     rows.forEach((staff) => {

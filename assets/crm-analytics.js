@@ -17,6 +17,7 @@ import { errorMessage } from './crm-toast.js';
 // Подписи каналов («Яндекс Карты», «2ГИС», …) - один словарь на весь проект
 // (assets/client-source.js). Сервер отдаёт ключи, человеческие названия живут здесь
 import { CLIENT_SOURCE_LABELS } from './client-source.js';
+import { firedLabel } from './crm-shared.js';
 // Кнопки связи (WhatsApp/Telegram/MAX/СМС/Позвонить) - тот же набор, что в
 // «Уведомлениях» и в истории клиента. Своего второго набора кнопок в проекте нет
 import { messengerButtonsHtml, wireMessengerLinks } from './crm-notifications.js';
@@ -115,7 +116,9 @@ export function retentionHtml(data, periodLabel) {
   const masterCards = masters
     .map((m) =>
       statCard({
-        label: m.employed ? m.name : `${m.name} (не работает)`,
+        // Дата увольнения в подписи (22.08.2026): «(не работает)» не отвечало на
+        // вопрос «а когда он ушёл» - без этого цифры за период не с чем сопоставить
+        label: m.employed ? m.name : `${m.name} (${firedLabel(m).toLowerCase()})`,
         value: pctText(m.pct),
         note: m.clients === 0 ? 'Нет визитов' : `${m.returned} из ${m.clients}`,
         action: m.clients - m.returned > 0 ? { months: data.months, masterId: m.masterId, count: m.clients - m.returned } : null,

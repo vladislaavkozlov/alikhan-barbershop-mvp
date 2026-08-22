@@ -52,7 +52,7 @@ export { findMastersMissingSchedule } from './lib/notify-core.js';
 // декомпозиции, plans/2026-08-07-server-mjs-decomposition.md.
 export { isoWeekday, enumerateDateRange } from './lib/time.js';
 import { handleLogin, handleLogout, handleMe } from './routes/auth.js';
-import { handleStaffCreate, handleStaffList, handleStaffMediaDelete, handleStaffMediaOrder, handleStaffMediaUpload, handleStaffPinSet, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
+import { handleStaffCreate, handleStaffEmployment, handleStaffList, handleStaffMediaDelete, handleStaffMediaOrder, handleStaffMediaUpload, handleStaffPinSet, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
 import { MEDIA_ROOT } from './lib/staff-media.js';
 import { handlePublicMasters } from './routes/public-masters.js';
 import { handleLocationsList } from './routes/locations.js';
@@ -127,6 +127,9 @@ const ROUTES = [
   { method: 'GET', path: 'media/:key', auth: 'public' },
   { method: 'PUT', path: 'staff/:id/portfolio', auth: 'management' },
   { method: 'PUT', path: 'staff/:id/role', auth: 'management' },
+  // Увольнение и возврат в команду (22.08.2026). Состав команды - management-решение,
+  // тот же уровень, что и PUT /staff/:id
+  { method: 'PUT', path: 'staff/:id/employment', auth: 'management' },
   { method: 'PUT', path: 'staff/:id/pin', auth: 'owner' },
   { method: 'GET', path: 'services', auth: 'any-staff' },
   { method: 'GET', path: 'master-services', auth: 'public' },
@@ -281,6 +284,13 @@ const server = createServer(async (req, res) => {
     }
     if (parts[0] === 'staff' && parts[1] && parts[2] === 'role' && parts.length === 3 && req.method === 'PUT') {
       return handleStaffRole(req, res, parts);
+    }
+
+    // ── /staff/:id/employment - уволить / вернуть в команду (22.08.2026).
+    // Не удаление: строка сотрудника живёт дальше, чтобы его брони, зарплаты и
+    // аналитика за отработанные периоды остались на месте (миграция 055).
+    if (parts[0] === 'staff' && parts[1] && parts[2] === 'employment' && parts.length === 3 && req.method === 'PUT') {
+      return handleStaffEmployment(req, res, parts);
     }
 
     // ── /services - каталог, доступен любой авторизованной роли ──────────

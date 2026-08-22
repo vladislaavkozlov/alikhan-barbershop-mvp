@@ -105,17 +105,27 @@ export async function renderStaffPayrollPeriods({ staffList, priceOf, pctOf, pct
   const host = el('payrollStaffList');
   if (!host) return; // не страница владельца
 
-  const rows = renderPayrollCards(host, staffList, pctByMaster);
-  syncPctInputs(rows, pctByMaster);
-
+  // Порядок «сначала брони, потом карточки» появился 22.08.2026 вместе с увольнением:
+  // состав блока теперь зависит от денег (уволенный попадает сюда, только если в
+  // загруженном окне у него были оплаченные визиты - payrollStaff в crm-shared.js),
+  // а деньги известны лишь после ответа /bookings. Рисовать раньше и дополнять
+  // позже нельзя: вторая отрисовка меняла бы состав под руками и схлопывала уже
+  // раскрытые карточки на каждом нажатии «Обновить данные».
   const today = todayStr();
   let bookings;
   try {
     const res = await fetchJson(`/bookings?from=${periodStartStr('year')}&to=${today}`);
     bookings = paidBookings(res.bookings);
   } catch {
-    return; // "считаю…" останется как было - основная ошибка уже показана в панели выше
+    // Цифр нет - показываем действующий состав с прежним "считаю…" (основная ошибка
+    // уже выведена в панели выше). Уволенных без подтверждённых сумм не выдумываем
+    syncPctInputs(renderPayrollCards(host, staffList, pctByMaster), pctByMaster);
+    return;
   }
+
+  const mastersWithPaidVisits = new Set(bookings.map((b) => b.masterId));
+  const rows = renderPayrollCards(host, staffList, pctByMaster, mastersWithPaidVisits);
+  syncPctInputs(rows, pctByMaster);
 
   // Правка 08.08.2026 (вечер): payrollBookingAmount вместо чистой bookingPrice - от
   // фактической суммы, если владелец включил "Управление скидками".

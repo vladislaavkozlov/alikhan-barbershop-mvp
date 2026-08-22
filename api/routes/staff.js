@@ -9,6 +9,7 @@ import { hashPin } from '../lib/auth.js';
 import { randomBytes } from 'node:crypto';
 import { MAX_PORTFOLIO_ITEMS, removeStoredImage, saveProcessedImage } from '../lib/staff-media.js';
 import { mastersWithWorkingSchedule, filterStaffForViewer } from '../lib/schedule-core.js';
+import { dateColToStr } from '../lib/time.js';
 // Живое обновление (17.08.2026): правка карточки видна в чужих кабинетах сразу
 import { publish } from '../lib/events.js';
 
@@ -16,7 +17,7 @@ import { publish } from '../lib/events.js';
 export async function handleStaffList(req, res) {
   const auth = await authenticate(req);
   if (!auth) return sendJson(res, 401, { error: 'unauthorized' });
-  let query = `SELECT id, location_id, name, photo_url, phone, email, role, protected_owner, employed, provides_services, has_system_access, public_profile_enabled,
+  let query = `SELECT id, location_id, name, photo_url, phone, email, role, protected_owner, employed, employment_ended_at, provides_services, has_system_access, public_profile_enabled,
                       experience_text, strengths_text, certificates_text, before_after_urls
                FROM staff WHERE 1=1`;
   const params = [];
@@ -44,6 +45,9 @@ export async function handleStaffList(req, res) {
     role: r.role,
     protectedOwner: r.protected_owner,
     employed: r.employed,
+    // Дата увольнения (миграция 055). Отдаём строкой YYYY-MM-DD, а не Date: фронт
+    // сравнивает её с датами броней, а те везде в CRM обычные строки
+    employmentEndedAt: dateColToStr(r.employment_ended_at) ?? null,
     providesServices: r.provides_services,
     hasSystemAccess: r.has_system_access,
     publicProfileEnabled: r.public_profile_enabled,
@@ -196,19 +200,34 @@ export async function handleStaffUpdate(req, res, parts) {
   // поэтому отсутствие поля в запросе означает "оставить как есть" (COALESCE ниже),
   // а не "включить" - иначе сохранение карточки молча возвращало бы доступ тем,
   // у кого его выключили раньше.
+  // employed с 22.08.2026 живёт в своём роуте (PUT /staff/:id/employment) - тумблера
+  // в карточке больше нет, увольнение стало отдельным подтверждаемым действием.
+  // Поэтому отсутствие поля здесь означает «оставить как есть» (COALESCE ниже), а НЕ
+  // «в штате»: со старым `body.employed !== false` любое сохранение имени или
+  // телефона в карточке уволенного молча возвращало бы его в команду
   const flags = guardAccountLockout(
     { protectedOwner: target.rows[0].protected_owner, isSelf: auth.id === staffId },
-    { employed: body.employed !== false, hasSystemAccess: typeof body.hasSystemAccess === 'boolean' ? body.hasSystemAccess : null }
+    { employed: typeof body.employed === 'boolean' ? body.employed : null, hasSystemAccess: typeof body.hasSystemAccess === 'boolean' ? body.hasSystemAccess : null }
   );
   try {
-    const result = await pool.query(`UPDATE staff SET location_id=$1,name=$2,phone=$3,email=$4,employed=$5,provides_services=$6,has_system_access=COALESCE($7,has_system_access) WHERE id=$8 RETURNING id,location_id,name,phone,email,role,employed,provides_services,has_system_access`, [body.locationId ?? null, String(body.name).trim(), String(body.phone ?? '').trim() || null, email, flags.employed, body.providesServices === true, flags.hasSystemAccess, staffId]);
+    // Дата увольнения ставится и снимается САМИМ переходом флага, а не приходит из
+    // тела запроса (22.08.2026). Иначе её пришлось бы слать каждым сохранением
+    // карточки, и любое редактирование имени у уже уволенного человека переписывало
+    // бы дату на сегодня. CASE смотрит на текущее значение колонки:
+    //   работает → уволен  - ставим сегодня
+    //   уволен  → работает - чистим (человека вернули в команду)
+    //   без перехода       - оставляем как есть, в том числе NULL у уволенных до
+    //                        миграции 055: выдумывать им дату задним числом нельзя
+    const result = await pool.query(`UPDATE staff SET location_id=$1,name=$2,phone=$3,email=$4,employed=COALESCE($5,employed),provides_services=$6,has_system_access=COALESCE($7,has_system_access),
+        employment_ended_at = CASE WHEN employed = true AND $5 = false THEN CURRENT_DATE WHEN $5 = true THEN NULL ELSE employment_ended_at END
+      WHERE id=$8 RETURNING id,location_id,name,phone,email,role,employed,employment_ended_at,provides_services,has_system_access`, [body.locationId ?? null, String(body.name).trim(), String(body.phone ?? '').trim() || null, email, flags.employed, body.providesServices === true, flags.hasSystemAccess, staffId]);
     const row = result.rows[0];
     if (!row.employed || !row.has_system_access) await pool.query('DELETE FROM sessions WHERE staff_id = $1', [staffId]);
     // «Принимает клиентов» меняет состав колонок в расписании - шлём и staff, и
     // schedule, чтобы у соседа перестроился не только список команды, но и сетка дня
     publish('staff', { staffId, reason: 'updated' });
     publish('schedule', { staffId, reason: 'staff-updated' });
-    return sendJson(res, 200, { staff: { id: row.id, locationId: row.location_id, name: row.name, phone: row.phone, email: row.email, role: row.role, employed: row.employed, providesServices: row.provides_services, hasSystemAccess: row.has_system_access } });
+    return sendJson(res, 200, { staff: { id: row.id, locationId: row.location_id, name: row.name, phone: row.phone, email: row.email, role: row.role, employed: row.employed, employmentEndedAt: dateColToStr(row.employment_ended_at) ?? null, providesServices: row.provides_services, hasSystemAccess: row.has_system_access } });
   } catch (error) { if (error?.code === '23505') return sendJson(res, 409, { error: 'email_in_use' }); throw error; }
 }
 
@@ -336,4 +355,46 @@ export async function handleStaffRole(req, res, parts) {
   const result = await pool.query('UPDATE staff SET role = $1 WHERE id = $2 RETURNING id, role', [role, staffId]);
   publish('staff', { staffId, reason: 'role' });
   return sendJson(res, 200, { ok: true, id: result.rows[0].id, role: result.rows[0].role });
+}
+
+// ── PUT /staff/:id/employment - увольнение и возврат в команду (22.08.2026) ──────
+// Отдельный роут, а не поле в общем PUT /staff/:id, по двум причинам.
+// Во-первых, атомарность: увольнение обрывает сессии и убирает человека с сайта, и
+// делать это заодно с сохранением имени и телефона нельзя - карточка могла содержать
+// несохранённые правки полей, и «Уволить» отправляло бы их следом.
+// Во-вторых, это операция, а не редактирование: у неё своё подтверждение в интерфейсе
+// и свой смысл в истории.
+// Строка сотрудника НЕ удаляется никогда - на неё ссылаются брони, зарплатные
+// настройки и аналитика (см. миграцию 055).
+export async function handleStaffEmployment(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
+  const staffId = decodeURIComponent(parts[1]);
+  const body = await readBody(req);
+  if (typeof body?.employed !== 'boolean') return sendJson(res, 400, { error: 'invalid_employment' });
+  const target = await pool.query('SELECT protected_owner, employed FROM staff WHERE id = $1', [staffId]);
+  if (!target.rows.length) return sendJson(res, 404, { error: 'staff_not_found' });
+  // Тот же замок, что и в handleStaffUpdate: владельца и себя самого уволить нельзя
+  // ни тумблером, ни прямым запросом к API. Здесь это не «поправим значение молча», а
+  // честный отказ - действие называется «Уволить», человек должен увидеть, что оно
+  // не выполнено, а не решить, что выполнено
+  const flags = guardAccountLockout(
+    { protectedOwner: target.rows[0].protected_owner, isSelf: auth.id === staffId },
+    { employed: body.employed }
+  );
+  if (flags.employed !== body.employed) return sendJson(res, 403, { error: 'employment_locked' });
+  const result = await pool.query(
+    `UPDATE staff SET employed = $1,
+       employment_ended_at = CASE WHEN $1 = false THEN COALESCE(employment_ended_at, CURRENT_DATE) ELSE NULL END
+     WHERE id = $2
+     RETURNING id, name, employed, employment_ended_at`,
+    [body.employed, staffId]
+  );
+  const row = result.rows[0];
+  // Уволенному вход закрыт немедленно: открытая в соседней вкладке CRM перестаёт
+  // работать на первом же запросе, а не доживает до истечения токена
+  if (!row.employed) await pool.query('DELETE FROM sessions WHERE staff_id = $1', [staffId]);
+  publish('staff', { staffId, reason: row.employed ? 'reinstated' : 'dismissed' });
+  publish('schedule', { staffId, reason: 'staff-employment' });
+  return sendJson(res, 200, { staff: { id: row.id, name: row.name, employed: row.employed, employmentEndedAt: dateColToStr(row.employment_ended_at) ?? null } });
 }

@@ -183,8 +183,11 @@ test('кнопка сохранения включается только при
   // услуги уезжают той же кнопкой и тоже будят её (правка Влада 13.08.2026)
   assert.match(team, /const servicesChanged = collectServiceChanges\([\s\S]{0,80}\.length > 0/);
   assert.match(team, /button\.disabled = !fieldsChanged && !servicesChanged/);
-  // снимок покрывает ровно то, что уезжает по кнопке; услуги и фото сохраняются сами
-  for (const field of ['name', 'phone', 'email', 'employed', 'providesServices', 'publicProfileEnabled']) {
+  // снимок покрывает ровно то, что уезжает по кнопке; услуги и фото сохраняются сами.
+  // employed из этого списка ушёл 22.08.2026 вместе с тумблером «Работает в компании»:
+  // увольнение стало отдельным подтверждаемым действием (PUT /staff/:id/employment),
+  // кнопка «Сохранить изменения» его не отправляет и будить её ему нечем
+  for (const field of ['name', 'phone', 'email', 'providesServices', 'publicProfileEnabled']) {
     assert.ok(team.includes(`'${field}'`), `поле ${field} не отслеживается`);
   }
   assert.match(team, /team-role-picker input\[type="radio"\]:checked/);

@@ -13,7 +13,7 @@
 // Считает суммы не этот файл, а assets/crm-payroll.js - здесь только DOM.
 import { avatarMarkup, avatarUrlOf } from './crm-avatar.js';
 import { renderDateSelect } from './crm-widgets.js';
-import { defaultPctFor, payrollStaff, todayStr } from './crm-shared.js';
+import { defaultPctFor, firedLabel, isEmployed, payrollStaff, todayStr } from './crm-shared.js';
 
 const esc = (value = '') => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -47,14 +47,23 @@ function periodPanelMarkup(period) {
 }
 
 function cardMarkup(staff, pct, pctIsSet) {
-  const hint = pctIsSet ? '' : '<p class="payroll-note" data-pct-note>Ставка ещё не задана - впишите процент и сохраните</p>';
-  return `<details class="staff-card payroll-card" data-master-id="${esc(staff.id)}">
-    <summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${esc(roleLabel[staff.role] ?? staff.role)}</div></div><span class="chevron">▸</span></summary>
+  // Карточка уволенного (22.08.2026) - это отчёт по закрытому периоду, а не рабочее
+  // место: ставку менять нечему, поэтому поле только для чтения и кнопки сохранения
+  // нет. Суммы за прошлые периоды считаются ровно той же формулой, что и у всех
+  const fired = !isEmployed(staff);
+  const hint = fired
+    ? `<p class="payroll-note" data-pct-note>${esc(firedLabel(staff))}. Ставку уволенному не меняем - суммы показаны по той, что действовала</p>`
+    : (pctIsSet ? '' : '<p class="payroll-note" data-pct-note>Ставка ещё не задана - впишите процент и сохраните</p>');
+  const roleLine = fired
+    ? `${esc(roleLabel[staff.role] ?? staff.role)} · ${esc(firedLabel(staff))}`
+    : esc(roleLabel[staff.role] ?? staff.role);
+  return `<details class="staff-card payroll-card${fired ? ' payroll-card-fired' : ''}" data-master-id="${esc(staff.id)}"${fired ? ' data-fired="1"' : ''}>
+    <summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLine}</div></div><span class="chevron">▸</span></summary>
     <div class="staff-card-body">
       <div class="field-grid">
-        <div class="field"><label>Ставка от выручки, %</label><input type="number" min="0" max="100" step="1" inputmode="numeric" data-pct-input value="${esc(pct)}"></div>
+        <div class="field"><label>Ставка от выручки, %</label><input type="number" min="0" max="100" step="1" inputmode="numeric" data-pct-input value="${esc(pct)}"${fired ? ' disabled' : ''}></div>
       </div>
-      <button class="btn btn-ghost btn-sm" type="button" data-pct-save>Сохранить ставку</button>
+      ${fired ? '' : '<button class="btn btn-ghost btn-sm" type="button" data-pct-save>Сохранить ставку</button>'}
       ${hint || '<p class="payroll-note" data-pct-note></p>'}
       <div class="master-switch-row">
         <div class="seg-bar payroll-period-row">
@@ -101,13 +110,13 @@ function wireDateSlots(card) {
 // том же порядке, что и staff. Уже стоящие карточки не пересоздаются: иначе раскрытый
 // <details>, выбранный период и введённые даты сбрасывались бы на каждом обновлении
 // данных (кнопка "Обновить данные" в шапке дёргает refreshFinance).
-export function renderPayrollCards(host, staffList, pctByMaster) {
+export function renderPayrollCards(host, staffList, pctByMaster, mastersWithPaidVisits) {
   if (!host) return [];
-  const staff = payrollStaff(staffList);
+  const staff = payrollStaff(staffList, mastersWithPaidVisits);
   // В подпись входит не только состав, но имя, роль и фото: переименовали сотрудника
   // или он загрузил аватар - карточку надо перерисовать, иначе в "Финансах" останется
   // старое имя до перезагрузки страницы
-  const signature = staff.map((s) => `${s.id}|${s.name}|${s.role}|${avatarUrlOf(s) ?? ''}`).join(',');
+  const signature = staff.map((s) => `${s.id}|${s.name}|${s.role}|${s.employed === false ? `fired:${s.employmentEndedAt ?? ''}` : 'active'}|${avatarUrlOf(s) ?? ''}`).join(',');
   if (host.dataset.signature !== signature) {
     host.dataset.signature = signature;
     host.innerHTML = staff.length

@@ -34,6 +34,7 @@ import { MANAGEMENT_ROLES } from '../lib/permissions.js';
 // разойдётся с записью при первой же новой площадке, и канал молча уедет в «не
 // указан».
 import { CLIENT_SOURCE_KEYS } from './bookings.js';
+import { dateColToStr } from '../lib/time.js';
 
 // Аналитика салона целиком - тот же круг, что и деньги (17.08.2026: владелец и
 // управляющий). Администратору и мастеру раздела «Аналитика» в кабинете нет, но
@@ -144,7 +145,7 @@ export async function computeRetention(db, months) {
     // визиты в периоде были, но кто уже не работает - их результат из истории не
     // исчезает. Порядок - как везде в CRM: по дате появления в салоне.
     db.query(
-      `SELECT id, name, employed, provides_services FROM staff ORDER BY created_at, id`
+      `SELECT id, name, employed, employment_ended_at, provides_services FROM staff ORDER BY created_at, id`
     ),
   ]);
 
@@ -159,6 +160,9 @@ export async function computeRetention(db, months) {
         masterId: s.id,
         name: s.name,
         employed: !!s.employed,
+        // Дата увольнения (миграция 055) - чтобы в списке было не безликое
+        // «не работает», а «не работает с 15.06»
+        employmentEndedAt: dateColToStr(s.employment_ended_at) ?? null,
         clients,
         returned,
         visits: agg ? agg.visits : 0,
