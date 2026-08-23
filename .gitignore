@@ -1,7 +1,15 @@
 node_modules/
+# Без завершающего слеша - в корне лежит СИМЛИНК node_modules -> api/node_modules, и
+# правило со слешем его не покрывало: он болтался неотслеживаемым и 23.08.2026 уехал в
+# коммит с `git add -A`, после чего сборка GitHub Pages упала на упаковке артефакта
+# (symlink за пределы дерева, «Process completed with exit code 1»)
+node_modules
 .env
 .DS_Store
 .claude/worktrees/
+# Локальные хуки и настройки Claude Code - инструмент разработчика, не часть продукта
+.claude/settings.json
+.claude/hooks/
 ПРОМПТ-*.md
 ТЗ-*.md
 ЮРИДИЧЕСКИЙ-ЧЕК-ЛИСТ.md
