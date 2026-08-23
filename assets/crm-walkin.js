@@ -11,7 +11,7 @@ import { renderLiveProof } from './crm-dashboard.js';
 import { RADIO_ID_TO_STATUS, applyNoShowStreakAfterStatus } from './crm-booking-status.js';
 // Срок обновления стрижки (Окно 59, 22.08.2026) - поле живёт в этой же форме и
 // уезжает на сервер вместе со статусом «Обслужен», одним запросом и одной транзакцией
-import { wireRenewField, setRenewPrefill, setRenewVisible, renewFieldPayload, renewFieldSnapshot, isRenewVisible } from './crm-renew-field.js';
+import { wireRenewField, setRenewPrefill, setRenewVisible, setRenewNoPhoneHint, renewFieldPayload, renewFieldSnapshot, isRenewVisible } from './crm-renew-field.js';
 // Признак «принимает клиентов сейчас» - общий с колонками календаря (mastersOf),
 // чтобы список мастеров в форме записи и в дне не мог разойтись
 import { acceptsClients } from './crm-calendar.js';
@@ -238,6 +238,11 @@ function syncRenewVisibility() {
   const done = checkedStatusRadioId() === 'st-came';
   const hasPhone = !!phoneKeyOf(el('wfClientPhone')?.value ?? '');
   setRenewVisible(editMode && done && hasPhone);
+  // Молчать нельзя (жалоба Влада 23.08.2026: «нажал на обслужен, сохранил, нет там
+  // нихуя»). Визит без телефона срока не спрашивает по правилу окна, но человек у
+  // экрана видит ровно пустоту и решает, что сломался интерфейс. Говорим прямо:
+  // почему поля нет и что сделать, если срок всё-таки нужен.
+  setRenewNoPhoneHint(editMode && done && !hasPhone);
 }
 
 // Та же нормализация, что на бэкенде (normalizePhoneKey, api/routes/clients.js) -
@@ -795,6 +800,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         editBaseline = editStateSnapshot();
       } else {
         setRenewVisible(false);
+        setRenewNoPhoneHint(false);
         setRenewPrefill(null);
         editBaseline = null;
         delete form.dataset.bookingId;

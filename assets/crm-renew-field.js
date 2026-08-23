@@ -156,6 +156,14 @@ export function setRenewVisible(visible) {
   if (host) host.hidden = !visible;
 }
 
+// Объяснение вместо пустоты, когда визит закрывают у клиента без телефона (23.08.2026).
+// Само правило не меняется - срок у такого визита не спрашиваем, - но человек должен
+// понимать почему, иначе отсутствие поля читается как поломка.
+export function setRenewNoPhoneHint(visible) {
+  const hint = el('wfRenewNoPhone');
+  if (hint) hint.hidden = !visible;
+}
+
 export function isRenewVisible() {
   const host = el('wfRenew');
   return !!host && !host.hidden;

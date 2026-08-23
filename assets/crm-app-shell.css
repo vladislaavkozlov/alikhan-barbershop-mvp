@@ -1393,3 +1393,10 @@ button.sm-cell {
   border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit;
 }
 .client-renew-field:not(.client-renew-field--wide) input { max-width: 120px; font-variant-numeric: tabular-nums; }
+/* Объяснение вместо пустого места, когда визит закрывают у клиента без телефона
+   (23.08.2026). Тон спокойный - это не ошибка человека, а свойство такой записи */
+.renew-nophone {
+  margin: 12px 0 0; padding: 10px 12px; border-radius: 12px;
+  border: 1px dashed var(--border); background: var(--surface-2);
+  font-size: 0.8rem; line-height: 1.4; color: var(--text-muted);
+}
