@@ -5,7 +5,7 @@ import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { mastersWithWorkingSchedule } from '../lib/schedule-core.js';
-import { canManageStaff, BOOKING_STAFF_ROLES } from '../lib/permissions.js';
+import { canManageStaff, BOOKING_STAFF_ROLES, BOOKING_OPERATOR_ROLES } from '../lib/permissions.js';
 import { findMastersMissingSchedule } from '../lib/notify-core.js';
 import { normalizeRenewInput } from '../lib/renew-reason.js';
 import { publish } from '../lib/events.js';
@@ -455,13 +455,14 @@ export async function handleClientsAtRisk(req, res, url) {
 // 22.08.2026). Основное место ввода - закрытие визита (PATCH /bookings/:id/status),
 // здесь же поправка задним числом: «договорились на месяц, а он в отпуске до октября».
 //
-// Права - ровно те же, что на простановку статуса брони (BOOKING_STAFF_ROLES) и с той
-// же матрицей scope, что у GET /clients/:id: администратор правит клиента своей точки,
-// мастер - только того, у кого был визит У НЕГО. Новой дыры в правах это не открывает:
-// телефон в ответе мастеру по-прежнему срезается (правило 002_schema.sql:48).
+// Права - ровно те же, что на простановку статуса визита: администратор, владелец,
+// управляющий (правка Влада 22.08.2026 - «у мастера такой возможности не должно быть
+// вообще»). Мастер срок ВИДИТ в карточке клиента, но не ставит и не правит: договор о
+// сроке фиксирует тот же человек, что закрывает визит. Scope администратора - как у
+// GET /clients/:id: только клиент, у которого есть визит на его точке.
 export async function handleClientRenew(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, BOOKING_STAFF_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 403, { error: 'forbidden' });
   const clientId = decodeURIComponent(parts[1]);
   const body = await readBody(req);
   const parsed = normalizeRenewInput(body?.renew ?? body);
@@ -472,9 +473,6 @@ export async function handleClientRenew(req, res, parts) {
   const card = await getClientCard(pool, clientId);
   if (!card) return sendJson(res, 404, { error: 'client_not_found' });
   if (auth.role === 'admin' && !card.visits.some((v) => v.locationId === auth.locationId)) {
-    return sendJson(res, 403, { error: 'forbidden' });
-  }
-  if (auth.role === 'master' && !card.visits.some((v) => v.masterId === auth.id)) {
     return sendJson(res, 403, { error: 'forbidden' });
   }
 

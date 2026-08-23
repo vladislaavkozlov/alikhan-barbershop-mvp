@@ -447,6 +447,11 @@ function renewSectionMarkup(card) {
       </label>`
     )
     .join('');
+  // Правка срока показана без ролевой проверки осознанно: этот модуль подключён
+  // ТОЛЬКО к crm-owner.html, а сам раздел «Клиенты» сервер отдаёт владельцу и
+  // управляющему (canManageStaff, GET /clients). Мастер сюда не попадает вовсе - и
+  // PATCH /clients/:id/renew ему всё равно ответит отказом (правка Влада 22.08.2026:
+  // срок ставит тот, кто закрывает визит, у мастера такой возможности нет).
   return `<div class="client-renew" data-client-renew>
     <div class="client-renew-head">
       <span class="client-renew-label">Приходит снова через</span>

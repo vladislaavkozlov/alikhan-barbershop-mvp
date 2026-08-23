@@ -646,6 +646,14 @@ export async function handleBookingCancel(req, res, parts) {
 // (Задача 2), общий сеттер статуса не должен давать возможность обойти эту
 // проверку.
 //
+// Правка Влада 22.08.2026 (Окно 59): статус визита ставит администратор, владелец или
+// управляющий - у МАСТЕРА такой возможности нет вовсе. Отметка «Обслужен» - это
+// фиксация сделки (визит попадает в выручку и в зарплату этого же мастера), и решать
+// её должен не тот, кому она начисляется. В кабинете мастера контролов статуса и так
+// не было ни одного (карточка записи только на просмотр, коммит d9efed5), но роут
+// оставался открытым для его токена - интерфейс без контрола не защищает от прямого
+// запроса к API.
+//
 // Окно 59 (22.08.2026) - вместе со статусом 'done' сюда приезжает срок, через
 // который клиент должен вернуться (body.renew). Место выбрано принципиально: разговор
 // про срок происходит в конце стрижки, и поле, спрятанное в карточке клиента, не
@@ -663,7 +671,7 @@ export async function handleBookingCancel(req, res, parts) {
 // Статус и срок пишутся одной транзакцией - иначе остался бы закрытый визит без срока.
 export async function handleBookingStatus(req, res, parts) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, BOOKING_STAFF_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 403, { error: 'forbidden' });
   const body = await readBody(req);
   const allowedStatuses = ['planned', 'done', 'no_show'];
   if (!allowedStatuses.includes(body.status)) {
@@ -679,9 +687,8 @@ export async function handleBookingStatus(req, res, parts) {
   if (auth.role === 'admin' && booking.location_id !== auth.locationId) {
     return sendJson(res, 403, { error: 'forbidden' });
   }
-  if (auth.role === 'master' && booking.master_id !== auth.id) {
-    return sendJson(res, 403, { error: 'forbidden' });
-  }
+  // Ветки «мастер правит только свою запись» здесь больше нет: роль master до этого
+  // места не доходит вовсе (см. комментарий у объявления функции)
 
   // Срок разбираем ДО открытия транзакции: отказ по нему - это отказ всего запроса,
   // и держать ради него открытое соединение незачем. Сам факт «срок обязателен»

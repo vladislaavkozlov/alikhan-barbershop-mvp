@@ -183,7 +183,41 @@ try {
     // (not_discussed) → обсуждено 3 из 4
     eq('доля обсуждённых сроков по мастеру', `${m1.discussed} из ${m1.clients} = ${m1.pct}%`, '3 из 4 = 75%');
 
-    // ── 12. Права: мастеру телефон клиента по-прежнему не отдаём ──────────────
+    // ── 12. Права: мастер не закрывает визиты вовсе (правка Влада 22.08.2026) ──
+    const masterBooking = await addBooking('n59-c2', 0, 'planned');
+    const masterCloses = await api(`/bookings/${masterBooking}/status`, masterToken, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'done', renew: { reason: 'recommended', days: 28 } }),
+    });
+    eq('мастер не может отметить визит обслуженным', String(masterCloses.status), '403');
+    const stillPlanned = (await db.query('SELECT status FROM bookings WHERE id = $1', [masterBooking])).rows[0];
+    eq('запись осталась в прежнем статусе', stillPlanned.status, 'planned');
+    const masterNoShow = await api(`/bookings/${masterBooking}/status`, masterToken, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'no_show' }),
+    });
+    eq('мастер не отмечает и неявку', String(masterNoShow.status), '403');
+    const masterSetsRenew = await api('/clients/n59-c2/renew', masterToken, {
+      method: 'PATCH',
+      body: JSON.stringify({ renew: { days: 28, reason: 'recommended' } }),
+    });
+    eq('мастер не правит срок и из карточки клиента', String(masterSetsRenew.status), '403');
+
+    // Администратор - может: это его работа
+    const adminPin = randomPin();
+    await db.query(
+      `INSERT INTO staff (id, location_id, name, role, employed, provides_services, has_system_access, email, pin_hash)
+       VALUES ('n59-adm', 1, 'QA Администратор', 'admin', true, false, true, 'n59-adm@alikhan.test', $1)`,
+      [hashPin(adminPin)]
+    );
+    const adminToken = (await login('n59-adm@alikhan.test', adminPin)).token;
+    const adminCloses = await api(`/bookings/${masterBooking}/status`, adminToken, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'done', renew: { reason: 'recommended', days: 28 } }),
+    });
+    eq('администратор визит закрывает', String(adminCloses.status), '200');
+
+    // ── 12b. Права: мастеру телефон клиента по-прежнему не отдаём ─────────────
     const cardForMaster = await (await api('/clients/n59-c1', masterToken)).json();
     eq('мастер не получает телефон клиента', String(cardForMaster.phone), 'undefined');
     eq('но срок клиента мастер видит', String(cardForMaster.renew?.days), '14');
