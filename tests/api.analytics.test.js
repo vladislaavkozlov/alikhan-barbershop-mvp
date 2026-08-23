@@ -12,6 +12,7 @@ import {
   computeClientSources,
   computeLapsedClients,
   computeUnlinkedVisits,
+  computeRenewDiscussed,
   percentOf,
   shapeSourceRows,
   parseMonths,
@@ -69,7 +70,7 @@ test('возвращаемость: салон и мастера считают�
   assert.equal(result.months, 6);
   assert.equal(result.salon.pct, 60);
   assert.equal(result.salon.waiting, 2, 'недавние клиенты вынесены отдельно, а не влиты в процент');
-  assert.equal(result.graceMonths, 1);
+  assert.equal(result.defaultRenewDays, 30);
   assert.equal(result.unlinkedVisits, 3);
   // Администратор услуг не оказывает - в списке его нет; мастер без визитов есть
   assert.deepEqual(result.masters.map((m) => m.masterId), ['m1', 'm2', 'm3']);
@@ -158,14 +159,18 @@ function fakeLapsedDb(rows, { capture } = {}) {
 test('невернувшиеся: список сходится с процентом - только те, кто был ровно раз', async () => {
   const capture = [];
   const db = fakeLapsedDb(
-    [{ id: 'c1', name: 'Иван', phone: '+79990001111', last_date: new Date('2026-06-01T00:00:00Z') }],
+    [{ id: 'c1', name: 'Иван', phone: '+79990001111', last_date: new Date('2026-06-01T00:00:00Z'), renew_days: 28 }],
     { capture: (sql, params) => capture.push({ sql, params }) }
   );
   const result = await computeLapsedClients(db, 6);
   assert.equal(result.months, 6);
   assert.equal(result.masterId, null);
   assert.equal(result.truncated, false);
-  assert.deepEqual(result.clients, [{ clientId: 'c1', name: 'Иван', phone: '+79990001111', lastVisit: '2026-06-01' }]);
+  // renewDays едет вместе со строкой (Окно 59): в списке видно, на какой срок
+  // договаривались с этим человеком - иначе непонятно, почему он тут оказался
+  assert.deepEqual(result.clients, [
+    { clientId: 'c1', name: 'Иван', phone: '+79990001111', lastVisit: '2026-06-01', renewDays: 28 },
+  ]);
   // Тот же критерий, что у процента выше: один состоявшийся визит за период
   assert.match(capture[0].sql, /HAVING count\(\*\) = 1/);
   assert.match(capture[0].sql, /status = 'done'/);
@@ -198,9 +203,11 @@ test('визиты без телефона считаются отдельно �
   assert.deepEqual(await computeUnlinkedVisits(db), { visits: 12, visitsMonth: 3 });
 });
 
-// ── Окно ожидания: месяц после визита (22.08.2026) ──────────────────────────
-// Правка Влада: «клиентов, которые не вернулись, нужно считать с месяца после визита.
-// Там Гэндальф 19.08 пишет не вернулся - он каждый день что ли стричься должен?»
+// ── Окно ожидания: срок конкретного клиента (Окно 59, 22.08.2026) ───────────
+// Раньше здесь стоял общий месяц (правка Влада 22.08.2026: «он каждый день что ли
+// стричься должен?»). Окно 59 заменило его на clients.renew_days - срок, о котором
+// мастер договорился с этим человеком. Пустое поле читается как тот же месяц, поэтому
+// на клиентах без срока цифра не сдвинулась.
 test('окно ожидания применяется к ОБЕИМ цифрам - и к проценту, и к списку', async () => {
   const captured = [];
   const db = fakeDb({ salon: [{ clients: 5, returned: 3, visits: 9, waiting: 4 }] });
@@ -209,9 +216,10 @@ test('окно ожидания применяется к ОБЕИМ цифра�
   const result = await computeRetention(db, 6);
   // Знаменатель процента - только «созревшие» клиенты, свежие ждут своего часа
   const salonSql = captured.find((q) => q.includes('FROM mature'));
-  assert.match(salonSql, /n >= 2 OR last_date <= CURRENT_DATE - make_interval\(months => 1\)/);
+  assert.match(salonSql, /n >= 2 OR last_date \+ make_interval\(days => renew_days\) < CURRENT_DATE/);
+  assert.match(salonSql, /coalesce\(c\.renew_days, 30\)/, 'пустой срок читается как месяц, а не как ноль');
   const masterSql = captured.find((q) => q.includes('GROUP BY b.master_id, b.client_id'));
-  assert.match(masterSql, /n >= 2 OR last_date <= CURRENT_DATE - make_interval\(months => 1\)/);
+  assert.match(masterSql, /n >= 2 OR last_date \+ make_interval\(days => renew_days\) < CURRENT_DATE/);
   assert.equal(result.salon.waiting, 4);
 });
 
@@ -219,6 +227,44 @@ test('невернувшиеся: клиент, приходивший на эт
   const capture = [];
   const db = fakeLapsedDb([], { capture: (sql) => capture.push(sql) });
   await computeLapsedClients(db, 3);
-  // Один визит И с него прошёл месяц - оба условия, иначе список разойдётся с процентом
-  assert.match(capture[0], /HAVING count\(\*\) = 1 AND max\(b\.date\) <= CURRENT_DATE - make_interval\(months => 1\)/);
+  // Один визит И срок этого клиента уже прошёл - оба условия, иначе список разойдётся
+  // с процентом над ним. Формула та же, что в matureSql возвращаемости
+  assert.match(capture[0], /HAVING count\(\*\) = 1/);
+  assert.match(capture[0], /max\(b\.date\) \+ make_interval\(days => coalesce\(c\.renew_days, 30\)\) < CURRENT_DATE/);
+});
+
+// ── Доля обсуждённых сроков по мастерам (Окно 59, 22.08.2026) ───────────────
+// Заполненность поля мерить бессмысленно - срок обязателен при закрытии визита, она
+// всегда 100%. Метрика считает долю тех клиентов, с кем срок реально проговорён.
+test('доля обсуждённых: «не обсуждали» в числитель не идёт', async () => {
+  const db = {
+    async query(sql) {
+      if (sql.includes('WITH active AS')) {
+        return {
+          rows: [
+            { master_id: 'm1', clients: 10, discussed: 7 },
+            { master_id: 'm2', clients: 4, discussed: 0 },
+          ],
+        };
+      }
+      if (sql.includes('FROM staff')) {
+        return {
+          rows: [
+            { id: 'm1', name: 'Алиовсад', employed: true, provides_services: true },
+            { id: 'm2', name: 'Мамедхан', employed: true, provides_services: true },
+            { id: 'm3', name: 'Елизавета', employed: true, provides_services: true },
+          ],
+        };
+      }
+      throw new Error(`unexpected SQL: ${sql}`);
+    },
+  };
+  const out = await computeRenewDiscussed(db, 6);
+  assert.equal(out.masters[0].pct, 70);
+  // Мастер, который у всех своих клиентов выбрал «не обсуждали» - честный 0%, а не
+  // прочерк: клиенты у него были, разговора не было
+  assert.equal(out.masters[1].pct, 0);
+  // Мастер без клиентов за период - прочерк, считать не из чего
+  assert.equal(out.masters[2].pct, null);
+  assert.equal(out.salon.pct, 50, 'по салону - 7 обсуждённых из 14 клиентов');
 });

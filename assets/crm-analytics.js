@@ -37,6 +37,15 @@ const RETENTION_PERIODS = [
   { months: 36, radio: 'rt1-36', host: 'anRet36', label: 'за 3 года' },
 ];
 
+// Доля обсуждённых сроков (Окно 59, 22.08.2026). Периодов три, а не пять: метрика про
+// текущую работу мастеров, и «за три года» тут отвечало бы на вопрос, который никто не
+// задаёт. Все три значения входят в RETENTION_MONTHS, которые принимает сервер
+const DISCUSSED_PERIODS = [
+  { months: 3, radio: 'rd1-3', host: 'anDisc3', label: 'за 3 месяца' },
+  { months: 6, radio: 'rd1-6', host: 'anDisc6', label: 'за 6 месяцев' },
+  { months: 12, radio: 'rd1-12', host: 'anDisc12', label: 'за год' },
+];
+
 const SOURCE_PERIODS = [
   { months: 1, radio: 'wi1-month', host: 'anSrc1', label: 'за месяц' },
   { months: 3, radio: 'wi1-3m', host: 'anSrc3', label: 'за 3 месяца' },
@@ -176,6 +185,39 @@ export function sourcesHtml(data, periodLabel) {
   `;
 }
 
+// ── Доля обсуждённых сроков по мастерам ─────────────────────────────────────
+// Что именно тут за цифра и почему не «заполненность» - см. computeRenewDiscussed
+// (api/routes/analytics.js). Коротко: поле обязательное, поэтому заполнено всегда;
+// смысл в доле тех клиентов, с кем срок реально проговорили, а не поставили месяц по
+// умолчанию. Вариант «не обсуждали» - законный ответ мастера, поэтому подпись под
+// цифрой говорит о разговоре, а не о нарушении.
+export function discussedHtml(data, periodLabel) {
+  const { salon, masters = [] } = data;
+  if (!salon || salon.clients === 0) {
+    return `<p class="payroll-note">Визитов ${escapeHtml(periodLabel)} не было</p>`;
+  }
+  const salonCard = statCard({
+    lead: true,
+    label: 'Срок проговорили',
+    value: pctText(salon.pct),
+    note: `${salon.discussed} из ${salon.clients}`,
+  });
+  const masterCards = masters
+    .map((m) =>
+      statCard({
+        label: m.employed ? m.name : `${m.name} (${firedLabel(m).toLowerCase()})`,
+        value: pctText(m.pct),
+        note: m.clients === 0 ? 'Нет клиентов' : `${m.discussed} из ${m.clients}`,
+      })
+    )
+    .join('');
+  return `
+    <div class="stat-cards">${salonCard}</div>
+    ${masterCards ? `<div class="stat-cards">${masterCards}</div>` : ''}
+    <p class="payroll-note">Остальным поставлен месяц по умолчанию - это нормальный ответ мастера, но чем таких меньше, тем точнее «Недополученная прибыль» в «Финансах»</p>
+  `;
+}
+
 // ── Кто не вернулся: список поимённо ────────────────────────────────────────
 // Открывается кнопкой на карточке (правка Влада 22.08.2026: «нужна возможность
 // перехода на клиентов, которые не вернулись»). Список рисуется под карточками, а не
@@ -279,6 +321,10 @@ function paintSources(period) {
   return paint(period.host, `/analytics/sources?months=${period.months}`, sourcesHtml, period.label);
 }
 
+function paintDiscussed(period) {
+  return paint(period.host, `/analytics/renew-discussed?months=${period.months}`, discussedHtml, period.label);
+}
+
 // Панель периода, которая сейчас выбрана. Радио живут в вёрстке и переключают панели
 // сами, средствами CSS - JS только догружает данные того периода, который человек
 // действительно открыл
@@ -292,8 +338,10 @@ export async function renderAnalytics() {
   const jobs = [];
   const ret = checkedPeriod(RETENTION_PERIODS);
   const src = checkedPeriod(SOURCE_PERIODS);
+  const disc = checkedPeriod(DISCUSSED_PERIODS);
   if (document.getElementById(ret.host)) jobs.push(paintRetention(ret));
   if (document.getElementById(src.host)) jobs.push(paintSources(src));
+  if (document.getElementById(disc.host)) jobs.push(paintDiscussed(disc));
   await Promise.all(jobs);
 }
 
@@ -313,6 +361,9 @@ export function wireAnalytics() {
   }
   for (const period of SOURCE_PERIODS) {
     document.getElementById(period.radio)?.addEventListener('change', () => paintSources(period));
+  }
+  for (const period of DISCUSSED_PERIODS) {
+    document.getElementById(period.radio)?.addEventListener('change', () => paintDiscussed(period));
   }
 
   // Клики по кнопке «N не вернулись», по имени в списке и по «Скрыть» - одним

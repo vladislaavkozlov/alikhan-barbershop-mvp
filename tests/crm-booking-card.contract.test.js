@@ -153,7 +153,10 @@ test('смена статуса визита поднимает кнопку с�
   assert.match(status, /export const RADIO_ID_TO_STATUS/);
   assert.match(walkin, /import \{ RADIO_ID_TO_STATUS, applyNoShowStreakAfterStatus \} from '\.\/crm-booking-status\.js'/);
   assert.match(walkin, /status: checkedStatusRadioId\(\)/);
-  assert.match(walkin, /if \(e\.target\?\.name === 'bstatus'\) updateSubmitState\(\)/);
+  // 22.08.2026 (Окно 59): тот же обработчик радио теперь ещё и показывает/прячет поле
+  // срока возврата - блок нужен ровно при статусе «Обслужен». Кнопка по-прежнему
+  // оживает от смены статуса, проверка только стала терпимее к соседней строке
+  assert.match(walkin, /e\.target\?\.name === 'bstatus'[\s\S]{0,200}updateSubmitState\(\)/);
 });
 
 // 13.08.2026, вторая итерация (Влад): "важно, чтобы при корректировке записи
@@ -170,7 +173,9 @@ test('статус визита сохраняется общей кнопкой
   // Сам PATCH статуса живёт в общем сохранении карточки и сравнивается с реальным
   // статусом записи, а не со снимком для кнопки
   assert.match(walkin, /const prevStatus = form\.dataset\.realStatus \|\| editBooking\.status \|\| 'planned'/);
-  assert.match(walkin, /if \(wantedStatus && wantedStatus !== prevStatus\)[\s\S]{0,400}\/status`/);
+  // Окно 59: условие расширено - PATCH уходит и тогда, когда статус не изменился, но
+  // мастер поправил срок возврата у уже закрытого визита. Сам маршрут тот же
+  assert.match(walkin, /wantedStatus && wantedStatus !== prevStatus[\s\S]{0,600}\/status`/);
   // Счётчик неявок пересчитывается ПОСЛЕ ответа сервера, не по клику
   assert.match(status, /export function applyNoShowStreakAfterStatus/);
   assert.match(walkin, /applyNoShowStreakAfterStatus\(form, prevStatus, wantedStatus\)/);

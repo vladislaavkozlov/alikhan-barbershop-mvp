@@ -80,14 +80,16 @@ import {
   handleNotificationsReadAll,
 } from './routes/notifications.js';
 import { handlePayrollSettings, handlePayroll, handleRevenueToday, handleDiscountSettings } from './routes/payroll.js';
-import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard } from './routes/clients.js';
+import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard, handleClientRenew } from './routes/clients.js';
 // Раздел «Аналитика» владельца (22.08.2026) - возвращаемость по мастерам и каналы
 // привлечения. Считает по уже существующим полям броней, своих таблиц не заводит.
-import { handleAnalyticsRetention, handleAnalyticsSources, handleAnalyticsLapsed, handleAnalyticsUnlinked } from './routes/analytics.js';
+import { handleAnalyticsRetention, handleAnalyticsSources, handleAnalyticsLapsed, handleAnalyticsUnlinked, handleAnalyticsRenewDiscussed } from './routes/analytics.js';
+import { handleMissedProfit, handleMissedProfitClients } from './routes/missed-profit.js';
 // Ре-экспорт для tests/*.test.js.
 export { describeClientRisk, getClientCard, listClientsAtRisk, computeOwnerAlerts } from './routes/clients.js';
 export { percentOf, shapeSourceRows, parseMonths, RETENTION_MONTHS, SOURCE_MONTHS } from './routes/analytics.js';
-export { computeLapsedClients, computeUnlinkedVisits } from './routes/analytics.js';
+export { computeLapsedClients, computeUnlinkedVisits, computeRenewDiscussed } from './routes/analytics.js';
+export { computeMissedProfit, isDateStr } from './routes/missed-profit.js';
 export { normalizePhoneKey, findClientByPhone, resolveClientsQueryMode, shapeClientCardForViewer, listAllClients, summarizeClientVisits } from './routes/clients.js';
 export { computeMasterPayroll, computeRevenueToday, countUnidentifiedToday } from './routes/payroll.js';
 
@@ -171,12 +173,21 @@ const ROUTES = [
   { method: 'GET', path: 'revenue/today', auth: 'management' },
   { method: 'GET', path: 'clients', auth: 'any-staff' },
   { method: 'GET', path: 'clients/:id', auth: 'any-staff' },
+  // Срок обновления стрижки задним числом (Окно 59) - те же роли, что ставят статус
+  // визита: разговор про срок ведёт тот же человек, что закрывает визит
+  { method: 'PATCH', path: 'clients/:id/renew', auth: 'any-staff' },
   { method: 'GET', path: 'owner/alerts', auth: 'management' },
   // Аналитика салона - тот же круг, что и деньги: владелец и управляющий
   { method: 'GET', path: 'analytics/retention', auth: 'management' },
   { method: 'GET', path: 'analytics/sources', auth: 'management' },
   { method: 'GET', path: 'analytics/lapsed', auth: 'management' },
   { method: 'GET', path: 'analytics/unlinked', auth: 'management' },
+  // Доля обсуждённых сроков по мастерам (Окно 59) - метрика того же круга, что вся
+  // остальная аналитика
+  { method: 'GET', path: 'analytics/renew-discussed', auth: 'management' },
+  // Недополученная прибыль (Окно 59) - раздел «Финансы», деньги и телефоны клиентов
+  { method: 'GET', path: 'finance/missed-profit', auth: 'management' },
+  { method: 'GET', path: 'finance/missed-profit/clients', auth: 'management' },
   // Живое обновление кабинетов (17.08.2026). /events - поток событий от сервера,
   // /changes - его фолбэк опросом на случай, если прокси не пропустит долгое
   // соединение. Обоим достаточно любого валидного токена: они не отдают данных,
@@ -567,6 +578,19 @@ const server = createServer(async (req, res) => {
     if (parts[0] === 'analytics' && parts[1] === 'unlinked' && parts.length === 2 && req.method === 'GET') {
       return handleAnalyticsUnlinked(req, res);
     }
+    if (parts[0] === 'analytics' && parts[1] === 'renew-discussed' && parts.length === 2 && req.method === 'GET') {
+      return handleAnalyticsRenewDiscussed(req, res, url);
+    }
+
+    // ── /finance/missed-profit - «Недополученная прибыль» (Окно 59, 22.08.2026).
+    // Карточка отдаёт только суммы, список людей с телефонами - отдельной ручкой,
+    // когда владелец действительно раскрыл список.
+    if (parts[0] === 'finance' && parts[1] === 'missed-profit' && parts.length === 2 && req.method === 'GET') {
+      return handleMissedProfit(req, res, url);
+    }
+    if (parts[0] === 'finance' && parts[1] === 'missed-profit' && parts[2] === 'clients' && parts.length === 3 && req.method === 'GET') {
+      return handleMissedProfitClients(req, res, url);
+    }
 
     // ── /clients?risk=true - Окно 39 (06.08.2026, Задача 1). Список "требует
     // внимания" через listClientsAtRisk. Тот же приём разграничения по роли, что у
@@ -586,6 +610,9 @@ const server = createServer(async (req, res) => {
     // для несуществующего id одинаков для всех ролей, не палит своей/чужой доступ.
     if (parts[0] === 'clients' && parts.length === 2 && req.method === 'GET') {
       return handleClientCard(req, res, parts);
+    }
+    if (parts[0] === 'clients' && parts[1] && parts[2] === 'renew' && parts.length === 3 && req.method === 'PATCH') {
+      return handleClientRenew(req, res, parts);
     }
 
     sendJson(res, 404, { error: 'route_not_found' });

@@ -6,6 +6,7 @@ import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { canManageStaff } from '../lib/permissions.js';
 import { MANAGEMENT_ROLES } from '../lib/permissions.js';
+import { loadPriceResolver } from '../lib/pricing.js';
 
 // Деньги видят только владелец и управляющий (правка Влада 17.08.2026:
 // «администратору не даём данных к финансам», «сотрудники не должны видеть свою
@@ -66,14 +67,10 @@ export async function computeMasterPayroll(client, masterId, from, to) {
 
   // Цена - как у /master-services на фронте (priceOf): своя цена мастера в
   // приоритете, общий прайс services - только страховка на случай пары, которую
-  // почему-то не завели в master_services.
-  const masterPriceRes = await client.query('SELECT service_id AS "serviceId", price FROM master_services WHERE master_id = $1', [
-    masterId,
-  ]);
-  const priceByService = new Map(masterPriceRes.rows.map((r) => [r.serviceId, r.price]));
-  const basePriceRes = await client.query('SELECT id, price FROM services');
-  const basePriceByService = new Map(basePriceRes.rows.map((r) => [r.id, r.price]));
-  const priceOf = (serviceId) => priceByService.get(serviceId) ?? basePriceByService.get(serviceId) ?? 0;
+  // почему-то не завели в master_services. С Окна 59 (22.08.2026) резолвер общий
+  // (api/lib/pricing.js) - его же спрашивает недополученная прибыль, чтобы деньги
+  // там и зарплата здесь считались по одной формуле, а не по двум похожим.
+  const { visitPrice } = await loadPriceResolver(client, [masterId]);
 
   // revenue - как и раньше, всегда по списочной цене услуг (выручка бизнеса не
   // трогается этой правкой, вне её скоупа). payrollBase - отдельная база для ЗП:
@@ -84,7 +81,7 @@ export async function computeMasterPayroll(client, masterId, from, to) {
   let payrollBase = 0;
   for (const b of bookingsRes.rows) {
     const serviceIds = serviceIdsByBooking.get(b.id)?.length ? serviceIdsByBooking.get(b.id) : b.serviceId ? [b.serviceId] : [];
-    const listPrice = serviceIds.reduce((sum, id) => sum + priceOf(id), 0);
+    const listPrice = visitPrice(masterId, serviceIds);
     revenue += listPrice;
     payrollBase += payrollFromActualPrice && b.actualPrice != null ? b.actualPrice : listPrice;
   }
