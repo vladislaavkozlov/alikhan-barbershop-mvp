@@ -17,7 +17,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { setCors, sendJson } from './lib/http.js';
-import { pool } from './lib/db.js';
+import { pool, runInTenant, runDetached } from './lib/db.js';
+import { DEFAULT_TENANT_ID, SYSTEM_TENANT } from './lib/tenant-context.js';
 import { authenticate, requireRole } from './lib/auth.js';
 import { canManageStaff } from './lib/permissions.js';
 // Ре-экспорт для tests/*.test.js, которые импортируют эти имена напрямую из
@@ -210,6 +211,20 @@ export function matchRoute(method, parts) {
   return null;
 }
 
+// ── Арендатор запроса (Фаза 1 мультиарендности, 24.08.2026) ────────────────
+// Арендатор пока один - барбершоп Алихана, и все запросы идут от его имени: поведение
+// прода этой фазой не меняется вообще. Фаза 4 заменит тело этой функции поиском по
+// домену запроса (неизвестный домен → 404), весь контракт вокруг неё уже на месте.
+function resolveTenantId(_req) {
+  return DEFAULT_TENANT_ID;
+}
+
+// Роуты, которым транзакция на запрос противопоказана (ловушка 3 спеки): поток живых
+// событий держит ответ открытым часами и выел бы пул, /changes - счётчик в памяти без
+// базы вообще, /media отдаёт файл с диска. Арендатор им известен, но соединение они не
+// удерживают - каждый поход в базу внутри берёт своё короткое и сразу отпускает.
+const DETACHED_ROUTES = new Set(['events', 'changes', 'media']);
+
 const server = createServer(async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') {
@@ -220,7 +235,20 @@ const server = createServer(async (req, res) => {
 
   const url = new URL(req.url, `http://${req.headers.host}`);
   const parts = url.pathname.split('/').filter(Boolean);
+  const runRequest = DETACHED_ROUTES.has(parts[0]) ? runDetached : runInTenant;
 
+  try {
+    await runRequest(resolveTenantId(req), () => handleRequest(req, res, url, parts));
+  } catch (err) {
+    // Сюда приходит и упавший обработчик (транзакция запроса к этому моменту уже
+    // откачена), и падение самого COMMIT. Ответ мог быть отправлен обработчиком -
+    // тогда второй раз не отвечаем, только пишем в лог.
+    console.error('Ошибка обработки запроса:', err);
+    if (!res.headersSent) sendJson(res, 500, { error: 'internal_error' });
+  }
+});
+
+async function handleRequest(req, res, url, parts) {
   try {
     // Гейт реестра - до любого обработчика ниже. Незарегистрированный
     // метод+путь получает 404 здесь и не доходит до if/else вообще.
@@ -617,10 +645,13 @@ const server = createServer(async (req, res) => {
 
     sendJson(res, 404, { error: 'route_not_found' });
   } catch (err) {
-    console.error('Ошибка обработки запроса:', err);
-    sendJson(res, 500, { error: 'internal_error' });
+    // Ответ клиенту тот же, что и раньше, но ошибка идёт дальше наверх: транзакция
+    // запроса обязана откатиться, а не закоммитить то, что обработчик успел записать
+    // до падения.
+    if (!res.headersSent) sendJson(res, 500, { error: 'internal_error' });
+    throw err;
   }
-});
+}
 
 // Простой авто-раннер миграций (правка 28.07.2026) - раньше новые .sql-файлы в
 // migrations/ применялись вручную (нет доступа к psql/консоли Amvera из Claude Code
@@ -681,7 +712,9 @@ async function runMigrations() {
 // прямом запуске (`node server.mjs`, см. api/package.json start) ничего не меняется,
 // при импорте как модуля - побочные эффекты не срабатывают.
 async function startServer() {
-  await runMigrations();
+  // Служебный контекст: схема меняется поверх всех арендаторов сразу, политика
+  // доступа (Фаза 3) пропускает только это значение и только отсюда.
+  await runInTenant(SYSTEM_TENANT, runMigrations);
   server.listen(PORT, () => {
     console.log(`API alikhan-crm слушает порт ${PORT}`);
   });
