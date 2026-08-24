@@ -16,7 +16,7 @@ import { createServer } from 'node:http';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { setCors, sendJson } from './lib/http.js';
+import { setCors, sendJson, createBufferedResponse } from './lib/http.js';
 import { pool, runInTenant, runDetached, registryQuery } from './lib/db.js';
 import { SYSTEM_TENANT } from './lib/tenant-context.js';
 import { resolveTenantForRequest, corsOriginFor } from './lib/tenants.js';
@@ -245,8 +245,23 @@ const server = createServer(async (req, res) => {
     }
     if (!tenant) return sendJson(res, 404, { error: 'unknown_tenant' });
 
-    const runRequest = DETACHED_ROUTES.has(parts[0]) ? runDetached : runInTenant;
-    await runRequest(tenant.id, () => handleRequest(req, res, url, parts));
+    // Долгие ответы (поток событий, медиа) пишут в соединение сами и транзакции на
+    // запрос не имеют - им буфер не нужен и вреден. Остальным ответ копится и уходит
+    // после COMMIT: до фиксации «готово» клиенту не обещаем (см. lib/http.js)
+    if (DETACHED_ROUTES.has(parts[0])) {
+      await runDetached(tenant.id, () => handleRequest(req, res, url, parts));
+      return;
+    }
+    const buffer = createBufferedResponse(res);
+    try {
+      await runInTenant(tenant.id, () => handleRequest(req, buffer.res, url, parts));
+    } catch (err) {
+      // Транзакция уже откачена. Ответ обработчика (в том числе успешный) выбрасываем:
+      // подтверждать запись, которой в базе не осталось, нельзя
+      buffer.discard();
+      throw err;
+    }
+    buffer.flush();
   } catch (err) {
     // Сюда приходит и упавший обработчик (транзакция запроса к этому моменту уже
     // откачена), и падение самого COMMIT. Ответ мог быть отправлен обработчиком -

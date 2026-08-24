@@ -6,17 +6,29 @@
 // атаки не ложноположительный (снимаем FORCE - атака обязана пройти).
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 
 const MIGRATIONS = new URL('../api/migrations/', import.meta.url);
 const rlsSql = await readFile(new URL('058_rls.sql', MIGRATIONS), 'utf8');
-const schemaSql = await readFile(new URL('057_tenants.sql', MIGRATIONS), 'utf8');
 
-// Список таблиц берётся из предыдущей миграции, а не набирается руками: забытая
-// таблица - отдельный риск в плане, и ловиться он должен списком.
-const DATA_TABLES = [...schemaSql.matchAll(/ALTER TABLE ([a-z_]+) ADD COLUMN IF NOT EXISTS tenant_id/gi)]
-  .map((m) => m[1])
-  .sort();
+// Служебные таблицы: история накатывания схемы и сам справочник арендаторов.
+const SERVICE_TABLES = ['schema_migrations', 'tenants'];
+
+// Список берётся из ВСЕХ миграций, а не из 057: таблица, заведённая будущей
+// миграцией, обязана уронить этот тест и заставить принять решение про замок
+// осознанно. Сверка только с 057 такую таблицу пропустила бы молча.
+async function tablesCreatedByMigrations() {
+  const files = (await readdir(MIGRATIONS)).filter((f) => f.endsWith('.sql')).sort();
+  const created = new Set();
+  for (const file of files) {
+    const sql = await readFile(new URL(file, MIGRATIONS), 'utf8');
+    for (const m of sql.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?([a-z_]+)/gi)) created.add(m[1]);
+    for (const m of sql.matchAll(/DROP TABLE (?:IF EXISTS )?([a-z_]+)/gi)) created.delete(m[1]);
+  }
+  return [...created].filter((t) => !SERVICE_TABLES.includes(t)).sort();
+}
+
+const DATA_TABLES = await tablesCreatedByMigrations();
 
 test('замок включён и распространяется на владельца таблиц (ловушка 1)', () => {
   assert.ok(DATA_TABLES.length === 20, `таблиц данных должно быть 20, найдено ${DATA_TABLES.length}`);

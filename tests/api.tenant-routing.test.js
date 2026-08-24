@@ -59,7 +59,8 @@ test('арендатор определяется до маршрутизаци�
   const resolveAt = serverSource.indexOf('resolveTenantForRequest(req)');
   const matchAt = serverSource.indexOf('matchRoute(req.method, parts)');
   assert.ok(resolveAt < matchAt, 'домен разбирается раньше, чем ищется роут');
-  assert.match(serverSource, /runRequest\(tenant\.id,/, 'запрос идёт от имени найденного арендатора');
+  assert.match(serverSource, /runInTenant\(tenant\.id,/, 'запрос идёт от имени найденного арендатора');
+  assert.match(serverSource, /runDetached\(tenant\.id,/, 'долгий ответ - тоже от его имени');
   assert.doesNotMatch(
     serverSource,
     /runRequest\(resolveTenantId\(req\)/,

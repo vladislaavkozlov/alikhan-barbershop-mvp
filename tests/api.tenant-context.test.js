@@ -208,6 +208,90 @@ test('арендатор Алихана - номер 1', () => {
   assert.equal(SYSTEM_TENANT, '*');
 });
 
+// Найдено живым прогоном Фазы 4 (24.08.2026): сервер отвечал «запись создана», а в
+// базе её не оказывалось - через раз. Причина в том, что теперь ВЕСЬ запрос работает
+// на ОДНОМ соединении: любое место, где код пускает два запроса одновременно (Promise
+// .all по четырём отчётам, забытый await), кладёт их на один и тот же клиент pg.
+// Раньше это было безопасно - каждый pool.query брал своё соединение. Теперь pg
+// ругается «client is already executing a query», запросы наезжают друг на друга, и
+// транзакция запроса может уйти в откат уже после отправленного ответа.
+test('одновременные запросы внутри одного запроса выстраиваются в очередь, а не наезжают', async () => {
+  const fake = setup();
+  let running = 0;
+  let maxParallel = 0;
+  const original = fake.connect.bind(fake);
+  fake.connect = async () => {
+    const client = await original();
+    const query = client.query.bind(client);
+    client.query = async (text, params) => {
+      running++;
+      maxParallel = Math.max(maxParallel, running);
+      await new Promise((r) => setTimeout(r, 2));
+      const res = await query(text, params);
+      running--;
+      return res;
+    };
+    return client;
+  };
+
+  await runInTenant(1, async () => {
+    // Ровно так устроены четыре роута отчётов: несколько выборок разом
+    await Promise.all([
+      pool.query('SELECT 1'),
+      pool.query('SELECT 2'),
+      pool.query('SELECT 3'),
+      pool.query('SELECT 4'),
+    ]);
+    const client = await pool.connect();
+    await Promise.all([client.query('SELECT 5'), pool.query('SELECT 6')]);
+    client.release();
+  });
+
+  assert.equal(maxParallel, 1, 'на одном соединении одновременно должен идти только один запрос');
+  const sqls = fake.state.queries.map((q) => q.sql.trim());
+  assert.equal(sqls.at(-1), 'COMMIT', 'транзакция запроса обязана закоммититься, а не уйти в откат');
+  assert.deepEqual(
+    sqls.filter((s) => s.startsWith('SELECT ') && /\d$/.test(s)),
+    ['SELECT 1', 'SELECT 2', 'SELECT 3', 'SELECT 4', 'SELECT 5', 'SELECT 6'],
+    'порядок запросов сохраняется - иначе результаты разъедутся по вызывающим'
+  );
+});
+
+test('буфер ответа не пишет в соединение раньше времени и умеет всё выбросить', async () => {
+  const { createBufferedResponse } = await import('../api/lib/http.js');
+  const written = [];
+  const real = {
+    writeHead: (status, headers) => written.push(['writeHead', status, headers]),
+    write: (chunk) => written.push(['write', chunk]),
+    end: (chunk) => written.push(['end', chunk]),
+    setHeader: () => {},
+    getHeader: () => undefined,
+    removeHeader: () => {},
+    on: () => {},
+    once: () => {},
+    emit: () => {},
+  };
+
+  const ok = createBufferedResponse(real);
+  ok.res.writeHead(200, { 'Content-Type': 'application/json' });
+  ok.res.end('{"ok":true}');
+  assert.deepEqual(written, [], 'до фиксации транзакции в соединение не уходит ничего');
+  assert.equal(ok.res.headersSent, true, 'обработчик должен видеть, что уже ответил');
+  ok.flush();
+  assert.deepEqual(written, [
+    ['writeHead', 200, { 'Content-Type': 'application/json' }],
+    ['end', '{"ok":true}'],
+  ]);
+
+  written.length = 0;
+  const rolledBack = createBufferedResponse(real);
+  rolledBack.res.writeHead(200, {});
+  rolledBack.res.end('{"ok":true}');
+  rolledBack.discard();
+  rolledBack.flush();
+  assert.deepEqual(written, [], 'откат транзакции обязан унести с собой и подтверждение');
+});
+
 // ── Контракт обвязки сервера ───────────────────────────────────────────────
 // Прокси и контекст бесполезны, если запрос до них не доходит. Здесь проверяется
 // сам факт обвязки в server.mjs - по исходнику, потому что поднимать HTTP с живым
@@ -219,13 +303,29 @@ const serverSource = await readFile(new URL('../api/server.mjs', import.meta.url
 test('каждый запрос сервера идёт внутри контекста арендатора', () => {
   // Фаза 4 заменила заглушку «всегда арендатор 1» на арендатора, найденного по
   // домену запроса. Обёртка при этом та же - контракт Фазы 1 не изменился
+  // Два пути, и оба внутри контекста: долгие ответы - отцепленные, остальные - с
+  // транзакцией на запрос и ответом, уходящим после фиксации
   assert.match(
     serverSource,
-    /await runRequest\(tenant\.id, \(\) => handleRequest\(req, res, url, parts\)\)/,
-    'обработка запроса обёрнута в контекст арендатора'
+    /await runDetached\(tenant\.id, \(\) => handleRequest\(req, res, url, parts\)\)/,
+    'долгие ответы идут в отцепленном контексте арендатора'
+  );
+  assert.match(
+    serverSource,
+    /await runInTenant\(tenant\.id, \(\) => handleRequest\(req, buffer\.res, url, parts\)\)/,
+    'обычный запрос обёрнут в контекст арендатора и отвечает через буфер'
   );
   assert.match(serverSource, /DETACHED_ROUTES = new Set\(\['events', 'changes', 'media'\]\)/);
   assert.match(serverSource, /runInTenant\(SYSTEM_TENANT, runMigrations\)/, 'миграции идут в служебном контексте');
+});
+
+test('ответ уходит только после фиксации транзакции, а откат его выбрасывает', () => {
+  // Иначе человек получает «запись создана» на записи, которой в базе не осталось
+  assert.match(serverSource, /buffer\.discard\(\);\n      throw err;/);
+  assert.match(serverSource, /buffer\.flush\(\);/);
+  const discardAt = serverSource.indexOf('buffer.discard()');
+  const flushAt = serverSource.indexOf('buffer.flush()');
+  assert.ok(discardAt < flushAt, 'выброс буфера обрабатывается раньше отправки');
 });
 
 test('обработчик не проглатывает ошибку - транзакция запроса обязана откатиться', () => {

@@ -92,8 +92,33 @@ async function withTenantConnection(tenantId, fn) {
 export async function runInTenant(tenantId, fn) {
   const id = normalizeTenantId(tenantId);
   return withTenantConnection(id, (client) =>
-    runWithStore({ tenantId: id, client, savepoints: 0 }, fn)
+    runWithStore({ tenantId: id, client, savepoints: 0, queue: Promise.resolve() }, fn)
   );
+}
+
+// Очередь запросов на соединении запроса. Найдено живым прогоном 24.08.2026: до неё
+// сервер через раз отвечал «запись создана», а запись в базе не появлялась.
+//
+// Причина. Весь запрос теперь работает на ОДНОМ соединении, а в коде есть места, где
+// несколько выборок уходят разом (Promise.all в отчётах: аналитика, зарплата,
+// недополученная прибыль). Раньше каждая брала своё соединение из пула и это было
+// безопасно. На одном клиенте pg такие запросы наезжают друг на друга - драйвер
+// честно предупреждает «client is already executing a query», результаты разъезжаются
+// по вызывающим, а транзакция запроса может уйти в откат уже ПОСЛЕ отправленного
+// ответа. Клиент видит успех, данных нет.
+//
+// Очередь делает то, чего от пула раньше добивались параллельностью: порядок
+// сохраняется, наложения нет. Плата - несколько выборок отчёта идут последовательно;
+// это ожидаемая цена транзакции на запрос, отмеченная ещё в Фазе 1.
+function enqueue(store, run) {
+  const next = store.queue.then(run, run);
+  // Хвост очереди не должен превращаться в «отклонённый промис без обработчика»:
+  // ошибку получит вызывающий, а очередь идёт дальше
+  store.queue = next.then(
+    () => undefined,
+    () => undefined
+  );
+  return next;
 }
 
 // Ловушка 3 из спеки: поток живых событий (lib/events.js) держит ответ открытым
@@ -103,7 +128,7 @@ export async function runInTenant(tenantId, fn) {
 // открывает своё короткое соединение и тут же его отпускает.
 export async function runDetached(tenantId, fn) {
   const id = normalizeTenantId(tenantId);
-  return runWithStore({ tenantId: id, client: null, savepoints: 0 }, fn);
+  return runWithStore({ tenantId: id, client: null, savepoints: 0, queue: Promise.resolve() }, fn);
 }
 
 function requireStore() {
@@ -119,7 +144,7 @@ function requireStore() {
 // здесь, в одном месте.
 function wrapAsSavepointClient(store) {
   const stack = [];
-  const passthrough = (text, params) => store.client.query(text, params);
+  const passthrough = (text, params) => enqueue(store, () => store.client.query(text, params));
   return {
     async query(text, params) {
       const sql = typeof text === 'string' ? text.trim().toUpperCase() : null;
@@ -189,7 +214,7 @@ export async function registryQuery(text, params) {
 export const pool = {
   async query(text, params) {
     const store = requireStore();
-    if (store.client) return store.client.query(text, params);
+    if (store.client) return enqueue(store, () => store.client.query(text, params));
     return withTenantConnection(store.tenantId, (client) => client.query(text, params));
   },
   async connect() {

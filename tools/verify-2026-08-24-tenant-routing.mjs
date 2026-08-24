@@ -291,8 +291,13 @@ async function main() {
         [200, 201].includes(asAdmin.status),
         `администратор не смог создать запись: ${asAdmin.status} ${await asAdmin.clone().text()}`
       );
-      const created = await asTenant(db, '*', "SELECT tenant_id FROM bookings WHERE start_time = '12:00'");
-      assert.deepEqual(created.rows.map((r) => r.tenant_id), [2], 'запись обязана лечь арендатору того домена, с которого пришла');
+      // Берём всё, что не засеяно репетицией: id засеянных начинаются с 'booking-'
+      const created = await asTenant(db, '*', "SELECT tenant_id, id, start_time FROM bookings WHERE id NOT LIKE 'booking-%'");
+      assert.deepEqual(
+        created.rows.map((r) => r.tenant_id),
+        [2],
+        `запись обязана лечь арендатору того домена, с которого пришла. Ответ: ${asAdmin.status} ${await asAdmin.clone().text()}; строки: ${JSON.stringify(created.rows)}`
+      );
     });
 
     await step('второй арендатор подключается строкой в справочнике, без правок кода (критерий 6)', async () => {
@@ -310,11 +315,79 @@ async function main() {
       assert.equal(Number(known.rows[0].n), 1, 'арендатор заведён одной строкой, миграций не потребовалось');
     });
 
+    await step('сотрудники, созданные ЧЕРЕЗ КАБИНЕТ, ложатся своему салону', async () => {
+      // Проверка не про уже засеянные строки, а про новые: всё, что заводится живым
+      // кабинетом после переезда, обязано получать своего арендатора само - код
+      // POST /staff про арендаторов ничего не знает и знать не должен
+      const created = {};
+      for (const tenant of TENANTS) {
+        const res = await api('staff', {
+          origin: tenant.domain, token: tokens[tenant.tag].owner, method: 'POST',
+          body: { name: `Новичок ${tenant.tag}`, email: 'novichok@shared.test', role: 'master', providesServices: true },
+        });
+        const body = await res.json();
+        assert.ok([200, 201].includes(res.status), `${tenant.tag}: сотрудник не создался - ${JSON.stringify(body)}`);
+        created[tenant.tag] = body.id ?? body.staff?.id;
+        assert.ok(created[tenant.tag], `${tenant.tag}: сервер не вернул id нового сотрудника`);
+      }
+      // Одна и та же почта в двух салонах прошла - составной ключ работает на живом
+      // создании, а не только в репетиции миграции
+      for (const tenant of TENANTS) {
+        const row = await asTenant(db, '*', 'SELECT tenant_id FROM staff WHERE id = $1', [created[tenant.tag]]);
+        assert.equal(row.rows[0].tenant_id, tenant.id, `${tenant.tag}: новый сотрудник лёг чужому арендатору`);
+      }
+      // И ни один салон не видит новичка соседа в своём списке команды
+      for (const tenant of TENANTS) {
+        const foreign = TENANTS.find((t) => t.tag !== tenant.tag);
+        const list = await (await api('staff', { origin: tenant.domain, token: tokens[tenant.tag].owner })).json();
+        const ids = list.map((r) => r.id);
+        assert.ok(ids.includes(created[tenant.tag]), `${tenant.tag}: свой новичок не виден в команде`);
+        assert.ok(!ids.includes(created[foreign.tag]), `${tenant.tag}: ВИДИТ новичка чужого салона`);
+      }
+    });
+
+    await step('салон, заведённый после переезда, работает с нуля и чужого не видит', async () => {
+      // Полный цикл подключения нового клиента: строка в справочнике, первый
+      // сотрудник, вход, кабинет. Ровно то, что предстоит сделать для Карины
+      await asTenant(
+        db, '*',
+        `INSERT INTO tenants (id, name, vertical, domains) VALUES (4, 'Новый салон', 'barbershop', ARRAY['noviy.test'])`
+      );
+      await asTenant(db, 4, 'INSERT INTO locations (name) VALUES ($1)', ['Точка нового салона']);
+      const locationId = (await asTenant(db, 4, 'SELECT id FROM locations LIMIT 1')).rows[0].id;
+      await asTenant(
+        db, 4,
+        `INSERT INTO staff (id, location_id, name, role, email, pin_hash, provides_services)
+         VALUES ('staff-noviy-owner', $1, 'Владелец нового салона', 'owner', 'owner@shared.test', $2, true)`,
+        [locationId, hashPin('1234')]
+      );
+      await new Promise((r) => setTimeout(r, 300));
+
+      const login = await api('auth/login', {
+        origin: 'noviy.test', method: 'POST', body: { email: 'owner@shared.test', pin: '1234' },
+      });
+      const body = await login.json();
+      assert.equal(login.status, 200, `новый салон не пускает владельца: ${JSON.stringify(body)}`);
+      assert.equal(body.staff.name, 'Владелец нового салона', 'вошёл не в свой салон - почта-то одна на троих');
+
+      const team = await (await api('staff', { origin: 'noviy.test', token: body.token })).json();
+      assert.equal(team.length, 1, `новый салон видит лишних сотрудников: ${JSON.stringify(team)}`);
+      const bookings = await (
+        await api('bookings?from=2020-01-01&to=2030-12-31', { origin: 'noviy.test', token: body.token })
+      ).json();
+      assert.deepEqual(bookings.bookings ?? bookings, [], 'новый салон видит чужие записи');
+      const clients = await (await api('clients?all=true', { origin: 'noviy.test', token: body.token })).json();
+      assert.deepEqual(clients.clients ?? clients, [], 'новый салон видит чужую базу клиентов');
+    });
+
     await step('в логе сервера нет ошибок замка и запросов без арендатора', async () => {
       const log = serverLog.join('');
       assert.doesNotMatch(log, /row-level security/i, log.slice(-600));
       assert.doesNotMatch(log, /tenant_context_missing/i, log.slice(-600));
     });
+  } catch (err) {
+    console.log('\n--- лог сервера ---\n' + serverLog.join('').slice(-3000));
+    throw err;
   } finally {
     child.kill('SIGTERM');
     await db.end();
