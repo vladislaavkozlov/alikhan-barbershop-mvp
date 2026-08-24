@@ -68,8 +68,28 @@ export async function findTenantByDomain(domain) {
   return tenant;
 }
 
+// Аварийная ручка (24.08.2026, перед переключением прода). База Amvera живёт во
+// внутренней сети - выполнить откат схемы снаружи невозможно, а самый вероятный
+// сбой переключения не в замке, а в домене: какой-то реальный клиент придёт с
+// источником, которого нет в справочнике, и получит 404.
+//
+// TENANT_FALLBACK_ID включается переменной окружения в панели Amvera и действует
+// сразу после перезапуска, БЕЗ деплоя: неизвестный домен временно обслуживается
+// указанным арендатором. По умолчанию переменная не задана, и поведение строгое -
+// неизвестный домен получает 404, как и требует спека.
+//
+// Это лечение симптома, а не диагноза: включив ручку, домен всё равно надо добавить
+// в справочник и ручку выключить.
+const FALLBACK_TENANT_ID = process.env.TENANT_FALLBACK_ID ? Number(process.env.TENANT_FALLBACK_ID) : null;
+
 export async function resolveTenantForRequest(req) {
-  return findTenantByDomain(requestDomain(req));
+  const found = await findTenantByDomain(requestDomain(req));
+  if (found || !FALLBACK_TENANT_ID) return found;
+  const fallback = await registryQuery(
+    `SELECT id, name, vertical, status, domains FROM tenants WHERE id = $1 AND status = 'active'`,
+    [FALLBACK_TENANT_ID]
+  );
+  return fallback.rows[0] ?? null;
 }
 
 // Новый арендатор подключается строкой в справочнике - ждать минуту до конца жизни

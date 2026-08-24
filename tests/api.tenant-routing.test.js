@@ -51,6 +51,14 @@ test('CORS разрешает источник арендатора, а не о�
   assert.equal(corsOriginFor(null, 'https://klinika.karina.ru'), null);
 });
 
+test('аварийная ручка выключена по умолчанию и включается без деплоя', async () => {
+  const src = await readFile(new URL('../api/lib/tenants.js', import.meta.url), 'utf8');
+  assert.match(src, /process\.env\.TENANT_FALLBACK_ID \? Number\(process\.env\.TENANT_FALLBACK_ID\) : null/);
+  // Без переменной окружения поведение строгое: неизвестный домен - это 404
+  assert.match(src, /if \(found \|\| !FALLBACK_TENANT_ID\) return found;/);
+  assert.equal(process.env.TENANT_FALLBACK_ID, undefined, 'в тестах ручка не должна быть включена');
+});
+
 const serverSource = await readFile(new URL('../api/server.mjs', import.meta.url), 'utf8');
 
 test('арендатор определяется до маршрутизации, неизвестный домен получает 404', () => {
