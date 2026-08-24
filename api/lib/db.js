@@ -200,7 +200,7 @@ export async function casWrite(key, expected, value) {
     }
     await client.query(
       `INSERT INTO kv_store (key, value, updated_at) VALUES ($1, $2, now())
-       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+       ON CONFLICT (tenant_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
       [key, value]
     );
     await client.query('COMMIT');

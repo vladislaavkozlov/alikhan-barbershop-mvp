@@ -425,7 +425,7 @@ export async function findScheduleConflicts(client, masterId, date, breaks) {
 export async function applyScheduleDay(client, masterId, date, startTime, endTime) {
   const shiftRes = await client.query(
     `INSERT INTO schedule_shifts (master_id, date, start_time, end_time) VALUES ($1, $2, '10:00', '20:00')
-     ON CONFLICT (master_id, date) DO UPDATE SET master_id = EXCLUDED.master_id
+     ON CONFLICT (tenant_id, master_id, date) DO UPDATE SET master_id = EXCLUDED.master_id
      RETURNING id`,
     [masterId, date]
   );

@@ -77,7 +77,7 @@ export async function handleScheduleExceptions(req, res) {
     for (const change of changes) {
       const shift = await client.query(
         `INSERT INTO schedule_shifts (master_id, date, start_time, end_time) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (master_id, date) DO UPDATE SET start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time
+         ON CONFLICT (tenant_id, master_id, date) DO UPDATE SET start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time
          RETURNING id`,
         [masterId, change.date, change.startTime, change.endTime]
       );
@@ -194,7 +194,7 @@ export async function handleSchedule(req, res, url) {
       }
       const shiftRes = await client.query(
         `INSERT INTO schedule_shifts (master_id, date, start_time, end_time) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (master_id, date) DO UPDATE SET start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time
+         ON CONFLICT (tenant_id, master_id, date) DO UPDATE SET start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time
          RETURNING id`,
         [body.masterId, body.date, body.startTime, body.endTime]
       );

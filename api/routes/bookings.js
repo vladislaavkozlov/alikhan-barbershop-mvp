@@ -195,7 +195,7 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     if (clientPhone) {
       const clientRes = await client.query(
         `INSERT INTO clients (id, name, phone) VALUES ($1, $2, $3)
-         ON CONFLICT (phone) DO UPDATE SET name = COALESCE(EXCLUDED.name, clients.name)
+         ON CONFLICT (tenant_id, phone) DO UPDATE SET name = COALESCE(EXCLUDED.name, clients.name)
          RETURNING id, no_show_streak`,
         [`client-${randomBytes(6).toString('hex')}`, clientName ?? null, clientPhone]
       );
@@ -1481,7 +1481,7 @@ export async function handleBookingClient(req, res, parts) {
       } else {
         const created = await client.query(
           `INSERT INTO clients (id, name, phone) VALUES ($1, $2, $3)
-           ON CONFLICT (phone) DO UPDATE SET name = COALESCE(EXCLUDED.name, clients.name)
+           ON CONFLICT (tenant_id, phone) DO UPDATE SET name = COALESCE(EXCLUDED.name, clients.name)
            RETURNING id, no_show_streak`,
           [`client-${randomBytes(6).toString('hex')}`, clientName ?? null, clientPhone]
         );

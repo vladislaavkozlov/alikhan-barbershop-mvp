@@ -48,7 +48,7 @@ export async function notifyStaff(
   await client.query(
     `INSERT INTO notifications (id, staff_id, type, booking_id, schedule_request_id, related_master_id, title, body)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     ON CONFLICT (staff_id, type, booking_id) WHERE booking_id IS NOT NULL
+     ON CONFLICT (tenant_id, staff_id, type, booking_id) WHERE booking_id IS NOT NULL
      DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, created_at = now(),
                    read_at = NULL, dismissed_at = NULL`,
     params
