@@ -87,6 +87,8 @@ import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard, handleClientR
 // привлечения. Считает по уже существующим полям броней, своих таблиц не заводит.
 import { handleAnalyticsRetention, handleAnalyticsSources, handleAnalyticsLapsed, handleAnalyticsUnlinked, handleAnalyticsRenewDiscussed } from './routes/analytics.js';
 import { handleMissedProfit, handleMissedProfitClients } from './routes/missed-profit.js';
+// Своя резервная копия базы (24.08.2026) - см. подробный комментарий в самом файле
+import { handleBackup } from './routes/backup.js';
 // Ре-экспорт для tests/*.test.js.
 export { describeClientRisk, getClientCard, listClientsAtRisk, computeOwnerAlerts } from './routes/clients.js';
 export { percentOf, shapeSourceRows, parseMonths, RETENTION_MONTHS, SOURCE_MONTHS } from './routes/analytics.js';
@@ -195,6 +197,9 @@ const ROUTES = [
   // соединение. Обоим достаточно любого валидного токена: они не отдают данных,
   // только сообщают, ЧТО изменилось - сами данные кабинет забирает своими роутами,
   // где права и проверяются
+  // Резервная копия: реестр требует владельца, сам роут - ещё и отдельный секрет,
+  // без которого отвечает 404. Выключен, пока не задан BACKUP_TOKEN
+  { method: 'GET', path: 'backup', auth: 'owner' },
   { method: 'GET', path: 'events', auth: 'any-staff' },
   { method: 'GET', path: 'changes', auth: 'any-staff' },
 ];
@@ -304,6 +309,10 @@ async function handleRequest(req, res, url, parts) {
     // ── Живое обновление ────────────────────────────────────────────────
     // Ответ намеренно НЕ закрывается: соединение живёт, пока открыт кабинет.
     // Гейт реестра выше уже проверил токен, здесь только берём личность подписчика
+    if (parts[0] === 'backup' && parts.length === 1 && req.method === 'GET') {
+      return handleBackup(req, res);
+    }
+
     if (parts[0] === 'events' && parts.length === 1 && req.method === 'GET') {
       // ИНЦИДЕНТ 24.08.2026, найден живым прогоном сразу после переключения на
       // мультиарендность. На Amvera (за прокси Envoy) живой поток событий блокирует
