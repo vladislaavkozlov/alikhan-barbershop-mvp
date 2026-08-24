@@ -380,6 +380,47 @@ async function main() {
       assert.deepEqual(clients.clients ?? clients, [], 'новый салон видит чужую базу клиентов');
     });
 
+    await step('аварийная ручка: с TENANT_FALLBACK_ID неизвестный домен обслуживается', async () => {
+      // На эту ручку вся надежда, если после переключения прода окажется, что живой
+      // клиент приходит с источником, которого нет в справочнике: включается
+      // переменной в панели, без деплоя. Непроверенная страховка - не страховка
+      const FALLBACK_PORT = PORT + 1;
+      const fallbackServer = spawn(
+        process.execPath,
+        [join(dirname(fileURLToPath(import.meta.url)), '..', 'api', 'server.mjs')],
+        {
+          env: {
+            ...process.env,
+            PORT: String(FALLBACK_PORT), DB_HOST: host, DB_NAME: DB, DB_USER: ROLE,
+            DB_PASSWORD: PASSWORD, DB_SSL: 'disable', TENANT_CACHE_TTL_MS: '200',
+            TENANT_FALLBACK_ID: '1',
+          },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }
+      );
+      try {
+        for (let i = 0; i < 100; i++) {
+          try {
+            if ((await fetch(`http://127.0.0.1:${FALLBACK_PORT}/health`)).ok) break;
+          } catch {
+            // поднимается
+          }
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        const res = await fetch(`http://127.0.0.1:${FALLBACK_PORT}/public/masters`, {
+          headers: { Origin: 'https://sovsem-neizvestnyy.test' },
+        });
+        assert.equal(res.status, 200, 'с включённой ручкой неизвестный домен должен обслуживаться');
+        const masters = await res.json();
+        assert.ok(Array.isArray(masters), 'ответ должен быть нормальным, а не заглушкой');
+        // И это именно арендатор из ручки, а не «все подряд»
+        const strict = await api('public/masters', { origin: 'sovsem-neizvestnyy.test' });
+        assert.equal(strict.status, 404, 'на сервере без ручки тот же домен обязан получать 404');
+      } finally {
+        fallbackServer.kill('SIGTERM');
+      }
+    });
+
     await step('в логе сервера нет ошибок замка и запросов без арендатора', async () => {
       const log = serverLog.join('');
       assert.doesNotMatch(log, /row-level security/i, log.slice(-600));
