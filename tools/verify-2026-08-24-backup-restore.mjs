@@ -117,6 +117,15 @@ async function seed(db) {
        VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, '10:00', '11:00', 'done', 1500)`,
       [`booking-${tag}`, loc.rows[0].id, `staff-${tag}`, `service-${tag}`, `client-${tag}`]
     );
+    // Заявка со сложными типами: jsonb и массив. Первая боевая копия споткнулась
+    // ровно об это - драйвер не сериализует объект в json сам, и вставка падала.
+    // Без такой строки в засеве круговая проверка проходила зелёной впустую
+    await asTenant(
+      db, id,
+      `INSERT INTO schedule_change_requests (master_id, request_type, date_from, weekdays, weekly_changes)
+       VALUES ($1, 'weekly_schedule', CURRENT_DATE, $2, $3)`,
+      [`staff-${tag}`, [1, 3, 5], JSON.stringify([{ weekday: 1, workStart: '10:00', workEnd: '19:00' }])]
+    );
   }
 }
 
@@ -215,7 +224,7 @@ async function main() {
   });
 
   await step('данные совпадают построчно, а не только по счётчику', async () => {
-    for (const [table, key] of [['bookings', 'id'], ['clients', 'id'], ['staff', 'id'], ['tenants', 'id']]) {
+    for (const [table, key] of [['bookings', 'id'], ['clients', 'id'], ['staff', 'id'], ['tenants', 'id'], ['schedule_change_requests', 'id']]) {
       const rows = async (db) =>
         (await service(db, `SELECT * FROM ${table} ORDER BY ${key}`)).rows.map((r) => JSON.stringify(r));
       assert.deepEqual(await rows(dst), await rows(src), `${table}: содержимое разошлось`);

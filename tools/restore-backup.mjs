@@ -48,9 +48,23 @@ for (const table of tables) {
   const rows = dump.tables[table];
   if (!rows.length) continue;
   const columns = Object.keys(rows[0]);
+  // Колонки json/jsonb драйвер сам не сериализует: объект уедет как массив Postgres
+  // и вставка упадёт на «invalid input syntax for type json». Найдено при первой же
+  // проверке боевой копии (schedule_change_requests.weekly_changes)
+  const jsonColumns = new Set(
+    (
+      await service(
+        `SELECT column_name FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = $1 AND data_type IN ('json', 'jsonb')`,
+        [table]
+      )
+    ).rows.map((r) => r.column_name)
+  );
   const list = columns.map((c) => `"${c}"`).join(', ');
   for (const row of rows) {
-    const values = columns.map((c) => row[c]);
+    const values = columns.map((c) =>
+      jsonColumns.has(c) && row[c] !== null && typeof row[c] !== 'string' ? JSON.stringify(row[c]) : row[c]
+    );
     const holes = columns.map((_, i) => `$${i + 1}`).join(', ');
     await service(`INSERT INTO ${table} (${list}) VALUES (${holes})`, values);
     restored++;
