@@ -17,7 +17,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { setCors, sendJson, createBufferedResponse } from './lib/http.js';
-import { pool, runInTenant, runDetached, registryQuery, dbRoleIsSafe } from './lib/db.js';
+import { pool, runInTenant, runDetached, registryQuery, dbRoleIsSafe, poolStats } from './lib/db.js';
+import { availableParallelism, totalmem } from 'node:os';
 import { SYSTEM_TENANT } from './lib/tenant-context.js';
 import { resolveTenantForRequest, corsOriginFor } from './lib/tenants.js';
 import { authenticate, requireRole } from './lib/auth.js';
@@ -246,7 +247,15 @@ const server = createServer(async (req, res) => {
       } catch {
         // Проверка прав не должна ронять health - он про живость сервиса
       }
-      return sendJson(res, 200, { ok: true, liveSubscribers: subscriberCount(), dbRoleSafe });
+      // Заодно диагностика запаса прочности: сколько ядер и памяти дал контейнер и
+      // не стоит ли очередь к базе. waiting больше нуля - пул стал узким местом
+      return sendJson(res, 200, {
+        ok: true,
+        liveSubscribers: subscriberCount(),
+        dbRoleSafe,
+        db: poolStats(),
+        runtime: { cpus: availableParallelism(), memoryMb: Math.round(totalmem() / 1024 / 1024) },
+      });
     }
 
     // ── Чей это запрос ────────────────────────────────────────────────────

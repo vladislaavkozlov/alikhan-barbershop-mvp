@@ -354,3 +354,15 @@ test('мимо арендатора к базе не ходит никто: pg �
 test('сырой пул наружу не выдаётся - у прокси нет обходных путей', () => {
   assert.deepEqual(Object.keys(pool).sort(), ['connect', 'query']);
 });
+
+test('пул соединений настраивается и его состояние видно в проверке живости', async () => {
+  // С транзакцией на запрос пул - фактический потолок одновременных запросов к
+  // приложению. На двух салонах штатных десяти может не хватить, поэтому размер
+  // вынесен в переменную окружения, а очередь видна снаружи
+  const dbSource = await readFile(new URL('../api/lib/db.js', import.meta.url), 'utf8');
+  assert.match(dbSource, /Number\(process\.env\.DB_POOL_MAX\) \|\| 10/);
+  assert.match(dbSource, /export function poolStats\(\)/);
+  assert.match(dbSource, /waiting: basePool\.waitingCount/);
+  assert.match(serverSource, /db: poolStats\(\)/);
+  assert.match(serverSource, /runtime: \{ cpus: availableParallelism\(\), memoryMb/);
+});

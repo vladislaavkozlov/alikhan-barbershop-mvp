@@ -41,7 +41,14 @@ process.env.TZ = 'UTC';
 
 const { Pool } = pg;
 
+// Размер пула соединений к базе. С транзакцией на запрос (Фаза 1 мультиарендности)
+// соединение занято всё время обработки, поэтому пул - это фактический потолок
+// одновременных запросов к приложению. По умолчанию у pg он равен 10; на двух
+// салонах этого может не хватить, поэтому вынесен в переменную окружения.
+const POOL_MAX = Number(process.env.DB_POOL_MAX) || 10;
+
 const realPool = new Pool({
+  max: POOL_MAX,
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT) || 5432,
   database: process.env.DB_NAME,
@@ -207,6 +214,17 @@ export async function registryQuery(text, params) {
     throw new Error('registry_query_scope: эта дверь открывается только в справочник арендаторов');
   }
   return basePool.query(text, params);
+}
+
+// Сколько соединений к базе занято прямо сейчас и сколько запросов ждёт своей
+// очереди. waiting больше нуля - значит пул стал узким местом и его пора расширять.
+export function poolStats() {
+  return {
+    max: POOL_MAX,
+    total: basePool.totalCount ?? null,
+    idle: basePool.idleCount ?? null,
+    waiting: basePool.waitingCount ?? null,
+  };
 }
 
 // Безопасен ли пользователь базы для замка на уровне строк. Суперпользователь и
