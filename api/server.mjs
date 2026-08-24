@@ -17,7 +17,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { setCors, sendJson, createBufferedResponse } from './lib/http.js';
-import { pool, runInTenant, runDetached, registryQuery } from './lib/db.js';
+import { pool, runInTenant, runDetached, registryQuery, dbRoleIsSafe } from './lib/db.js';
 import { SYSTEM_TENANT } from './lib/tenant-context.js';
 import { resolveTenantForRequest, corsOriginFor } from './lib/tenants.js';
 import { authenticate, requireRole } from './lib/auth.js';
@@ -230,7 +230,18 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/health') {
       setCors(res, null);
       await registryQuery('SELECT 1 FROM tenants LIMIT 1');
-      return sendJson(res, 200, { ok: true, liveSubscribers: subscriberCount() });
+      // Замок на уровне строк не действует на суперпользователя и на роль с
+      // BYPASSRLS - на такой базе он выглядел бы поставленным, но не держал.
+      // Проверить это снаружи нельзя: база Amvera живёт во внутренней сети.
+      // Поэтому спрашиваем у самого приложения. Отдаём только «да/нет», без имён
+      // ролей: это признак верной настройки, а не секрет.
+      let dbRoleSafe = null;
+      try {
+        dbRoleSafe = await dbRoleIsSafe();
+      } catch {
+        // Проверка прав не должна ронять health - он про живость сервиса
+      }
+      return sendJson(res, 200, { ok: true, liveSubscribers: subscriberCount(), dbRoleSafe });
     }
 
     // ── Чей это запрос ────────────────────────────────────────────────────

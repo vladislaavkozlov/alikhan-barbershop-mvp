@@ -209,6 +209,18 @@ export async function registryQuery(text, params) {
   return basePool.query(text, params);
 }
 
+// Безопасен ли пользователь базы для замка на уровне строк. Суперпользователь и
+// роль с BYPASSRLS игнорируют политику всегда - на такой базе замок выглядел бы
+// поставленным, но не держал. Проверить это снаружи нельзя: база Amvera живёт во
+// внутренней сети, поэтому спрашивает само приложение (см. /health).
+export async function dbRoleIsSafe() {
+  const res = await basePool.query(
+    'SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user'
+  );
+  const row = res.rows[0];
+  return row ? !row.rolsuper && !row.rolbypassrls : null;
+}
+
 // Тот самый прокси. Наружу выглядит как pg.Pool ровно в той части, которой пользуется
 // код проекта: .query() и .connect(). Ничего другого от пула здесь никто не просит.
 export const pool = {
