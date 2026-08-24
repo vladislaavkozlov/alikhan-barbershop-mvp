@@ -47,7 +47,11 @@ const realPool = new Pool({
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-  ssl: { rejectUnauthorized: false },
+  // Amvera требует SSL, локальный Postgres в репетициях его обычно не умеет.
+  // DB_SSL=disable нужен для прогонов против копии базы на своей машине (Фаза 5
+  // мультиарендности: живой прогон кабинетов против копии боевой базы) - в боевом
+  // окружении переменная не задаётся, и поведение остаётся прежним.
+  ssl: process.env.DB_SSL === 'disable' ? false : { rejectUnauthorized: false },
 });
 
 // Подмена настоящего пула поддельным - только для офлайн-тестов контракта
