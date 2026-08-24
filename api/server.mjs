@@ -17,8 +17,9 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { setCors, sendJson } from './lib/http.js';
-import { pool, runInTenant, runDetached } from './lib/db.js';
-import { DEFAULT_TENANT_ID, SYSTEM_TENANT } from './lib/tenant-context.js';
+import { pool, runInTenant, runDetached, registryQuery } from './lib/db.js';
+import { SYSTEM_TENANT } from './lib/tenant-context.js';
+import { resolveTenantForRequest, corsOriginFor } from './lib/tenants.js';
 import { authenticate, requireRole } from './lib/auth.js';
 import { canManageStaff } from './lib/permissions.js';
 // Ре-экспорт для tests/*.test.js, которые импортируют эти имена напрямую из
@@ -211,14 +212,6 @@ export function matchRoute(method, parts) {
   return null;
 }
 
-// ── Арендатор запроса (Фаза 1 мультиарендности, 24.08.2026) ────────────────
-// Арендатор пока один - барбершоп Алихана, и все запросы идут от его имени: поведение
-// прода этой фазой не меняется вообще. Фаза 4 заменит тело этой функции поиском по
-// домену запроса (неизвестный домен → 404), весь контракт вокруг неё уже на месте.
-function resolveTenantId(_req) {
-  return DEFAULT_TENANT_ID;
-}
-
 // Роуты, которым транзакция на запрос противопоказана (ловушка 3 спеки): поток живых
 // событий держит ответ открытым часами и выел бы пул, /changes - счётчик в памяти без
 // базы вообще, /media отдаёт файл с диска. Арендатор им известен, но соединение они не
@@ -226,19 +219,34 @@ function resolveTenantId(_req) {
 const DETACHED_ROUTES = new Set(['events', 'changes', 'media']);
 
 const server = createServer(async (req, res) => {
-  setCors(res);
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
-
   const url = new URL(req.url, `http://${req.headers.host}`);
   const parts = url.pathname.split('/').filter(Boolean);
-  const runRequest = DETACHED_ROUTES.has(parts[0]) ? runDetached : runInTenant;
 
   try {
-    await runRequest(resolveTenantId(req), () => handleRequest(req, res, url, parts));
+    // ── Проверка живости - до разбора домена ──────────────────────────────
+    // Amvera опрашивает /health своими средствами, без источника запроса и без
+    // отношения к арендаторам. Отвечать ему 404 «неизвестный домен» значило бы
+    // объявить сервис мёртвым. Данных этот роут не отдаёт, только факт живой базы.
+    if (url.pathname === '/health') {
+      setCors(res, null);
+      await registryQuery('SELECT 1 FROM tenants LIMIT 1');
+      return sendJson(res, 200, { ok: true, liveSubscribers: subscriberCount() });
+    }
+
+    // ── Чей это запрос ────────────────────────────────────────────────────
+    // Определяется по домену, ДО поиска роута и до любого обработчика. Неизвестный
+    // домен получает 404, а не данные первого попавшегося арендатора (критерий 4).
+    const tenant = await resolveTenantForRequest(req);
+    setCors(res, corsOriginFor(tenant, req.headers.origin));
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    if (!tenant) return sendJson(res, 404, { error: 'unknown_tenant' });
+
+    const runRequest = DETACHED_ROUTES.has(parts[0]) ? runDetached : runInTenant;
+    await runRequest(tenant.id, () => handleRequest(req, res, url, parts));
   } catch (err) {
     // Сюда приходит и упавший обработчик (транзакция запроса к этому моменту уже
     // откачена), и падение самого COMMIT. Ответ мог быть отправлен обработчиком -
@@ -265,10 +273,7 @@ async function handleRequest(req, res, url, parts) {
       }
     }
 
-    if (url.pathname === '/health') {
-      await pool.query('SELECT 1');
-      return sendJson(res, 200, { ok: true, liveSubscribers: subscriberCount() });
-    }
+    // /health обработан выше, до разбора домена - сюда запрос уже не доходит
 
     // ── Живое обновление ────────────────────────────────────────────────
     // Ответ намеренно НЕ закрывается: соединение живёт, пока открыт кабинет.

@@ -217,9 +217,11 @@ import { readFile } from 'node:fs/promises';
 const serverSource = await readFile(new URL('../api/server.mjs', import.meta.url), 'utf8');
 
 test('каждый запрос сервера идёт внутри контекста арендатора', () => {
+  // Фаза 4 заменила заглушку «всегда арендатор 1» на арендатора, найденного по
+  // домену запроса. Обёртка при этом та же - контракт Фазы 1 не изменился
   assert.match(
     serverSource,
-    /await runRequest\(resolveTenantId\(req\), \(\) => handleRequest\(req, res, url, parts\)\)/,
+    /await runRequest\(tenant\.id, \(\) => handleRequest\(req, res, url, parts\)\)/,
     'обработка запроса обёрнута в контекст арендатора'
   );
   assert.match(serverSource, /DETACHED_ROUTES = new Set\(\['events', 'changes', 'media'\]\)/);

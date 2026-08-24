@@ -24,6 +24,9 @@ const PASSWORD = 'probe';
 const host = process.env.PGHOST || '/tmp';
 const PORT = 8791;
 const BASE = `http://127.0.0.1:${PORT}`;
+// После Фазы 4 сервер определяет арендатора по домену запроса, поэтому прогон
+// представляется доменом арендатора №1 - иначе честно получит 404 «неизвестный домен»
+const ORIGIN = 'https://api-probe.test';
 
 const results = [];
 async function step(name, fn) {
@@ -69,6 +72,8 @@ async function main() {
     ]);
   }
 
+  await asTenant(db, '*', "UPDATE tenants SET domains = domains || 'api-probe.test'::text WHERE id = 1 AND NOT ('api-probe.test' = ANY(domains))");
+
   const serverPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'api', 'server.mjs');
   const child = spawn(process.execPath, [serverPath], {
     env: {
@@ -94,7 +99,7 @@ async function main() {
     const login = async (email) => {
       const res = await fetch(`${BASE}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
         body: JSON.stringify({ email, pin: '1234' }),
       });
       return { status: res.status, body: await res.json().catch(() => null) };
@@ -117,7 +122,9 @@ async function main() {
       assert.equal(foreign.status, 401, 'сотрудник чужого арендатора не должен входить');
       const karinaToken = (await asTenant(db, 2, "SELECT token FROM sessions WHERE staff_id = 'staff-karina'")).rows[0];
       if (karinaToken) {
-        const res = await fetch(`${BASE}/auth/me`, { headers: { Authorization: `Bearer ${karinaToken.token}` } });
+        const res = await fetch(`${BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${karinaToken.token}`, Origin: ORIGIN },
+        });
         assert.equal(res.status, 401, 'чужой токен не должен открывать кабинет');
       }
     });
@@ -134,7 +141,9 @@ async function main() {
       ];
       const failed = [];
       for (const route of routes) {
-        const res = await fetch(`${BASE}/${route}`, { headers: { Authorization: `Bearer ${alikhanToken}` } });
+        const res = await fetch(`${BASE}/${route}`, {
+          headers: { Authorization: `Bearer ${alikhanToken}`, Origin: ORIGIN },
+        });
         const text = await res.text();
         if (res.status !== 200) failed.push(`${route} -> ${res.status} ${text.slice(0, 120)}`);
         // Ни в одном ответе не должно быть следов второго арендатора
@@ -149,7 +158,7 @@ async function main() {
       await asTenant(db, '*', "DELETE FROM bookings WHERE id LIKE 'booking-api-probe%' OR (date = '2026-08-25' AND start_time = '12:00')");
       const res = await fetch(`${BASE}/bookings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${alikhanToken}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${alikhanToken}`, Origin: ORIGIN },
         body: JSON.stringify({
           masterId: 'staff-alikhan',
           serviceIds: ['service-alikhan'],
