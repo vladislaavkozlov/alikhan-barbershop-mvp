@@ -224,6 +224,21 @@ test('data-phrase-attr подставляет фразу в атрибут', asy
   assert.equal(node.textContent, 'не трогать');
 });
 
+test('выключенный раздел прячется с экрана, включённый остаётся', async () => {
+  const on = fakeNode({ 'data-module': 'payroll' }, '');
+  const off = fakeNode({ 'data-module': 'missedProfit' }, '');
+  await loadAppearance('https://api.test', okFetch(clinicResponse));
+  applyTerms(fakeRoot([on, off]));
+  assert.equal(on.hidden, false, 'включённый раздел не должен пропасть');
+  assert.equal(off.hidden, true, 'выключенный раздел обязан скрыться');
+});
+
+test('до загрузки словаря разделы на месте - у Алихана ничего не мигает', () => {
+  const card = fakeNode({ 'data-module': 'missedProfit' }, '');
+  applyTerms(fakeRoot([card]));
+  assert.equal(card.hidden, false);
+});
+
 test('подстановка не роняет экран на битой разметке', () => {
   const nodes = [
     fakeNode({ 'data-term': '' }, 'пусто'),
@@ -231,6 +246,7 @@ test('подстановка не роняет экран на битой раз
     fakeNode({ 'data-term-attr': 'безДвоеточия' }, 'кривой атрибут'),
     fakeNode({ 'data-phrase': 'нет.такой' }, 'нет фразы'),
     fakeNode({ 'data-phrase-attr': 'безДвоеточия' }, 'кривой атрибут фразы'),
+    fakeNode({ 'data-module': '' }, 'пустой модуль'),
   ];
   assert.doesNotThrow(() => applyTerms(fakeRoot(nodes)));
 });

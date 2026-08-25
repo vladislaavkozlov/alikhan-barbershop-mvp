@@ -236,3 +236,41 @@ test('миграция только про схему: никаких право
   assert.doesNotMatch(body, /\bDELETE\b/i);
   assert.doesNotMatch(body, /INSERT INTO (?!tenants)/i, 'единственное исключение - строки справочника tenants');
 });
+
+// ── Флаги режут раздел на сервере, а не только в меню ────────────────────────
+// Скрытый пункт меню защищает от промаха мышью, но не от прямого запроса к API -
+// ровно та же логика, что у реестра прав (Окно 33)
+
+test('роуты выключаемых разделов помечены модулем в реестре', () => {
+  const byModule = { payroll: [], missedProfit: [] };
+  for (const [method, path] of [
+    ['GET', ['payroll-settings']], ['PUT', ['payroll-settings']], ['GET', ['payroll']],
+    ['GET', ['finance', 'missed-profit']], ['GET', ['finance', 'missed-profit', 'clients']],
+    ['GET', ['analytics', 'renew-discussed']], ['GET', ['analytics', 'lapsed']],
+  ]) {
+    const route = matchRoute(method, path);
+    assert.ok(route, `${method} /${path.join('/')} нет в реестре`);
+    assert.ok(route.module, `${method} /${path.join('/')} не помечен модулем`);
+    byModule[route.module].push(path.join('/'));
+  }
+  assert.deepEqual(byModule.payroll.sort(), ['payroll', 'payroll-settings', 'payroll-settings']);
+  assert.deepEqual(
+    byModule.missedProfit.sort(),
+    ['analytics/lapsed', 'analytics/renew-discussed', 'finance/missed-profit', 'finance/missed-profit/clients']
+  );
+});
+
+test('ввод срока возврата НЕ выключается флагом - иначе визит не закрыть', () => {
+  // Решение 24.08.2026: флаг режет ОТЧЁТЫ, а не ввод данных. Без срока и причины
+  // визит закрыть нельзя (renew-required-note в кабинете), поэтому PATCH остаётся
+  const route = matchRoute('PATCH', ['clients', 'x', 'renew']);
+  assert.ok(route);
+  assert.equal(route.module, undefined);
+});
+
+test('модуль объявлен только известными флагами', () => {
+  for (const path of [['payroll'], ['finance', 'missed-profit'], ['analytics', 'lapsed']]) {
+    const route = matchRoute('GET', path);
+    assert.ok(MODULE_KEYS.includes(route.module), `${route.module} нет в списке флагов`);
+  }
+});

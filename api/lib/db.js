@@ -96,10 +96,10 @@ async function withTenantConnection(tenantId, fn) {
 // Обработка запроса от имени арендатора: одно соединение, одна транзакция, весь код
 // внутри видит её через прокси pool. Всё, что успел записать упавший обработчик,
 // откатывается целиком.
-export async function runInTenant(tenantId, fn) {
+export async function runInTenant(tenantId, fn, vertical = null) {
   const id = normalizeTenantId(tenantId);
   return withTenantConnection(id, (client) =>
-    runWithStore({ tenantId: id, client, savepoints: 0, queue: Promise.resolve() }, fn)
+    runWithStore({ tenantId: id, vertical, client, savepoints: 0, queue: Promise.resolve() }, fn)
   );
 }
 
@@ -133,9 +133,9 @@ function enqueue(store, run) {
 // выели бы пул досуха. Здесь арендатор известен, но соединение заранее не берётся:
 // каждый отдельный запрос к базе внутри (например поиск сессии в authenticate)
 // открывает своё короткое соединение и тут же его отпускает.
-export async function runDetached(tenantId, fn) {
+export async function runDetached(tenantId, fn, vertical = null) {
   const id = normalizeTenantId(tenantId);
-  return runWithStore({ tenantId: id, client: null, savepoints: 0, queue: Promise.resolve() }, fn);
+  return runWithStore({ tenantId: id, vertical, client: null, savepoints: 0, queue: Promise.resolve() }, fn);
 }
 
 function requireStore() {

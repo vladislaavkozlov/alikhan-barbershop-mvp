@@ -15,6 +15,7 @@ import { findClientIdByPhone } from './clients.js';
 import { publish } from '../lib/events.js';
 import { hasComboConflict } from '../lib/service-combos.js';
 import { normalizeRenewInput } from '../lib/renew-reason.js';
+import { p } from '../lib/vertical-terms.js';
 
 // Админы точки - адресаты уведомлений о её записях (Окно 14: Мамедхан управляет
 // точкой день в день). Один запрос на два вызова - createBookingTx и перенос
@@ -236,7 +237,7 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     // фоновым сканером (решение Влада), возвращать их нельзя без обратной миграции к 051.
     await notifyStaff(client, masterId, 'booking_new', {
       bookingId,
-      title: 'Новая запись',
+      title: p('booking.new'),
       body: `${startTime}–${endTime}${clientName ? ' · ' + clientName : ''}`,
     });
     // Владелец, управляющий и администратор точки. Мастеру, если он же владелец
@@ -246,7 +247,7 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     for (const watcherId of await bookingWatcherIds(client, locationId)) {
       await notifyStaff(client, watcherId, 'booking_new', {
         bookingId,
-        title: 'Новая запись',
+        title: p('booking.new'),
         body: `${startTime}–${endTime}${clientName ? ' · ' + clientName : ''}`,
       });
     }
@@ -589,13 +590,13 @@ async function notifyAboutCancelledBooking(booking, bookingDate) {
       );
       await notifyStaff(client, staffId, 'booking_cancelled', {
         bookingId: booking.id,
-        title: 'Запись отменена',
+        title: p('booking.cancelledShort'),
         body,
         refresh: true,
       });
     }
   } catch (err) {
-    console.error('уведомление об отмене записи не отправлено (сама отмена прошла):', err.message);
+    console.error('уведомление об отмене записи не отправлено (сама отмена прошла):', err.message); // не интерфейс: строка в лог сервера, её читает разработчик
   } finally {
     client.release();
   }
@@ -1042,21 +1043,21 @@ export function planRescheduleNotifications({
 
   const planned = [];
   if (masterChanged) {
-    planned.push({ staffId: previous.masterId, type: 'booking_moved_out', title: 'Запись ушла к другому мастеру', body: outBody });
-    planned.push({ staffId: next.masterId, type: 'booking_moved_in', title: 'Перенесена запись к вам', body: inBody });
+    planned.push({ staffId: previous.masterId, type: 'booking_moved_out', title: p('booking.movedOut'), body: outBody });
+    planned.push({ staffId: next.masterId, type: 'booking_moved_in', title: p('booking.movedIn'), body: inBody });
   } else {
-    planned.push({ staffId: next.masterId, type: 'booking_moved_in', title: 'Запись перенесена', body: inBody });
+    planned.push({ staffId: next.masterId, type: 'booking_moved_in', title: p('booking.moved'), body: inBody });
   }
   // Точка едет за мастером, поэтому перенос на мастера другой точки уводит визит с
   // точки админа - он тоже должен узнать, симметрично мастеру. Если точка та же,
   // «ушла с точки» не отправляем: это было бы враньём.
   if (previous.locationId !== next.locationId) {
     for (const staffId of previousLocationAdminIds) {
-      planned.push({ staffId, type: 'booking_moved_out', title: 'Запись ушла с точки', body: outBody });
+      planned.push({ staffId, type: 'booking_moved_out', title: p('booking.movedOutPlace'), body: outBody });
     }
   }
   for (const staffId of nextLocationAdminIds) {
-    planned.push({ staffId, type: 'booking_moved_in', title: 'Запись перенесена на точке', body: inBody });
+    planned.push({ staffId, type: 'booking_moved_in', title: p('booking.movedInPlace'), body: inBody });
   }
 
   // Схлопываем по (staff_id, type) - ровно ключ дедуп-индекса notifications_booking_dedup

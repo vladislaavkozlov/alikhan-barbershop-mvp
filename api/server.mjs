@@ -23,6 +23,7 @@ import { SYSTEM_TENANT } from './lib/tenant-context.js';
 import { resolveTenantForRequest, corsOriginFor } from './lib/tenants.js';
 import { authenticate, requireRole } from './lib/auth.js';
 import { canManageStaff } from './lib/permissions.js';
+import { isModuleEnabled } from './lib/vertical-modules.js';
 // Ре-экспорт для tests/*.test.js, которые импортируют эти имена напрямую из
 // server.mjs (in-memory юниты без реального Postgres) - не используются в самом
 // server.mjs напрямую (все роуты, которые их вызывали, переехали в routes/*.js).
@@ -109,6 +110,12 @@ const PORT = Number(process.env.PORT) || 8080;
 // получает 404 РАНЬШЕ, чем дойдёт до if/else - забыть зарегистрировать новый
 // роут теперь равносильно "роута не существует", а не "существует без проверки".
 //
+// Поле module (Этап B, 24.08.2026) - раздел, которым роут управляется. Выключенный у
+// арендатора модуль отдаёт 404 ЗДЕСЬ, до обработчика: раздел, которого у клиента нет,
+// не должен отдавать данные по прямому запросу, даже если в интерфейсе пункт скрыт.
+// Именно 404, а не 403: у этого арендатора такого раздела не существует, а не «нет
+// прав». Список флагов - один, в api/lib/vertical-modules.js.
+//
 // 'owner' - реестр сам требует роль owner до обработчика. 'any-staff' - реестр
 // требует любой валидный токен (роль не сужена); более узкое требование
 // конкретного роута (только admin+owner, только master и т.п.) как и раньше
@@ -175,11 +182,11 @@ const ROUTES = [
   { method: 'POST', path: 'notifications/:id/dismiss', auth: 'any-staff' },
   { method: 'POST', path: 'notifications/read-all', auth: 'any-staff' },
   // 17.08.2026: деньги (ставки, зарплаты, выручка) - только владелец и управляющий
-  { method: 'GET', path: 'payroll-settings', auth: 'management' },
-  { method: 'PUT', path: 'payroll-settings', auth: 'management' },
+  { method: 'GET', path: 'payroll-settings', auth: 'management', module: 'payroll' },
+  { method: 'PUT', path: 'payroll-settings', auth: 'management', module: 'payroll' },
   { method: 'GET', path: 'discount-settings', auth: 'any-staff' },
   { method: 'PUT', path: 'discount-settings', auth: 'management' },
-  { method: 'GET', path: 'payroll', auth: 'management' },
+  { method: 'GET', path: 'payroll', auth: 'management', module: 'payroll' },
   { method: 'GET', path: 'revenue/today', auth: 'management' },
   { method: 'GET', path: 'clients', auth: 'any-staff' },
   { method: 'GET', path: 'clients/:id', auth: 'any-staff' },
@@ -190,14 +197,14 @@ const ROUTES = [
   // Аналитика салона - тот же круг, что и деньги: владелец и управляющий
   { method: 'GET', path: 'analytics/retention', auth: 'management' },
   { method: 'GET', path: 'analytics/sources', auth: 'management' },
-  { method: 'GET', path: 'analytics/lapsed', auth: 'management' },
+  { method: 'GET', path: 'analytics/lapsed', auth: 'management', module: 'missedProfit' },
   { method: 'GET', path: 'analytics/unlinked', auth: 'management' },
   // Доля обсуждённых сроков по мастерам (Окно 59) - метрика того же круга, что вся
   // остальная аналитика
-  { method: 'GET', path: 'analytics/renew-discussed', auth: 'management' },
+  { method: 'GET', path: 'analytics/renew-discussed', auth: 'management', module: 'missedProfit' },
   // Недополученная прибыль (Окно 59) - раздел «Финансы», деньги и телефоны клиентов
-  { method: 'GET', path: 'finance/missed-profit', auth: 'management' },
-  { method: 'GET', path: 'finance/missed-profit/clients', auth: 'management' },
+  { method: 'GET', path: 'finance/missed-profit', auth: 'management', module: 'missedProfit' },
+  { method: 'GET', path: 'finance/missed-profit/clients', auth: 'management', module: 'missedProfit' },
   // Живое обновление кабинетов (17.08.2026). /events - поток событий от сервера,
   // /changes - его фолбэк опросом на случай, если прокси не пропустит долгое
   // соединение. Обоим достаточно любого валидного токена: они не отдают данных,
@@ -284,12 +291,12 @@ const server = createServer(async (req, res) => {
     // запрос не имеют - им буфер не нужен и вреден. Остальным ответ копится и уходит
     // после COMMIT: до фиксации «готово» клиенту не обещаем (см. lib/http.js)
     if (DETACHED_ROUTES.has(parts[0])) {
-      await runDetached(tenant.id, () => handleRequest(req, res, url, parts, tenant));
+      await runDetached(tenant.id, () => handleRequest(req, res, url, parts, tenant), tenant.vertical);
       return;
     }
     const buffer = createBufferedResponse(res);
     try {
-      await runInTenant(tenant.id, () => handleRequest(req, buffer.res, url, parts, tenant));
+      await runInTenant(tenant.id, () => handleRequest(req, buffer.res, url, parts, tenant), tenant.vertical);
     } catch (err) {
       // Транзакция уже откачена. Ответ обработчика (в том числе успешный) выбрасываем:
       // подтверждать запись, которой в базе не осталось, нельзя
@@ -312,6 +319,11 @@ async function handleRequest(req, res, url, parts, tenant) {
     // метод+путь получает 404 здесь и не доходит до if/else вообще.
     const matchedRoute = matchRoute(req.method, parts);
     if (!matchedRoute) return sendJson(res, 404, { error: 'route_not_found' });
+    // Раздел, выключенный у этого арендатора, не существует для него целиком -
+    // ни в меню, ни по прямому запросу к API
+    if (matchedRoute.module && !isModuleEnabled(tenant, matchedRoute.module)) {
+      return sendJson(res, 404, { error: 'module_disabled' });
+    }
     if (matchedRoute.auth !== 'public') {
       const gateAuth = await authenticate(req);
       if (matchedRoute.auth === 'management') {

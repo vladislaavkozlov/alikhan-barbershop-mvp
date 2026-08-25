@@ -352,6 +352,13 @@ export function moduleEnabled(key) {
 //   <input data-phrase-attr="placeholder:booking.pricePlaceholder" placeholder="как по услугам">
 export function applyTerms(root = (typeof document === 'undefined' ? null : document)) {
   if (!root || typeof root.querySelectorAll !== 'function') return;
+  // Раздел, выключенный у арендатора, убирается с экрана. Настоящая защита - на
+  // сервере (реестр роутов отдаёт 404), здесь только чтобы человек не видел пустой
+  // блок и не жал в него
+  for (const node of root.querySelectorAll('[data-module]')) {
+    const key = node.getAttribute('data-module');
+    if (key) node.hidden = !moduleEnabled(key);
+  }
   for (const node of root.querySelectorAll('[data-term]')) {
     const path = node.getAttribute('data-term');
     if (!path) continue;

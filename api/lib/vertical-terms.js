@@ -23,6 +23,8 @@
 // Владом 24.08.2026 как рабочий до её ответа. Правка после ответа - один диф в этом
 // файле, ходить по кабинетам не придётся.
 
+import { currentVertical } from './tenant-context.js';
+
 export const DEFAULT_VERTICAL = 'barbershop';
 
 // Шесть падежей в двух числах. Список закрыт: форма, которой здесь нет, не может
@@ -413,4 +415,14 @@ export function appearanceFor(vertical) {
     terms: structuredClone(TERMS[resolved]),
     phrases: structuredClone(PHRASES[resolved]),
   };
+}
+
+// Короткие обёртки для роутов: вертикаль они не передают руками, её знает контекст
+// запроса (api/lib/tenant-context.js). Вне контекста - барбершопные слова
+export function t(path) {
+  return term(currentVertical(), path);
+}
+
+export function p(key, vars = null) {
+  return phrase(currentVertical(), key, vars);
 }

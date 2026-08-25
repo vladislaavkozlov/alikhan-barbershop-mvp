@@ -9,6 +9,7 @@ import { canManageStaff, BOOKING_STAFF_ROLES, BOOKING_OPERATOR_ROLES } from '../
 import { findMastersMissingSchedule } from '../lib/notify-core.js';
 import { normalizeRenewInput } from '../lib/renew-reason.js';
 import { publish } from '../lib/events.js';
+import { p } from '../lib/vertical-terms.js';
 
 // Окно 39 (06.08.2026) - индикатор риска ухода клиента. no_show_streak уже
 // собирается (Окно 13) и уже управляет requiresPrepayment (>=2, см. createBookingTx
@@ -30,7 +31,7 @@ function pluralRaz(n) {
 export function describeClientRisk(noShowStreak) {
   const n = Number(noShowStreak) || 0;
   if (n <= 0) return { level: 'none', label: null };
-  if (n === 1) return { level: 'watch', label: 'Пропустил последнюю запись - стоит позвонить' };
+  if (n === 1) return { level: 'watch', label: p('client.missedLast') };
   return { level: 'high', label: `Не пришёл ${n} ${pluralRaz(n)} подряд - стоит позвонить` };
 }
 

@@ -61,6 +61,15 @@ export function currentTenantId() {
   return store.tenantId;
 }
 
+// Вертикаль текущего арендатора (Этап B, 24.08.2026). Лежит рядом с самим
+// арендатором по той же причине: серверные тексты рождаются глубоко в роутах
+// (заголовок уведомления в bookings.js), и проносить вертикаль туда аргументами -
+// ровно тот класс ошибки, ради которого заведён этот контекст. Незнакомая или
+// отсутствующая вертикаль откатывается в барбершоп самим словарём
+export function currentVertical() {
+  return storage.getStore()?.vertical ?? null;
+}
+
 export function hasTenantContext() {
   return storage.getStore() !== undefined;
 }

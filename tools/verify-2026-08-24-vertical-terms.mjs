@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { TERMS, PHRASES } from '../api/lib/vertical-terms.js';
 import { MODULE_KEYS } from '../api/lib/vertical-modules.js';
+import { hashPin } from '../api/lib/auth.js';
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'api', 'migrations');
 const DB = 'vertical_terms_probe';
@@ -151,6 +152,17 @@ async function main() {
     }
     const rows = await asTenant(db, '*', 'SELECT id FROM tenants ORDER BY id');
     assert.deepEqual(rows.rows.map((r) => r.id), [1, 2, 3]);
+    // Владелец в каждом из двух арендаторов - чтобы проверить флаги живым запросом
+    await asTenant(db, '*', "SELECT setval('locations_id_seq', GREATEST((SELECT MAX(id) FROM locations), 1))");
+    for (const tenant of TENANTS.slice(0, 2)) {
+      const loc = await asTenant(db, tenant.id, 'INSERT INTO locations (name) VALUES ($1) RETURNING id', [`Точка ${tenant.id}`]);
+      await asTenant(
+        db, tenant.id,
+        `INSERT INTO staff (id, location_id, name, role, email, pin_hash, provides_services)
+         VALUES ($1, $2, $3, 'owner', 'owner@shared.test', $4, true)`,
+        [`staff-owner-${tenant.id}`, loc.rows[0].id, `Владелец ${tenant.id}`, hashPin('1234')]
+      );
+    }
   });
 
   const child = spawn(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), '..', 'api', 'server.mjs')], {
@@ -251,6 +263,37 @@ async function main() {
       for (const secret of ['karina.test', 'Алихан', 'alikhan.test', '@', '+7']) {
         assert.ok(!raw.includes(secret), `наружу уехало лишнее: ${secret}`);
       }
+    });
+
+    await step('выключенный раздел не отдаёт данные и по прямому запросу к API', async () => {
+      // Скрытый пункт меню защищает от промаха мышью, но не от прямого запроса -
+      // ровно та же логика, что у реестра прав (Окно 33). У Алихана модуль включён,
+      // у клиники «Недополученная прибыль» выключена строкой в справочнике
+      const login = async (tenant) => {
+        const res = await fetch(`${BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: `https://${tenant.domain}` },
+          body: JSON.stringify({ email: 'owner@shared.test', pin: '1234' }),
+        });
+        assert.equal(res.status, 200, `${tenant.domain}: вход не прошёл`);
+        return (await res.json()).token;
+      };
+      const call = (tenant, token, path) =>
+        fetch(`${BASE}/${path}`, { headers: { Authorization: `Bearer ${token}`, Origin: `https://${tenant.domain}` } });
+
+      const shopToken = await login(TENANTS[0]);
+      const clinicToken = await login(TENANTS[1]);
+      const range = 'from=2020-01-01&to=2030-12-31';
+      for (const path of [`finance/missed-profit?${range}`, `finance/missed-profit/clients?${range}&kind=overdue`, 'analytics/lapsed?months=3']) {
+        const shop = await call(TENANTS[0], shopToken, path);
+        assert.equal(shop.status, 200, `у Алихана раздел обязан работать: ${path} → ${shop.status}`);
+        const clinic = await call(TENANTS[1], clinicToken, path);
+        assert.equal(clinic.status, 404, `выключенный раздел отдал данные: ${path} → ${clinic.status}`);
+        assert.equal((await clinic.json()).error, 'module_disabled');
+      }
+      // Зарплата у клиники не выключена - обязана работать
+      const payroll = await call(TENANTS[1], clinicToken, 'payroll-settings');
+      assert.equal(payroll.status, 200, `невыключенный раздел отказал: ${payroll.status}`);
     });
 
     await step('словарь отдаётся только на чтение', async () => {
