@@ -5,6 +5,7 @@
 import { el } from './crm-shared.js';
 import { API, fetchJson, getToken } from './crm-auth.js';
 import { reportError, reportSuccess } from './crm-toast.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 // Задача 4 (Окно 13, 01.08.2026, разд.17.15 ТЗ) - портфолио мастера (стаж/сильные
 // стороны/сертификаты/фото "до-после"), самредактируемые владельцем поля в карточке
@@ -101,7 +102,8 @@ export function wirePortfolioEditors(staffList) {
 // короткого списка из 2-3 опций, но премиум-редизайн Окна 41 требует единый
 // стиль выпадашек). pickCustomSelectOption (assets/mockup-crm.js) уже шлёт
 // 'customselect:change' с {detail.value} - слушаем его вместо нативного 'change'.
-const ROLE_SUMMARY_LABEL = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
+// Вызовом, не константой (Этап B): слово роли приходит из словаря вертикали
+const roleSummaryLabel = () => ({ owner: 'Владелец', admin: 'Администратор', master: Tc('master.nom') });
 
 function setRoleSelectValue(wrap, value) {
   const trigger = wrap.querySelector('.custom-select-trigger');
@@ -147,7 +149,7 @@ export function wireRoleEditors(staffList) {
         if (!res.ok) throw Object.assign(new Error('role'), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
         wrap.dataset.lastValue = nextValue;
         reportSuccess(noteEl, 'Сохранено');
-        if (labelEl) labelEl.textContent = ROLE_SUMMARY_LABEL[nextValue] ?? nextValue;
+        if (labelEl) labelEl.textContent = roleSummaryLabel()[nextValue] ?? nextValue;
       } catch (err) {
         setRoleSelectValue(wrap, prevValue);
         reportError(noteEl, err, 'Не удалось сохранить');

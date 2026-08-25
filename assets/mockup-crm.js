@@ -1,3 +1,16 @@
+// Словарь вертикали (Этап B, 24.08.2026). Этот файл подключён обычным <script>, без
+// type="module", поэтому импортировать assets/crm-terms.js он не может - словарь
+// приходит через window.__crmTerms, который выкладывает сам модуль. Пока модуль не
+// загрузился (макет подключается раньше него), отдаём барбершопные слова: ровно то
+// поведение, что было до окна.
+function terms() {
+  const bridge = window.__crmTerms;
+  if (bridge) return bridge;
+  const fallback = { master: 'мастер', client: 'клиент', booking: 'запись' }; // не интерфейс: запасные слова моста, их совпадение со словарём сверяет tests/crm-terms.test.js
+  const word = (path) => fallback[String(path).split('.')[0]] ?? String(path);
+  return { T: word, Tc: (p) => { const w = word(p); return w.charAt(0).toUpperCase() + w.slice(1); }, P: (k) => k, C: (k) => word(k) };
+}
+
 // Окно 9, часть 1 - визуальное поведение статического макета.
 // Клик по записи в календаре заполняет ЕДИНУЮ карточку записи данными из data-атрибутов
 // этого конкретного блока и открывает её. Никакого fetch, никакого реального расчёта -
@@ -14,7 +27,7 @@
 window.MASTER_SERVICE_DURATION = {};
 (function seedDurations() {
   const base = {
-    'Стрижка': 40, 'Борода': 30, 'Комплекс стрижка+борода': 60, 'Бритьё': 40,
+    'Стрижка': 40, 'Борода': 30, 'Комплекс стрижка+борода': 60, 'Бритьё': 40, // не интерфейс: названия услуг демо-макета, это данные Алихана, а не надписи
     'Фирменная окантовка': 30, 'Тонировка седых волос': 60, 'Воск': 15, 'СПА уход': 60,
   };
   ['Алиовсад', 'Мамедхан', 'Елизавета'].forEach((master) => {
@@ -162,17 +175,17 @@ function updateNoShowUi() {
   const btn = document.getElementById('bk-noshow-btn');
   if (btn) {
     const isNoShow = panel.dataset.realStatus === 'no_show';
-    btn.textContent = isNoShow ? 'Отменить отметку неявки' : 'Клиент не пришёл';
+    btn.textContent = isNoShow ? 'Отменить отметку неявки' : `${terms().Tc('client.nom')} не пришёл`;
   }
   const banner = document.getElementById('bk-noshow-banner');
   if (banner) {
     const streak = parseInt(panel.dataset.noshowStreak, 10) || 0;
     if (streak > 0) {
       banner.hidden = false;
-      const prepayNote = panel.dataset.requiresPrepayment === 'true' ? ' Действует правило предоплаты для следующей записи.' : '';
+      const prepayNote = panel.dataset.requiresPrepayment === 'true' ? ` Действует правило предоплаты для следующей ${terms().T('booking.gen')}.` : '';
       const textEl = banner.querySelector('span:last-child');
       if (textEl) {
-        textEl.textContent = `У этого клиента ${streak} ${ruPlural(streak, 'неявка', 'неявки', 'неявок')} без предупреждения.${prepayNote}`;
+        textEl.textContent = `У этого ${terms().T('client.gen')} ${streak} ${ruPlural(streak, 'неявка', 'неявки', 'неявок')} без предупреждения.${prepayNote}`;
       }
     } else {
       banner.hidden = true;
@@ -207,7 +220,7 @@ function updateCommission(master, service) {
     if (note) note.textContent = `${pct}% от ${price}₽ (подтверждено Алиханом)${editNote}`;
   } else {
     input.value = '—';
-    if (note) note.textContent = 'Выберите мастера, чтобы увидеть комиссию';
+    if (note) note.textContent = `Выберите ${terms().T('master.acc')}, чтобы увидеть комиссию`;
   }
 }
 

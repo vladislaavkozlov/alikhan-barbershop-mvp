@@ -9,6 +9,7 @@ import { errorMessage, reportError, showError } from './crm-toast.js';
 import { escapeHtml } from './crm-schedule-shared.js';
 import { setButtonBusy } from './crm-loading.js';
 import { sortByServiceOrder } from '../storage.js';
+import { T, P } from './crm-terms.js';
 
 // Окно 55, Задача C (10.08.2026) - носитель id открытой записи. До этого окна им
 // всегда была карточка-просмотр #bd-1 (assets/mockup-crm.js openBooking писала туда
@@ -186,14 +187,14 @@ export function wireBookingServiceEdit(services, masterServices) {
     bookingServiceEditSelected = new Set();
     resultEl.hidden = true;
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Сохранить услугу';
+    saveBtn.textContent = `Сохранить ${T('service.acc')}`;
     picker.innerHTML = '';
     const existing = new Set(existingServiceIds || []);
     const rows = servicesFor(masterId);
     if (rows.length === 0) {
       const hint = document.createElement('p');
       hint.className = 'section-hint';
-      hint.textContent = 'У этого мастера пока не назначено ни одной услуги в прайсе';
+      hint.textContent = `У этого ${T('master.gen')} пока не назначено ни одной ${T('service.gen')} в прайсе`;
       picker.appendChild(hint);
       return;
     }
@@ -249,7 +250,7 @@ export function wireBookingServiceEdit(services, masterServices) {
         window.renderBookingServiceEdit(masterId, data.booking.serviceIds);
         resultEl.hidden = false;
         resultEl.className = 'wf-result wf-result--ok';
-        resultEl.textContent = 'Услуга добавлена к записи';
+        resultEl.textContent = P('service.addedToBooking');
       } catch (err) {
         resultEl.hidden = false;
         resultEl.className = 'wf-result wf-result--err';
@@ -275,12 +276,12 @@ export function wireBookingDelete() {
   if (!row) return; // страница без этого блока (crm-master.html) - no-op
 
   function renderIdle() {
-    row.innerHTML = '<button type="button" class="btn btn-danger btn-sm" id="bkDeleteBtn">Удалить запись</button>';
+    row.innerHTML = `<button type="button" class="btn btn-danger btn-sm" id="bkDeleteBtn">Удалить ${T('booking.acc')}</button>`;
     row.querySelector('#bkDeleteBtn').addEventListener('click', renderConfirm);
   }
 
   function renderConfirm() {
-    row.innerHTML = `<span class="note" style="margin-right:8px">Удалить запись безвозвратно? Из статистики и зарплаты тоже пропадёт</span>
+    row.innerHTML = `<span class="note" style="margin-right:8px">${P('booking.deleteConfirm')}</span>
       <button class="btn btn-danger btn-sm" type="button" id="bkDeleteYes">Да, удалить</button>
       <button class="btn btn-ghost btn-sm" type="button" id="bkDeleteNo">Нет</button>`;
     row.querySelector('#bkDeleteYes').addEventListener('click', () => doDelete(false));
@@ -294,7 +295,7 @@ export function wireBookingDelete() {
   // затронет удаление, не абстрактное "есть какая-то продажа".
   function renderSaleWarning(saleCount, saleTotal) {
     const sumText = Number.isFinite(saleTotal) ? `${formatMoney(saleTotal)}` : `${saleCount} шт.`;
-    row.innerHTML = `<span class="note" style="margin-right:8px">К данной записи привязана продажа (${sumText}), которая участвует в расчёте ЗП. Подтверждаете удаление?</span>
+    row.innerHTML = `<span class="note" style="margin-right:8px">${P('booking.saleAttached', { sum: sumText })}</span>
       <button class="btn btn-danger btn-sm" type="button" id="bkDeleteForceYes">Подтверждаю</button>
       <button class="btn btn-ghost btn-sm" type="button" id="bkDeleteForceNo">Отмена</button>`;
     row.querySelector('#bkDeleteForceYes').addEventListener('click', () => doDelete(true));
@@ -338,7 +339,7 @@ export function wireBookingDelete() {
           panel.hidden = true;
         }
       }
-      row.innerHTML = '<span class="note">Запись удалена</span>';
+      row.innerHTML = `<span class="note">${P('booking.deleted')}</span>`;
       // Баг 14.08.2026 (аудит Влада, P1) - удаление карточки из DOM выше чинило только
       // вид "День": Неделя и Месяц рисуются СВОИМИ запросами (GET /schedule-range,
       // crm-schedule-view-week.js / -month.js) и держали удалённую запись до перезагрузки
@@ -350,11 +351,11 @@ export function wireBookingDelete() {
       try {
         await window.__refreshScheduleViews?.({ all: true });
       } catch {
-        row.innerHTML = '<span class="note">Запись удалена. Обновите страницу, чтобы календарь пересчитался</span>';
+        row.innerHTML = `<span class="note">${P('booking.deletedRefresh')}</span>`;
       }
     } catch (err) {
-      row.innerHTML = `<span class="note" style="color:var(--danger)">${escapeHtml(errorMessage(err, 'Не удалось удалить запись'))}</span>`;
-      showError(errorMessage(err, 'Не удалось удалить запись'));
+      row.innerHTML = `<span class="note" style="color:var(--danger)">${escapeHtml(errorMessage(err, P('booking.deleteFailed')))}</span>`;
+      showError(errorMessage(err, P('booking.deleteFailed')));
       const retry = document.createElement('button');
       retry.type = 'button';
       retry.className = 'btn btn-ghost btn-sm';
@@ -465,7 +466,7 @@ export function wireBookingActualPrice() {
   window.saveBookingActualPrice = async function saveBookingActualPrice() {
     const panel = bookingPanel();
     const bookingId = panel?.dataset.bookingId;
-    if (!bookingId) return { ok: false, error: 'запись не открыта' };
+    if (!bookingId) return { ok: false, error: P('booking.notOpened') };
     // Пустое поле - явный сброс на null ("фактическая = как по услугам"), а не 0
     // (0 ₽ - это тоже валидный кейс, "постригли бесплатно", отличается от "не
     // указано вообще").
@@ -514,7 +515,7 @@ export function wireBookingActualPrice() {
       resultEl.className = out.ok ? 'wf-result wf-result--ok' : 'wf-result wf-result--err';
       resultEl.textContent = out.ok
         ? (out.actualPrice === null
-          ? 'Сохранено - сумма считается по услугам'
+          ? `Сохранено - сумма считается по ${T('service.datPl')}`
           : out.comment ? 'Сохранено: сумма и комментарий' : 'Сохранено')
         : `Не удалось сохранить: ${out.error}`;
       setButtonBusy(saveBtn, false);
@@ -529,6 +530,6 @@ const ACTUAL_PRICE_ERROR_TEXT = {
   comment_too_long: 'комментарий слишком длинный - до 500 знаков',
   invalid_comment: 'комментарий должен быть текстом',
   invalid_actual_price: 'сумма должна быть числом от 0',
-  booking_not_found: 'запись не найдена - возможно, её уже удалили',
-  forbidden: 'нет прав менять эту запись (другая точка)',
+  booking_not_found: P('booking.notFound'),
+  forbidden: P('booking.noRightsChange'),
 };

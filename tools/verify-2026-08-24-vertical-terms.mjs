@@ -184,6 +184,8 @@ async function main() {
       assert.equal(clinic.terms.client.gen, 'пациента');
       assert.equal(shop.phrases['booking.new'], 'Новая запись');
       assert.equal(clinic.phrases['booking.new'], 'Новый приём');
+      assert.equal(shop.name, TENANTS[0].title, 'название заведения приезжает из справочника');
+      assert.equal(clinic.name, TENANTS[1].title);
       assert.deepEqual(shop.terms, JSON.parse(JSON.stringify(TERMS.barbershop)));
       assert.deepEqual(clinic.phrases, PHRASES.clinic);
     });
@@ -238,12 +240,15 @@ async function main() {
       }
     });
 
-    await step('в ответе нет ни названия арендатора, ни доменов, ни клиентских полей', async () => {
+    await step('в ответе только слова, флаги и название заведения - больше ничего', async () => {
       const res = await appearance(TENANTS[1].domain);
       const body = await res.json();
-      assert.deepEqual(Object.keys(body).sort(), ['modules', 'phrases', 'terms', 'vertical']);
+      assert.deepEqual(Object.keys(body).sort(), ['modules', 'name', 'phrases', 'terms', 'vertical']);
+      // Название добавлено осознанно (находка фазы 3): им заведение подписывается
+      // перед своими же клиентами в готовых сообщениях. Секретом оно не является
+      assert.equal(body.name, TENANTS[1].title);
       const raw = JSON.stringify(body);
-      for (const secret of ['Карин', 'karina.test', 'Алихан', 'alikhan.test', '@', '+7']) {
+      for (const secret of ['karina.test', 'Алихан', 'alikhan.test', '@', '+7']) {
         assert.ok(!raw.includes(secret), `наружу уехало лишнее: ${secret}`);
       }
     });

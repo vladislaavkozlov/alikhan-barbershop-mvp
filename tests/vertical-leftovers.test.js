@@ -26,40 +26,21 @@ async function countLeftovers(relative) {
   return leftoverLines(await readFile(new URL(relative, ROOT), 'utf8')).length;
 }
 
-// База отсчёта на 24.08.2026: кабинеты ещё не переведены. Фазы 3-6 опускают эти числа
-// до нуля, файл за файлом.
+// База отсчёта на 24.08.2026, конец фазы 3: общие модули записи, календаря, статусов,
+// уведомлений и расписания вычищены полностью - 225 строк стало 115. Осталось то, что
+// принадлежит конкретным кабинетам, его разбирают фазы 4-6.
 //
-// 225 строк, а не 424 из первого грубого замера: тот считал продолжения
-// HTML-комментариев и строки импортов
+// 225, а не 424 из первого грубого замера: тот считал продолжения HTML-комментариев
+// и строки импортов
 const BASELINE = {
-  'assets/crm-walkin.js': 32,
   'crm-owner.html': 28,
   'crm-master.html': 19,
   'assets/crm-team.js': 18,
   'assets/crm-clients.js': 17,
   'crm-admin.html': 16,
-  'assets/crm-booking-status.js': 14,
-  'assets/crm-notifications.js': 11,
   'assets/crm-analytics.js': 9,
-  'assets/crm-schedule-editor.js': 9,
-  'assets/crm-calendar.js': 7,
   'assets/crm-missed-profit.js': 7,
-  'assets/renew-reason.js': 6,
-  'assets/mockup-crm.js': 5,
-  'assets/crm-schedule-shared.js': 4,
-  'assets/crm-schedule-view-year.js': 4,
-  'assets/crm-app-shell.js': 3,
-  'assets/crm-master-services.js': 3,
-  'assets/crm-auth.js': 2,
-  'assets/crm-navigation-panels.js': 2,
-  'assets/crm-payroll-cards.js': 2,
-  'assets/booking-terms.js': 1,
-  'assets/crm-master-booking.js': 1,
-  'assets/crm-renew-field.js': 1,
   'assets/crm-schedule-alerts.js': 1,
-  'assets/crm-schedule-view-month.js': 1,
-  'assets/crm-shared.js': 1,
-  'assets/crm-staff-admin.js': 1,
 };
 
 test('барбершопных слов в исходниках не стало больше, чем в базе отсчёта', async () => {

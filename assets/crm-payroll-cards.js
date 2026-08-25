@@ -14,10 +14,12 @@
 import { avatarMarkup, avatarUrlOf } from './crm-avatar.js';
 import { renderDateSelect } from './crm-widgets.js';
 import { defaultPctFor, firedLabel, isEmployed, payrollStaff, todayStr } from './crm-shared.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 const esc = (value = '') => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const roleLabel = { owner: 'Владелец', manager: 'Управляющий', admin: 'Администратор', master: 'Мастер' };
+// Вызовом, не константой: слово роли приходит из словаря вертикали (Этап B)
+const roleLabels = () => ({ owner: 'Владелец', manager: 'Управляющий', admin: 'Администратор', master: Tc('master.nom') });
 
 // Правила «кто попадает в блок» и «какая ставка по умолчанию» живут в crm-shared.js:
 // их читает и расчёт в crm-dashboard.js, дублировать нельзя - разъедутся
@@ -55,8 +57,8 @@ function cardMarkup(staff, pct, pctIsSet) {
     ? `<p class="payroll-note" data-pct-note>${esc(firedLabel(staff))}. Ставку уволенному не меняем - суммы показаны по той, что действовала</p>`
     : (pctIsSet ? '' : '<p class="payroll-note" data-pct-note>Ставка ещё не задана - впишите процент и сохраните</p>');
   const roleLine = fired
-    ? `${esc(roleLabel[staff.role] ?? staff.role)} · ${esc(firedLabel(staff))}`
-    : esc(roleLabel[staff.role] ?? staff.role);
+    ? `${esc(roleLabels()[staff.role] ?? staff.role)} · ${esc(firedLabel(staff))}`
+    : esc(roleLabels()[staff.role] ?? staff.role);
   return `<details class="staff-card payroll-card${fired ? ' payroll-card-fired' : ''}" data-master-id="${esc(staff.id)}"${fired ? ' data-fired="1"' : ''}>
     <summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLine}</div></div><span class="chevron">▸</span></summary>
     <div class="staff-card-body">
@@ -121,7 +123,7 @@ export function renderPayrollCards(host, staffList, pctByMaster, mastersWithPaid
     host.dataset.signature = signature;
     host.innerHTML = staff.length
       ? staff.map((s) => cardMarkup(s, pctByMaster.get(s.id) ?? defaultPctFor(s), pctByMaster.has(s.id))).join('')
-      : '<p class="payroll-note">Пока никто из сотрудников не принимает клиентов - включите "Принимает клиентов" в разделе "Сотрудники"</p>';
+      : `<p class="payroll-note">${P('payroll.noneAccepting')}</p>`;
     host.querySelectorAll('.payroll-card').forEach((card) => {
       wirePeriodSwitch(card);
       wireDateSlots(card);

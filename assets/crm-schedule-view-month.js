@@ -26,6 +26,7 @@ import { buildMatrixModel, matrixHtml, loadMatrixData, wireMatrixClicks } from '
 import { todayStr } from './crm-calendar.js';
 import { errorMessage, reportError, showError } from './crm-toast.js';
 import { showLoadingLine, showSkeleton } from './crm-loading.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 export function wireMonthView(ctx) {
   const {
@@ -129,7 +130,7 @@ export function wireMonthView(ctx) {
     try {
       const { ok, status, data } = await apiSend('/schedule', 'POST', { masterId: scheduleViewState.masterId, date: editingDate, startTime, endTime, breaks });
       if (status === 409 && data?.error === 'schedule_conflict') {
-        reportError(note, 'Нельзя сохранить день: на это время уже есть записи, они перечислены ниже');
+        reportError(note, P('schedule.conflictSaveDay'));
         conflictsEl.innerHTML = conflictListWithOpenButton(data.conflicts);
         conflictsEl.hidden = false;
         wireConflictOpenButtons(conflictsEl);

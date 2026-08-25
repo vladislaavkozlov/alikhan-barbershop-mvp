@@ -14,6 +14,7 @@
 
 export const FALLBACK = Object.freeze({
   vertical: 'barbershop',
+  name: 'барбершоп «Алихан»',
   terms: {
     "master": {
       "g": "m",
@@ -93,13 +94,73 @@ export const FALLBACK = Object.freeze({
   },
   phrases: {
     "booking.new": "Новая запись",
+    "booking.newForSlot": "Новая запись на выбранное время",
+    "booking.walkin": "Новая запись без предзаписи",
+    "booking.repeat": "Повторная запись",
+    "booking.notFound": "запись не найдена - возможно, её уже удалили",
+    "booking.cancelledCantEdit": "запись отменена - править её нельзя, создайте новую",
+    "booking.cancelledCantMove": "запись отменена - перенести её нельзя, создайте новую",
+    "booking.noRightsEdit": "нет прав править эту запись (другая точка)",
+    "booking.noRightsMove": "нет прав переносить эту запись (другая точка)",
+    "booking.overlapOther": "на это время у мастера уже есть другая запись - выберите свободное",
+    "booking.pastTimeCreate": "нельзя записать в прошлое",
+    "booking.noBookableMaster": "Нет мастера с рабочим графиком для новой записи",
+    "booking.foreignServices": "новый мастер не оказывает часть услуг этой записи - поправьте список услуг",
+    "booking.comboConflict": "В этой записи комплекс и отдельная услуга, которая уже в него входит - снимите лишнюю галочку, иначе сохранить не получится",
     "booking.cancelled": "Запись отменена",
     "booking.movedOut": "Запись ушла к другому мастеру",
     "booking.movedIn": "Перенесена запись к вам",
     "booking.moved": "Запись перенесена",
     "booking.movedOutPlace": "Запись ушла с точки",
     "booking.movedInPlace": "Запись перенесена на точке",
-    "client.missedLast": "Пропустил последнюю запись - стоит позвонить"
+    "client.missedLast": "Пропустил последнюю запись - стоит позвонить",
+    "msg.cancelled": "Ваша запись {when} отменена",
+    "msg.expected": "Ждём вас {when}",
+    "booking.cancelledShort": "Запись отменена",
+    "booking.deleted": "Запись удалена",
+    "booking.notInSchedule": "Запись не найдена в расписании - возможно, её отменили",
+    "booking.deleteConfirm": "Удалить запись безвозвратно? Из статистики и зарплаты тоже пропадёт",
+    "booking.deleteFailed": "Не удалось удалить запись",
+    "booking.noRightsChange": "нет прав менять эту запись (другая точка)",
+    "booking.notOpened": "запись не открыта",
+    "booking.outsideHours": "Запись вне рабочих часов мастера",
+    "booking.expand": "Раскрыть запись",
+    "booking.collapse": "Свернуть запись",
+    "booking.open": "Открыть запись",
+    "booking.opening": "Открываю запись",
+    "booking.created": "запись создана",
+    "booking.emptyBell": "Новых записей нет. Всё, что было, осталось в разделе «Уведомления»",
+    "booking.emptyFeed": "Пока ни одной новой записи. Здесь появится каждая запись клиента - сразу, как её создадут на сайте или в CRM",
+    "booking.saleAttached": "К данной записи привязана продажа ({sum}), которая участвует в расчёте ЗП. Подтверждаете удаление?",
+    "booking.deletedRefresh": "Запись удалена. Обновите страницу, чтобы календарь пересчитался",
+    "service.addedToBooking": "Услуга добавлена к записи",
+    "schedule.noneCantBook": "Нет графика - клиенты не могут записаться",
+    "schedule.dayOff": "Выходной, записи не будет",
+    "schedule.noBookingsThatDay": "Записи в этот день нет",
+    "schedule.breakNoBooking": "В это время записи не будет",
+    "schedule.conflictSave": "Нельзя сохранить график: на это время уже есть записи, они перечислены ниже",
+    "schedule.conflictSaveDay": "Нельзя сохранить день: на это время уже есть записи, они перечислены ниже",
+    "schedule.savedWithConflicts": "Сохранено. На это время уже есть {count} реальных записей - в колокольчике уведомлений появилось, с кем связаться",
+    "schedule.notClosedConflicts": "не закрыто из-за записей",
+    "booking.detailsTitle": "Детали выбранного визита",
+    "booking.servicesUnknown": "Услуги по этой записи не указаны",
+    "renew.waitingClient": "Ждём клиента через {days}",
+    "renew.byMasterAdvice": "по рекомендации мастера",
+    "renew.reasonRecommended": "Мастер назвал срок, клиент согласился",
+    "renew.reasonHair": "Особенность волос или формы стрижки",
+    "renew.script1": "Назовите срок: «ваша стрижка держит форму N недель».",
+    "renew.script2": "Спросите, готов ли клиент ходить так часто ради результата.",
+    "renew.script3": "Не готов - поставьте удобный ему срок и предложите стрижку, которая хорошо выглядит весь этот срок.",
+    "payroll.pickServices": "Выберите услуги, чтобы увидеть комиссию",
+    "payroll.noneAccepting": "Пока никто из сотрудников не принимает клиентов - включите \"Принимает клиентов\" в разделе \"Сотрудники\"",
+    "service.topMasterHint": "Топ-мастер по этой услуге - на сайте клиент выбирает его отдельным тарифом",
+    "service.comboOf": "Состоит из услуг {names} - по отдельности сейчас {sum}",
+    "service.priceAria": "Цена услуги «{name}»",
+    "booking.topTariff": "запись к топ-мастеру",
+    "holidays.closeAll": "Закрыть выбранные даты всем мастерам",
+    "holidays.closeCount": "Закрыть {count} {days} всем мастерам",
+    "holidays.closedTotal": "Закрыто дней у мастеров: {count}",
+    "schedule.needWorkHours": "{day}: укажите, с какого и до какого часа мастер работает"
   },
   modules: {
     "missedProfit": true,
@@ -151,7 +212,8 @@ function mergeAppearance(payload) {
   const vertical = typeof payload.vertical === 'string' && payload.vertical.trim()
     ? payload.vertical
     : FALLBACK.vertical;
-  return { vertical, terms, phrases, modules };
+  const name = typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : FALLBACK.name;
+  return { vertical, name, terms, phrases, modules };
 }
 
 // Токена здесь нет и быть не может: слова нужны экрану входа, то есть раньше, чем
@@ -185,11 +247,21 @@ export function Tc(path) {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
 }
 
-export function P(key) {
+// Подстановка {имя}: фразу, в которой рядом с термином стоит и согласуемое слово, и
+// живые данные, разрезать на куски нельзя - согласование потеряется
+export function P(key, vars = null) {
   const raw = typeof key === 'string' ? key : '';
   if (!raw) return '';
   const value = current.phrases?.[raw] ?? FALLBACK.phrases?.[raw];
-  return typeof value === 'string' ? value : raw;
+  if (typeof value !== 'string') return raw;
+  if (!vars) return value;
+  return value.replace(/\{(\w+)\}/g, (whole, name) => (name in vars ? String(vars[name] ?? '') : whole));
+}
+
+// Название самого заведения: у Алихана «барбершоп «Алихан»», у Карины - её клиника.
+// Термином вертикали это не лечится, название живёт в справочнике арендаторов
+export function tenantName() {
+  return current.name || FALLBACK.name;
 }
 
 // Русское склонение числительного - та же формула, что на сервере
@@ -236,4 +308,12 @@ export function applyTerms(root = (typeof document === 'undefined' ? null : docu
     if (!attr || !path) continue;
     node.setAttribute(attr, T(path));
   }
+}
+
+// Мост для обычных скриптов. assets/mockup-crm.js подключён тегом <script> без
+// type="module" и импортировать ничего не может, а надписи в нём такие же живые, как
+// в остальных кабинетах. Переписывать его на модуль ради словаря - работа не этого
+// окна, поэтому словарь просто выкладывается в window
+if (typeof window !== 'undefined') {
+  window.__crmTerms = { T, Tc, P, C, moduleEnabled, tenantName, currentAppearance };
 }

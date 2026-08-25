@@ -7,6 +7,7 @@
 // renderLiveProof в crm-dashboard.js при декомпозиции crm-auth.js (Этап 1).
 import { groupHolidaysByMonth, groupDatesToRanges, ruPluralDate, escapeHtml, conflictListWithOpenButton } from './crm-schedule-shared.js';
 import { reportError } from './crm-toast.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 export function wireYearView(ctx) {
   const {
@@ -44,8 +45,8 @@ export function wireYearView(ctx) {
     const count = selectedHolidayDates().length;
     btn.disabled = count === 0;
     btn.textContent = count === 0
-      ? 'Закрыть выбранные даты всем мастерам'
-      : `Закрыть ${count} ${ruPluralDate(count)} всем мастерам`;
+      ? P('holidays.closeAll')
+      : P('holidays.closeCount', { count, days: ruPluralDate(count) });
   }
 
   async function renderYear() {
@@ -82,13 +83,13 @@ export function wireYearView(ctx) {
         totals.skipped += data.skipped.length;
         totals.conflicts.push(...data.conflicts);
       }
-      const parts = [`Закрыто дней у мастеров: ${totals.closed}`];
+      const parts = [P('holidays.closedTotal', { count: totals.closed })];
       if (totals.skipped) parts.push(`уже были выходными: ${totals.skipped}`);
       note.textContent = parts.join(' · ');
       // Даты с живой записью не закрываются молча - показываем их владельцу тем же
       // списком с кнопкой перехода в день, что и конфликты в модалке дня (Окно 18).
       if (totals.conflicts.length) {
-        note.textContent += ` · не закрыто из-за записей: ${totals.conflicts.length}`;
+        note.textContent += ` · ${P('schedule.notClosedConflicts')}: ${totals.conflicts.length}`;
         conflictsEl.innerHTML = conflictListWithOpenButton(
           totals.conflicts.map((c) => ({ date: c.date, conflicts: c.conflicts }))
         );

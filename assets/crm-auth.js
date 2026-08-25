@@ -11,12 +11,13 @@ import { refreshRoleSnapshot, renderLiveProof } from './crm-dashboard.js';
 // Словарь вертикали (Этап B, 24.08.2026): слова кабинета зависят от того, чей это
 // домен. Забирается до отрисовки, чтобы человек не увидел барбершопное слово, которое
 // через мгновение сменится
-import { loadAppearance, applyTerms } from './crm-terms.js';
+import { loadAppearance, applyTerms, T, Tc, tenantName } from './crm-terms.js';
 
 export const API = window.ALIKHAN_API_URL;
 const TOKEN_KEY = 'alikhan-crm:token';
 const STAFF_KEY = 'alikhan-crm:staff';
-const ROLE_LABELS = { owner: 'владелец', manager: 'управляющий', admin: 'администратор точки', master: 'мастер' };
+// Вызовом, не константой (Этап B): слово роли приходит из словаря вертикали
+const roleLabels = () => ({ owner: 'владелец', manager: 'управляющий', admin: 'администратор точки', master: T('master.nom') });
 const ROLE_PAGE = { owner: 'crm-owner.html', manager: 'crm-owner.html', admin: 'crm-admin.html', master: 'crm-master.html' };
 
 export function getToken() {
@@ -51,7 +52,7 @@ function buildLoginGate() {
   div.innerHTML = `
     <div class="login-card">
       <p class="login-kicker">CRM</p>
-      <img class="login-brand-mark" src="assets/brand/lockup-footer.webp" alt="АЛИХАН - премиум мужские стрижки">
+      <img class="login-brand-mark" src="assets/brand/lockup-footer.webp" alt="${tenantName()}">
       <p class="login-tag">Вход для сотрудников</p>
       <form id="loginForm" novalidate>
         <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" required autocomplete="username"></div>
@@ -154,7 +155,7 @@ export function initCrmAuth(requiredRole) {
   function reveal(staff) {
     gate.hidden = true;
     if (main) main.hidden = false;
-    if (sessionInfo) sessionInfo.textContent = `${staff.name} · ${ROLE_LABELS[staff.role] ?? staff.role}`;
+    if (sessionInfo) sessionInfo.textContent = `${staff.name} · ${roleLabels()[staff.role] ?? staff.role}`;
     if (logoutBtn) logoutBtn.hidden = false;
     // У сотрудника в базе ровно одна роль. В topbar она показана статичной меткой,
     // а не ссылкой на соседний кабинет: переход на страницу чужой роли намеренно

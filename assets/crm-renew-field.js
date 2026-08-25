@@ -17,7 +17,8 @@
 //     же число, спрашивать его второй раз незачем;
 //   - у постоянного клиента поле приходит уже заполненным прошлой договорённостью.
 //     Допрашивать его каждый визит нельзя - мастер начнёт штамповать что попало.
-import { RENEW_REASON_LABELS, RENEW_HINT_LINES } from './renew-reason.js';
+import { renewReasonLabels, renewHintLines } from './renew-reason.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 const DEFAULT_DAYS = 30;
 // Быстрые кнопки - в неделях, потому что мастер думает и говорит неделями («держит
@@ -59,7 +60,7 @@ export function renewQuickButtonsHtml() {
 }
 
 export function renewReasonRadiosHtml() {
-  return Object.entries(RENEW_REASON_LABELS)
+  return Object.entries(renewReasonLabels())
     .map(
       ([key, label]) => `<label class="renew-reason">
         <input type="radio" name="renewReason" value="${escapeHtml(key)}">
@@ -70,7 +71,7 @@ export function renewReasonRadiosHtml() {
 }
 
 export function renewHintHtml() {
-  return RENEW_HINT_LINES.map((line) => `<span>${escapeHtml(line)}</span>`).join('');
+  return renewHintLines().map((line) => `<span>${escapeHtml(line)}</span>`).join('');
 }
 
 function selectedReason() {
@@ -90,7 +91,7 @@ function syncControls() {
   const summary = el('wfRenewSummary');
   if (summary) {
     const days = Number(daysInput?.value);
-    summary.textContent = Number.isFinite(days) && days > 0 ? `Ждём клиента через ${daysLabel(days)}` : '';
+    summary.textContent = Number.isFinite(days) && days > 0 ? P('renew.waitingClient', { days: daysLabel(days) }) : '';
   }
 }
 

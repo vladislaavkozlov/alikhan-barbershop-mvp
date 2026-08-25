@@ -1,3 +1,4 @@
+import { T, Tc, P, C } from './crm-terms.js';
 function directPanels(list) {
   return [...list.querySelectorAll(':scope > details.staff-card')];
 }
@@ -110,7 +111,7 @@ export function upgradeMasterBookingPanel(root = document) {
   const details = document.createElement('details');
   details.className = 'staff-card schedule-view-card booking-view-card';
   details.id = 'scheduleCard-booking-view';
-  details.innerHTML = `<summary><div class="avatar-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><path d="M8.5 14h7"/></svg></div><div class="summary-meta"><div class="name">Запись</div><div class="role">Детали выбранного визита</div></div><span class="chevron">▸</span></summary>`;
+  details.innerHTML = `<summary><div class="avatar-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><path d="M8.5 14h7"/></svg></div><div class="summary-meta"><div class="name">${Tc('booking.nom')}</div><div class="role">${P('booking.detailsTitle')}</div></div><span class="chevron">▸</span></summary>`;
   const body = document.createElement('div');
   body.className = 'staff-card-body';
   body.append(view);
@@ -131,7 +132,7 @@ export function upgradeBookingPanel(root = document) {
   const details = document.createElement('details');
   details.className = 'staff-card schedule-view-card booking-create-card';
   details.id = 'scheduleCard-booking';
-  details.innerHTML = `<summary><div class="avatar-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></div><div class="summary-meta"><div class="name">Запись</div><div class="role">Добавить клиента в расписание</div></div><span class="chevron">▸</span></summary>`;
+  details.innerHTML = `<summary><div class="avatar-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></div><div class="summary-meta"><div class="name">${Tc('booking.nom')}</div><div class="role">Добавить ${T('client.acc')} в расписание</div></div><span class="chevron">▸</span></summary>`;
   const body = document.createElement('div');
   body.className = 'staff-card-body';
   body.append(form);

@@ -206,12 +206,18 @@ async function main() {
       await s.setViewport(1440, 950, false);
       for (const cabinet of CABINETS) {
         await s.navigate(`http://${WEB_ORIGIN}/${cabinet.file}`);
+        // Сессия предыдущего кабинета остаётся в localStorage того же браузера, и
+        // страница чужой роли её сбрасывает. Чистим, не перезагружая: повторный
+        // переход сбивал раскрытие разделов ниже
+        await s.eval('localStorage.clear()');
         await s.eval('window.__errors = []; window.addEventListener("error", (e) => window.__errors.push(String(e.message)));');
         // Экран входа - тоже экран арендатора, читаем его отдельно
         await s.sleep(800);
         const gateText = await s.eval('document.body.innerText');
-        await s.typeReal('#loginEmail', cabinet.email);
-        await s.typeReal('#loginPin', '1234');
+        // См. оговорку в tools/cdp.mjs: после входа в первый кабинет клавиатурные
+        // события до следующих страниц не доходят
+        await s.type('#loginEmail', cabinet.email);
+        await s.type('#loginPin', '1234');
         await s.click('#loginForm button[type="submit"]');
         await s.sleep(2500);
         const target = await s.eval(`(function(){

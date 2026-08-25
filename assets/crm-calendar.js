@@ -50,6 +50,7 @@ import { avatarMarkup } from './crm-avatar.js';
 import { sortByServiceOrder } from '../storage.js';
 import { clientSourceLabel } from './client-source.js';
 import { masterTierLabel } from './booking-terms.js';
+import { T, Tc, P } from './crm-terms.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -120,7 +121,7 @@ function serviceLabelFor(booking, services, priceOf) {
   // первую услугу ("Стрижка +1"), значит от порядка зависит, какую мастер прочитает
   const serviceIds = sortByServiceOrder(rawServiceIds, (id) => id);
   const first = services.find((s) => s.id === serviceIds[0]);
-  const firstName = first?.name ?? serviceIds[0] ?? 'Услуга';
+  const firstName = first?.name ?? serviceIds[0] ?? Tc('service.nom');
   const totalPrice = serviceIds.reduce((sum, id) => sum + priceOf(booking.masterId, id), 0);
   const nameLabel = serviceIds.length > 1 ? `${firstName} +${serviceIds.length - 1}` : firstName;
   return { nameLabel, priceLabel: `${nameLabel} · ${totalPrice}₽` };
@@ -168,7 +169,7 @@ export function buildApptCard(booking, { masterName, services, priceOf }) {
   // такая запись прижата к краю трека - без явной метки человек прочитал бы её как
   // обычную запись на 10:00 (или на конец дня) и не понял, почему она стоит вплотную
   const outsideClass = isOutsideScale(booking.startTime, booking.endTime) ? ' appt--outside' : '';
-  const outsideTitle = outsideClass ? ' title="Запись вне рабочих часов мастера"' : '';
+  const outsideTitle = outsideClass ? ` title="${P('booking.outsideHours')}"` : '';
 
   // Правка 03.08.2026: data-id раньше не передавался вообще - openBooking() не
   // имела способа узнать РЕАЛЬНЫЙ id брони, чтобы что-то сохранить обратно (кнопка
@@ -201,7 +202,7 @@ export function buildApptCard(booking, { masterName, services, priceOf }) {
   // Источник показывается только новому клиенту - буквально по задаче: у постоянного
   // канал привлечения давно неактуален и только занимает место в узкой карточке.
   const sourceLabel = booking.clientIsNew ? clientSourceLabel(booking.clientSource) : null;
-  const newBadge = booking.clientIsNew ? '<span class="appt-new-client">+1 новый клиент</span>' : '';
+  const newBadge = booking.clientIsNew ? `<span class="appt-new-client">+1 новый ${T('client.nom')}</span>` : '';
   // Тариф визита (20.08.2026, миграция 054). В узкой карточке дня отмечаем ТОЛЬКО
   // топовые: «обычный тариф» - это умолчание, и повторять его на каждой второй записи
   // значило бы забить место, которого и так не хватает даже под имя (см. раскрытие
@@ -233,7 +234,7 @@ export function buildApptCard(booking, { masterName, services, priceOf }) {
   // соседей (класс appt--expanded), тем же жестом, что раскрывает карточки-вкладки
   // расписания (details.schedule-view-card). Кнопка не идёт к отменённым записям -
   // они некликабельны целиком (buildCancelledCard выше).
-  const expandBtn = '<button type="button" class="appt-expand" aria-expanded="false" aria-label="Раскрыть запись" onclick="window.toggleApptExpand(this, event)">⌄</button>';
+  const expandBtn = `<button type="button" class="appt-expand" aria-expanded="false" aria-label="${P('booking.expand')}" onclick="window.toggleApptExpand(this, event)">⌄</button>`;
 
   return `<div class="appt ${cssClass} ${stripeClass}${compactClass}${outsideClass}" style="${positionStyle(booking.startTime, booking.endTime)}"${outsideTitle} tabindex="0" onclick="(window.openBookingEdit||window.openBooking)(this)"
        data-id="${escapeHtml(booking.id)}" data-client="${escapeHtml(clientName)}" data-phone="${escapeHtml(booking.clientPhone || '')}" data-master="${escapeHtml(masterName)}"
@@ -283,12 +284,12 @@ export function toggleApptExpand(btn, event) {
     }
     const otherBtn = other.querySelector('.appt-expand');
     otherBtn?.setAttribute('aria-expanded', 'false');
-    otherBtn?.setAttribute('aria-label', 'Раскрыть запись');
+    otherBtn?.setAttribute('aria-label', P('booking.expand'));
   });
 
   card.classList.toggle('appt--expanded', willExpand);
   btn.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
-  btn.setAttribute('aria-label', willExpand ? 'Свернуть запись' : 'Раскрыть запись');
+  btn.setAttribute('aria-label', willExpand ? P('booking.collapse') : P('booking.expand'));
   if (!willExpand) return;
 
   // Запись в конце дня раскрывается за нижний край колонки, а родительский
@@ -461,7 +462,7 @@ function fillTrack(trackEl, master, { shift, bookings, services, priceOf, date }
   if (master.hasWorkingSchedule === false) {
     trackEl.classList.remove('day-off');
     trackEl.classList.add('no-schedule');
-    trackEl.innerHTML = '<span class="day-off-label">Нет графика - клиенты не могут записаться</span>';
+    trackEl.innerHTML = `<span class="day-off-label">${P('schedule.noneCantBook')}</span>`;
     return;
   }
   trackEl.classList.remove('no-schedule');

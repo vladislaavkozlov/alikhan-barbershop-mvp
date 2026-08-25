@@ -1,3 +1,4 @@
+import { T, Tc, P, C } from './crm-terms.js';
 // Декомпозиция crm-schedule-views.js (07.08.2026, тем же методом, что и Этап 1
 // crm-auth.js - см. plans/archive/) - чистые хелперы и константы, общие для всех
 // четырёх видов (День/Неделя/Месяц/Год). Поведение не менялось, код перенесён
@@ -54,9 +55,8 @@ export function addMonths(dateStr, delta) {
 export function ruPluralBooking(n) {
   const mod10 = n % 10;
   const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'запись';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'записи';
-  return 'записей';
+  // Склонение считает словарь вертикали: у клиники это «приём / приёма / приёмов»
+  return C('booking', n);
 }
 // Склонение "даты" в кнопке массового закрытия - тот же приём, что ruPluralBooking
 // выше: "Закрыть 1 дату / 2 даты / 5 дат всем мастерам".
@@ -228,7 +228,7 @@ export function conflictListWithOpenButton(conflictsByDate) {
         .map(
           (c) => `<div class="conflict-row">
             <span>${fmtRu(date)} · ${escapeHtml(c.start_time)}–${escapeHtml(c.end_time)} · ${escapeHtml(c.client_name || 'без имени')}${c.client_phone ? ' · ' + escapeHtml(c.client_phone) : ''}</span>
-            <button type="button" class="btn btn-ghost btn-sm conflict-open-btn" data-conflict-date="${date}" data-conflict-start="${escapeHtml(c.start_time)}" data-conflict-end="${escapeHtml(c.end_time)}">Открыть запись</button>
+            <button type="button" class="btn btn-ghost btn-sm conflict-open-btn" data-conflict-date="${date}" data-conflict-start="${escapeHtml(c.start_time)}" data-conflict-end="${escapeHtml(c.end_time)}">${P('booking.open')}</button>
           </div>`
         )
         .join('')

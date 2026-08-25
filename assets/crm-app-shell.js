@@ -42,6 +42,7 @@
 // в момент, когда раздел реально наполнен). Эмодзи-иконки заменены на SVG
 // (assets/crm-icons.js) - разный рендер эмодзи по ОС/браузерам ломал премиум-вид.
 import { ICON_SCHEDULE, ICON_TEAM, ICON_CLIENTS, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE, ICON_MENU } from './crm-icons.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 // Правка 07.08.2026 - добавлен пункт "Уведомления" (radio pt-e/panel-e, новый слот):
 // "Заявки мастеров на изменение графика" переехали сюда из "Расписания" целиком
@@ -56,7 +57,11 @@ import { ICON_SCHEDULE, ICON_TEAM, ICON_CLIENTS, ICON_FINANCE, ICON_ANALYTICS, I
 // ROLE_CONFIG.owner ниже - буквально те же значения, что были захардкожены раньше
 // (SECTION_RADIO/LABEL/ICON/ORDER + дефолтный раздел 'schedule'), нулевое изменение
 // поведения для Owner.
-const ROLE_CONFIG = {
+// СОБИРАЕТСЯ ВЫЗОВОМ, не константой при импорте (Этап B, 24.08.2026). Подписи
+// разделов берутся из словаря вертикали, а он приезжает с сервера уже после загрузки
+// модуля: константа застыла бы на барбершопных словах и врач до конца сессии читал бы
+// «Клиенты» вместо «Пациенты»
+const roleConfig = () => ({
   owner: {
     profileLabel: 'Владелец',
     defaultSection: 'schedule',
@@ -65,7 +70,7 @@ const ROLE_CONFIG = {
     label: {
       schedule: 'Расписание',
       team: 'Команда',
-      clients: 'Клиенты',
+      clients: Tc('client.nomPl'),
       finance: 'Финансы',
       analytics: 'Аналитика',
       notifications: 'Уведомления',
@@ -93,14 +98,14 @@ const ROLE_CONFIG = {
   // показывал, но выглядел как раздел, которого нет. Роут /payroll для роли master
   // закрыт с того же дня (MONEY_VIEWERS, api/routes/payroll.js), сервер тут ни при чём
   master: {
-    profileLabel: 'Мастер',
+    profileLabel: Tc('master.nom'),
     defaultSection: 'today',
     order: ['today', 'profile'],
     radio: { today: 'pt-a', profile: 'pt-c' },
     label: { today: 'Мой день', profile: 'Личные данные' },
     icon: { today: ICON_SCHEDULE, profile: ICON_PROFILE },
   },
-};
+});
 
 // Подпись профиля в самом низу боковой панели. Отдельная от ROLE_CONFIG таблица,
 // потому что конфиг описывает НАБОР РАЗДЕЛОВ страницы (их три: owner/admin/master),
@@ -109,14 +114,19 @@ const ROLE_CONFIG = {
 // владельцем не является. Баг найден Владом 13.08.2026: вход Мамедханом показывал
 // "Управляющий" в шапке (там подпись идёт от реальной роли, crm-auth.js reveal) и
 // "Владелец" в боковой панели - два разных ответа на один вопрос на одном экране.
-const ROLE_PROFILE_LABEL = {
+// Собирается вызовом, а не константой при импорте: словарь вертикали приезжает позже
+// загрузки модуля, и «Мастер» застыл бы на экране врача (Этап B, 24.08.2026)
+const roleProfileLabel = () => ({
   owner: 'Владелец',
   manager: 'Управляющий',
   admin: 'Администратор',
-  master: 'Мастер',
-};
+  master: Tc('master.nom'),
+});
 
-let activeConfig = ROLE_CONFIG.owner;
+let activeConfig = roleConfig().owner;
+// Роль страницы (не роль вошедшего): нужна, чтобы пересобрать подписи, когда приедет
+// словарь вертикали
+let shellRole = 'owner';
 let currentSection = activeConfig.defaultSection;
 
 function el(id) {
@@ -335,7 +345,8 @@ export function initAppShell(role = 'owner') {
   const main = el('crmMain');
   if (!main) return;
 
-  activeConfig = ROLE_CONFIG[role] || ROLE_CONFIG.owner;
+  shellRole = roleConfig()[role] ? role : 'owner';
+  activeConfig = roleConfig()[shellRole];
   currentSection = activeConfig.defaultSection;
 
   insertSidebar();
@@ -356,9 +367,24 @@ export function initAppShell(role = 'owner') {
   // запрос /me: второй источник правды о роли разошёлся бы с шапкой ровно так же,
   // как разошёлся хардкод.
   document.addEventListener('crm:authenticated', (e) => {
-    const label = ROLE_PROFILE_LABEL[e.detail?.role];
+    const label = roleProfileLabel()[e.detail?.role];
     const profileEl = el('appShellProfile');
     if (label && profileEl) profileEl.textContent = label;
+  });
+
+  // Словарь вертикали приезжает с сервера уже ПОСЛЕ того, как каркас построен: пункты
+  // меню к этому моменту подписаны барбершопными словами из запасного словаря. Когда
+  // слова приходят, пересобираем подписи - иначе врач до перезагрузки страницы читал
+  // бы «Клиенты» вместо «Пациенты» (Этап B, 24.08.2026)
+  document.addEventListener('crm:appearance', () => {
+    activeConfig = roleConfig()[shellRole] || roleConfig().owner;
+    for (const btn of document.querySelectorAll('#appSidebar [data-section]')) {
+      const label = btn.querySelector('.app-nav-label');
+      const id = btn.dataset.section;
+      if (label && activeConfig.label[id]) label.textContent = activeConfig.label[id];
+    }
+    const mobileSection = el('appShellSection');
+    if (mobileSection) mobileSection.textContent = activeConfig.label[currentSection] || '';
   });
 
   goToSection(activeConfig.defaultSection);

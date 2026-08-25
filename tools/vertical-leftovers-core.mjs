@@ -7,16 +7,23 @@
 //   - строка с data-term / data-phrase / data-term-attr - там барбершопное слово
 //     написано осознанно, как запасной вариант на случай незагруженного словаря;
 //   - строка с вызовом T( / Tc( / P( / C( - слово уже берётся из словаря;
-//   - технические строки: импорты, экспорты, адреса файлов.
+//   - технические строки: импорты, экспорты, адреса файлов;
+//   - строка с пометкой «не интерфейс:» и объяснением - там барбершопное слово это
+//     данные (названия услуг демо-макета, ключи справочников), а не надпись. Пометка
+//     обязана нести причину, иначе ею закроют настоящий пропуск.
 export const ROOTS = /мастер|запис|услуг|клиент|салон|стрижк|барбершоп/i;
 const EXCUSED = /data-term|data-phrase|data-term-attr|\bT\(|\bTc\(|\bP\(|\bC\(/;
 const TECHNICAL = /^\s*(?:import|export)\b|\.js['"]/;
+
+// Пометка ставится комментарием на самой строке: `// не интерфейс: <причина>`
+const NOT_UI_MARK = /(?:\/\/|\/\*|<!--)\s*не интерфейс:\s*\S/;
 
 export function leftoverLines(source) {
   const out = [];
   let inBlock = false;
   let inHtml = false;
   source.split('\n').forEach((line, index) => {
+    if (NOT_UI_MARK.test(line)) return;
     let text = line;
     if (inHtml) {
       const close = text.indexOf('-->');

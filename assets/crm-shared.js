@@ -1,3 +1,4 @@
+import { T, Tc, P, C } from './crm-terms.js';
 // Декомпозиция crm-auth.js (Этап 1, 07.08.2026, structural refactoring - см.
 // plans/2026-08-07-crm-auth-decomposition.md). Чистые хелперы без внешних
 // зависимостей, которые нужны более чем одному домену crm-auth.js (виджетам,
@@ -54,7 +55,7 @@ export function pad2(n) {
 // currentServicesTotal в assets/crm-walkin.js).
 export function masterCommissionLabel({ total, pct, isOwner }) {
   if (isOwner) return { amount: null, text: 'Не начисляется - вы владелец, вся сумма остаётся в бизнесе' };
-  if (total == null || pct == null) return { amount: null, text: 'Выберите услуги, чтобы увидеть комиссию' };
+  if (total == null || pct == null) return { amount: null, text: P('payroll.pickServices') };
   const amount = Math.round((total * pct) / 100);
   return { amount, text: `${pct}% от ${formatMoney(total)}` };
 }

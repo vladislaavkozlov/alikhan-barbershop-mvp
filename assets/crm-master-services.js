@@ -5,6 +5,7 @@
 import { formatMoney } from './crm-shared.js';
 import { API, getToken } from './crm-auth.js';
 import { sortByServiceOrder, SERVICE_COMBOS, SERVICES } from '../storage.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 // Правка 03.08.2026: карточка сотрудника "Сотрудники" (владелец/админ) держала
 // чекбоксы услуг мастера и поле длительности как чистую декорацию - ни одного
@@ -100,7 +101,7 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
     priceInput.className = 'sc-price-input';
     priceInput.value = row ? row.price : service.price;
     priceInput.disabled = !canEdit || !row;
-    priceInput.setAttribute('aria-label', `Цена услуги «${service.name}»`);
+    priceInput.setAttribute('aria-label', P('service.priceAria', { name: service.name }));
     priceInput.addEventListener('click', (e) => e.stopPropagation());
     const priceUnit = document.createElement('span');
     priceUnit.className = 'sc-price-unit';
@@ -138,7 +139,7 @@ export function renderMasterServiceEditor(container, masterId, canEdit, services
     topText.className = 'sc-top-text';
     topText.textContent = 'топ';
     topLabel.append(topInput, topText);
-    topLabel.title = 'Топ-мастер по этой услуге - на сайте клиент выбирает его отдельным тарифом';
+    topLabel.title = P('service.topMasterHint');
     meta.append(priceSpan, dot, durationSpan, topLabel);
     // Подсказка про связанную услугу (21.08.2026): комплекс и его части - связанные
     // цены, но система их не пересчитывает друг из друга (см. comboPriceHint), только
@@ -220,7 +221,7 @@ export function comboPriceHint(serviceId, priceByServiceId) {
       const parts = combo.mergeFrom.map((id) => priceByServiceId[id]);
       if (parts.some((price) => !Number.isFinite(price))) return null;
       const names = combo.mergeFrom.map((id) => `«${nameOf(id)}»`).join(' и ');
-      return `Состоит из услуг ${names} - по отдельности сейчас ${money(parts.reduce((a, b) => a + b, 0))}`;
+      return P('service.comboOf', { names, sum: money(parts.reduce((a, b) => a + b, 0)) });
     }
     if (combo.mergeFrom.includes(serviceId)) {
       if (!Number.isFinite(comboPrice)) return null;

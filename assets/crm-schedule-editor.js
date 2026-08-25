@@ -10,6 +10,7 @@ import { API, getToken, apiSend, fetchJson } from './crm-auth.js';
 import { errorMessage, reportError, showError } from './crm-toast.js';
 import { escapeHtml } from './crm-schedule-shared.js';
 import { setButtonBusy, showSpinner } from './crm-loading.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 export const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 // Полное имя дня в заголовке раскрытой панели: над ползунком "Пн" читалось как
@@ -184,7 +185,7 @@ export function wireScheduleEditor(masterId, fetchJson) {
       }
       if (noteEl) {
         noteEl.textContent = totalConflicts
-          ? `Сохранено. На это время уже есть ${totalConflicts} реальных записей - в колокольчике уведомлений появилось, с кем связаться`
+          ? P('schedule.savedWithConflicts', { count: totalConflicts })
           : 'Сохранено';
       }
       loadCurrent();
@@ -228,10 +229,10 @@ function buildWeeklyDayRow(prefix, wd, day, canEdit) {
     // круглых иконок Пн-Вс с раскрывающейся панелью, а здесь оставались семь текстовых
     // строк "Пн: выходной". Теперь панель та же и открывается так же, отличается
     // только содержимым: время и перерыв показаны текстом, без переключателей и полей
-    const dayOffLabel = 'Выходной, записи не будет';
+    const dayOffLabel = P('schedule.dayOff');
     const hours = isWorking
       ? `${workStart}–${workEnd}${hasBreak ? ` · перерыв ${breakStart}–${breakEnd}` : ' · без перерыва'}`
-      : 'Записи в этот день нет';
+      : P('schedule.noBookingsThatDay');
     return `
     <div class="weekly-day-row weekly-day-row--readonly${isWorking ? '' : ' is-off'}" id="${prefix}-${wd}-row" data-weekday="${wd}">
       <div class="toggle-row">
@@ -248,7 +249,7 @@ function buildWeeklyDayRow(prefix, wd, day, canEdit) {
       <div class="toggle-row">
         <div class="weekly-day-title">
           <span class="tr-label">${WEEKDAY_LONG[wd - 1]}</span>
-          <span class="tr-sub" id="${prefix}-${wd}-offBadge">${isWorking ? 'Рабочий день' : 'Выходной, записи не будет'}</span>
+          <span class="tr-sub" id="${prefix}-${wd}-offBadge">${isWorking ? 'Рабочий день' : P('schedule.dayOff')}</span>
         </div>
         <label class="switch" title="Рабочий день или выходной"><input type="checkbox" id="${prefix}-${wd}-working" ${isWorking ? 'checked' : ''} aria-label="${WEEKDAY_LONG[wd - 1]}: рабочий день"><span class="track"></span><span class="knob"></span></label>
       </div>
@@ -259,7 +260,7 @@ function buildWeeklyDayRow(prefix, wd, day, canEdit) {
       <div class="toggle-row" id="${prefix}-${wd}-breakToggleWrap" style="${isWorking ? '' : 'display:none'}">
         <div class="weekly-day-title">
           <span class="tr-label">Перерыв</span>
-          <span class="tr-sub" id="${prefix}-${wd}-breakHint">${hasBreak ? 'В это время записи не будет' : 'Пока не задан, день без перерыва'}</span>
+          <span class="tr-sub" id="${prefix}-${wd}-breakHint">${hasBreak ? P('schedule.breakNoBooking') : 'Пока не задан, день без перерыва'}</span>
         </div>
         <label class="switch" title="Перерыв в середине дня"><input type="checkbox" id="${prefix}-${wd}-breakOn" ${hasBreak ? 'checked' : ''} aria-label="Перерыв в середине дня"><span class="track"></span><span class="knob"></span></label>
       </div>
@@ -353,9 +354,9 @@ function wireWeeklyDayRow(prefix, wd, day) {
     const working = workingEl.checked;
     rowEl.classList.toggle('is-off', !working);
     // Подписи под днём и перерывом объясняют состояние ползунков словами, а не только их видом
-    offBadgeEl.textContent = working ? 'Рабочий день' : 'Выходной, записи не будет';
+    offBadgeEl.textContent = working ? 'Рабочий день' : P('schedule.dayOff');
     const breakHintEl = el(`${prefix}-${wd}-breakHint`);
-    if (breakHintEl) breakHintEl.textContent = breakOnEl.checked ? 'В это время записи не будет' : 'Пока не задан, день без перерыва';
+    if (breakHintEl) breakHintEl.textContent = breakOnEl.checked ? P('schedule.breakNoBooking') : 'Пока не задан, день без перерыва';
     fieldsEl.style.display = working ? '' : 'none';
     breakToggleWrap.style.display = working ? '' : 'none';
     breakFieldsEl.style.display = working && breakOnEl.checked ? '' : 'none';
@@ -401,7 +402,7 @@ const WEEKDAY_FULL = ['Понедельник', 'Вторник', 'Среда', 
 function weeklyDayProblem(row) {
   if (!row.isWorking) return null;
   const day = WEEKDAY_FULL[row.weekday - 1] ?? `День ${row.weekday}`;
-  if (!row.workStart || !row.workEnd) return `${day}: укажите, с какого и до какого часа мастер работает`;
+  if (!row.workStart || !row.workEnd) return P('schedule.needWorkHours', { day });
   if (row.workEnd <= row.workStart) {
     return `${day}: рабочий день стоит с ${row.workStart} до ${row.workEnd} - конец должен быть позже начала`;
   }
@@ -502,7 +503,7 @@ export async function saveWeeklySchedule(masterId) {
       weeklyChanges,
     });
     if (status === 409 && data?.error === 'schedule_conflict') {
-      if (note) reportError(note, 'Нельзя сохранить график: на это время уже есть записи, они перечислены ниже');
+      if (note) reportError(note, P('schedule.conflictSave'));
       if (conflictsEl) {
         conflictsEl.innerHTML = formatScheduleConflicts(data.conflicts);
         conflictsEl.hidden = false;

@@ -10,6 +10,7 @@
 // которая молча разошлась с истиной, хуже отсутствующей.
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { TERMS, PHRASES } from '../api/lib/vertical-terms.js';
 import { MODULE_DEFAULTS } from '../api/lib/vertical-modules.js';
 import {
@@ -34,6 +35,18 @@ test('запасные слова фронта совпадают со слов�
   assert.deepEqual(FALLBACK.phrases, PHRASES.barbershop);
   assert.deepEqual(FALLBACK.modules, MODULE_DEFAULTS.barbershop);
   assert.equal(FALLBACK.vertical, 'barbershop');
+});
+
+test('запасные слова моста для обычных скриптов тоже совпадают со словарём', async () => {
+  // assets/mockup-crm.js подключён обычным <script> и словарь получает через window.
+  // На случай, когда модуль ещё не загрузился, у него свои три слова - они обязаны
+  // быть теми же самыми, иначе экран на мгновение заговорит расходящимся языком
+  const source = await readFile(new URL('../assets/mockup-crm.js', import.meta.url), 'utf8');
+  const line = source.split('\n').find((l) => l.includes('const fallback = {'));
+  assert.ok(line, 'запасные слова моста пропали из mockup-crm.js');
+  for (const [key, expected] of [['master', TERMS.barbershop.master.nom], ['client', TERMS.barbershop.client.nom], ['booking', TERMS.barbershop.booking.nom]]) {
+    assert.ok(line.includes(`${key}: '${expected}'`), `мост разошёлся со словарём на слове ${key}`);
+  }
 });
 
 test('до загрузки словарь уже рабочий - это барбершоп', () => {

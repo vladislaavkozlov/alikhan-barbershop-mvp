@@ -19,7 +19,7 @@ import { formatMoney } from './crm-shared.js';
 import { errorMessage } from './crm-toast.js';
 import { periodStartStr } from './crm-payroll.js';
 import { messengerButtonsHtml, wireMessengerLinks } from './crm-notifications.js';
-import { RENEW_REASON_SHORT } from './renew-reason.js';
+import { renewReasonShort } from './renew-reason.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -154,7 +154,7 @@ export function listHtml(data, kind) {
       const detail =
         kind === 'overdue'
           ? `был ${dateText(c.lastVisit)} - опоздал на ${c.daysLate} ${plural(c.daysLate, 'день', 'дня', 'дней')}`
-          : `${c.shortfallVisits} ${plural(c.shortfallVisits, 'визит', 'визита', 'визитов')} мимо, договаривались на ${c.renewDays} ${plural(c.renewDays, 'день', 'дня', 'дней')}${c.renewReason ? ` (${RENEW_REASON_SHORT[c.renewReason] ?? c.renewReason})` : ''}`;
+          : `${c.shortfallVisits} ${plural(c.shortfallVisits, 'визит', 'визита', 'визитов')} мимо, договаривались на ${c.renewDays} ${plural(c.renewDays, 'день', 'дня', 'дней')}${c.renewReason ? ` (${renewReasonShort()[c.renewReason] ?? c.renewReason})` : ''}`;
       return `<div class="an-lapsed-row">
         <div class="an-lapsed-who">
           <span class="mp-name">${escapeHtml(c.name || 'Без имени')}</span>

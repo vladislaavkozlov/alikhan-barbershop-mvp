@@ -137,6 +137,21 @@ test('фразы про запись согласованы по роду: у к
   assert.equal(phrase('clinic', 'booking.cancelled'), 'Приём отменён');
 });
 
+test('подстановка в фразу сохраняет согласование, а не режет её на куски', () => {
+  assert.equal(
+    phrase('barbershop', 'msg.cancelled', { when: 'завтра в 14:00' }),
+    'Ваша запись завтра в 14:00 отменена'
+  );
+  assert.equal(
+    phrase('clinic', 'msg.cancelled', { when: 'завтра в 14:00' }),
+    'Ваш приём завтра в 14:00 отменён'
+  );
+});
+
+test('нехватка подстановки оставляет метку видимой, а не пустое место', () => {
+  assert.match(phrase('clinic', 'msg.cancelled', {}), /\{when\}/);
+});
+
 test('неизвестная фраза отдаёт барбершопную, а неизвестная везде - свой ключ', () => {
   assert.equal(phrase('petshop', 'booking.new'), 'Новая запись');
   assert.equal(phrase('clinic', 'booking.nosuch'), 'booking.nosuch');

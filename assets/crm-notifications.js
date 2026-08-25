@@ -29,13 +29,14 @@ import { ICON_BELL, ICON_BOOKING_NEW, ICON_BOOKING_MOVED_IN, ICON_BOOKING_MOVED_
 import { escapeHtml } from './crm-schedule-shared.js';
 import { errorMessage, showError, showInfo } from './crm-toast.js';
 import { showSpinner, skeletonMarkup } from './crm-loading.js';
+import { T, P, tenantName } from './crm-terms.js';
 
 const TOKEN_KEY = 'alikhan-crm:token';
 const API = window.ALIKHAN_API_URL;
 const COMPACT_LIMIT = 6; // сколько строк показывает колокольчик, прежде чем отправить в раздел
 // Пустой колокольчик объясняет, куда делись убранные строки - иначе «Новых записей нет»
 // прочитается как «записей нет вообще», хотя журнал в разделе полон
-const EMPTY_BELL_HTML = '<div class="note" style="padding:10px">Новых записей нет. Всё, что было, осталось в разделе «Уведомления»</div>';
+const emptyBellHtml = () => `<div class="note" style="padding:10px">${P('booking.emptyBell')}</div>`;
 
 // Иконки - штриховые SVG того же набора, что сайдбар и шапка (assets/crm-icons.js),
 // не эмодзи: в крупной карточке раздела эмодзи выпадал из общего стиля. Стрелка
@@ -134,15 +135,15 @@ export function clientMessageText(booking) {
   if (!booking) return '';
   const name = booking.clientName ? `${booking.clientName}, ` : '';
   const when = formatBookingWhen(booking.date, booking.startTime);
-  const master = booking.masterName ? `, мастер ${booking.masterName}` : '';
+  const master = booking.masterName ? `, ${T('master.nom')} ${booking.masterName}` : '';
   const services = booking.serviceNames ? ` (${booking.serviceNames})` : '';
   // Отменённой записи нельзя писать «ждём вас» - человек придёт к закрытому времени.
   // Кнопки связи на такой карточке нужны как раз чтобы предложить перенос, поэтому
   // текст сразу об этом
   if (booking.status === 'cancelled') {
-    return `Здравствуйте, ${name}это барбершоп «Алихан». Ваша запись ${when}${master} отменена. Напишите, если хотите перенести - подберём удобное время.`;
+    return `Здравствуйте, ${name}это ${tenantName()}. ${P('msg.cancelled', { when: `${when}${master}` })}. Напишите, если хотите перенести - подберём удобное время.`;
   }
-  return `Здравствуйте, ${name}это барбершоп «Алихан». Ждём вас ${when}${master}${services}. Если планы изменятся - напишите, перенесём.`;
+  return `Здравствуйте, ${name}это ${tenantName()}. ${P('msg.expected', { when: `${when}${master}${services}` })}. Если планы изменятся - напишите, перенесём.`;
 }
 
 // Мессенджеры для связи с клиентом в один клик.
@@ -272,14 +273,14 @@ function bookingSummaryHtml(booking, type) {
   rows.push(`<div class="ntf-when">${escapeHtml(when)}${escapeHtml(till)}</div>`);
   const meta = [];
   if (booking.clientName) meta.push(booking.clientName);
-  if (booking.masterName) meta.push(`мастер ${booking.masterName}`);
+  if (booking.masterName) meta.push(`${T('master.nom')} ${booking.masterName}`);
   if (booking.serviceNames) meta.push(booking.serviceNames);
   if (meta.length) rows.push(`<div class="ntf-meta">${escapeHtml(meta.join(' · '))}</div>`);
   // У уведомления об отмене это уже сказано заголовком - второй раз не повторяем.
   // На остальных типах строка нужна: «Новая запись», которую потом отменили руками в
   // расписании, иначе выглядела бы действующей
   if (booking.status === 'cancelled' && type !== 'booking_cancelled') {
-    rows.push('<div class="ntf-meta ntf-meta--off">Запись отменена</div>');
+    rows.push(`<div class="ntf-meta ntf-meta--off">${P('booking.cancelledShort')}</div>`);
   }
   return rows.join('');
 }
@@ -302,7 +303,7 @@ const EVENT_VERB = {
 };
 
 function timeLine(n) {
-  const created = n.booking?.createdAt ? `запись создана ${formatMoment(n.booking.createdAt)}` : '';
+  const created = n.booking?.createdAt ? `${P('booking.created')} ${formatMoment(n.booking.createdAt)}` : '';
   const ago = timeAgo(n.createdAt);
   if (!created) return ago;
   // У новой записи момент уведомления и момент создания - одно событие, вторая строка
@@ -315,7 +316,7 @@ function timeLine(n) {
 function fullItemHtml(n) {
   const b = n.booking;
   const actions = [];
-  if (b) actions.push(`<button class="btn btn-ghost btn-sm" type="button" data-open-booking="${escapeHtml(b.id)}">Открыть запись</button>`);
+  if (b) actions.push(`<button class="btn btn-ghost btn-sm" type="button" data-open-booking="${escapeHtml(b.id)}">${P('booking.open')}</button>`);
   if (b) actions.push(messengerButtonsHtml(b.clientPhone, clientMessageText(b)));
   // data-booking-id - адрес карточки по самой записи: по нему её находит живой прогон,
   // а сортировка ленты (свежее сверху) может поставить наверх любую другую
@@ -402,7 +403,7 @@ export function wireNotifications(staff) {
     try {
       const items = await loadBell();
       if (!items.length) {
-        list.innerHTML = EMPTY_BELL_HTML;
+        list.innerHTML = emptyBellHtml();
         return;
       }
       const shown = items.slice(0, COMPACT_LIMIT);
@@ -435,7 +436,7 @@ export function wireNotifications(staff) {
           const item = btn.closest('.msg-item');
           item?.remove();
           bellCache = bellCache.filter((x) => x.id !== id);
-          if (!list.querySelector('.msg-item')) list.innerHTML = EMPTY_BELL_HTML;
+          if (!list.querySelector('.msg-item')) list.innerHTML = emptyBellHtml();
           try {
             await apiPost(`/notifications/${id}/dismiss`);
             refreshBadge();
@@ -467,7 +468,7 @@ export function wireNotifications(staff) {
     try {
       const items = await loadCenter();
       if (!items.length) {
-        center.innerHTML = '<p class="note">Пока ни одной новой записи. Здесь появится каждая запись клиента - сразу, как её создадут на сайте или в CRM</p>';
+        center.innerHTML = `<p class="note">${P('booking.emptyFeed')}</p>`;
         return;
       }
       center.innerHTML = items.map(fullItemHtml).join('');
@@ -483,10 +484,10 @@ export function wireNotifications(staff) {
         btn.addEventListener('click', async () => {
           const card = btn.closest('.ntf-card');
           const n = centerCache.find((x) => x.id === card?.dataset.ntfId);
-          showSpinner(btn.closest('.ntf-actions'), 'Открываю запись');
+          showSpinner(btn.closest('.ntf-actions'), P('booking.opening'));
           await markReadOnClick(card, card?.dataset.ntfId);
           const opened = await openBookingFromNotification(n?.booking);
-          if (!opened) showError('Запись не найдена в расписании - возможно, её отменили');
+          if (!opened) showError(P('booking.notInSchedule'));
           renderCenter();
         });
       });

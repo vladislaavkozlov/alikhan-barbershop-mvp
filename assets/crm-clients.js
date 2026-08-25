@@ -34,7 +34,7 @@ import { initCrmNavigationPanels } from './crm-navigation-panels.js';
 import { messengerButtonsHtml, clientMessageText, openBookingFromNotification, wireMessengerLinks } from './crm-notifications.js';
 // Срок обновления стрижки (Окно 59, 22.08.2026) - словарь подписей один на весь
 // проект, тот же, что в форме закрытия визита
-import { RENEW_REASON_LABELS, RENEW_REASON_SHORT } from './renew-reason.js';
+import { renewReasonLabels, renewReasonShort } from './renew-reason.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -425,7 +425,7 @@ function renewDaysText(days) {
 function renewSectionMarkup(card) {
   const renew = card.renew ?? {};
   const daysText = renewDaysText(renew.days);
-  const reason = renew.reason ? RENEW_REASON_SHORT[renew.reason] ?? renew.reason : null;
+  const reason = renew.reason ? renewReasonShort()[renew.reason] ?? renew.reason : null;
   const when = renew.setAt ? formatVisitDate(String(renew.setAt).slice(0, 10)) : '';
   const setBy = renew.setByName && when ? `${escapeHtml(renew.setByName)}, ${escapeHtml(when)}` : '';
   // Срока нет - так и пишем. Подставлять сюда «месяц по умолчанию» нельзя: месяц
@@ -439,7 +439,7 @@ function renewSectionMarkup(card) {
   // (правило проекта про свои темизированные виджеты), и список тут короткий -
   // пять пунктов читаются целиком, без раскрытия
   const cardId = escapeHtml(card.id);
-  const options = Object.entries(RENEW_REASON_LABELS)
+  const options = Object.entries(renewReasonLabels())
     .map(
       ([key, label]) => `<label class="renew-reason">
         <input type="radio" name="clientRenewReason-${cardId}" value="${escapeHtml(key)}"${key === renew.reason ? ' checked' : ''}>
@@ -500,7 +500,7 @@ function wireRenewEditor(root, clientId) {
       const saved = out.data?.renew ?? {};
       const valueEl = host.querySelector('.client-renew-value');
       const daysText = renewDaysText(saved.days);
-      const short = saved.reason ? RENEW_REASON_SHORT[saved.reason] ?? saved.reason : null;
+      const short = saved.reason ? renewReasonShort()[saved.reason] ?? saved.reason : null;
       if (valueEl && daysText) valueEl.innerHTML = `<b>${escapeHtml(daysText)}</b>${short ? ` - ${escapeHtml(short)}` : ''}`;
       if (result) {
         result.hidden = false;

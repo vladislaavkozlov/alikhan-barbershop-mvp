@@ -12,6 +12,7 @@
 import { el, formatMoney, masterCommissionLabel } from './crm-shared.js';
 import { escapeHtml } from './crm-schedule-shared.js';
 import { sortByServiceOrder } from '../storage.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 // Статус визита мастер видит, но не меняет: "Ожидание" до визита, "Обслужен" по
 // факту завершённой сделки, "Не пришёл" ставит администратор (решение Влада
@@ -85,7 +86,7 @@ export function wireMasterBookingView(staff, services, masterServices, pctOf = n
     if (servicesEl) {
       servicesEl.innerHTML = rows.length
         ? rows.map((r) => `<li><span class="mb-service-name">${escapeHtml(r.name)}</span><span class="mb-service-meta">${r.price == null ? '' : escapeHtml(formatMoney(r.price))}${r.durationMin == null ? '' : ` · ${r.durationMin} мин`}</span></li>`).join('')
-        : '<li class="note">Услуги по этой записи не указаны</li>';
+        : `<li class="note">${P('booking.servicesUnknown')}</li>`;
     }
     if (totalEl) {
       totalEl.textContent = total == null

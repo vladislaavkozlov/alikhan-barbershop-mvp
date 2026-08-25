@@ -15,6 +15,7 @@ import { wireRenewField, setRenewPrefill, setRenewVisible, setRenewNoPhoneHint, 
 // Признак «принимает клиентов сейчас» - общий с колонками календаря (mastersOf),
 // чтобы список мастеров в форме записи и в дне не мог разойтись
 import { acceptsClients } from './crm-calendar.js';
+import { T, Tc, P } from './crm-terms.js';
 import {
   mergeServiceCombos,
   isServiceBlockedByCombo,
@@ -371,7 +372,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       if (kept.length < keep.length) {
         resultEl.hidden = false;
         resultEl.className = 'wf-result wf-result--err';
-        resultEl.textContent = 'У нового мастера нет части прежних услуг - отметьте, что он делает по факту';
+        resultEl.textContent = `У нового ${T('master.gen')} нет части прежних ${T('service.genPl')} - отметьте, что он делает по факту`;
       }
     });
   }
@@ -464,7 +465,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
   function renderSummary() {
     const rows = servicesFor(currentMasterId).filter((r) => selected.has(r.serviceId));
     if (rows.length === 0) {
-      if (summary) summary.textContent = 'Выберите хотя бы одну услугу';
+      if (summary) summary.textContent = `Выберите хотя бы одну ${T('service.acc')}`;
       // Услуг нет - сумма услуг равна нулю, но подставлять "0 ₽" в фактическую сумму
       // нельзя: 0 - это реальный кейс "постригли бесплатно", а здесь состав ещё не
       // собран. Пустое значение = "как по услугам", тот же смысл, что и раньше.
@@ -474,7 +475,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     }
     const totalMin = rows.reduce((s, r) => s + r.durationMin, 0);
     const totalPrice = rows.reduce((s, r) => s + r.price, 0);
-    if (summary) summary.textContent = `Выбрано услуг: ${rows.length} · итого ${totalMin} мин · ${formatMoney(totalPrice)}`;
+    if (summary) summary.textContent = `Выбрано ${T('service.genPl')}: ${rows.length} · итого ${totalMin} мин · ${formatMoney(totalPrice)}`;
     // Правка 13.08.2026 (Влад: "почему если отличается?") - фактическая сумма больше
     // не пустое поле-загадка: в неё подтягивается сумма выбранных услуг, а
     // администратор правит её руками, когда с клиента взяли другую (скидка от
@@ -496,7 +497,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     if (rows.length === 0) {
       const hint = document.createElement('p');
       hint.className = 'section-hint';
-      hint.textContent = 'У этого мастера пока не назначено ни одной услуги в прайсе';
+      hint.textContent = `У этого ${T('master.gen')} пока не назначено ни одной ${T('service.gen')} в прайсе`;
       picker.appendChild(hint);
     }
     for (const row of rows) {
@@ -587,7 +588,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       const wanted = lastVisit.services.map((s) => s.id).filter((id) => available.has(id));
       if (wanted.length === 0) {
         btn.disabled = true;
-        btn.textContent = 'У этого мастера нет тех же услуг';
+        btn.textContent = `У этого ${T('master.gen')} нет тех же ${T('service.genPl')}`;
         return;
       }
       selected = mergeServiceCombos(new Set(wanted));
@@ -629,14 +630,14 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     if (key === lookupPhoneKey) return; // тот же номер, повторный запрос не нужен
     lookupPhoneKey = key;
     const seq = ++lookupSeq;
-    setHint('pending', 'Ищу клиента…');
+    setHint('pending', `Ищу ${T('client.acc')}…`);
     try {
       const res = await fetch(`${API}/clients?phone=${encodeURIComponent(rawPhone)}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (seq !== lookupSeq) return; // пришёл ответ на устаревший запрос - игнорируем
       if (res.status === 404) {
-        setHint('new', 'Новый клиент - впишите имя');
+        setHint('new', `Новый ${T('client.nom')} - впишите имя`);
         return;
       }
       if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status, code: (await res.json().catch(() => null))?.error ?? null });
@@ -654,13 +655,13 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       const visitsText = visitsCount > 0
         ? `${visitsCount} ${ruPluralVisits(visitsCount)}`
         : 'визитов пока не было';
-      setHint('found', `Клиент найден: ${card.name || 'без имени'}, ${visitsText}`, buildRepeatButton(card));
+      setHint('found', `${Tc('client.nom')} найден: ${card.name || 'без имени'}, ${visitsText}`, buildRepeatButton(card));
     } catch (err) {
       if (seq !== lookupSeq) return;
       // Сеть/сервер не ответили - форма НЕ топится ошибкой (промпт п.4): запись
       // сохраняется как для нового клиента, бэкенд всё равно свяжет её с существующим
       // клиентом через ON CONFLICT (phone) при сохранении.
-      setHint('new', 'Не удалось проверить клиента - можно продолжать как с новым');
+      setHint('new', `Не удалось проверить ${T('client.acc')} - можно продолжать как с новым`);
       lookupPhoneKey = null; // следующий ввод пробует снова, а не молчит навсегда
     }
   }
@@ -694,8 +695,8 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       // (assets/crm-calendar.js, window.openSlotBooking ниже) - подпись отдельная,
       // "Повторная запись" была бы нечестной для клиента, которого выбирают заново.
       modeLabelEl.textContent = editMode
-        ? 'Редактирование записи'
-        : options.slot ? 'Новая запись на выбранное время' : options.manual ? 'Новая запись' : rebookMode ? 'Повторная запись' : 'Новая запись без предзаписи';
+        ? `Редактирование ${T('booking.gen')}`
+        : options.slot ? P('booking.newForSlot') : options.manual ? P('booking.new') : rebookMode ? P('booking.repeat') : P('booking.walkin');
       dateTimeRow.hidden = !rebookMode;
       if (rebookMode) {
         // Дефолт - сегодня и ближайшее 15-минутное время, если конкретные дата/время
@@ -743,7 +744,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         resultEl.hidden = false;
         resultEl.className = 'wf-result wf-result--err';
         resultEl.textContent =
-          'В этой записи комплекс и отдельная услуга, которая уже в него входит - снимите лишнюю галочку, иначе сохранить не получится';
+          P('booking.comboConflict');
       }
     }
     // ── Окно 55, Задача C: обвязка режима редактирования ──────────────────────
@@ -755,7 +756,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
       editControls.hidden = !editMode;
       if (editExtras) editExtras.hidden = !editMode;
       if (dangerZone) dangerZone.hidden = !editMode;
-      submitBtn.textContent = editMode ? 'Сохранить изменения' : 'Сохранить запись';
+      submitBtn.textContent = editMode ? 'Сохранить изменения' : `Сохранить ${T('booking.acc')}`;
       if (masterRow && (editMode || options.manual)) {
         renderMasterSelect(masterId, { manual: !!options.manual });
       }
@@ -831,7 +832,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     if (!master) {
       resultEl.hidden = false;
       resultEl.className = 'wf-result wf-result--err';
-      resultEl.textContent = 'Нет мастера с рабочим графиком для новой записи';
+      resultEl.textContent = P('booking.noBookableMaster');
       form.hidden = false;
       return;
     }
@@ -880,27 +881,31 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
   // Порядок именно такой: длительность нового слота сервер считает по составу услуг
   // (resolveRescheduleDuration), поэтому сначала состав, потом перенос - иначе слот
   // посчитался бы по старому набору и мог бы разъехаться с реальностью.
-  const RESCHEDULE_REASON_TEXT = {
-    overlap: 'на это время у мастера уже есть другая запись - выберите свободное',
-    schedule_blocked: 'у мастера в это время перерыв или выходной',
-    master_not_bookable: 'у этого мастера ещё не настроен график работы',
-    master_not_accepting: 'этот сотрудник сейчас не принимает клиентов',
+  // Словари причин отказа СОБИРАЮТСЯ В МОМЕНТ ОШИБКИ, а не при загрузке модуля
+  // (переделано 24.08.2026, Этап B). Раньше это были константы: слова в них
+  // вычислились бы до того, как приедет словарь вертикали, и врач до конца сессии
+  // читал бы «мастер» в каждом отказе
+  const rescheduleReasonText = () => ({
+    overlap: P('booking.overlapOther'),
+    schedule_blocked: `у ${T('master.gen')} в это время перерыв или выходной`,
+    master_not_bookable: `у этого ${T('master.gen')} ещё не настроен график работы`,
+    master_not_accepting: `этот сотрудник сейчас не принимает ${T('client.genPl')}`,
     past_time: 'нельзя перенести в прошлое',
-  };
-  const CLIENT_ERROR_TEXT = {
+  });
+  const clientErrorText = () => ({
     invalid_client_phone: 'телефон введён не полностью - нужен номер целиком или пустое поле',
     client_name_too_long: 'имя слишком длинное',
-    booking_cancelled: 'запись отменена - править её нельзя, создайте новую',
-    booking_not_found: 'запись не найдена - возможно, её уже удалили',
-    forbidden: 'нет прав править эту запись (другая точка)',
-  };
-  const RESCHEDULE_ERROR_TEXT = {
-    booking_cancelled: 'запись отменена - перенести её нельзя, создайте новую',
-    booking_not_found: 'запись не найдена - возможно, её уже удалили',
-    unknown_master_service: 'новый мастер не оказывает часть услуг этой записи - поправьте список услуг',
-    unknown_master: 'такого мастера нет в системе',
-    forbidden: 'нет прав переносить эту запись (другая точка)',
-  };
+    booking_cancelled: P('booking.cancelledCantEdit'),
+    booking_not_found: P('booking.notFound'),
+    forbidden: P('booking.noRightsEdit'),
+  });
+  const rescheduleErrorText = () => ({
+    booking_cancelled: P('booking.cancelledCantMove'),
+    booking_not_found: P('booking.notFound'),
+    unknown_master_service: P('booking.foreignServices'),
+    unknown_master: `такого ${T('master.gen')} нет в системе`,
+    forbidden: P('booking.noRightsMove'),
+  });
 
   async function submitEdit() {
     const originalLabel = submitBtn.textContent;
@@ -908,7 +913,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
     resultEl.hidden = true;
     try {
       const bookingId = editBooking?.id;
-      if (!bookingId) throw new Error('нет id записи');
+      if (!bookingId) throw new Error(`нет id ${T('booking.gen')}`);
 
       const date = dateSelectValue('wfDateValue');
       const startTime = timeSelectValue('wfTimeValue');
@@ -936,7 +941,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         });
         const cdata = await cr.json().catch(() => ({}));
         if (!cr.ok || cdata.ok === false) {
-          throw new Error(CLIENT_ERROR_TEXT[cdata.error] || cdata.error || `HTTP ${cr.status}`);
+          throw new Error(clientErrorText()[cdata.error] || cdata.error || `HTTP ${cr.status}`);
         }
         editBooking.clientName = cdata.clientName ?? null;
         editBooking.clientPhone = cdata.clientPhone ?? null;
@@ -963,7 +968,7 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         });
         const sdata = await sr.json().catch(() => ({}));
         if (!sr.ok || sdata.ok === false) {
-          throw new Error(RESCHEDULE_ERROR_TEXT[sdata.error] || sdata.error || `HTTP ${sr.status}`);
+          throw new Error(rescheduleErrorText()[sdata.error] || sdata.error || `HTTP ${sr.status}`);
         }
         editBooking.serviceIds = sdata.booking?.serviceIds || [...selected];
         // Состав поменялся - блокировка списка идёт за ним, иначе только что
@@ -990,8 +995,8 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
           // Разные тексты на разные причины (требование промпта) - "не удалось
           // сохранить" на конфликте слота не говорит администратору, что делать.
           const text =
-            RESCHEDULE_REASON_TEXT[rdata.reason] ||
-            RESCHEDULE_ERROR_TEXT[rdata.error] ||
+            rescheduleReasonText()[rdata.reason] ||
+            rescheduleErrorText()[rdata.error] ||
             rdata.error ||
             `HTTP ${rr.status}`;
           throw new Error(text);
@@ -1121,11 +1126,11 @@ export function wireWalkIn(staff, services, masterServices, staffList = []) {
         const data = await res.json();
         if (!res.ok || data.ok === false) {
           const REASON_TEXT = {
-            overlap: 'у мастера уже занято это время',
-            schedule_blocked: 'у мастера в это время перерыв или выходной',
-            past_time: 'нельзя записать в прошлое',
-            master_not_bookable: 'у мастера ещё не настроен график',
-            master_not_accepting: 'этот сотрудник сейчас не принимает клиентов',
+            overlap: `у ${T('master.gen')} уже занято это время`,
+            schedule_blocked: `у ${T('master.gen')} в это время перерыв или выходной`,
+            past_time: P('booking.pastTimeCreate'),
+            master_not_bookable: `у ${T('master.gen')} ещё не настроен график`,
+            master_not_accepting: `этот сотрудник сейчас не принимает ${T('client.genPl')}`,
           };
           throw new Error(REASON_TEXT[data.reason] || data.error || `HTTP ${res.status}`);
         }

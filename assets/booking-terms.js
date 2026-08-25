@@ -12,17 +12,19 @@
 // Оба поля приезжают с /bookings готовыми (clientSource, masterTier), здесь только
 // человеческие подписи - тот же приём, что у CLIENT_SOURCE_LABELS.
 import { clientSourceLabel } from './client-source.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 // Ключи зеркалят MASTER_TIERS на сервере (api/routes/bookings.js). Значения, которых
 // здесь нет (старая бронь с NULL, будущий 'vip' до того, как его сюда допишут), дают
 // null - карточка тогда просто не показывает условий, вместо машинного ключа на экране.
-export const MASTER_TIER_LABELS = {
-  top: 'запись к топ-мастеру',
+// Собирается вызовом, не константой: см. ту же оговорку в renew-reason.js
+export const masterTierLabels = () => ({
+  top: P('booking.topTariff'),
   standard: 'обычный тариф',
-};
+});
 
 export function masterTierLabel(tier) {
-  return MASTER_TIER_LABELS[tier] ?? null;
+  return masterTierLabels()[tier] ?? null;
 }
 
 // «Яндекс Карты · запись к топ-мастеру». Разделитель - та же точка, что уже разделяет
