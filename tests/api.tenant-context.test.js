@@ -305,17 +305,28 @@ test('каждый запрос сервера идёт внутри конте�
   // домену запроса. Обёртка при этом та же - контракт Фазы 1 не изменился
   // Два пути, и оба внутри контекста: долгие ответы - отцепленные, остальные - с
   // транзакцией на запрос и ответом, уходящим после фиксации
+  //
+  // Хвост списка аргументов handleRequest намеренно не фиксируется (ослаблено
+  // 24.08.2026, Этап B): охраняется здесь обёртка - что запрос идёт внутри контекста
+  // арендатора и что долгий ответ пишет в res, а обычный в буфер. Сколько аргументов
+  // у обработчика - не предмет этой защиты, и Этап B добавил ему пятый (сам
+  // арендатор нужен роуту словаря вертикали)
   assert.match(
     serverSource,
-    /await runDetached\(tenant\.id, \(\) => handleRequest\(req, res, url, parts\)\)/,
+    /await runDetached\(tenant\.id, \(\) => handleRequest\(req, res, url, parts[^)]*\)\)/,
     'долгие ответы идут в отцепленном контексте арендатора'
   );
   assert.match(
     serverSource,
-    /await runInTenant\(tenant\.id, \(\) => handleRequest\(req, buffer\.res, url, parts\)\)/,
+    /await runInTenant\(tenant\.id, \(\) => handleRequest\(req, buffer\.res, url, parts[^)]*\)\)/,
     'обычный запрос обёрнут в контекст арендатора и отвечает через буфер'
   );
-  assert.match(serverSource, /DETACHED_ROUTES = new Set\(\['events', 'changes', 'media'\]\)/);
+  // Список сверяется ТОЧНО, а не «содержит»: отцепленный роут теряет транзакцию на
+  // запрос, и попасть сюда по недосмотру роут, который что-то пишет, не должен.
+  // Право быть здесь даёт одно из двух: ответ живёт долго (events) или обращений к
+  // базе нет вовсе (changes - счётчик в памяти, media - файл с диска,
+  // tenant/appearance - слова из кода, добавлен 24.08.2026 Этапом B)
+  assert.match(serverSource, /DETACHED_ROUTES = new Set\(\['events', 'changes', 'media', 'tenant'\]\)/);
   assert.match(serverSource, /runInTenant\(SYSTEM_TENANT, runMigrations\)/, 'миграции идут в служебном контексте');
 });
 

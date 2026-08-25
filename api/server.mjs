@@ -55,6 +55,7 @@ export { findMastersMissingSchedule } from './lib/notify-core.js';
 // декомпозиции, plans/2026-08-07-server-mjs-decomposition.md.
 export { isoWeekday, enumerateDateRange } from './lib/time.js';
 import { handleLogin, handleLogout, handleMe } from './routes/auth.js';
+import { handleTenantAppearance } from './routes/tenant.js';
 import { handleStaffCreate, handleStaffEmployment, handleStaffList, handleStaffMediaDelete, handleStaffMediaOrder, handleStaffMediaUpload, handleStaffPinSet, handleStaffPortfolio, handleStaffRole, handleStaffUpdate } from './routes/staff.js';
 import { MEDIA_ROOT } from './lib/staff-media.js';
 import { handlePublicMasters } from './routes/public-masters.js';
@@ -116,6 +117,10 @@ const PORT = Number(process.env.PORT) || 8080;
 const ROUTES = [
   { method: 'GET', path: 'health', auth: 'public' },
   { method: 'POST', path: 'auth/login', auth: 'public' },
+  // Словарь вертикали (Этап B, 24.08.2026). Открыт без входа осознанно: слова нужны
+  // экрану входа, то есть раньше токена. В ответе только вертикаль, слова и флаги
+  // разделов - ничего про арендатора и его клиентов
+  { method: 'GET', path: 'tenant/appearance', auth: 'public' },
   { method: 'GET', path: 'auth/me', auth: 'any-staff' },
   // PUT /auth/pin (самостоятельная смена своего PIN) снят 20.08.2026 по решению
   // Влада: пины задаёт только владелец, через PUT /staff/:id/pin ниже. Роут убран
@@ -222,7 +227,12 @@ export function matchRoute(method, parts) {
 // событий держит ответ открытым часами и выел бы пул, /changes - счётчик в памяти без
 // базы вообще, /media отдаёт файл с диска. Арендатор им известен, но соединение они не
 // удерживают - каждый поход в базу внутри берёт своё короткое и сразу отпускает.
-const DETACHED_ROUTES = new Set(['events', 'changes', 'media']);
+// /tenant/appearance добавлен 24.08.2026 (Этап B): словарь вертикали не ходит в базу
+// ни разу - слова лежат в коде, арендатор к этому моменту уже определён гейтом домена.
+// Транзакция на запрос удерживала бы соединение впустую, а узкий пул - это ровно та
+// причина, по которой 24.08.2026 пришлось выключить поток живых событий. Кабинет
+// дёргает словарь при каждом открытии, то есть чаще всего остального
+const DETACHED_ROUTES = new Set(['events', 'changes', 'media', 'tenant']);
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -274,12 +284,12 @@ const server = createServer(async (req, res) => {
     // запрос не имеют - им буфер не нужен и вреден. Остальным ответ копится и уходит
     // после COMMIT: до фиксации «готово» клиенту не обещаем (см. lib/http.js)
     if (DETACHED_ROUTES.has(parts[0])) {
-      await runDetached(tenant.id, () => handleRequest(req, res, url, parts));
+      await runDetached(tenant.id, () => handleRequest(req, res, url, parts, tenant));
       return;
     }
     const buffer = createBufferedResponse(res);
     try {
-      await runInTenant(tenant.id, () => handleRequest(req, buffer.res, url, parts));
+      await runInTenant(tenant.id, () => handleRequest(req, buffer.res, url, parts, tenant));
     } catch (err) {
       // Транзакция уже откачена. Ответ обработчика (в том числе успешный) выбрасываем:
       // подтверждать запись, которой в базе не осталось, нельзя
@@ -296,7 +306,7 @@ const server = createServer(async (req, res) => {
   }
 });
 
-async function handleRequest(req, res, url, parts) {
+async function handleRequest(req, res, url, parts, tenant) {
   try {
     // Гейт реестра - до любого обработчика ниже. Незарегистрированный
     // метод+путь получает 404 здесь и не доходит до if/else вообще.
@@ -342,6 +352,11 @@ async function handleRequest(req, res, url, parts) {
     }
     if (parts[0] === 'changes' && parts.length === 1 && req.method === 'GET') {
       return sendJson(res, 200, changesSnapshot());
+    }
+
+    // ── Словарь вертикали ───────────────────────────────────────────────
+    if (parts[0] === 'tenant' && parts[1] === 'appearance' && req.method === 'GET') {
+      return handleTenantAppearance(req, res, tenant);
     }
 
     // ── Auth ────────────────────────────────────────────────────────────

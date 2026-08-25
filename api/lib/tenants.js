@@ -58,7 +58,7 @@ export async function findTenantByDomain(domain) {
   const cached = cache.get(domain);
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.tenant;
   const res = await registryQuery(
-    `SELECT id, name, vertical, status, domains FROM tenants
+    `SELECT id, name, vertical, status, domains, modules FROM tenants
       WHERE status = 'active' AND $1 = ANY(domains) LIMIT 1`,
     [domain]
   );
@@ -86,7 +86,7 @@ export async function resolveTenantForRequest(req) {
   const found = await findTenantByDomain(requestDomain(req));
   if (found || !FALLBACK_TENANT_ID) return found;
   const fallback = await registryQuery(
-    `SELECT id, name, vertical, status, domains FROM tenants WHERE id = $1 AND status = 'active'`,
+    `SELECT id, name, vertical, status, domains, modules FROM tenants WHERE id = $1 AND status = 'active'`,
     [FALLBACK_TENANT_ID]
   );
   return fallback.rows[0] ?? null;
