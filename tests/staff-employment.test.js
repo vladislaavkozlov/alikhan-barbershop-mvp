@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { firedLabel, formatEmploymentEnd, isEmployed, payrollStaff } from '../assets/crm-shared.js';
+import { PHRASES } from '../api/lib/vertical-terms.js';
 
 const root = new URL('../', import.meta.url);
 
@@ -79,7 +80,12 @@ test('увольнение подтверждается и объясняет п
   // Двухшаговое подтверждение прямо в секции - конвенция проекта, не window.confirm
   assert.equal(/window\.confirm\(/.test(team), false); // упоминание в комментарии допустимо, вызов - нет
   assert.match(team, /data-fire-yes/);
-  assert.match(team, /Записи, выручка и статистика за отработанные периоды останутся на месте/);
+  // Сам текст предупреждения с Этапа B живёт в словаре вертикали (у клиники - «Приёмы,
+  // выручка…»), в модуле остался ключ. Охраняется то же самое: человек обязан прочитать
+  // последствия увольнения до нажатия
+  assert.match(team, /P\('team\.fireConfirm', \{ name \}\)/);
+  assert.match(PHRASES.barbershop['team.fireConfirm'], /Записи, выручка и статистика за отработанные периоды останутся на месте/);
+  assert.match(PHRASES.clinic['team.fireConfirm'], /Приёмы, выручка и статистика за отработанные периоды останутся на месте/);
   // Сессии уволенного обрываются, иначе открытая вкладка живёт до истечения токена
   assert.match(staffRoute, /if \(!row\.employed\) await pool\.query\('DELETE FROM sessions WHERE staff_id = \$1'/);
 });

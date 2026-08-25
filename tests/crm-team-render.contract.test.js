@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { PHRASES } from '../api/lib/vertical-terms.js';
 const root = new URL('../', import.meta.url);
 test('команда строится из API плоскими секциями и завершается добавлением сотрудника', async () => {
   const js = await readFile(new URL('assets/crm-team.js', root), 'utf8');
-  for (const label of ['Основное','Профиль на сайте','Услуги и время','График','Доступ']) assert.match(js, new RegExp(label));
+  for (const label of ['Основное','Профиль на сайте','График','Доступ']) assert.match(js, new RegExp(label));
+  // «Услуги и время» с Этапа B берётся из словаря вертикали (у клиники - «Процедуры и
+  // время»), поэтому проверяется ключ здесь и сама подпись в словаре
+  assert.match(js, /P\('team\.servicesSection'\)/);
+  assert.equal(PHRASES.barbershop['team.servicesSection'], 'Услуги и время');
   assert.match(js, /fetchJson\('\/staff'\)/);
   assert.match(js, /addCard\(locations\)/);
   assert.match(js, /renderMasterServiceEditor/);

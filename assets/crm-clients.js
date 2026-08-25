@@ -35,6 +35,7 @@ import { messengerButtonsHtml, clientMessageText, openBookingFromNotification, w
 // Срок обновления стрижки (Окно 59, 22.08.2026) - словарь подписей один на весь
 // проект, тот же, что в форме закрытия визита
 import { renewReasonLabels, renewReasonShort } from './renew-reason.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -69,7 +70,7 @@ export async function renderRiskList() {
     if (badge) badge.textContent = String(clients.length);
     if (list) {
       if (clients.length === 0) {
-        list.innerHTML = '<p class="payroll-note">Нет клиентов, которым сейчас стоит позвонить</p>';
+        list.innerHTML = `<p class="payroll-note">${P('clients.noneToCall')}</p>`;
       } else {
         list.innerHTML = clients
           .map(
@@ -88,8 +89,8 @@ export async function renderRiskList() {
       }
     }
   } catch (err) {
-    if (list) list.innerHTML = `<p class="payroll-note">${escapeHtml(errorMessage(err, 'Не удалось загрузить список клиентов'))}</p>`;
-    showError(errorMessage(err, 'Не удалось загрузить список клиентов'));
+    if (list) list.innerHTML = `<p class="payroll-note">${escapeHtml(errorMessage(err, P('clients.loadListFailed')))}</p>`;
+    showError(errorMessage(err, P('clients.loadListFailed')));
   }
 }
 
@@ -130,7 +131,7 @@ export async function openClientCard(clientId) {
   if (!modal || !nameEl || !phoneEl || !riskEl || !rebookBtn || !visitsEl) return;
 
   modal.hidden = false;
-  showSpinner(nameEl, 'Загружаю карточку клиента');
+  showSpinner(nameEl, P('clients.loadingCard'));
   phoneEl.textContent = '';
   riskEl.hidden = true;
   rebookBtn.hidden = true;
@@ -180,8 +181,8 @@ export async function openClientCard(clientId) {
     }
   } catch (err) {
     nameEl.textContent = 'Карточка не открылась';
-    visitsEl.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, 'Не удалось загрузить карточку клиента'))}</span>`;
-    showError(errorMessage(err, 'Не удалось загрузить карточку клиента'));
+    visitsEl.innerHTML = `<span class="note">${escapeHtml(errorMessage(err, P('clients.loadCardFailed')))}</span>`;
+    showError(errorMessage(err, P('clients.loadCardFailed')));
   }
 }
 
@@ -329,8 +330,8 @@ function visitMarkup(v) {
   // столбец данных. Роль/tabindex/aria - чтобы с клавиатуры работало так же, как мышью.
   const openable = isOpenableVisit(v);
   const openAttrs = openable
-    ? ` role="button" tabindex="0" data-visit-id="${escapeHtml(v.id)}" data-visit-date="${escapeHtml(v.date)}" title="Открыть эту запись в расписании" aria-label="Открыть запись ${escapeHtml(formatVisitDate(v.date))} ${escapeHtml(v.startTime)} в расписании"`
-    : ' title="Отменённой записи в расписании нет"';
+    ? ` role="button" tabindex="0" data-visit-id="${escapeHtml(v.id)}" data-visit-date="${escapeHtml(v.date)}" title="${escapeHtml(P('clients.openVisitTitle'))}" aria-label="${escapeHtml(P('booking.open'))} ${escapeHtml(formatVisitDate(v.date))} ${escapeHtml(v.startTime)}"`
+    : ` title="${escapeHtml(P('clients.cancelledNoVisit'))}"`;
   const openClass = openable ? ' client-visit--openable' : '';
 
   return `<div class="client-visit client-visit--${statusMod}${openClass}"${openAttrs}>
@@ -366,9 +367,9 @@ function wireVisitOpen(root) {
       const opened = await openBookingFromNotification({ id: row.dataset.visitId, date: row.dataset.visitDate });
       // false - записи нет на том дне (например, её уже перенесли в другой день из
       // другой вкладки). Молчать нельзя: человек нажал и ничего не увидел бы.
-      if (!opened) showError('Не удалось открыть запись в расписании - обновите страницу');
+      if (!opened) showError(P('clients.openVisitFailed'));
     } catch (err) {
-      showError(errorMessage(err, 'Не удалось открыть запись в расписании'));
+      showError(errorMessage(err, P('clients.openVisitError')));
     } finally {
       delete row.dataset.opening;
     }
@@ -433,7 +434,7 @@ function renewSectionMarkup(card) {
   // владельца выглядел бы как договорённость, которой не было
   const value = daysText
     ? `<b>${escapeHtml(daysText)}</b>${reason ? ` - ${escapeHtml(reason)}` : ''}`
-    : '<span class="client-renew-empty">Срок не поставлен - появится, когда мастер закроет визит</span>';
+    : `<span class="client-renew-empty">${P('clients.renewEmpty')}</span>`;
   const note = renew.note ? `<div class="client-renew-note">${escapeHtml(renew.note)}</div>` : '';
   // Причины - радио-чипы, а не нативный select: тёмную тему CRM он не наследует
   // (правило проекта про свои темизированные виджеты), и список тут короткий -
@@ -538,7 +539,7 @@ async function fetchClientHistory(details, body) {
     // «стоит позвонить» (openClientCard выше): мастер и услуги берутся с последнего
     // визита, дата и время выбираются заново на актуальной доступности.
     if (card.lastVisit && typeof window.openRebookBooking === 'function') {
-      actions.push('<button class="btn btn-primary btn-sm" type="button" data-rebook>Записать снова</button>');
+      actions.push(`<button class="btn btn-primary btn-sm" type="button" data-rebook>${P('client.rebook')}</button>`);
     }
     // Кнопки связи - ровно те же четыре, что в разделе «Уведомления»: сотрудник уже
     // знает этот ряд и не должен учить второй. Прежняя одинокая «Позвонить» здесь
@@ -579,8 +580,8 @@ async function fetchClientHistory(details, body) {
     // Повторная попытка при следующем раскрытии: снимаем отметку «загружено», иначе
     // разовый сбой сети запирал бы карточку с текстом ошибки до перезагрузки страницы.
     details.dataset.loaded = '';
-    body.innerHTML = `<p class="payroll-note">${escapeHtml(errorMessage(err, 'Не удалось загрузить историю клиента'))}</p>`;
-    showError(errorMessage(err, 'Не удалось загрузить историю клиента'));
+    body.innerHTML = `<p class="payroll-note">${escapeHtml(errorMessage(err, P('clients.loadHistoryFailed')))}</p>`;
+    showError(errorMessage(err, P('clients.loadHistoryFailed')));
   }
 }
 
@@ -622,7 +623,7 @@ function paintClients() {
           : `Найдено ${visible.length} из ${clientsCache.length}${unlinked}`;
   }
   if (clientsCache.length === 0) {
-    list.innerHTML = '<p class="payroll-note">Клиентов пока нет. Клиент появляется здесь сам, когда его записали с номером телефона</p>';
+    list.innerHTML = `<p class="payroll-note">${P('clients.empty')}</p>`;
     return;
   }
   if (visible.length === 0) {
@@ -663,8 +664,8 @@ async function loadClients(list) {
     clientsCache = await fetchJson('/clients?all=true');
     paintClients();
   } catch (err) {
-    list.innerHTML = `<p class="payroll-note">${escapeHtml(errorMessage(err, 'Не удалось загрузить базу клиентов'))}</p>`;
-    showError(errorMessage(err, 'Не удалось загрузить базу клиентов'));
+    list.innerHTML = `<p class="payroll-note">${escapeHtml(errorMessage(err, P('clients.loadBaseFailed')))}</p>`;
+    showError(errorMessage(err, P('clients.loadBaseFailed')));
   }
 }
 

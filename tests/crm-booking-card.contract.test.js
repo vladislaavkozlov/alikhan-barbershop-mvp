@@ -60,7 +60,9 @@ test('мастер - поле в строке даты и времени, не �
     assert.doesNotMatch(html, /<div class="field-grid" id="wfMasterRow"/, page);
     assert.match(
       html,
-      /id="wfDateTimeRow"[\s\S]{0,400}<div class="field" id="wfMasterRow" hidden><label>Мастер<\/label>/,
+      // Атрибуты у метки допускаются: с Этапа B она несёт data-term и слово берётся
+      // из словаря вертикали. Охраняется здесь МЕСТО поля, а не текст подписи
+      /id="wfDateTimeRow"[\s\S]{0,400}<div class="field" id="wfMasterRow" hidden><label[^>]*>Мастер<\/label>/,
       page,
     );
   }

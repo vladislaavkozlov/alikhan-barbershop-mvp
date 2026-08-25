@@ -218,19 +218,15 @@ async function main() {
       await s.setViewport(1440, 950, false);
       for (const cabinet of CABINETS) {
         await s.navigate(`http://${WEB_ORIGIN}/${cabinet.file}`);
-        // Сессия предыдущего кабинета остаётся в localStorage того же браузера, и
-        // страница чужой роли её сбрасывает. Чистим, не перезагружая: повторный
-        // переход сбивал раскрытие разделов ниже
-        await s.eval('localStorage.clear()');
         // Ошибки консоли собираем сами: драйвер их не слушает
         await s.eval(`window.__errors = []; window.addEventListener('error', (e) => window.__errors.push(String(e.message))); window.addEventListener('unhandledrejection', (e) => window.__errors.push(String(e.reason)));`);
-        // Почта и PIN вводятся через type(), а не typeReal: после входа в первый
-        // кабинет клавиатурные события до следующих страниц не доходят - ограничение
-        // драйвера, оговорено в tools/cdp.mjs. Живым жестом (typeReal, clickAt) в этом
-        // прогоне проверяется то, ради чего он и заведён: раскрытие разделов и работа
-        // в самом кабинете
-        await s.typeReal('#loginEmail', cabinet.email);
-        await s.typeReal('#loginPin', '1234');
+        // Почта и PIN вводятся через type(), а не typeReal: клавиатурный ввод драйвера
+        // на этой машине доходит только до первой страницы сессии - ограничение
+        // подробно разобрано в tools/cdp.mjs. Живым жестом здесь проверяется то, ради
+        // чего прогон и заведён: работа в самом кабинете, а не набор пароля
+        await s.eval('localStorage.clear()');
+        await s.type('#loginEmail', cabinet.email);
+        await s.type('#loginPin', '1234');
         await s.click('#loginForm button[type="submit"]');
         await s.sleep(2500);
         // Кабинет открывается со свёрнутыми разделами - это его штатный вид. Данные
@@ -300,6 +296,13 @@ async function main() {
             fullText: text,
           };
         })()`);
+        // Сессия остаётся в localStorage того же браузера. На странице чужой роли
+        // кабинет её сбрасывает и ПЕРЕЗАГРУЖАЕТ страницу - ровно в тот момент, когда
+        // прогон печатает почту и PIN, поэтому поля оказывались пустыми, а сервер
+        // отвечал «Введите email и PIN». Чистим здесь, до перехода: следующая страница
+        // открывается уже без чужой сессии и никуда не перезагружается
+        // (найдено 24.08.2026 - именно это, а не «драйвер теряет ввод»)
+        await s.eval('localStorage.clear()');
       }
     });
 

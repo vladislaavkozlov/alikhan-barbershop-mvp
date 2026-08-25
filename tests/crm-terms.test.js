@@ -216,12 +216,21 @@ test('data-term-attr подставляет в атрибут, а не в тек
   assert.equal(node.textContent, 'не трогать', 'текст узла с data-term-attr трогать нельзя');
 });
 
+test('data-phrase-attr подставляет фразу в атрибут', async () => {
+  await loadAppearance('https://api.test', okFetch(clinicResponse));
+  const node = fakeNode({ 'data-phrase-attr': 'placeholder:booking.new', placeholder: 'Новая запись' }, 'не трогать');
+  applyTerms(fakeRoot([node]));
+  assert.equal(node.getAttribute('placeholder'), 'Новый приём');
+  assert.equal(node.textContent, 'не трогать');
+});
+
 test('подстановка не роняет экран на битой разметке', () => {
   const nodes = [
     fakeNode({ 'data-term': '' }, 'пусто'),
     fakeNode({ 'data-term': 'dragon.nom' }, 'дракон'),
     fakeNode({ 'data-term-attr': 'безДвоеточия' }, 'кривой атрибут'),
     fakeNode({ 'data-phrase': 'нет.такой' }, 'нет фразы'),
+    fakeNode({ 'data-phrase-attr': 'безДвоеточия' }, 'кривой атрибут фразы'),
   ];
   assert.doesNotThrow(() => applyTerms(fakeRoot(nodes)));
 });

@@ -214,8 +214,10 @@ async function main() {
         // Экран входа - тоже экран арендатора, читаем его отдельно
         await s.sleep(800);
         const gateText = await s.eval('document.body.innerText');
-        await s.typeReal('#loginEmail', cabinet.email);
-        await s.typeReal('#loginPin', '1234');
+        // Вход через type(): см. оговорку про доставку ввода в tools/cdp.mjs
+        await s.eval('localStorage.clear()');
+        await s.type('#loginEmail', cabinet.email);
+        await s.type('#loginPin', '1234');
         await s.click('#loginForm button[type="submit"]');
         await s.sleep(2500);
         // Та же логика, что в прогоне кабинетов: найти кнопку, которую видит человек

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Алихан — CRM · Владелец</title>
 <meta property="og:title" content="Алихан - CRM · Владелец">
-<meta property="og:description" content="Рабочий кабинет барбершопа: записи, расписание, выручка, команда.">
+<meta property="og:description" content="Рабочий кабинет барбершопа: записи, расписание, выручка, команда."> <!-- не интерфейс: превью для соцсетей, его читает краулер до выполнения скриптов - человек в кабинете этих строк не видит -->
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://vladislaavkozlov.github.io/alikhan-barbershop-mvp/crm-owner.html">
 <meta property="og:site_name" content="АЛИХАН">
@@ -14,7 +14,7 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:type" content="image/jpeg">
-<meta property="og:image:alt" content="АЛИХАН - логотип барбершопа">
+<meta property="og:image:alt" content="АЛИХАН - логотип барбершопа"> <!-- не интерфейс: то же превью для соцсетей -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://vladislaavkozlov.github.io/alikhan-barbershop-mvp/assets/og-brand.jpg">
 <meta name="robots" content="noindex, nofollow">
@@ -133,7 +133,7 @@
            в календаре - решение Влада 08.08.2026). -->
       <button class="notif-bell crm-top-action" type="button" id="refreshBtn" aria-label="Обновить данные"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17,1.5 21,5.5 17,9.5"/><path d="M3,12.5v-2a4,4 0 0 1 4,-4h14"/><polyline points="7,22.5 3,18.5 7,14.5"/><path d="M21,11.5v2a4,4 0 0 1 -4,4H3"/></svg></button>
       <div class="msg-bell-wrap" style="position:relative">
-        <button class="notif-bell crm-top-action" type="button" id="msgBell" aria-label="Уведомления и клиенты, которым стоит позвонить"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
+        <button class="notif-bell crm-top-action" type="button" id="msgBell" data-phrase-attr="aria-label:bell.aria" aria-label="Уведомления и клиенты, которым стоит позвонить"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
         <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
       </div>
       <span id="sessionInfo" class="session-info" hidden></span>
@@ -167,7 +167,7 @@
     <div class="tab-bar">
       <label for="pt-a">Расписание</label>
       <label for="pt-b">Команда</label>
-      <label for="pt-f">Клиенты</label>
+      <label for="pt-f" data-term="client.nomPl" data-term-cap>Клиенты</label>
       <label for="pt-c">Выручка</label>
       <label for="pt-d">Аналитика</label>
       <label for="pt-e">Уведомления</label>
@@ -315,7 +315,7 @@
              сдвигает его - реальная причина прыжков устранена, а не замаскирована. ID/логика
              не менялись, только место в DOM. -->
         <div class="walkin-form" id="walkinForm" hidden>
-          <h3><span id="wfModeLabel">Новая запись без предзаписи</span> · <span id="wfMasterName" class="wf-master-name"></span></h3>
+          <h3><span id="wfModeLabel" data-phrase="booking.walkin">Новая запись без предзаписи</span> · <span id="wfMasterName" class="wf-master-name"></span></h3>
           <!-- Окно 39 (06.08.2026) - "Записать снова" (карточка клиента) открывает эту же
                форму в режиме будущей записи: дата/время выбираются заново (не "прямо
                сейчас", как у обычного walk-in), реальная доступность проверяется тем же
@@ -352,10 +352,10 @@
           <div class="field-grid" id="wfDateTimeRow" hidden>
             <div class="field"><label>Дата</label><div id="wfDate-slot"></div></div>
             <div class="field"><label>Время</label><div id="wfTime-slot"></div></div>
-            <div class="field" id="wfMasterRow" hidden><label>Мастер</label><div id="wfMaster-slot"></div></div>
+            <div class="field" id="wfMasterRow" hidden><label data-term="master.nom" data-term-cap>Мастер</label><div id="wfMaster-slot"></div></div>
           </div>
           <div class="field-grid">
-            <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
+            <div class="field"><label data-phrase="field.clientName">Имя клиента</label><input id="wfClientName" type="text" data-phrase-attr="placeholder:field.clientName" placeholder="Имя клиента"></div>
             <div class="field"><label>Телефон</label><input id="wfClientPhone" type="tel" placeholder="+7 900 000-00-00"></div>
             <!-- Откуда клиент (17.08.2026, миграция 050). У записи с сайта поле уже
                  заполнено автоматически (метка ссылки в карточке организации, иначе
@@ -363,7 +363,7 @@
                  канал тем, кто пришёл пешком или позвонил, и поправляет автоматику.
                  Виджет .custom-select, не нативный <select> (КОНВЕНЦИЯ - нативный
                  рисуется мимо темы), рендер - assets/crm-walkin.js renderSourceSelect. -->
-            <div class="field"><label>Откуда клиент</label><div id="wfSource-slot"></div></div>
+            <div class="field"><label data-phrase="field.clientSource">Откуда клиент</label><div id="wfSource-slot"></div></div>
           </div>
           <!-- Окно 55, Задача B (10.08.2026) - опознание клиента по телефону:
                GET /clients?phone= (контракт Окна 54) вызывается, как только введён
@@ -419,9 +419,9 @@
                не связывает такие визиты между собой, напоминать некому). Но молчать об
                этом нельзя - 23.08.2026 Влад нажал «Обслужен» на записи без номера и
                увидел пустоту вместо блока. Строка объясняет причину и путь. -->
-          <p class="renew-nophone" id="wfRenewNoPhone" hidden>Срок возврата у этой записи не спрашиваем - у клиента не указан телефон, напоминать некому. Впишите номер в поле «Телефон» выше, если хотите вести его историю и видеть его в «Недополученной прибыли»</p>
+          <p class="renew-nophone" id="wfRenewNoPhone" data-phrase="renew.noPhone" hidden>Срок возврата у этой записи не спрашиваем - у клиента не указан телефон, напоминать некому. Впишите номер в поле «Телефон» выше, если хотите вести его историю и видеть его в «Недополученной прибыли»</p>
           <div class="renew-block" id="wfRenew" hidden>
-            <div class="renew-title">Когда клиенту прийти снова</div>
+            <div class="renew-title" data-phrase="renew.whenAgain">Когда клиенту прийти снова</div>
             <div class="renew-hint" id="wfRenewHint"></div>
             <div class="renew-days-row">
               <div class="renew-quick-row" id="wfRenewQuick"></div>
@@ -434,7 +434,7 @@
             <div class="renew-reasons" id="wfRenewReasons"></div>
             <div class="renew-recommended-row" id="wfRenewRecommendedRow" hidden>
               <label class="renew-days-field">
-                <span>А правильно для этой стрижки, дней</span>
+                <span data-phrase="renew.correctDays">А правильно для этой стрижки, дней</span>
                 <input id="wfRenewRecommended" type="text" inputmode="numeric" autocomplete="off" placeholder="28">
               </label>
             </div>
@@ -443,7 +443,7 @@
               <input id="wfRenewNote" type="text" maxlength="300" autocomplete="off" placeholder="например: уезжает до октября">
             </label>
             <p class="renew-setby" id="wfRenewSetBy" hidden></p>
-            <p class="renew-required-note" id="wfRenewRequiredNote" hidden>Выберите срок и причину - без этого визит не закрыть. Не обсуждали срок с клиентом? Так и отметьте, это нормальный ответ</p>
+            <p class="renew-required-note" id="wfRenewRequiredNote" data-phrase="renew.required" hidden>Выберите срок и причину - без этого визит не закрыть. Не обсуждали срок с клиентом? Так и отметьте, это нормальный ответ</p>
           </div>
             <div class="noshow-banner" id="bk-noshow-banner" hidden>
               <span class="ico">⚠</span>
@@ -490,7 +490,7 @@
             <div class="field-grid">
               <div class="field">
                 <label for="bkActualPrice">Фактическая сумма, ₽</label>
-                <input id="bkActualPrice" type="text" inputmode="numeric" autocomplete="off" placeholder="как по услугам">
+                <input id="bkActualPrice" type="text" inputmode="numeric" autocomplete="off" data-phrase-attr="placeholder:field.priceHint" placeholder="как по услугам">
               </div>
               <div class="field field--wide">
                 <!-- 21.08.2026 (задача Влада) - однострочный input заменён на textarea и
@@ -499,19 +499,19 @@
                      перестал быть только объяснением суммы: это заметка о клиенте,
                      которую владелец читает в его карточке в разделе «Клиенты» спустя
                      месяцы, и в одну строку она не помещается физически. -->
-                <label for="bkStaffComment">Комментарий к записи и клиенту</label>
-                <textarea id="bkStaffComment" rows="3" maxlength="3000" autocomplete="off" placeholder="например: владелец дал скидку постоянному клиенту; чем длиннее, тем лучше - заметка видна в карточке клиента"></textarea>
+                <label for="bkStaffComment" data-phrase="field.staffComment">Комментарий к записи и клиенту</label>
+                <textarea id="bkStaffComment" rows="3" maxlength="3000" autocomplete="off" data-phrase-attr="placeholder:field.staffCommentHint" placeholder="например: владелец дал скидку постоянному клиенту; чем длиннее, тем лучше - заметка видна в карточке клиента"></textarea>
               </div>
             </div>
           </div>
           <div class="wf-actions">
-            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить запись</button>
+            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" data-phrase="booking.save" disabled>Сохранить запись</button>
             <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Отмена</button>
           </div>
           <p class="wf-result" id="wfResult" hidden></p>
 
           <div class="wf-sale" id="wfSaleForm" hidden>
-            <h4 style="margin-top:18px">Добавить продажу к этой записи</h4>
+            <h4 style="margin-top:18px" data-phrase="booking.addSale">Добавить продажу к этой записи</h4>
             <div class="field-grid">
               <div class="field"><label>Товар</label><input id="wfSaleItem" type="text" placeholder="например Воск для укладки"></div>
               <div class="field"><label>Сумма, ₽</label><input id="wfSaleAmount" type="number" min="1" step="1" placeholder="500"></div>
@@ -571,10 +571,10 @@
         <div class="day-edit-modal" id="clientCardModal" hidden>
           <div class="day-edit-card">
             <button type="button" class="day-edit-close" id="clientCardClose" aria-label="Закрыть">✕</button>
-            <h3 id="clientCardName">Клиент</h3>
+            <h3 id="clientCardName" data-term="client.nom" data-term-cap>Клиент</h3>
             <p class="payroll-note" id="clientCardPhone"></p>
             <p class="payroll-note" id="clientCardRisk" hidden></p>
-            <button class="btn btn-primary btn-sm" type="button" id="clientCardRebook" hidden>Записать снова</button>
+            <button class="btn btn-primary btn-sm" type="button" id="clientCardRebook" data-phrase="client.rebook" hidden>Записать снова</button>
             <h4 style="margin-top:18px">История визитов</h4>
             <div class="breaks-list" id="clientCardVisits"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
           </div>
@@ -641,28 +641,28 @@
           <div class="seg-panel panel-rvpa-day">
             <div class="stat-cards">
               <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllDayRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-              <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllDayPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
+              <div class="stat-card"><div class="sc-label" data-phrase="payroll.mastersTitle">Зарплаты мастеров</div><div class="sc-value" id="rvAllDayPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
               <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllDayNet">000 ₽ <span class="unsure">считаю…</span></div></div>
             </div>
           </div>
           <div class="seg-panel panel-rvpa-week"><div class="stat-cards">
             <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllWeekRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-            <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllWeekPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card"><div class="sc-label" data-phrase="payroll.mastersTitle">Зарплаты мастеров</div><div class="sc-value" id="rvAllWeekPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
             <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllWeekNet">000 ₽ <span class="unsure">считаю…</span></div></div>
           </div></div>
           <div class="seg-panel panel-rvpa-month"><div class="stat-cards">
             <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllMonthRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-            <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllMonthPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card"><div class="sc-label" data-phrase="payroll.mastersTitle">Зарплаты мастеров</div><div class="sc-value" id="rvAllMonthPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
             <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllMonthNet">000 ₽ <span class="unsure">считаю…</span></div></div>
           </div></div>
           <div class="seg-panel panel-rvpa-quarter"><div class="stat-cards">
             <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllQuarterRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-            <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllQuarterPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card"><div class="sc-label" data-phrase="payroll.mastersTitle">Зарплаты мастеров</div><div class="sc-value" id="rvAllQuarterPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
             <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllQuarterNet">000 ₽ <span class="unsure">считаю…</span></div></div>
           </div></div>
           <div class="seg-panel panel-rvpa-year"><div class="stat-cards">
             <div class="stat-card"><div class="sc-label">Выручка</div><div class="sc-value" id="rvAllYearRevenue">000 ₽ <span class="unsure">считаю…</span></div></div>
-            <div class="stat-card"><div class="sc-label">Зарплаты мастеров</div><div class="sc-value" id="rvAllYearPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
+            <div class="stat-card"><div class="sc-label" data-phrase="payroll.mastersTitle">Зарплаты мастеров</div><div class="sc-value" id="rvAllYearPayroll">000 ₽ <span class="unsure">считаю…</span></div></div>
             <div class="stat-card stat-card--net"><div class="sc-label">Чистый доход</div><div class="sc-value" id="rvAllYearNet">000 ₽ <span class="unsure">считаю…</span></div></div>
           </div></div>
         </div>
@@ -716,7 +716,7 @@
       <details class="staff-card">
         <summary>
           <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="18" height="13" rx="2.2"/><line x1="3" y1="11" x2="21" y2="11"/><circle cx="17" cy="14.5" r="1.2" fill="currentColor" stroke="none"/></svg></div>
-          <div class="summary-meta"><div class="name">Зарплаты мастеров</div></div>
+          <div class="summary-meta"><div class="name" data-phrase="payroll.mastersTitle">Зарплаты мастеров</div></div>
           <span class="chevron">▸</span>
         </summary>
         <div class="staff-card-body">
@@ -770,7 +770,7 @@
       <details class="staff-card">
         <summary>
           <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M20 12a8 8 0 1 1 -2.7 -6"/><polyline points="20,4 20,9 15,9" stroke-linejoin="round"/></svg></div>
-          <div class="summary-meta"><div class="name">Возвращаемость клиентов</div></div>
+          <div class="summary-meta"><div class="name" data-phrase="analytics.retention">Возвращаемость клиентов</div></div>
           <span class="chevron">▸</span>
         </summary>
         <div class="staff-card-body">
@@ -805,7 +805,7 @@
       <details class="staff-card">
         <summary>
           <div class="avatar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="1"/><circle cx="14.3" cy="12" r="0.7" fill="currentColor" stroke="none"/><line x1="1" y1="12" x2="5" y2="12"/><polyline points="3,9.5 1,12 3,14.5"/></svg></div>
-          <div class="summary-meta"><div class="name">Как приходят клиенты</div></div>
+          <div class="summary-meta"><div class="name" data-phrase="analytics.sources">Как приходят клиенты</div></div>
           <span class="chevron">▸</span>
         </summary>
         <div class="staff-card-body">
@@ -907,7 +907,7 @@
       <section>
         <div class="clients-toolbar">
           <input id="clientsSearch" class="clients-search" type="search" autocomplete="off"
-                 placeholder="Поиск по имени или телефону" aria-label="Поиск клиента">
+                 placeholder="Поиск по имени или телефону" data-term-attr="aria-label:client.gen" aria-label="Поиск клиента">
           <span class="clients-count" id="clientsCount"></span>
         </div>
         <div class="staff-list" id="clientsList"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>

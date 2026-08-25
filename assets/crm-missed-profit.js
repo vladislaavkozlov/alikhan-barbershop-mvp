@@ -20,6 +20,7 @@ import { errorMessage } from './crm-toast.js';
 import { periodStartStr } from './crm-payroll.js';
 import { messengerButtonsHtml, wireMessengerLinks } from './crm-notifications.js';
 import { renewReasonShort } from './renew-reason.js';
+import { T, Tc, P, C, tenantName } from './crm-terms.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -102,29 +103,29 @@ export function missedProfitHtml(data, periodLabel) {
   const lapsedCard = statCard({
     label: 'Не вернулись в срок',
     value: moneyText(data.lostLapsed),
-    note: counts.overdue > 0 ? `${counts.overdue} ${plural(counts.overdue, 'клиент', 'клиента', 'клиентов')} - потеряно` : 'Таких клиентов нет',
+    note: counts.overdue > 0 ? `${counts.overdue} ${C('client', counts.overdue)} - потеряно` : 'Таких клиентов нет',
     action: counts.overdue > 0 ? { kind: 'overdue', from, to, text: 'Кому звонить сейчас' } : null,
   });
 
   // Формулировка «если бы ходили по рекомендованному сроку» - не украшение, а суть:
   // это НЕ потеря, клиент согласился на свой срок и ничего салону не должен
   const sparseCard = statCard({
-    label: 'Ходят реже, чем нужно стрижке',
+    label: P('missed.sparseLabel'),
     value: moneyText(data.potentialSparse),
-    note: counts.sparse > 0 ? `${counts.sparse} ${plural(counts.sparse, 'клиент', 'клиента', 'клиентов')} - столько принесли бы по рекомендованному сроку` : 'Таких клиентов нет',
+    note: counts.sparse > 0 ? `${counts.sparse} ${C('client', counts.sparse)} - столько принесли бы по рекомендованному сроку` : 'Таких клиентов нет',
     action: counts.sparse > 0 ? { kind: 'sparse', from, to, text: 'Кому объяснить срок' } : null,
   });
 
   const noShowCard = statCard({
     label: 'Неявки',
     value: moneyText(data.lostNoShow),
-    note: counts.noShow > 0 ? `${counts.noShow} ${plural(counts.noShow, 'запись', 'записи', 'записей')} - потеряно` : 'Неявок не было',
+    note: counts.noShow > 0 ? `${counts.noShow} ${C('booking', counts.noShow)} - потеряно` : 'Неявок не было',
   });
 
   return `
     <div class="stat-cards">${totalCard}</div>
     <div class="stat-cards">${lapsedCard}${sparseCard}${noShowCard}</div>
-    <p class="payroll-note mp-legend">Потеря - визитов не было и деньги не пришли. Клиенты, которые ходят реже, ничего салону не должны: это не потеря, а то, что можно вернуть разговором о сроке</p>
+    <p class="payroll-note mp-legend">${P('missed.legend')}</p>
     <div class="mp-list" id="mpList" hidden></div>
   `;
 }
@@ -137,13 +138,13 @@ function dateText(iso) {
 // придумывает - только повод написать; что предлагать, решает салон
 export function overdueMessageText(client) {
   const name = client?.name ? `${client.name}, ` : '';
-  return `Здравствуйте, ${name}это барбершоп «Алихан». Пора обновить стрижку - подобрать вам удобное время?`;
+  return `Здравствуйте, ${name}это ${tenantName()}. ${P('msg.refresh')}`;
 }
 
 export function listHtml(data, kind) {
   const clients = data.clients ?? [];
   const title = kind === 'overdue' ? 'Кому звонить сейчас' : 'Кому объяснить срок';
-  if (clients.length === 0) return `<p class="payroll-note">${escapeHtml(title)}: таких клиентов нет</p>`;
+  if (clients.length === 0) return `<p class="payroll-note">${escapeHtml(P('analytics.noSuchClients', { title }))}</p>`;
 
   const rows = clients
     .map((c) => {

@@ -46,8 +46,10 @@ export async function withBrowser(fn) {
 
   try {
     await waitForDebugger();
-    const targetRes = await fetch(`http://localhost:${PORT}/json/new?about:blank`, { method: 'PUT' });
-    const target = await targetRes.json();
+    // Работаем в ЕДИНСТВЕННОЙ вкладке браузера, а не заводим свою рядом с пустой,
+    // открытой при запуске: двух вкладок достаточно, чтобы ввод начал уходить не туда
+    const list = await (await fetch(`http://localhost:${PORT}/json/list`)).json();
+    const target = list.find((t) => t.type === 'page') ?? (await (await fetch(`http://localhost:${PORT}/json/new?about:blank`, { method: 'PUT' })).json());
     const ws = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve, reject) => {
       ws.addEventListener('open', resolve, { once: true });
@@ -83,6 +85,8 @@ export async function withBrowser(fn) {
       async navigate(url) {
         await send('Page.navigate', { url });
         await sleep(600);
+        // Наша вкладка должна быть активной, иначе браузер не доставляет ей ввод
+        await send('Page.bringToFront').catch(() => {});
       },
       async eval(expression, awaitPromise = false) {
         const res = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise });
@@ -130,13 +134,21 @@ export async function withBrowser(fn) {
       // диспатчит события руками - так не поймать баги, которые живут в самом жесте
       // (фокус, выделение, активация <label> кликом по вложенному полю). Здесь -
       // честные события Input.*, ровно как от живого человека.
-      // ⚠️ ОГРАНИЧЕНИЕ, найдено 24.08.2026 (существовало и до Этапа B). После
-      // УСПЕШНОГО ВХОДА в один кабинет клавиатурные события перестают доходить до
-      // следующих страниц этой же сессии браузера: поле остаётся пустым, хотя
-      // document.activeElement - оно само и document.hasFocus() истинно. Переход,
-      // clickAt и eval-клик сами по себе печать не ломают (проверено отдельным
-      // стендом) - ломает именно вход. Причина не найдена, поэтому прогоны, которым
-      // нужно войти в НЕСКОЛЬКО кабинетов подряд, вводят почту и PIN через type().
+      // ⚠️ ОГРАНИЧЕНИЕ ЭТОЙ МАШИНЫ, разобрано 24.08.2026 подробно и не побеждено.
+      // Клавиатурные события доходят до ПЕРВОЙ страницы сессии браузера и не доходят
+      // до следующих: поле остаётся пустым, хотя document.activeElement - оно само,
+      // document.hasFocus() истинно, страница complete, перезагрузки нет (проверено
+      // маркером в window), чужой сессии в localStorage нет, вкладка одна и активна.
+      // Проверено и отброшено: размер окна браузера, эмуляция вьюпорта, прогрев ввода
+      // движением мыши, остаточные процессы Chrome, занятость главного потока,
+      // порядок событий (канонический keyDown → char → keyUp даёт точный текст на
+      // первой странице и ничего на второй; keyDown с текстом ПЛЮС char задваивает
+      // символы - «1234» превращается в «11223344»).
+      //
+      // Поэтому typeReal ПРОВЕРЯЕТ результат и падает громко: молчаливый промах уже
+      // стоил ложного вывода «кабинеты администратора и мастера пустые». Прогонам,
+      // которым нужно пройти несколько кабинетов подряд, вход делается через type() -
+      // он ставит значение через DOM и работает всегда.
       async typeReal(selector, text, { clear = true } = {}) {
         const found = await this.eval(`(function(){
           const el = document.querySelector(${JSON.stringify(selector)});

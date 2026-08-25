@@ -144,6 +144,63 @@ export const FALLBACK = Object.freeze({
     "schedule.notClosedConflicts": "не закрыто из-за записей",
     "booking.detailsTitle": "Детали выбранного визита",
     "booking.addToSchedule": "Добавить клиента в расписание",
+    "bell.aria": "Уведомления и клиенты, которым стоит позвонить",
+    "field.clientName": "Имя клиента",
+    "field.clientSource": "Откуда клиент",
+    "field.priceHint": "как по услугам",
+    "field.staffComment": "Комментарий к записи и клиенту",
+    "field.staffCommentHint": "например: владелец дал скидку постоянному клиенту; чем длиннее, тем лучше - заметка видна в карточке клиента",
+    "booking.save": "Сохранить запись",
+    "booking.addSale": "Добавить продажу к этой записи",
+    "client.rebook": "Записать снова",
+    "renew.noPhone": "Срок возврата у этой записи не спрашиваем - у клиента не указан телефон, напоминать некому. Впишите номер в поле «Телефон» выше, если хотите вести его историю и видеть его в «Недополученной прибыли»",
+    "renew.whenAgain": "Когда клиенту прийти снова",
+    "renew.correctDays": "А правильно для этой стрижки, дней",
+    "renew.required": "Выберите срок и причину - без этого визит не закрыть. Не обсуждали срок с клиентом? Так и отметьте, это нормальный ответ",
+    "payroll.mastersTitle": "Зарплаты мастеров",
+    "analytics.retention": "Возвращаемость клиентов",
+    "analytics.sources": "Как приходят клиенты",
+    "team.roleMaster": "Свои записи и график",
+    "team.roleAdmin": "Записи и клиенты своей точки",
+    "team.noProfile": "Профиль появится после настройки услуг и графика",
+    "team.servicesByOwner": "Услуги и длительность назначает владелец",
+    "team.servicesOwnerSelf": "Услуги владельца меняет только он сам",
+    "team.pickServices": "Выберите услуги и укажите длительность",
+    "team.acceptsClients": "Принимает клиентов",
+    "team.acceptsHint": "Можно назначить услуги и открыть запись",
+    "team.acceptsHintNew": "Услуги и график нужно настроить отдельно",
+    "team.publicProfileHint": "Фото и информация для клиентов",
+    "team.servicesSection": "Услуги и время",
+    "team.historyKept": "История записей, выручки и статистики за отработанные периоды сохранена - она видна в «Финансах» и «Аналитике»",
+    "team.firedHistoryKept": "Не работают в компании. Записи, выручка и статистика за отработанные периоды сохранены",
+    "team.servicesSaveFailed": "Не удалось сохранить услуги",
+    "team.scheduleConflict": "График не сохранён: на это время уже есть записи, они показаны в блоке «График»",
+    "team.exceptionConflict": "На это время уже есть запись - разовое изменение не сохранено",
+    "team.fireConfirm": "Уволить «{name}»? Он пропадёт из расписания и с сайта записи, вход в CRM закроется сразу. Записи, выручка и статистика за отработанные периоды останутся на месте. Будущие записи к нему перенесите на другого мастера",
+    "clients.noneToCall": "Нет клиентов, которым сейчас стоит позвонить",
+    "clients.loadListFailed": "Не удалось загрузить список клиентов",
+    "clients.loadCardFailed": "Не удалось загрузить карточку клиента",
+    "clients.loadingCard": "Загружаю карточку клиента",
+    "clients.loadHistoryFailed": "Не удалось загрузить историю клиента",
+    "clients.loadBaseFailed": "Не удалось загрузить базу клиентов",
+    "clients.empty": "Клиентов пока нет. Клиент появляется здесь сам, когда его записали с номером телефона",
+    "clients.openVisitTitle": "Открыть эту запись в расписании",
+    "clients.cancelledNoVisit": "Отменённой записи в расписании нет",
+    "clients.openVisitFailed": "Не удалось открыть запись в расписании - обновите страницу",
+    "clients.openVisitError": "Не удалось открыть запись в расписании",
+    "clients.renewEmpty": "Срок не поставлен - появится, когда мастер закроет визит",
+    "analytics.noBookings": "Записей {period} не было",
+    "analytics.totalBookings": "Всего записей: {total}",
+    "analytics.noClients": "Нет клиентов",
+    "analytics.unlinkedNote": "Визиты, клиента не опознать",
+    "analytics.renewDefaultNote": "Остальным поставлен месяц по умолчанию - это нормальный ответ мастера, но чем таких меньше, тем точнее «Недополученная прибыль» в «Финансах»",
+    "analytics.noSuchClients": "{title}: таких клиентов нет",
+    "analytics.lapsedTitle": "Не вернулись к мастеру: {name}",
+    "msg.comeBack": "Давно вас не видели - будем рады снова записать вас к мастеру. Подобрать удобное время?",
+    "msg.refresh": "Пора обновить стрижку - подобрать вам удобное время?",
+    "missed.sparseLabel": "Ходят реже, чем нужно стрижке",
+    "missed.legend": "Потеря - визитов не было и деньги не пришли. Клиенты, которые ходят реже, ничего салону не должны: это не потеря, а то, что можно вернуть разговором о сроке",
+    "schedule.masterUnbookable": "Мастер {name} - клиенты не могут записаться",
     "booking.pickInSchedule": "Выберите запись в расписании - здесь появятся её детали",
     "booking.servicesUnknown": "Услуги по этой записи не указаны",
     "renew.waitingClient": "Ждём клиента через {days}",
@@ -289,6 +346,7 @@ export function moduleEnabled(key) {
 //   <span data-term="master.nomPl" data-term-cap>Мастера</span>
 //   <span data-phrase="booking.new">Новая запись</span>
 //   <input data-term-attr="placeholder:client.nom" placeholder="клиент">
+//   <input data-phrase-attr="placeholder:booking.pricePlaceholder" placeholder="как по услугам">
 export function applyTerms(root = (typeof document === 'undefined' ? null : document)) {
   if (!root || typeof root.querySelectorAll !== 'function') return;
   for (const node of root.querySelectorAll('[data-term]')) {
@@ -300,6 +358,15 @@ export function applyTerms(root = (typeof document === 'undefined' ? null : docu
     const key = node.getAttribute('data-phrase');
     if (!key) continue;
     node.textContent = P(key);
+  }
+  for (const node of root.querySelectorAll('[data-phrase-attr]')) {
+    const spec = node.getAttribute('data-phrase-attr') ?? '';
+    const at = spec.indexOf(':');
+    if (at <= 0) continue;
+    const attr = spec.slice(0, at).trim();
+    const key = spec.slice(at + 1).trim();
+    if (!attr || !key) continue;
+    node.setAttribute(attr, P(key));
   }
   for (const node of root.querySelectorAll('[data-term-attr]')) {
     const spec = node.getAttribute('data-term-attr') ?? '';

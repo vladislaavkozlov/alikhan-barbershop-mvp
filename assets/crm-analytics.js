@@ -21,6 +21,7 @@ import { firedLabel } from './crm-shared.js';
 // Кнопки связи (WhatsApp/Telegram/MAX/СМС/Позвонить) - тот же набор, что в
 // «Уведомлениях» и в истории клиента. Своего второго набора кнопок в проекте нет
 import { messengerButtonsHtml, wireMessengerLinks } from './crm-notifications.js';
+import { T, Tc, P, C, tenantName } from './crm-terms.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -140,7 +141,7 @@ export function retentionHtml(data, periodLabel) {
   // визит в статистике учтён, а то, что человека за ним не опознать, видно сразу и не
   // выглядит как ошибка расчёта
   const unlinkedCard = unlinkedVisits > 0
-    ? statCard({ label: 'Без телефона', value: String(unlinkedVisits), note: 'Визиты, клиента не опознать' })
+    ? statCard({ label: 'Без телефона', value: String(unlinkedVisits), note: P('analytics.unlinkedNote') })
     : '';
 
   // Клиенты, которые были один раз совсем недавно, в проценте не участвуют: месяца с
@@ -163,7 +164,7 @@ export function retentionHtml(data, periodLabel) {
 export function sourcesHtml(data, periodLabel) {
   const { total = 0, rows = [] } = data;
   if (total === 0) {
-    return `<p class="payroll-note">Записей ${escapeHtml(periodLabel)} не было</p>`;
+    return `<p class="payroll-note">${escapeHtml(P('analytics.noBookings', { period: periodLabel }))}</p>`;
   }
 
   const cards = rows
@@ -174,14 +175,14 @@ export function sourcesHtml(data, periodLabel) {
         // незаполненным в карточке
         label: row.key ? CLIENT_SOURCE_LABELS[row.key] ?? row.key : 'Источник не указан',
         value: pctText(row.pct),
-        note: `${row.count} ${plural(row.count, 'запись', 'записи', 'записей')}`,
+        note: `${row.count} ${C('booking', row.count)}`,
       })
     )
     .join('');
 
   return `
     <div class="stat-cards">${cards}</div>
-    <p class="payroll-note">Всего записей: ${escapeHtml(total)}</p>
+    <p class="payroll-note">${escapeHtml(P('analytics.totalBookings', { total }))}</p>
   `;
 }
 
@@ -207,14 +208,14 @@ export function discussedHtml(data, periodLabel) {
       statCard({
         label: m.employed ? m.name : `${m.name} (${firedLabel(m).toLowerCase()})`,
         value: pctText(m.pct),
-        note: m.clients === 0 ? 'Нет клиентов' : `${m.discussed} из ${m.clients}`,
+        note: m.clients === 0 ? P('analytics.noClients') : `${m.discussed} из ${m.clients}`,
       })
     )
     .join('');
   return `
     <div class="stat-cards">${salonCard}</div>
     ${masterCards ? `<div class="stat-cards">${masterCards}</div>` : ''}
-    <p class="payroll-note">Остальным поставлен месяц по умолчанию - это нормальный ответ мастера, но чем таких меньше, тем точнее «Недополученная прибыль» в «Финансах»</p>
+    <p class="payroll-note">${P('analytics.renewDefaultNote')}</p>
   `;
 }
 
@@ -224,7 +225,7 @@ export function discussedHtml(data, periodLabel) {
 // в модалке: это продолжение той же цифры, а не отдельный экран.
 function lapsedListHtml(data, title) {
   const { clients = [], truncated } = data;
-  if (clients.length === 0) return `<p class="payroll-note">${escapeHtml(title)}: таких клиентов нет</p>`;
+  if (clients.length === 0) return `<p class="payroll-note">${escapeHtml(P('analytics.noSuchClients', { title }))}</p>`;
   const rows = clients
     .map((c) => {
       const phone = c.phone || '';
@@ -252,7 +253,7 @@ function lapsedListHtml(data, title) {
 // система не придумывает - только повод написать; что предлагать, решает салон
 export function lapsedMessageText(client) {
   const name = client?.name ? `${client.name}, ` : '';
-  return `Здравствуйте, ${name}это барбершоп «Алихан». Давно вас не видели - будем рады снова записать вас к мастеру. Подобрать удобное время?`;
+  return `Здравствуйте, ${name}это ${tenantName()}. ${P('msg.comeBack')}`;
 }
 
 // Переход в карточку клиента (правка Влада 22.08.2026). Своего экрана клиента
@@ -286,7 +287,7 @@ async function openLapsed(btn) {
   if (!host) return;
   const months = btn.dataset.lapsedMonths;
   const masterId = btn.dataset.lapsedMaster || '';
-  const title = masterId ? `Не вернулись к мастеру: ${btn.dataset.lapsedTitle}` : 'Не вернулись';
+  const title = masterId ? P('analytics.lapsedTitle', { name: btn.dataset.lapsedTitle }) : 'Не вернулись';
   host.hidden = false;
   host.innerHTML = SKELETON;
   host.scrollIntoView({ block: 'nearest', behavior: 'smooth' });

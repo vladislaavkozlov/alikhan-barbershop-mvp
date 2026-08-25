@@ -21,8 +21,10 @@ import { PHONE_PLACEHOLDER, formatStoredPhone, wirePhoneFields } from './crm-pho
 import { todayStr } from './crm-shared.js';
 import { scheduleExceptionLabel } from './crm-schedule-shared.js';
 import { dateSelectValue, renderDateSelect, renderTimeSelect, timeSelectValue } from './crm-widgets.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
-const roleLabel = { owner: 'Владелец', manager: 'Управляющий', admin: 'Администратор', master: 'Мастер' };
+// Вызовом, не константой (Этап B): слово роли приходит из словаря вертикали
+const roleLabels = () => ({ owner: 'Владелец', manager: 'Управляющий', admin: 'Администратор', master: Tc('master.nom') });
 const editableRoles = ['master', 'admin', 'manager'];
 // Кто правит карточку сотрудника (имя, контакты, услуги, роль, фото) - ровно те же
 // роли, что MANAGEMENT_ROLES на сервере (api/lib/permissions.js). Администратор сюда
@@ -60,26 +62,28 @@ function locationControl(staff, locations) {
   return `<input type="hidden" name="locationId" value="${esc(staff.locationId ?? locations[0]?.id ?? '')}">`;
 }
 
-const roleDescription = {
-  master: 'Свои записи и график',
-  admin: 'Записи и клиенты своей точки',
+// Вызовом, не константой: подписи берутся из словаря вертикали, а он приезжает с
+// сервера уже после загрузки модуля (Этап B, 24.08.2026)
+const roleDescriptions = () => ({
+  master: P('team.roleMaster'),
+  admin: P('team.roleAdmin'),
   manager: 'Команда, график и финансы',
-};
+});
 
 // name у радиокнопок обязан быть уникальным НА КАРТОЧКУ: радио группируются по имени
 // в пределах всего документа, поэтому общий name="role" делал из всех карточек команды
 // и формы добавления одну группу - отмеченной оставалась ровно одна роль на странице,
 // и текущая роль сотрудника не подсвечивалась (найдено 13.08.2026 по скриншоту Влада).
 function rolePicker(selectedRole, name) {
-  return `<fieldset class="team-role-picker" data-role><legend>Роль сотрудника</legend>${editableRoles.map((role) => `<label class="team-role-option"><input type="radio" name="${name}" value="${role}" ${selectedRole === role ? 'checked' : ''}><span><strong>${roleLabel[role]}</strong><small>${roleDescription[role]}</small></span></label>`).join('')}</fieldset>`;
+  return `<fieldset class="team-role-picker" data-role><legend>Роль сотрудника</legend>${editableRoles.map((role) => `<label class="team-role-option"><input type="radio" name="${name}" value="${role}" ${selectedRole === role ? 'checked' : ''}><span><strong>${roleLabels()[role]}</strong><small>${roleDescriptions()[role]}</small></span></label>`).join('')}</fieldset>`;
 }
 
 // Роль, которую этот зритель менять не может (владелец всегда, чужие роли для
 // управляющего) - показываем той же карточкой, что и выбираемые, только подсвеченной
 // и неактивной: одинаковый язык интерфейса вместо отдельной текстовой строки.
 function roleBadge(role) {
-  const description = role === 'owner' ? 'Полный доступ и защищённая учётная запись' : roleDescription[role] ?? '';
-  return `<fieldset class="team-role-picker team-role-picker-single" data-role><legend>Роль сотрудника</legend><label class="team-role-option"><input type="radio" checked disabled><span><strong>${roleLabel[role] ?? esc(role)}</strong><small>${description}</small></span></label></fieldset>`;
+  const description = role === 'owner' ? 'Полный доступ и защищённая учётная запись' : roleDescriptions()[role] ?? ''; // другое значение: «учётная запись» - это аккаунт в системе, а не визит клиента
+  return `<fieldset class="team-role-picker team-role-picker-single" data-role><legend>Роль сотрудника</legend><label class="team-role-option"><input type="radio" checked disabled><span><strong>${roleLabels()[role] ?? esc(role)}</strong><small>${description}</small></span></label></fieldset>`;
 }
 
 // Отмеченная роль, которую этот зритель РЕАЛЬНО может назначить. Отличать от
@@ -123,7 +127,7 @@ function mediaMarkup(staff) {
   const offDuty = staff.providesServices === false;
   const profileHint = offDuty
     ? 'Сотрудник снят с приёма - на сайте его нет. Настройка сохранится и включится, когда вернёте на приём'
-    : 'Профиль появится после настройки услуг и графика';
+    : P('team.noProfile');
   return `<div class="team-media-upload"><div><strong>Фото профиля</strong><small>После выбора можно подвинуть и приблизить кадр. Сохранится сразу, кнопка «Сохранить изменения» для этого не нужна</small></div><label class="team-file-action">${ICON_UPLOAD}<span>Выбрать фото</span><input class="team-file-native" name="avatar" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
   <div class="team-editor-grid"><div class="field"><label>Стаж</label><input name="experience" value="${esc(staff.experienceText)}" placeholder="Например, 6 лет"></div><div class="field"><label>Сильные стороны</label><input name="strengths" value="${esc(staff.strengthsText)}" placeholder="Например, фейды и борода"></div></div>
   <div class="field"><label>Курсы и сертификаты</label><textarea name="certificates" placeholder="Название курса или сертификата">${esc(staff.certificatesText)}</textarea></div>
@@ -162,17 +166,17 @@ function staffCard(staff, viewerRole, locations, viewerId) {
       ? 'Карточку владельца не переименовать - витрину на сайте ниже менять можно'
       : 'Контакты и рабочий статус';
   const servicesTitle = !canManage
-    ? 'Услуги и длительность назначает владелец'
+    ? P('team.servicesByOwner')
     : locked
-      ? 'Услуги владельца меняет только он сам'
-      : 'Выберите услуги и укажите длительность';
-  return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-role="${esc(staff.role)}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabel[staff.role] ?? staff.role}${staff.employed === false ? ` · ${esc(firedNote(staff))}` : ''}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
-  ${section('Основное', detailsTitle, ICON_DETAILS,`<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Можно назначить услуги и открыть запись', checked: staff.providesServices, disabled: fieldsLocked })}</div>`)}
+      ? P('team.servicesOwnerSelf')
+      : P('team.pickServices');
+  return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-role="${esc(staff.role)}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabels()[staff.role] ?? staff.role}${staff.employed === false ? ` · ${esc(firedNote(staff))}` : ''}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
+  ${section('Основное', detailsTitle, ICON_DETAILS,`<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'providesServices', title: P('team.acceptsClients'), description: P('team.acceptsHint'), checked: staff.providesServices, disabled: fieldsLocked })}</div>`)}
   ${/* Фото, портфолио и витрина на сайте - управление составом медиа, а оно на сервере
        management-only (POST/DELETE /staff/:id/media). Администратору секцию не рисуем
        вовсе: кнопка «Выбрать фото» у него давала бы только 401 в ответ. */''}
-  ${canManage ? section('Профиль на сайте', 'Фото и информация для клиентов', ICON_PUBLIC, mediaMarkup(staff)) : ''}
-  ${section('Услуги и время', servicesTitle, ICON_SERVICES, `<div class="service-picker" data-master-id="${id}">${skeletonMarkup(4)}</div>`)}
+  ${canManage ? section('Профиль на сайте', P('team.publicProfileHint'), ICON_PUBLIC, mediaMarkup(staff)) : ''}
+  ${section(P('team.servicesSection'), servicesTitle, ICON_SERVICES, `<div class="service-picker" data-master-id="${id}">${skeletonMarkup(4)}</div>`)}
   ${section('График', 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}">${skeletonMarkup(3)}</div>${exceptionEditor(staff.id)}`)}
   ${/* Тумблер "Разрешить вход в CRM" убран 13.08.2026 по решению владельца: он дублировал
        "Работает в компании" в глазах салона и создавал риск случайно отрезать себе вход.
@@ -216,7 +220,7 @@ function employmentSection(staff, employmentLocked) {
   if (fired) {
     return section('Состав команды', firedNote(staff), ICON_PROFILE,
       `<div class="team-employment" data-employment data-staff-id="${esc(staff.id)}" data-employed="0">
-        <p class="payroll-note">История записей, выручки и статистики за отработанные периоды сохранена - она видна в «Финансах» и «Аналитике»</p>
+        <p class="payroll-note">${P('team.historyKept')}</p>
         <div class="team-employment-actions" data-employment-actions></div>
       </div>`);
   }
@@ -252,7 +256,7 @@ function exceptionEditor(staffId) {
 function addCard(locations) {
   const empty = { locationId: locations[0]?.id ?? '' };
   const credentials = lastCreatedCredentials;
-  return `<details class="staff-card team-add-card" ${credentials ? 'open' : ''}><summary><div class="avatar-icon" aria-hidden="true">${ICON_ADD}</div><div class="summary-meta"><div class="name">Добавить сотрудника</div><div class="role">Создать доступ в CRM</div></div><span class="chevron">▸</span></summary><div class="staff-card-body"><div class="team-add-intro"><span aria-hidden="true">${ICON_PROFILE}</span><div><h3>Новый сотрудник</h3><p>Заполните данные для первого входа. Профиль для сайта настроите после создания</p></div></div><div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия"></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}"></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com"></div>${locationControl(empty, locations)}</div>${rolePicker('master', 'role-new')}${toggleControl({ name: 'providesServices', title: 'Принимает клиентов', description: 'Услуги и график нужно настроить отдельно', checked: false })}<div class="team-editor-actions"><button class="btn btn-primary" type="button" data-create>Создать сотрудника</button><p class="payroll-note" data-card-note aria-live="polite"></p></div><div class="team-create-result" data-create-result ${credentials ? '' : 'hidden'}><strong>Данные для первого входа</strong><span>${credentials ? esc(credentials.name) : ''} сможет войти по email и временному PIN</span><code data-temporary-pin>${credentials ? esc(credentials.pin) : ''}</code><button class="btn btn-ghost btn-sm" type="button" data-copy-pin>Скопировать PIN</button></div></div></details>`;
+  return `<details class="staff-card team-add-card" ${credentials ? 'open' : ''}><summary><div class="avatar-icon" aria-hidden="true">${ICON_ADD}</div><div class="summary-meta"><div class="name">Добавить сотрудника</div><div class="role">Создать доступ в CRM</div></div><span class="chevron">▸</span></summary><div class="staff-card-body"><div class="team-add-intro"><span aria-hidden="true">${ICON_PROFILE}</span><div><h3>Новый сотрудник</h3><p>Заполните данные для первого входа. Профиль для сайта настроите после создания</p></div></div><div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия"></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}"></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com"></div>${locationControl(empty, locations)}</div>${rolePicker('master', 'role-new')}${toggleControl({ name: 'providesServices', title: P('team.acceptsClients'), description: P('team.acceptsHintNew'), checked: false })}<div class="team-editor-actions"><button class="btn btn-primary" type="button" data-create>Создать сотрудника</button><p class="payroll-note" data-card-note aria-live="polite"></p></div><div class="team-create-result" data-create-result ${credentials ? '' : 'hidden'}><strong>Данные для первого входа</strong><span>${credentials ? esc(credentials.name) : ''} сможет войти по email и временному PIN</span><code data-temporary-pin>${credentials ? esc(credentials.pin) : ''}</code><button class="btn btn-ghost btn-sm" type="button" data-copy-pin>Скопировать PIN</button></div></div></details>`;
 }
 
 function cardValue(card, name) {
@@ -340,7 +344,7 @@ async function saveCardSteps(card) {
   const serviceChanges = collectServiceChanges(card.querySelector('.service-picker'));
   if (serviceChanges.length) {
     const failedService = await saveServiceChanges(id, serviceChanges);
-    if (failedService) return noteApiFail(card, failedService, 'Не удалось сохранить услуги');
+    if (failedService) return noteApiFail(card, failedService, P('team.servicesSaveFailed'));
   }
   // График уезжает той же кнопкой (13.08.2026). Своя кнопка «Сохранить график» под
   // блоком убрана: две кнопки сохранения в одной карточке путали - общая их не
@@ -350,7 +354,7 @@ async function saveCardSteps(card) {
     const scheduleResult = await saveWeeklySchedule(id);
     if (!scheduleResult.ok) {
       if (scheduleResult.conflict) {
-        return noteFail(card, 'График не сохранён: на это время уже есть записи, они показаны в блоке «График»');
+        return noteFail(card, P('team.scheduleConflict'));
       }
       // Причину уже назвал сам редактор графика (reported) - конкретной фразой с днём
       // недели и часами. Второе, общее «Не удалось сохранить график. Повторите попытку»
@@ -551,7 +555,7 @@ async function saveException(root) {
       masterId: root.dataset.staffId, dateFrom: from, dateTo: to, type,
       breakStart: timeSelectValue(ids.breakStart), breakEnd: timeSelectValue(ids.breakEnd),
     });
-    if (!result.ok) { noteFail(root, result.status === 409 ? 'На это время уже есть запись - разовое изменение не сохранено' : errorMessage(result, 'Не удалось сохранить разовое изменение')); await loadExceptions(root); return; }
+    if (!result.ok) { noteFail(root, result.status === 409 ? P('team.exceptionConflict') : errorMessage(result, 'Не удалось сохранить разовое изменение')); await loadExceptions(root); return; }
     noteOk(root, 'Разовое изменение сохранено');
     await loadExceptions(root);
   } catch (err) {
@@ -700,7 +704,7 @@ function wireEmployment(root) {
     };
 
     const renderConfirmFire = () => {
-      actions.innerHTML = `<p class="payroll-note">Уволить «${esc(name)}»? Он пропадёт из расписания и с сайта записи, вход в CRM закроется сразу. Записи, выручка и статистика за отработанные периоды останутся на месте. Будущие записи к нему перенесите на другого мастера</p>
+      actions.innerHTML = `<p class="payroll-note">${esc(P('team.fireConfirm', { name }))}</p>
         <button type="button" class="btn btn-danger btn-sm" data-fire-yes>Да, уволить</button>
         <button type="button" class="btn btn-ghost btn-sm" data-fire-no>Отмена</button>`;
       actions.querySelector('[data-fire-yes]').addEventListener('click', () => apply(false));
@@ -817,7 +821,7 @@ export async function renderTeam() {
     const cardsOf = (list) => list.map((staff) => staffCard(staff, me.staff.role, locations, me.staff.id)).join('');
     host.innerHTML = cardsOf(active)
       + (canEdit ? addCard(locations) : '')
-      + (fired.length ? `<section class="team-fired-group"><details class="team-fired-toggle"><summary><span class="team-fired-title">Уволенные</span><span class="team-fired-count">${fired.length}</span><span class="chevron">▸</span></summary><p class="payroll-note">Не работают в компании. Записи, выручка и статистика за отработанные периоды сохранены</p>${cardsOf(fired)}</details></section>` : '');
+      + (fired.length ? `<section class="team-fired-group"><details class="team-fired-toggle"><summary><span class="team-fired-title">Уволенные</span><span class="team-fired-count">${fired.length}</span><span class="chevron">▸</span></summary><p class="payroll-note">${P('team.firedHistoryKept')}</p>${cardsOf(fired)}</details></section>` : '');
     openStaffIds.forEach((staffId) => host.querySelector(`.team-editor-card[data-staff-id="${CSS.escape(staffId)}"]`)?.setAttribute('open', ''));
     const canEditSchedule = SCHEDULE_EDITORS.includes(me.staff.role);
     rows.forEach((staff) => {

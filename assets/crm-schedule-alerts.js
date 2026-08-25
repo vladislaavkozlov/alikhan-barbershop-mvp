@@ -16,6 +16,7 @@
 import { fetchJson } from './crm-auth.js';
 import { goToSection } from './crm-app-shell.js';
 import { errorMessage, showError } from './crm-toast.js';
+import { T, Tc, P, C } from './crm-terms.js';
 
 function el(id) {
   return document.getElementById(id);
@@ -60,7 +61,7 @@ export async function renderOwnerAlerts() {
           </span>
           <span class="owner-schedule-alert__copy">
             <strong>Нет рабочего графика</strong>
-            <span>Мастер ${escapeHtml(m.name)} - клиенты не могут записаться</span>
+            <span>${escapeHtml(P('schedule.masterUnbookable', { name: m.name }))}</span>
           </span>
           <button class="owner-schedule-alert__action" type="button" data-open-schedule-tab>Настроить график</button>
         </div>`
