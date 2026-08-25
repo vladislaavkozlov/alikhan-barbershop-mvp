@@ -8,6 +8,10 @@ import { el, fetchWithWakeup } from './crm-shared.js';
 import { describeError, markSessionActive, markSessionEnded, showError } from './crm-toast.js';
 import { hidePageLoader, showPageLoader } from './crm-loading.js';
 import { refreshRoleSnapshot, renderLiveProof } from './crm-dashboard.js';
+// Словарь вертикали (Этап B, 24.08.2026): слова кабинета зависят от того, чей это
+// домен. Забирается до отрисовки, чтобы человек не увидел барбершопное слово, которое
+// через мгновение сменится
+import { loadAppearance, applyTerms } from './crm-terms.js';
 
 export const API = window.ALIKHAN_API_URL;
 const TOKEN_KEY = 'alikhan-crm:token';
@@ -135,6 +139,13 @@ export async function apiSend(path, method, body) {
 
 export function initCrmAuth(requiredRole) {
   const requiredRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+  // Словарь нужен раньше входа: форма входа - тоже экран арендатора. Ответа ждать
+  // никто не обязан - до его прихода действуют барбершопные слова, уже написанные в
+  // разметке, поэтому упавшая загрузка означает «осталось как было», а не пустой экран
+  loadAppearance(API).then(() => {
+    applyTerms();
+    document.dispatchEvent(new CustomEvent('crm:appearance'));
+  });
   const gate = buildLoginGate();
   const main = el('crmMain');
   const sessionInfo = el('sessionInfo');
