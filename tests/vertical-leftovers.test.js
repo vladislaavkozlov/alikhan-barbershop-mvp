@@ -1,70 +1,43 @@
 // Этап B: сито №1 - барбершопные слова в исходниках (24.08.2026,
 // plans/2026-08-24-multitenancy-etap-b-slovar.md).
 //
-// Цель окна - чтобы слова жили в одном месте. Проверить это глазами нельзя: замер
-// 24.08.2026 дал 424 строки видимого текста в 27 файлах. Здесь считается, сколько
-// таких строк осталось, и сверяется с базой отсчёта ниже.
+// Цель окна - чтобы слова жили в одном месте. Проверить это глазами нельзя: они
+// размазаны по 28 файлам. Здесь считается, сколько строк видимого текста осталось, и
+// сверяется с базой отсчёта ниже.
 //
-// База отсчёта - храповик: число может только убывать. Стало больше - тест падает
-// (кто-то написал новое барбершопное слово руками). Стало меньше - тест ТОЖЕ падает
-// и требует опустить базу: иначе вычищенные файлы молча зарастут обратно.
+// База - храповик: число может только убывать. Стало больше - тест падает (кто-то
+// написал новое барбершопное слово руками). Стало меньше - тест ТОЖЕ падает и требует
+// опустить базу, иначе вычищенные файлы молча зарастут обратно.
 //
-// Что не считается нарушением:
-//   - комментарии: их читает разработчик, а не врач;
-//   - строка, на которой стоит data-term / data-phrase / data-term-attr - там
-//     барбершопное слово написано осознанно, как запасной вариант на случай, если
-//     словарь не загрузился;
-//   - строка с вызовом T( / Tc( / P( / C( - слово уже берётся из словаря.
+// Правило счёта общее с tools/list-vertical-leftovers.mjs, который печатает список
+// работ по файлу: два счётчика разошлись бы на первой же правке.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile, readdir } from 'node:fs/promises';
+import { leftoverLines } from '../tools/vertical-leftovers-core.mjs';
 
 const ROOT = new URL('../', import.meta.url);
-const ROOTS = /мастер|запис|услуг|клиент|салон|стрижк|барбершоп/i;
-const EXCUSED = /data-term|data-phrase|data-term-attr|\bT\(|\bTc\(|\bP\(|\bC\(/;
 
-// Строки, где барбершопное слово - НЕ надпись для человека: ключи API, имена полей
-// базы, адреса файлов. Их переводить нечего
-const TECHNICAL = /^\s*(?:import|export)\b|\.js['"]|\/\/|^\s*\*/;
-
-// Единственное исключение - сам словарь: это и есть то «одно место», где
-// барбершопные слова обязаны лежать. Считать его нарушением значило бы требовать
-// систему без слов вообще
+// Единственное исключение - сам словарь: это и есть то «одно место», где барбершопные
+// слова обязаны лежать. Считать его нарушением значило бы требовать систему без слов
 const DICTIONARY = 'assets/crm-terms.js';
 
 async function countLeftovers(relative) {
-  const source = await readFile(new URL(relative, ROOT), 'utf8');
-  let inBlockComment = false;
-  let count = 0;
-  for (const line of source.split('\n')) {
-    const trimmed = line.trim();
-    if (inBlockComment) {
-      if (trimmed.includes('*/')) inBlockComment = false;
-      continue;
-    }
-    if (trimmed.startsWith('/*')) {
-      if (!trimmed.includes('*/')) inBlockComment = true;
-      continue;
-    }
-    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('<!--')) continue;
-    if (!ROOTS.test(line)) continue;
-    if (EXCUSED.test(line)) continue;
-    if (TECHNICAL.test(line)) continue;
-    count += 1;
-  }
-  return count;
+  return leftoverLines(await readFile(new URL(relative, ROOT), 'utf8')).length;
 }
 
-// База отсчёта на 24.08.2026, конец Фазы 2: кабинеты ещё не переведены. Фазы 3-5
-// опускают эти числа до нуля, файл за файлом
+// База отсчёта на 24.08.2026: кабинеты ещё не переведены. Фазы 3-6 опускают эти числа
+// до нуля, файл за файлом.
+//
+// 225 строк, а не 424 из первого грубого замера: тот считал продолжения
+// HTML-комментариев и строки импортов
 const BASELINE = {
-  'crm-owner.html': 107,
-  'crm-admin.html': 49,
-  'crm-master.html': 35,
   'assets/crm-walkin.js': 32,
-  'assets/crm-team.js': 20,
-  'assets/crm-toast.js': 20,
+  'crm-owner.html': 28,
+  'crm-master.html': 19,
+  'assets/crm-team.js': 18,
   'assets/crm-clients.js': 17,
+  'crm-admin.html': 16,
   'assets/crm-booking-status.js': 14,
   'assets/crm-notifications.js': 11,
   'assets/crm-analytics.js': 9,
