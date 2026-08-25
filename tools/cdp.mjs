@@ -106,9 +106,14 @@ export async function withBrowser(fn) {
       // где реальный курсор в реальной точке экрана промахивается мимо элемента.
       // clickAt шлёт настоящее Input.dispatchMouseEvent по координатам вьюпорта -
       // ровно то, что делает браузер при живом клике пользователя.
+      // Канонический жест: наведение, потом нажатие и отпускание с полем buttons.
+      // Без наведения браузер не ставит цель клика, а без buttons нажатие считается
+      // неполным - на третьей странице сессии клик переставал доходить до страницы
+      // (24.08.2026, кабинет мастера)
       async clickAt(x, y) {
-        await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
-        await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+        await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, buttons: 0 });
+        await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 });
+        await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 });
       },
       async type(selector, text) {
         return this.eval(`(function(){
@@ -142,7 +147,13 @@ export async function withBrowser(fn) {
         })()`);
         if (found !== 'OK') return found;
         for (const char of String(text)) {
-          await send('Input.dispatchKeyEvent', { type: 'keyDown', text: char, unmodifiedText: char, key: char });
+          // Канонический порядок: нажатие БЕЗ текста, вставка символа отдельным
+          // событием 'char', отпускание. Раньше текст ехал прямо в keyDown - Chrome
+          // вставлял символ через раз, и поля входа на втором-третьем кабинете
+          // оставались пустыми (найдено 24.08.2026). Оставить оба - keyDown с текстом
+          // И char - нельзя: символ задваивается, «1234» превращается в «11223344»
+          await send('Input.dispatchKeyEvent', { type: 'keyDown', key: char });
+          await send('Input.dispatchKeyEvent', { type: 'char', text: char, unmodifiedText: char, key: char });
           await send('Input.dispatchKeyEvent', { type: 'keyUp', key: char });
         }
         return 'OK';

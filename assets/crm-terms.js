@@ -143,6 +143,8 @@ export const FALLBACK = Object.freeze({
     "schedule.savedWithConflicts": "Сохранено. На это время уже есть {count} реальных записей - в колокольчике уведомлений появилось, с кем связаться",
     "schedule.notClosedConflicts": "не закрыто из-за записей",
     "booking.detailsTitle": "Детали выбранного визита",
+    "booking.addToSchedule": "Добавить клиента в расписание",
+    "booking.pickInSchedule": "Выберите запись в расписании - здесь появятся её детали",
     "booking.servicesUnknown": "Услуги по этой записи не указаны",
     "renew.waitingClient": "Ждём клиента через {days}",
     "renew.byMasterAdvice": "по рекомендации мастера",

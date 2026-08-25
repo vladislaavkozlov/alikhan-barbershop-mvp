@@ -214,23 +214,30 @@ async function main() {
         // Экран входа - тоже экран арендатора, читаем его отдельно
         await s.sleep(800);
         const gateText = await s.eval('document.body.innerText');
-        // См. оговорку в tools/cdp.mjs: после входа в первый кабинет клавиатурные
-        // события до следующих страниц не доходят
-        await s.type('#loginEmail', cabinet.email);
-        await s.type('#loginPin', '1234');
+        await s.typeReal('#loginEmail', cabinet.email);
+        await s.typeReal('#loginPin', '1234');
         await s.click('#loginForm button[type="submit"]');
         await s.sleep(2500);
-        const target = await s.eval(`(function(){
-          const label = [...document.querySelectorAll('button, .btn, [role="button"]')]
-            .find((el) => /Развернуть все/i.test(el.innerText || ''));
-          if (!label) return null;
-          const r = label.getBoundingClientRect();
-          const x = Math.round(r.left + r.width / 2);
-          const y = Math.round(r.top + r.height / 2);
-          const hit = document.elementFromPoint(x, y);
-          return { x, y, hits: !!hit && (hit === label || label.contains(hit)) };
+        // Та же логика, что в прогоне кабинетов: найти кнопку, которую видит человек
+        // (position:fixed, offsetParent у неё всегда null), проверить хит-тестом, что
+        // клик попадёт в неё, и нажать сам элемент
+        const opened = await s.eval(`(function(){
+          const buttons = [...document.querySelectorAll('.panel-group-toggle')].filter((b) => {
+            const r = b.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          });
+          if (!buttons.length) return 'НЕТ_КНОПКИ';
+          const button = buttons.find((b) => {
+            const r = b.getBoundingClientRect();
+            const hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
+            return !!hit && (hit === b || b.contains(hit));
+          });
+          if (!button) return 'ПЕРЕКРЫТА';
+          if (button.getAttribute('aria-expanded') === 'true') return 'УЖЕ_РАСКРЫТО';
+          button.click();
+          return 'OK';
         })()`);
-        if (target && target.hits) await s.clickAt(target.x, target.y);
+        if (opened !== 'OK' && opened !== 'УЖЕ_РАСКРЫТО') console.log(`  ⚠ ${cabinet.who}: разделы не раскрылись (${opened})`);
         await s.sleep(2000);
         await s.screenshot(join(SHOTS, `${cabinet.file.replace('.html', '')}.png`));
         const screen = await s.eval(`(function(){

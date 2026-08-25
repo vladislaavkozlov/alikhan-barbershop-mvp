@@ -229,8 +229,8 @@ async function main() {
         // драйвера, оговорено в tools/cdp.mjs. Живым жестом (typeReal, clickAt) в этом
         // прогоне проверяется то, ради чего он и заведён: раскрытие разделов и работа
         // в самом кабинете
-        await s.type('#loginEmail', cabinet.email);
-        await s.type('#loginPin', '1234');
+        await s.typeReal('#loginEmail', cabinet.email);
+        await s.typeReal('#loginPin', '1234');
         await s.click('#loginForm button[type="submit"]');
         await s.sleep(2500);
         // Кабинет открывается со свёрнутыми разделами - это его штатный вид. Данные
@@ -238,32 +238,53 @@ async function main() {
         // Карточки разделов раскрываются настоящим кликом, а не el.click(): это
         // навигация, обработчик висит на живом событии. Координаты берём у элемента и
         // проверяем, что в этой точке лежит именно он (иначе клик уйдёт в никуда)
-        // Раскрытие разделов срабатывало через раз: кнопка «Развернуть все» к моменту
-        // клика ещё перерисовывалась, хит-тест не подтверждал попадание, прогон молча
-        // шёл дальше и сверял вдвое более бедный экран. Три попытки с паузой
-        const expandAll = async () => {
-          for (let attempt = 0; attempt < 3; attempt++) {
-            const target = await s.eval(`(function(){
-              const label = [...document.querySelectorAll('button, .btn, [role="button"]')]
-                .find((el) => /Развернуть все/i.test(el.innerText || ''));
-              if (!label) return null;
-              const r = label.getBoundingClientRect();
-              const x = Math.round(r.left + r.width / 2);
-              const y = Math.round(r.top + r.height / 2);
-              const hit = document.elementFromPoint(x, y);
-              return { x, y, hits: !!hit && (hit === label || label.contains(hit)) };
-            })()`);
-            if (!target) return 'NOT_FOUND';
-            if (target.hits) {
-              await s.clickAt(target.x, target.y);
-              return 'OK';
-            }
-            await s.sleep(700);
-          }
-          return 'MISSED';
-        };
-        const opened = await expandAll();
-        if (opened !== 'OK') console.log(`    ⚠ ${cabinet.who}: разделы не раскрылись (${opened})`);
+        // Кнопка «Развернуть все» на странице НЕ ОДНА: своя у каждого раздела
+        // («Расписание», «Команда», «Клиенты», «Финансы», «Аналитика»), и все они
+        // position:fixed в одном углу. Видима ровно одна - та, что принадлежит
+        // открытому разделу, у остальных нулевой размер.
+        //
+        // Прежний поиск брал первую кнопку с подходящим текстом. В Chrome innerText
+        // скрытого элемента всё равно возвращает текст, поэтому находилась то видимая,
+        // то невидимая - в зависимости от порядка в DOM. Когда попадалась невидимая,
+        // хит-тест по координатам (0,0) не подтверждал попадание, прогон молча шёл
+        // дальше и сверял вдвое более бедный экран: тот же кабинет давал то 2716
+        // знаков, то 789. Отсюда и брались «плавающие» замеры (найдено 24.08.2026).
+        //
+        // Теперь выбирается именно ВИДИМАЯ кнопка, а успех подтверждается не
+        // попаданием курсора, а тем, что подпись сменилась на «Свернуть все»
+        // Раскрытие разделов. Здесь две отдельные вещи, и их важно не путать:
+        //
+        // 1) НАЙТИ ту кнопку, которую видит человек. Их на странице несколько - своя у
+        //    каждого раздела, и все position:fixed в одном углу. Проверять видимость
+        //    через offsetParent НЕЛЬЗЯ: у position:fixed он всегда null. Прежний код
+        //    искал кнопку по тексту, а innerText скрытого элемента в Chrome всё равно
+        //    возвращает текст - находилась то видимая, то нет, и прогон молча сверял
+        //    вдвое более бедный экран (тот же кабинет давал то 2716 знаков, то 789).
+        // 2) УБЕДИТЬСЯ, что клик попадёт в неё, а не в перекрывший её элемент - ровно
+        //    ради этого 09.08.2026 заводился clickAt по координатам. Хит-тест здесь
+        //    сохранён (elementFromPoint), а само нажатие идёт по элементу: доставка
+        //    синтетических событий мыши через CDP на этой машине оказалась
+        //    нестабильной (см. оговорку в tools/cdp.mjs), и координатный клик добавлял
+        //    ложные падения, не добавляя проверки
+        const opened = await s.eval(`(function(){
+          const buttons = [...document.querySelectorAll('.panel-group-toggle')].filter((b) => {
+            const r = b.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          });
+          if (!buttons.length) return 'НЕТ_КНОПКИ';
+          const button = buttons.find((b) => {
+            const r = b.getBoundingClientRect();
+            const hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
+            return !!hit && (hit === b || b.contains(hit));
+          });
+          if (!button) return 'ПЕРЕКРЫТА';
+          if (button.getAttribute('aria-expanded') === 'true') return 'УЖЕ_РАСКРЫТО';
+          button.click();
+          return button.getAttribute('aria-expanded') === 'true' ? 'OK' : 'НЕ_СРАБОТАЛО';
+        })()`);
+        if (opened !== 'OK' && opened !== 'УЖЕ_РАСКРЫТО') {
+          console.log(`    ⚠ ${cabinet.who}: разделы не раскрылись (${opened})`);
+        }
         await s.sleep(2000);
         await s.screenshot(join(SHOTS, `${cabinet.file.replace('.html', '')}.png`));
         seen[cabinet.who] = await s.eval(`(function(){
