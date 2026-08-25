@@ -39,6 +39,11 @@ const TENANT = 2;
 // Стоп-лист: корни, которых на экране клиники быть не должно
 const STOP = /мастер|запис|услуг|клиент|салон|стрижк|барбершоп/gi;
 
+// Встречная проверка. «Ноль барбершопных слов» выполняется и на пустом экране -
+// значит одного стоп-листа мало. Клинические слова обязаны БЫТЬ, иначе прогон
+// объявит успехом сломанный кабинет
+const EXPECTED = [/врач/i, /пациент/i, /приём|приемов|приёма/i, /процедур/i];
+
 const CABINETS = [
   { file: 'crm-owner.html', email: 'owner@klinika.local', who: 'владелец' },
   { file: 'crm-admin.html', email: 'admin@klinika.local', who: 'администратор' },
@@ -278,7 +283,16 @@ async function main() {
     const count = [...hits.values()].reduce((a, b) => a + b, 0) + [...gateHits.values()].reduce((a, b) => a + b, 0);
     total += count;
     if (count === 0) {
-      console.log(`  ✔ ${cabinet.who}: барбершопных слов на экране нет`);
+      const text = r.text ?? '';
+      const missing = EXPECTED.filter((rx) => !rx.test(text));
+      // Ни одного клинического слова на экране - это не «чисто», это пустой экран
+      if (missing.length === EXPECTED.length) {
+        console.log(`  ✖ ${cabinet.who}: барбершопных слов нет, но и клинических тоже - экран пустой?`);
+        total += 1;
+        continue;
+      }
+      const found = EXPECTED.length - missing.length;
+      console.log(`  ✔ ${cabinet.who}: барбершопных слов нет, клинических слов на экране - ${found} из ${EXPECTED.length}`);
       continue;
     }
     console.log(`  ✖ ${cabinet.who}: ${count} барбершопных слов на экране`);
