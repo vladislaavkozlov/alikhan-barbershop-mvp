@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Алихан — CRM · Администратор</title>
 <meta property="og:title" content="Алихан - CRM · Администратор">
-<meta property="og:description" content="Рабочий кабинет барбершопа: записи, расписание, клиенты.">
+<meta property="og:description" content="Рабочий кабинет барбершопа: записи, расписание, клиенты."> <!-- не интерфейс: превью для соцсетей, его читает краулер до выполнения скриптов -->
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://vladislaavkozlov.github.io/alikhan-barbershop-mvp/crm-admin.html">
 <meta property="og:site_name" content="АЛИХАН">
@@ -14,7 +14,7 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:type" content="image/jpeg">
-<meta property="og:image:alt" content="АЛИХАН - логотип барбершопа">
+<meta property="og:image:alt" content="АЛИХАН - логотип барбершопа"> <!-- не интерфейс: то же превью для соцсетей -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://vladislaavkozlov.github.io/alikhan-barbershop-mvp/assets/og-brand.jpg">
 <meta name="robots" content="noindex, nofollow">
@@ -86,7 +86,7 @@
       <span class="location-badge">Ставрополь, ул. Андрея Голуба 16 ст1</span>
       <button class="notif-bell crm-top-action" type="button" id="refreshBtn" aria-label="Обновить данные"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17,1.5 21,5.5 17,9.5"/><path d="M3,12.5v-2a4,4 0 0 1 4,-4h14"/><polyline points="7,22.5 3,18.5 7,14.5"/><path d="M21,11.5v2a4,4 0 0 1 -4,4H3"/></svg></button>
       <div class="msg-bell-wrap" style="position:relative">
-        <button class="notif-bell crm-top-action" type="button" id="msgBell" aria-label="Уведомления о записях и графике"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
+        <button class="notif-bell crm-top-action" type="button" id="msgBell" data-phrase-attr="aria-label:bell.ariaShort" aria-label="Уведомления о записях и графике"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
         <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
       </div>
       <span id="sessionInfo" class="session-info" hidden></span>
@@ -118,7 +118,7 @@
              (тот же приём, что уже применён на странице владельца). -->
 
         <div class="walkin-form" id="walkinForm" hidden>
-          <h3><span id="wfModeLabel">Новая запись на выбранное время</span> · <span id="wfMasterName" class="wf-master-name"></span></h3>
+          <h3><span id="wfModeLabel" data-phrase="booking.newForSlot">Новая запись на выбранное время</span> · <span id="wfMasterName" class="wf-master-name"></span></h3>
           <!-- Правка 08.08.2026 (Влад: реальный процесс - клиента записывает и оплату
                проводит администратор, не мастер: "нужно, чтобы только у администратора
                была возможность записывать клиентов"). До этой правки на странице admin не
@@ -144,15 +144,15 @@
           <div class="field-grid" id="wfDateTimeRow" hidden>
             <div class="field"><label>Дата</label><div id="wfDate-slot"></div></div>
             <div class="field"><label>Время</label><div id="wfTime-slot"></div></div>
-            <div class="field" id="wfMasterRow" hidden><label>Мастер</label><div id="wfMaster-slot"></div></div>
+            <div class="field" id="wfMasterRow" hidden><label data-term="master.nom" data-term-cap>Мастер</label><div id="wfMaster-slot"></div></div>
           </div>
           <div class="field-grid">
-            <div class="field"><label>Имя клиента</label><input id="wfClientName" type="text" placeholder="Имя клиента"></div>
+            <div class="field"><label data-phrase="field.clientName">Имя клиента</label><input id="wfClientName" type="text" data-phrase-attr="placeholder:field.clientName" placeholder="Имя клиента"></div>
             <div class="field"><label>Телефон</label><input id="wfClientPhone" type="tel" placeholder="+7 900 000-00-00"></div>
             <!-- Откуда клиент (17.08.2026, миграция 050) - см. комментарий в
                  crm-owner.html: у записи с сайта заполняется автоматически, здесь
                  администратор проставляет канал пришедшим пешком и по звонку. -->
-            <div class="field"><label>Откуда клиент</label><div id="wfSource-slot"></div></div>
+            <div class="field"><label data-phrase="field.clientSource">Откуда клиент</label><div id="wfSource-slot"></div></div>
           </div>
           <!-- Окно 55, Задача B (10.08.2026) - опознание клиента по телефону:
                GET /clients?phone= (контракт Окна 54) вызывается, как только введён
@@ -208,9 +208,9 @@
                не связывает такие визиты между собой, напоминать некому). Но молчать об
                этом нельзя - 23.08.2026 Влад нажал «Обслужен» на записи без номера и
                увидел пустоту вместо блока. Строка объясняет причину и путь. -->
-          <p class="renew-nophone" id="wfRenewNoPhone" hidden>Срок возврата у этой записи не спрашиваем - у клиента не указан телефон, напоминать некому. Впишите номер в поле «Телефон» выше, если хотите вести его историю и видеть его в «Недополученной прибыли»</p>
+          <p class="renew-nophone" id="wfRenewNoPhone" data-phrase="renew.noPhone" hidden>Срок возврата у этой записи не спрашиваем - у клиента не указан телефон, напоминать некому. Впишите номер в поле «Телефон» выше, если хотите вести его историю и видеть его в «Недополученной прибыли»</p>
           <div class="renew-block" id="wfRenew" hidden>
-            <div class="renew-title">Когда клиенту прийти снова</div>
+            <div class="renew-title" data-phrase="renew.whenAgain">Когда клиенту прийти снова</div>
             <div class="renew-hint" id="wfRenewHint"></div>
             <div class="renew-days-row">
               <div class="renew-quick-row" id="wfRenewQuick"></div>
@@ -223,7 +223,7 @@
             <div class="renew-reasons" id="wfRenewReasons"></div>
             <div class="renew-recommended-row" id="wfRenewRecommendedRow" hidden>
               <label class="renew-days-field">
-                <span>А правильно для этой стрижки, дней</span>
+                <span data-phrase="renew.correctDays">А правильно для этой стрижки, дней</span>
                 <input id="wfRenewRecommended" type="text" inputmode="numeric" autocomplete="off" placeholder="28">
               </label>
             </div>
@@ -232,7 +232,7 @@
               <input id="wfRenewNote" type="text" maxlength="300" autocomplete="off" placeholder="например: уезжает до октября">
             </label>
             <p class="renew-setby" id="wfRenewSetBy" hidden></p>
-            <p class="renew-required-note" id="wfRenewRequiredNote" hidden>Выберите срок и причину - без этого визит не закрыть. Не обсуждали срок с клиентом? Так и отметьте, это нормальный ответ</p>
+            <p class="renew-required-note" id="wfRenewRequiredNote" data-phrase="renew.required" hidden>Выберите срок и причину - без этого визит не закрыть. Не обсуждали срок с клиентом? Так и отметьте, это нормальный ответ</p>
           </div>
             <div class="noshow-banner" id="bk-noshow-banner" hidden>
               <span class="ico">⚠</span>
@@ -265,27 +265,27 @@
             <div class="field-grid">
               <div class="field">
                 <label for="bkActualPrice">Фактическая сумма, ₽</label>
-                <input id="bkActualPrice" type="text" inputmode="numeric" autocomplete="off" placeholder="как по услугам">
+                <input id="bkActualPrice" type="text" inputmode="numeric" autocomplete="off" data-phrase-attr="placeholder:field.priceHint" placeholder="как по услугам">
               </div>
               <div class="field field--wide">
                 <!-- 21.08.2026 - то же изменение, что на crm-owner.html: textarea вместо
                      однострочного поля, лимит 3000 (BOOKING_COMMENT_MAX_LEN). Комментарий
                      пишет чаще всего именно администратор, а читает владелец в карточке
                      клиента - поле обязано быть одинаковым на обеих страницах. -->
-                <label for="bkStaffComment">Комментарий к записи и клиенту</label>
-                <textarea id="bkStaffComment" rows="3" maxlength="3000" autocomplete="off" placeholder="например: владелец дал скидку постоянному клиенту; чем длиннее, тем лучше - заметка видна в карточке клиента"></textarea>
+                <label for="bkStaffComment" data-phrase="field.staffComment">Комментарий к записи и клиенту</label>
+                <textarea id="bkStaffComment" rows="3" maxlength="3000" autocomplete="off" data-phrase-attr="placeholder:field.staffCommentHint" placeholder="например: владелец дал скидку постоянному клиенту; чем длиннее, тем лучше - заметка видна в карточке клиента"></textarea>
               </div>
             </div>
           </div>
 
           <div class="wf-actions">
-            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" disabled>Сохранить запись</button>
+            <button class="btn btn-primary btn-sm" type="button" id="wfSubmit" data-phrase="booking.save" disabled>Сохранить запись</button>
             <button class="btn btn-ghost btn-sm" type="button" id="wfCancel">Отмена</button>
           </div>
           <p class="wf-result" id="wfResult" hidden></p>
 
           <div class="wf-sale" id="wfSaleForm" hidden>
-            <h4 style="margin-top:18px">Добавить продажу к этой записи</h4>
+            <h4 style="margin-top:18px" data-phrase="booking.addSale">Добавить продажу к этой записи</h4>
             <div class="field-grid">
               <div class="field"><label>Товар</label><input id="wfSaleItem" type="text" placeholder="например Воск для укладки"></div>
               <div class="field"><label>Сумма, ₽</label><input id="wfSaleAmount" type="number" min="1" step="1" placeholder="500"></div>

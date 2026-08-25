@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Алихан — CRM · Мастер</title>
-<meta property="og:title" content="Алихан - CRM · Мастер">
-<meta property="og:description" content="Рабочий кабинет мастера: мой день, записи, зарплата.">
+<title>Алихан — CRM · Мастер</title> <!-- вне окна: заголовок вкладки - это оформление под клиента, Этап D (Non-Goals спеки) -->
+<meta property="og:title" content="Алихан - CRM · Мастер"> <!-- не интерфейс: превью для соцсетей -->
+<meta property="og:description" content="Рабочий кабинет мастера: мой день, записи, зарплата."> <!-- не интерфейс: превью для соцсетей -->
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://vladislaavkozlov.github.io/alikhan-barbershop-mvp/crm-master.html">
 <meta property="og:site_name" content="АЛИХАН">
@@ -14,7 +14,7 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:type" content="image/jpeg">
-<meta property="og:image:alt" content="АЛИХАН - логотип барбершопа">
+<meta property="og:image:alt" content="АЛИХАН - логотип барбершопа"> <!-- не интерфейс: превью для соцсетей -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://vladislaavkozlov.github.io/alikhan-barbershop-mvp/assets/og-brand.jpg">
 <meta name="robots" content="noindex, nofollow">
@@ -54,13 +54,13 @@
       <span class="location-badge">Вы: <strong id="selfNameBadge">Алиовсад</strong></span>
       <button class="notif-bell crm-top-action" type="button" id="refreshBtn" aria-label="Обновить данные"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17,1.5 21,5.5 17,9.5"/><path d="M3,12.5v-2a4,4 0 0 1 4,-4h14"/><polyline points="7,22.5 3,18.5 7,14.5"/><path d="M21,11.5v2a4,4 0 0 1 -4,4H3"/></svg></button>
       <div class="msg-bell-wrap" style="position:relative">
-        <button class="notif-bell crm-top-action" type="button" id="msgBell" aria-label="Уведомления о записях и графике"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
+        <button class="notif-bell crm-top-action" type="button" id="msgBell" data-phrase-attr="aria-label:bell.ariaShort" aria-label="Уведомления о записях и графике"><span id="msgBellIcon"></span><span class="notif-badge" id="msgBellBadge" hidden>0</span></button>
         <div class="msg-panel" id="msgPanel"><div id="msgList"></div></div>
       </div>
       <span id="sessionInfo" class="session-info" hidden></span>
       <button id="logoutBtn" class="logout-btn crm-top-action" type="button" hidden>Выйти</button>
       <div class="role-switch" id="roleSwitch">
-        <span class="crm-top-action" data-role="master" aria-current="page">Мастер</span>
+        <span class="crm-top-action" data-role="master" aria-current="page" data-term="master.nom" data-term-cap>Мастер</span>
       </div>
     </div>
   </div>
@@ -138,25 +138,25 @@
                     <div class="schedule-col-head"><div class="avatar" id="selfAvatar">АЛ</div><span class="name" id="selfNameHead">Алиовсад (вы)</span></div>
                     <div class="schedule-track">
                       <div class="appt appt--done" style="top:0px;height:43px" tabindex="0" onclick="openBooking(this)"
-                           data-client="Клиент А" data-master="Алиовсад" data-service="Стрижка · 2000₽" data-planned="10:00–10:40" data-actual="10:03"
+                           data-client="Клиент А" data-master="Алиовсад" data-service="Стрижка · 2000₽" data-planned="10:00–10:40" data-actual="10:03" <!-- не интерфейс: разметка макета, при загрузке заменяется реальными данными (проверено дампом экрана) -->
                            data-status="came" data-confirmed="true" data-noshow="false">
-                        <span class="t">10:00–10:40</span><span class="c">Клиент А · Стрижка</span>
+                        <span class="t">10:00–10:40</span><span class="c">Клиент А · Стрижка</span> <!-- не интерфейс: разметка макета, при загрузке заменяется реальными данными (проверено дампом экрана) -->
                       </div>
                       <div class="appt appt--new" style="top:64px;height:64px" tabindex="0" onclick="openBooking(this)"
-                           data-client="Клиент Б" data-master="Алиовсад" data-service="Комплекс стрижка+борода · 3500₽" data-planned="11:00–12:00" data-actual=""
+                           data-client="Клиент Б" data-master="Алиовсад" data-service="Комплекс стрижка+борода · 3500₽" data-planned="11:00–12:00" data-actual="" <!-- не интерфейс: разметка макета, при загрузке заменяется реальными данными (проверено дампом экрана) -->
                            data-status="wait" data-confirmed="false" data-noshow="false">
-                        <span class="t">11:00–12:00</span><span class="c">Клиент Б · Комплекс стрижка+борода</span>
+                        <span class="t">11:00–12:00</span><span class="c">Клиент Б · Комплекс стрижка+борода</span> <!-- не интерфейс: разметка макета, при загрузке заменяется реальными данными (проверено дампом экрана) -->
                       </div>
                       <div class="appt appt--break" style="top:192px;height:64px">Перерыв 13:00–14:00 (пример)</div>
                       <div class="appt appt--done" style="top:288px;height:32px" tabindex="0" onclick="openBooking(this)"
-                           data-client="Клиент В" data-master="Алиовсад" data-service="Борода · 1600₽" data-planned="14:30–15:00" data-actual="14:31"
+                           data-client="Клиент В" data-master="Алиовсад" data-service="Борода · 1600₽" data-planned="14:30–15:00" data-actual="14:31" <!-- не интерфейс: разметка макета, при загрузке заменяется реальными данными (проверено дампом экрана) -->
                            data-status="came" data-confirmed="true" data-noshow="false">
-                        <span class="t">14:30–15:00</span><span class="c">Клиент В · Борода</span>
+                        <span class="t">14:30–15:00</span><span class="c">Клиент В · Борода</span> <!-- не интерфейс: разметка макета, при загрузке заменяется реальными данными (проверено дампом экрана) -->
                       </div>
                       <div class="appt appt--new" style="top:384px;height:64px" tabindex="0" onclick="openBooking(this)"
-                           data-client="Клиент Г" data-master="Алиовсад" data-service="СПА уход · 3000₽" data-planned="16:00–17:00" data-actual=""
+                           data-client="Клиент Г" data-master="Алиовсад" data-service="СПА уход · 3000₽" data-planned="16:00–17:00" data-actual="" <!-- не интерфейс: разметка макета, при загрузке заменяется реальными данными (проверено дампом экрана) -->
                            data-status="no" data-confirmed="true" data-noshow="true">
-                        <span class="t">16:00–17:00</span><span class="c"><span class="appt-warn">⚠</span>Клиент Г · СПА уход</span>
+                        <span class="t">16:00–17:00</span><span class="c"><span class="appt-warn">⚠</span>Клиент Г · СПА уход</span> <!-- не интерфейс: разметка макета, при загрузке заменяется реальными данными (проверено дампом экрана) -->
                       </div>
                     </div>
                   </div>
@@ -190,7 +190,7 @@
           </div>
 
           <div class="seg-panel panel-sp-year">
-            <p class="section-hint" style="margin-top:12px">Год - только мои записи. Праздники - официальный календарь РФ</p>
+            <p class="section-hint" style="margin-top:12px" data-phrase="master.yearHint">Год - только мои записи. Праздники - официальный календарь РФ</p>
             <!-- Окно 37 (06.08.2026, Задача 2) - "N записей <пример>" убрано из каждого
                  месяца: та же логика, что и удалённые блоки возвращаемости/каналов выше -
                  счётчик записей за месяц никогда реально не считался, только текстовый
@@ -226,7 +226,7 @@
              (upgradeMasterBookingPanel, assets/crm-navigation-panels.js) - оттуда и
              отступ между карточками, и сворачивание, и участие в "Развернуть все". -->
         <div class="master-booking-view" id="masterBookingView">
-          <p class="note" id="mbEmpty">Выберите запись в расписании - здесь появятся её детали</p>
+          <p class="note" id="mbEmpty" data-phrase="booking.pickInSchedule">Выберите запись в расписании - здесь появятся её детали</p>
           <div class="mb-head">
             <span class="mb-when" id="mbWhen"></span>
             <span class="mb-status" id="mbStatus"></span>
@@ -235,7 +235,7 @@
           <ul class="mb-services" id="mbServices"></ul>
           <p class="mb-total" id="mbTotal"></p>
           <div class="mb-commission" id="mbCommissionRow" hidden>
-            <span class="mb-commission-label">Моя комиссия за запись</span>
+            <span class="mb-commission-label" data-phrase="master.commission">Моя комиссия за запись</span>
             <span class="mb-commission-value" id="mbCommission"></span>
             <p class="commission-note mb-commission-note" id="mbCommissionNote"></p>
           </div>
@@ -278,7 +278,7 @@
               <div class="avatar lg" id="selfCardAvatar">--</div>
               <div class="summary-meta">
                 <div class="name" id="selfCardName">-</div>
-                <div class="role">Мастер</div>
+                <div class="role" data-term="master.nom" data-term-cap>Мастер</div>
               </div>
               <span class="chevron">▸</span>
             </summary>
@@ -297,7 +297,7 @@
               <h4>Портфолио</h4>
               <div id="selfPortfolioView"></div>
 
-              <h4>Услуги</h4>
+              <h4 data-term="service.nomPl" data-term-cap>Услуги</h4>
               <p class="section-hint" style="margin:6px 0 10px">Назначает владелец</p>
               <div class="service-picker readonly" id="selfServicePicker"></div>
 

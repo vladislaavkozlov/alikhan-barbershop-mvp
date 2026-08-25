@@ -17,7 +17,10 @@ test('каждый кабинет показывает одну статичну
     assert.doesNotMatch(block, /<a\b/, `${path}: роль не должна быть ссылкой`);
     assert.doesNotMatch(block, /href=/, `${path}: роль не должна вести на другую страницу`);
     assert.equal((block.match(/data-role=/g) || []).length, 1, `${path}: должна остаться одна роль`);
-    assert.match(block, new RegExp(`<span class="crm-top-action" data-role="${role}" aria-current="page">${label}<\\/span>`));
+    // Атрибуты после aria-current допускаются: с Этапа B метка мастера несёт data-term
+    // и слово берётся из словаря вертикали (у клиники - «Врач»). Охраняется здесь то
+    // же самое - одна статичная метка своей роли, без ссылок и переходов
+    assert.match(block, new RegExp(`<span class="crm-top-action" data-role="${role}" aria-current="page"[^>]*>${label}<\\/span>`));
   }
 });
 
