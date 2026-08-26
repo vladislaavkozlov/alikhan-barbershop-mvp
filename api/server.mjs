@@ -820,7 +820,7 @@ async function startServer() {
   // постучаться в наполовину заведённое заведение. Функция не бросает никогда:
   // опечатка в переменной, относящейся к другому клиенту, не должна ронять живой
   // салон Алихана (спека, раздел «Что делать с ошибкой в самой переменной»).
-  await provisionTenantFromEnv(process.env.NEW_TENANT);
+  await provisionTenantFromEnv(process.env);
   server.listen(PORT, () => {
     console.log(`API alikhan-crm слушает порт ${PORT}`);
   });

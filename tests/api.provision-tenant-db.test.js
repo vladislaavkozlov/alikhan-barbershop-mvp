@@ -161,7 +161,7 @@ test('опечатка в переменной не роняет приложе�
   const fake = fakePool(collector());
   __setBasePoolForTests(fake);
   const errors = [];
-  const result = await provisionTenantFromEnv('{битый JSON}', { log: () => {}, error: (m) => errors.push(String(m)) });
+  const result = await provisionTenantFromEnv({ NEW_TENANT: '{битый JSON}' }, { log: () => {}, error: (m) => errors.push(String(m)) });
   assert.equal(result, null);
   assert.equal(fake.state.queries.length, 0, 'в базу не ушло ни одного запроса');
   assert.equal(errors.length, 1);
@@ -175,10 +175,10 @@ test('сбой базы при заведении тоже не роняет п�
   });
   __setBasePoolForTests(fake);
   const errors = [];
-  const result = await provisionTenantFromEnv(JSON.stringify({
+  const result = await provisionTenantFromEnv({ NEW_TENANT: JSON.stringify({
     name: 'Клиника', domains: ['crm.example.ru'], vertical: 'clinic',
     owner: { name: 'К', email: 'k@example.ru' },
-  }), { log: () => {}, error: (m) => errors.push(String(m)) });
+  }) }, { log: () => {}, error: (m) => errors.push(String(m)) });
   assert.equal(result, null);
   assert.equal(errors.length, 1);
   assert.match(errors[0], /база отказала/);
@@ -188,8 +188,8 @@ test('переменная не задана - тишина: ни базы, ни
   const fake = fakePool(collector());
   __setBasePoolForTests(fake);
   const errors = [];
-  assert.equal(await provisionTenantFromEnv(undefined, { log: () => {}, error: (m) => errors.push(m) }), null);
-  assert.equal(await provisionTenantFromEnv('', { log: () => {}, error: (m) => errors.push(m) }), null);
+  assert.equal(await provisionTenantFromEnv({}, { log: () => {}, error: (m) => errors.push(m) }), null);
+  assert.equal(await provisionTenantFromEnv({ NEW_TENANT: '' }, { log: () => {}, error: (m) => errors.push(m) }), null);
   assert.equal(fake.state.queries.length, 0);
   assert.equal(errors.length, 0);
 });
@@ -197,13 +197,59 @@ test('переменная не задана - тишина: ни базы, ни
 test('в лог уходит подтверждение, но не PIN, заданный руками', async () => {
   __setBasePoolForTests(fakePool(collector()));
   const lines = [];
-  await provisionTenantFromEnv(JSON.stringify({
+  await provisionTenantFromEnv({ NEW_TENANT: JSON.stringify({
     name: 'Урбашевичус - клиника авторской ортодонтии',
     domains: ['crm.karinaurbashevichus.ru'],
     vertical: 'clinic',
     owner: { name: 'Карина Урбашевичус', email: 'karina@urbashevichus.ru', pin: '482913' },
-  }), { log: (m) => lines.push(String(m)), error: (m) => lines.push(String(m)) });
+  }) }, { log: (m) => lines.push(String(m)), error: (m) => lines.push(String(m)) });
   const text = lines.join('\n');
   assert.match(text, /crm\.karinaurbashevichus\.ru/);
   assert.doesNotMatch(text, /482913/);
+});
+
+// ── Находка 26.08.2026, живьём в панели Amvera ────────────────────────────────
+// «Значение не может содержать кавычки или восклицательный знак» - панель просто
+// не принимает JSON. Поэтому та же заявка кладётся в NEW_TENANT_B64 кодировкой
+// base64: ни кавычек, ни восклицательных знаков, всё так же одной строкой.
+const b64 = (obj) => Buffer.from(JSON.stringify(obj), 'utf8').toString('base64');
+const KARINA_SPEC = {
+  name: 'Урбашевичус - клиника авторской ортодонтии',
+  domains: ['crm.karinaurbashevichus.ru'],
+  vertical: 'clinic',
+  owner: { name: 'Карина Урбашевичус', email: 'karina@urbashevichus.ru', pin: '112233' },
+  services: [{ name: 'Консультация', durationMin: 30, price: 0 }],
+};
+
+test('заявка в base64 заводит арендатора так же, как обычная', async () => {
+  const fake = fakePool(collector());
+  __setBasePoolForTests(fake);
+  const result = await provisionTenantFromEnv({ NEW_TENANT_B64: b64(KARINA_SPEC) }, silent());
+  assert.equal(result.created, true);
+  const [tenant] = findQuery(fake, /^INSERT INTO tenants/i);
+  assert.ok(tenant.params.includes('Урбашевичус - клиника авторской ортодонтии'), 'кириллица пережила кодировку');
+  assert.deepEqual(tenant.params[1], ['crm.karinaurbashevichus.ru']);
+});
+
+test('битая base64 не роняет приложение и говорит, ЧТО именно не так', async () => {
+  const fake = fakePool(collector());
+  __setBasePoolForTests(fake);
+  const errors = [];
+  const result = await provisionTenantFromEnv({ NEW_TENANT_B64: 'не-base64-вовсе' }, { log: () => {}, error: (m) => errors.push(String(m)) });
+  assert.equal(result, null);
+  assert.equal(fake.state.queries.length, 0);
+  assert.match(errors[0], /NEW_TENANT_B64/);
+});
+
+test('обе переменные разом - отказ: непонятно, какая из них настоящая', async () => {
+  const fake = fakePool(collector());
+  __setBasePoolForTests(fake);
+  const errors = [];
+  const result = await provisionTenantFromEnv(
+    { NEW_TENANT: JSON.stringify(KARINA_SPEC), NEW_TENANT_B64: b64(KARINA_SPEC) },
+    { log: () => {}, error: (m) => errors.push(String(m)) }
+  );
+  assert.equal(result, null);
+  assert.equal(fake.state.queries.length, 0, 'при двусмысленности не заводится никто');
+  assert.match(errors[0], /обе/i);
 });

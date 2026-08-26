@@ -118,7 +118,9 @@ async function main() {
       ...process.env,
       PORT: String(API_PORT), DB_HOST: host, DB_NAME: DB, DB_USER: ROLE, DB_PASSWORD: PASSWORD, DB_SSL: 'disable',
       TENANT_CACHE_TTL_MS: '200',
-      NEW_TENANT: JSON.stringify(KARINA),
+      // Ровно тот путь, что поедет на прод: панель Amvera не принимает кавычки
+      // (проверено живьём 26.08.2026), поэтому заявка едет закодированной
+      NEW_TENANT_B64: Buffer.from(JSON.stringify(KARINA), 'utf8').toString('base64'),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

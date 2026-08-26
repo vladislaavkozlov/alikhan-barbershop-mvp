@@ -249,14 +249,41 @@ export async function provisionTenant(spec, out = console) {
   });
 }
 
+// Откуда берётся заявка (находка 26.08.2026, живьём в панели Amvera).
+//
+// Панель отказалась принимать JSON: «Значение не может содержать кавычки или
+// восклицательный знак». Поэтому та же заявка кладётся в NEW_TENANT_B64 кодировкой
+// base64 - ни кавычек, ни восклицательных знаков, всё так же одной строкой, и
+// кириллица в названии переживает дорогу без потерь.
+//
+// NEW_TENANT остаётся: панели бывают разные, а локальные прогоны и
+// tools/check-new-tenant.mjs удобнее гонять открытым текстом.
+//
+// Обе разом - отказ. Догадываться, какая из двух настоящая, здесь нельзя: цена
+// догадки - клиника, заведённая не теми данными.
+export function readTenantEnv(env = {}) {
+  const plain = env.NEW_TENANT?.trim() ? env.NEW_TENANT : null;
+  const encoded = env.NEW_TENANT_B64?.trim() ? env.NEW_TENANT_B64.trim() : null;
+  if (plain && encoded) fail('заданы обе переменные, NEW_TENANT и NEW_TENANT_B64. Оставьте одну - какая из них настоящая, угадывать нельзя');
+  if (plain) return plain;
+  if (!encoded) return null;
+  // Buffer.from молча проглатывает мусор, поэтому проверяем обратным преобразованием:
+  // не совпало - значит это не base64, а что-то другое, и молчать об этом нельзя
+  const decoded = Buffer.from(encoded, 'base64');
+  if (decoded.toString('base64').replace(/=+$/, '') !== encoded.replace(/=+$/, '')) {
+    throw new TenantSpecError('NEW_TENANT_B64: значение не похоже на base64. Готовую строку печатает tools/check-new-tenant.mjs');
+  }
+  return decoded.toString('utf8');
+}
+
 // Точка входа для старта приложения. НИКОГДА не бросает: опечатка в переменной,
 // относящейся к другому клиенту, не должна ронять живой салон Алихана. Требование
 // fail-closed этим не нарушается - оно про атомарность заведения, а не про
 // доступность приложения. Опечатка ловится раньше, tools/check-new-tenant.mjs.
-export async function provisionTenantFromEnv(raw, out = console) {
+export async function provisionTenantFromEnv(env, out = console) {
   let spec;
   try {
-    spec = parseTenantSpec(raw);
+    spec = parseTenantSpec(readTenantEnv(env));
   } catch (error) {
     out.error(`${error.message}. Арендатор НЕ заведён, приложение работает как прежде`);
     return null;
