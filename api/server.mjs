@@ -92,6 +92,8 @@ import { handleAnalyticsRetention, handleAnalyticsSources, handleAnalyticsLapsed
 import { handleMissedProfit, handleMissedProfitClients } from './routes/missed-profit.js';
 // Своя резервная копия базы (24.08.2026) - см. подробный комментарий в самом файле
 import { handleBackup } from './routes/backup.js';
+// Подключение арендатора при старте из переменной NEW_TENANT (Окно 69, 26.08.2026)
+import { provisionTenantFromEnv } from './lib/provision-tenant.js';
 // Ре-экспорт для tests/*.test.js.
 export { describeClientRisk, getClientCard, listClientsAtRisk, computeOwnerAlerts } from './routes/clients.js';
 export { percentOf, shapeSourceRows, parseMonths, RETENTION_MONTHS, SOURCE_MONTHS } from './routes/analytics.js';
@@ -101,6 +103,13 @@ export { normalizePhoneKey, findClientByPhone, resolveClientsQueryMode, shapeCli
 export { computeMasterPayroll, computeRevenueToday, countUnidentifiedToday } from './routes/payroll.js';
 
 const PORT = Number(process.env.PORT) || 8080;
+
+// Время старта процесса (Окно 69, 26.08.2026). Переменные окружения на Amvera
+// применяются только при перезапуске приложения: 26.08.2026 BACKUP_TOKEN был убран
+// из панели, а работающий контейнер продолжал отдавать базу на прежний секрет.
+// Отличить перезапущенный контейнер от старого было нечем - теперь есть. Наружу
+// уходит только метка времени, ничего про арендаторов и их данные.
+const STARTED_AT = new Date().toISOString();
 
 // ── Окно 33 (06.08.2026), Задача C: реестр роутов default-deny ─────────────
 // Ровно та дыра, которую эксплуатировали /kv/:key (Задача A этого же окна) -
@@ -271,6 +280,7 @@ const server = createServer(async (req, res) => {
         liveSubscribers: subscriberCount(),
         dbRoleSafe,
         db: poolStats(),
+        startedAt: STARTED_AT,
         runtime: { cpus: availableParallelism(), memoryMb: Math.round(totalmem() / 1024 / 1024) },
       });
     }
@@ -805,6 +815,12 @@ async function startServer() {
   // Служебный контекст: схема меняется поверх всех арендаторов сразу, политика
   // доступа (Фаза 3) пропускает только это значение и только отсюда.
   await runInTenant(SYSTEM_TENANT, runMigrations);
+  // Подключение арендатора из переменной NEW_TENANT (Окно 69, 26.08.2026). После
+  // миграций - схема обязана быть свежей; до listen - клиент не должен успеть
+  // постучаться в наполовину заведённое заведение. Функция не бросает никогда:
+  // опечатка в переменной, относящейся к другому клиенту, не должна ронять живой
+  // салон Алихана (спека, раздел «Что делать с ошибкой в самой переменной»).
+  await provisionTenantFromEnv(process.env.NEW_TENANT);
   server.listen(PORT, () => {
     console.log(`API alikhan-crm слушает порт ${PORT}`);
   });
