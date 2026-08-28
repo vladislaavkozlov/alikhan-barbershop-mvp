@@ -41,7 +41,7 @@
 // тот же принцип, что уже применён к Клиентам/Настройкам выше (пункт появляется
 // в момент, когда раздел реально наполнен). Эмодзи-иконки заменены на SVG
 // (assets/crm-icons.js) - разный рендер эмодзи по ОС/браузерам ломал премиум-вид.
-import { ICON_SCHEDULE, ICON_TEAM, ICON_SERVICES, ICON_CLIENTS, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE, ICON_MENU } from './crm-icons.js';
+import { ICON_SCHEDULE, ICON_TEAM, ICON_CATALOG, ICON_CLIENTS, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE, ICON_MENU } from './crm-icons.js';
 import { T, Tc, P, C } from './crm-terms.js';
 
 // Правка 07.08.2026 - добавлен пункт "Уведомления" (radio pt-e/panel-e, новый слот):
@@ -81,7 +81,7 @@ const roleConfig = () => ({
     icon: {
       schedule: ICON_SCHEDULE,
       team: ICON_TEAM,
-      services: ICON_SERVICES,
+      services: ICON_CATALOG,
       clients: ICON_CLIENTS,
       finance: ICON_FINANCE,
       analytics: ICON_ANALYTICS,

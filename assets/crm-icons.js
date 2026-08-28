@@ -15,6 +15,12 @@ export const ICON_TEAM = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w
 
 export const ICON_FINANCE = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><rect x="2.5" y="5.5" width="15" height="9" rx="1.8"/><circle cx="10" cy="10" r="2.1"/><circle cx="5.2" cy="10" r="0.55" fill="currentColor" stroke="none"/><circle cx="14.8" cy="10" r="0.55" fill="currentColor" stroke="none"/></svg>`;
 
+// Каталог услуг (Окно 75, 28.08.2026). Отдельная иконка понадобилась потому, что
+// ICON_SERVICES и ICON_TEAM в этом файле - одни и те же ножницы, и раздел каталога
+// в меню было не отличить от «Команды». Ценник читается одинаково и для стрижки, и
+// для приёма врача, то есть не привязан к вертикали
+export const ICON_CATALOG = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><path d="M10.2 2.6h5.1a1.1 1.1 0 0 1 1.1 1.1v5.1a1.5 1.5 0 0 1-.44 1.06l-5.9 5.9a1.1 1.1 0 0 1-1.56 0l-4.76-4.76a1.1 1.1 0 0 1 0-1.56l5.9-5.9a1.5 1.5 0 0 1 1.06-.44Z"/><circle cx="13.3" cy="6.5" r="1"/></svg>`;
+
 export const ICON_ANALYTICS = `<svg viewBox="0 0 20 20" fill="currentColor" stroke="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="11" width="3.2" height="6" rx="0.8"/><rect x="8.4" y="7" width="3.2" height="10" rx="0.8"/><rect x="13.8" y="3.5" width="3.2" height="13.5" rx="0.8"/></svg>`;
 
 export const ICON_BELL = `<svg viewBox="0 0 20 20" ${STROKE} xmlns="http://www.w3.org/2000/svg"><path d="M10 2.5c-2.2 0-4 1.8-4 4v2.3c0 .5-.2 1-.5 1.4L4.3 12a1 1 0 0 0 .8 1.6h9.8a1 1 0 0 0 .8-1.6l-1.2-1.8a2.3 2.3 0 0 1-.5-1.4V6.5c0-2.2-1.8-4-4-4Z"/><path d="M8.2 15.5a1.9 1.9 0 0 0 3.6 0"/></svg>`;
