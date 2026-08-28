@@ -1006,7 +1006,10 @@
   // ("00% пример" вместо цифр), теперь он считается на сервере как все остальные.
   upgradeBookingPanel();
   initCrmNavigationPanels();
-  window.__refreshOwnerDashboard = () => Promise.all([
+  // allSettled, а не all (28.08.2026): один упавший блок раньше отменял обновление
+  // всех остальных - человек жал «Обновить» и не получал ни расписания, ни финансов,
+  // потому что где-то в стороне не отрисовалась карточка сотрудника
+  window.__refreshOwnerDashboard = () => Promise.allSettled([
     renderOwnerAlerts(),
     renderRiskList(),
     // Само расписание (28.08.2026, находка Влада). Кнопка «Обновить данные»

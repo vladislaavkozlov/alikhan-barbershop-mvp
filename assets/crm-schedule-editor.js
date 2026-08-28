@@ -350,6 +350,11 @@ function wireWeeklyDayRow(prefix, wd, day) {
   const breakOnEl = el(`${prefix}-${wd}-breakOn`);
   const breakFieldsEl = el(`${prefix}-${wd}-breakFields`);
   const applyAllBtn = el(`${prefix}-${wd}-applyAll`);
+  // Полей может не быть в DOM вовсе: карточка сотрудника ещё не отрисована, а
+  // перерисовку графиков уже позвали (28.08.2026 - падало «Cannot read properties of
+  // null» прямо посреди обновления кабинета). Раньше это роняло всю цепочку обновления
+  // целиком, вместе с расписанием и финансами, хотя чинить было нечего - просто рано.
+  if (!workingEl || !rowEl || !offBadgeEl || !fieldsEl || !breakToggleWrap || !breakOnEl || !breakFieldsEl) return;
   const syncWorking = () => {
     const working = workingEl.checked;
     rowEl.classList.toggle('is-off', !working);
