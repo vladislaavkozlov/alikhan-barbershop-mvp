@@ -1009,6 +1009,11 @@
   window.__refreshOwnerDashboard = () => Promise.all([
     renderOwnerAlerts(),
     renderRiskList(),
+    // Само расписание (28.08.2026, находка Влада). Кнопка «Обновить данные»
+    // перечитывала заявки, уведомления, графики команды, финансы, клиентов и
+    // аналитику - всё, кроме дня, ради которого её обычно и жмут. Владелец включал
+    // сотруднику график, жал «Обновить» и видел прежнее пустое расписание.
+    window.__refreshScheduleViews?.(),
     window.__refreshNotifications?.(),
     window.__refreshTeamSchedules?.(),
     refreshFinance(),

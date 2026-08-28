@@ -27,3 +27,15 @@ test('состав запрашивается один раз за отрисо�
   const calls = source.match(/await freshStaffById\(/g) ?? [];
   assert.equal(calls.length, 1, `лишний запрос состава: ${calls.length}`);
 });
+
+test('кнопка «Обновить данные» перерисовывает и само расписание', async () => {
+  // Вторая половина той же находки 28.08.2026: состав стал свежим, но кнопка
+  // обновления день не трогала вовсе - в списке её вызовов были все разделы, кроме
+  // расписания, ради которого её обычно и жмут
+  const page = await readFile(new URL('../crm-owner.html', import.meta.url), 'utf8');
+  // Границу берём по ВЫЗОВУ, а не по имени: имя встречается выше в импорте, и срез по
+  // нему давал пустую строку - тест падал на исправном коде
+  const start = page.indexOf('window.__refreshOwnerDashboard');
+  const block = page.slice(start, page.indexOf('initCrmRefreshControl();', start));
+  assert.match(block, /window\.__refreshScheduleViews\?\.\(\)/, 'обновление не перерисовывает день');
+});
