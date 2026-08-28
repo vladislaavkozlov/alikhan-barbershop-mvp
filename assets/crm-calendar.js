@@ -708,7 +708,16 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
   const isSolo = staff.role === 'master';
   // crm-owner.html/crm-admin.html - несколько колонок, одна на каждого реального
   // мастера, видимого этой роли (staffList уже отфильтрован сервером по роли).
-  const masters = isSolo ? [staff] : mastersOf(staffList);
+  //
+  // Состав перечитывается ЗДЕСЬ, а не берётся из снимка, сделанного при входе
+  // (28.08.2026, находка Влада на кабинете клиники). Прежде список приезжал один раз
+  // при загрузке страницы, и включение графика новому сотруднику ничего не меняло:
+  // человек ставил галку «принимает», задавал рабочую неделю, жал «Сохранить», шёл в
+  // расписание - и видел пустое поле, потому что в снимке у него всё ещё «графика
+  // нет». Помогала только перезагрузка страницы, о которой никто не догадывается.
+  const freshStaff = await freshStaffById(fetchJson);
+  const freshList = freshStaff.size ? [...freshStaff.values()] : staffList;
+  const masters = isSolo ? [staff] : mastersOf(freshList);
 
   const shiftByMaster = new Map();
   await Promise.all(
@@ -750,8 +759,7 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
     return;
   }
 
-  const fresh = await freshStaffById(fetchJson);
-  const shownMasters = masters.map((m) => fresh.get(m.id) ?? m);
+  const shownMasters = masters.map((m) => freshStaff.get(m.id) ?? m);
   grid.innerHTML = shownMasters.map(buildColumnHtml).join('');
   // После innerHTML - колонки только что созданы, до этого момента задавать им высоту
   // было бы некуда (шкала слева существует всегда, поэтому applyDayScale общий)
