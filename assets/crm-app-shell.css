@@ -1413,3 +1413,47 @@ button.sm-cell {
 .push-card .note { margin: 0; font-size: 0.8rem; line-height: 1.45; color: var(--text-muted); }
 .push-card .btn { margin-top: 2px; }
 .push-card [data-push-note]:empty { display: none; }
+
+/* Название заведения вместо вордмарка - для арендатора, у которого своей картинки
+   бренда в контуре нет (28.08.2026, подключение клиники Карины). Явное правило на
+   [hidden] обязательно: собственный display у класса перебивает атрибут */
+.brand-name {
+  display: block;
+  white-space: nowrap;
+}
+.brand-name[hidden] { display: none; }
+
+/* То же на экране входа: у арендатора без своего логотипа читается название */
+.login-brand-name {
+  display: block;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.03em;
+  margin: 0 0 4px;
+}
+.login-brand-name[hidden] { display: none; }
+
+/* Карточка услуги в каталоге (Окно 75, 28.08.2026). Поля берут общий класс .field,
+   но внутри details им нужен собственный отступ: без него подпись поля прижимается
+   к рамке соседнего и читается как его часть */
+.staff-card__body {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 18px;
+}
+.staff-card__body .field { gap: 6px; }
+.staff-card__body input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.staff-card__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.staff-card__meta {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  margin-left: 12px;
+}

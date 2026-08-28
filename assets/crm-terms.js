@@ -14,7 +14,7 @@
 
 export const FALLBACK = Object.freeze({
   vertical: 'barbershop',
-  name: 'барбершоп «Алихан»',
+  name: 'CRM',
   terms: {
     "master": {
       "g": "m",
@@ -390,6 +390,21 @@ export function applyTerms(root = (typeof document === 'undefined' ? null : docu
     const path = spec.slice(at + 1).trim();
     if (!attr || !path) continue;
     node.setAttribute(attr, T(path));
+  }
+  // Название заведения - такая же принадлежность арендатора, как и словарь: до
+  // 28.08.2026 оно было зашито в разметку («Алихан — CRM» в заголовке вкладки,
+  // «барбершоп «Алихан»» на экране входа), и клиника Карины видела бы чужой бренд
+  // в собственном кабинете
+  const name = tenantName();
+  if (name) {
+    for (const node of root.querySelectorAll('.brand-name, .login-brand-name')) {
+      node.textContent = name;
+    }
+    if (typeof document !== 'undefined' && root === document) {
+      // Роль в заголовке вкладки («· Владелец») остаётся - меняется только заведение
+      const role = document.title.split('·').slice(1).join('·').trim();
+      document.title = role ? `${name} — CRM · ${role}` : `${name} — CRM`;
+    }
   }
 }
 

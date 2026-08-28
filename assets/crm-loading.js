@@ -68,7 +68,7 @@ export function showPageLoader() {
   // Порядок и подача - как на экране входа: кикер «CRM», бренд, индикатор
   // Бренд - тот же вензель, что в шапке кабинетов и на сайте (правка Влада 18.08.2026),
   // alt держит текстовую подпись для экранного диктора
-  loaderEl.innerHTML = `<div class="crm-page-loader__card"><p class="crm-page-loader__kicker">CRM</p><img class="crm-page-loader__brand-mark" src="assets/brand/wordmark-header.webp" alt="АЛИХАН"><span class="crm-spinner crm-spinner--lg" aria-hidden="true"></span></div>`;
+  loaderEl.innerHTML = `<div class="crm-page-loader__card"><p class="crm-page-loader__kicker">CRM</p><img class="crm-page-loader__brand-mark" src="assets/brand/wordmark-header.webp" alt="" onerror="this.hidden=true"><span class="crm-spinner crm-spinner--lg" aria-hidden="true"></span></div>`;
   document.body.append(loaderEl);
   return loaderEl;
 }

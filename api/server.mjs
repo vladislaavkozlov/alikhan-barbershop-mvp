@@ -63,7 +63,7 @@ import { handlePublicMasters } from './routes/public-masters.js';
 import { handleLocationsList } from './routes/locations.js';
 // Ре-экспорт для tests/api.staff-role-lock.test.js (инцидент 11.08.2026).
 export { isLastOwnerDemotion } from './routes/staff.js';
-import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate } from './routes/services.js';
+import { handleServicesList, handleMasterServicesList, handleMasterServiceUpdate, handleServiceCreate, handleServiceUpdate, handleServiceDelete } from './routes/services.js';
 import { handleBookings, handleBookingCancel, handleBookingStatus, handleBookingAddServices, handleBookingSetServices, handleBookingReschedule, handleBookingActualPrice, handleBookingClient, handleBookingDelete, handleSales } from './routes/bookings.js';
 // Ре-экспорт для tests/api.booking-reschedule.test.js (Окно 54, Задача B и C).
 export { checkSlotAvailability, resolveRescheduleDuration, planRescheduleNotifications, formatMoveSlot, normalizeStaffComment, BOOKING_COMMENT_MAX_LEN, resolveServicesReplacement, normalizeClientName, normalizeClientPhoneInput, CLIENT_NAME_MAX_LEN, normalizeClientSource, firstBookingIdByClient, CLIENT_SOURCE_KEYS } from './routes/bookings.js';
@@ -163,6 +163,9 @@ const ROUTES = [
   { method: 'PUT', path: 'staff/:id/employment', auth: 'management' },
   { method: 'PUT', path: 'staff/:id/pin', auth: 'owner' },
   { method: 'GET', path: 'services', auth: 'any-staff' },
+  { method: 'POST', path: 'services', auth: 'management' },
+  { method: 'PUT', path: 'services/:id', auth: 'management' },
+  { method: 'DELETE', path: 'services/:id', auth: 'management' },
   { method: 'GET', path: 'master-services', auth: 'public' },
   { method: 'PUT', path: 'master-services/:masterId/:serviceId', auth: 'management' },
   { method: 'GET', path: 'bookings', auth: 'public' },
@@ -445,6 +448,17 @@ async function handleRequest(req, res, url, parts, tenant) {
     // ── /services - каталог, доступен любой авторизованной роли ──────────
     if (parts[0] === 'services' && parts.length === 1 && req.method === 'GET') {
       return handleServicesList(req, res);
+    }
+    // Управление каталогом (Окно 75, 28.08.2026): до него завести услугу можно было
+    // только миграцией, и второй арендатор оставался без единой процедуры
+    if (parts[0] === 'services' && parts.length === 1 && req.method === 'POST') {
+      return handleServiceCreate(req, res);
+    }
+    if (parts[0] === 'services' && parts[1] && parts.length === 2 && req.method === 'PUT') {
+      return handleServiceUpdate(req, res, parts);
+    }
+    if (parts[0] === 'services' && parts[1] && parts.length === 2 && req.method === 'DELETE') {
+      return handleServiceDelete(req, res, parts);
     }
 
     // ── /master-services - цена и длительность ПО МАСТЕРУ (Окно 10, разд.17.2 ТЗ) ──

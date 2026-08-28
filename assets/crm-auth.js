@@ -34,6 +34,27 @@ function setSession(token, staff) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(STAFF_KEY, JSON.stringify(staff));
   markSessionActive();
+  applyLocationBadge();
+}
+
+// Адрес точки в шапке админа до 28.08.2026 был написан в разметке словами «Ставрополь,
+// ул. Андрея Голуба 16 ст1» - адресом Алихана. У клиники Карины точек пока нет вовсе,
+// и её администратор читал бы адрес чужого салона. Берём адрес из справочника точек
+// арендатора, а когда точек нет - бейджа просто нет: пустая плашка хуже отсутствующей.
+async function applyLocationBadge() {
+  const badge = document.querySelector('.location-badge:not(:has(strong))');
+  if (!badge) return;
+  try {
+    const list = await fetchJson('/locations');
+    const first = Array.isArray(list) ? list[0] : null;
+    // Показываем адрес, а не название точки: в справочнике Алихана они служебные
+    // («Точка 1 (тёмный фасад)»), человеку в шапке нужен адрес, куда ехать
+    const text = first ? (first.address || first.name || '') : '';
+    badge.textContent = text;
+    badge.hidden = !text;
+  } catch {
+    badge.hidden = true;
+  }
 }
 // Сессию закрываем не только по кнопке «Выйти»: тем же путём уходит просроченный
 // токен и чужая роль на этой странице. Всё, что страница успела запросить до этого
@@ -52,7 +73,8 @@ function buildLoginGate() {
   div.innerHTML = `
     <div class="login-card">
       <p class="login-kicker">CRM</p>
-      <img class="login-brand-mark" src="assets/brand/lockup-footer.webp" alt="${tenantName()}">
+      <img class="login-brand-mark" src="assets/brand/lockup-footer.webp" alt="${tenantName()}" onerror="this.hidden=true;const n=this.nextElementSibling;if(n)n.hidden=false">
+      <p class="login-brand-name" hidden>${tenantName()}</p>
       <p class="login-tag">Вход для сотрудников</p>
       <form id="loginForm" novalidate>
         <div class="field"><label for="loginEmail">Логин</label><input id="loginEmail" type="text" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></div>

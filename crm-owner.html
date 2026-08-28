@@ -68,6 +68,7 @@
      и перенумеровывать их значило бы трогать четыре чужих раздела ради одного нового */
   #pt-f:checked ~ .tab-bar label[for="pt-f"] { color: var(--accent); border-color: var(--accent); }
   #pt-f:checked ~ .panel-f { display: block; }
+  #pt-g:checked ~ .panel-g { display: block; }
 
   /* период выручки (Окно 13, 01.08.2026 - переключатель по точкам убран, у Алихана
      одна точка, см. Задача 1 промпта корректировки) */
@@ -121,7 +122,7 @@
 
 <header class="site">
   <div class="nav">
-    <a href="index.html" class="brand" aria-label="АЛИХАН - на сайт"><img class="brand-wordmark" src="assets/brand/wordmark-header.webp" alt="АЛИХАН"></a>
+    <a href="index.html" class="brand" aria-label="На сайт"><img class="brand-wordmark" src="assets/brand/wordmark-header.webp" alt="" onerror="this.hidden=true;const n=this.nextElementSibling;if(n)n.hidden=false"><span class="brand-name" hidden></span></a>
     <div class="nav-right">
       <!-- Правка 07.08.2026 - адрес точки убран из шапки CRM (не нужен в рабочем
            интерфейсе владельца, только в публичном виджете index.html/crm-admin.html) -->
@@ -169,6 +170,7 @@
     <input type="radio" name="pt" id="pt-d">
     <input type="radio" name="pt" id="pt-e">
     <input type="radio" name="pt" id="pt-f">
+    <input type="radio" name="pt" id="pt-g">
     <div class="tab-bar">
       <label for="pt-a">Расписание</label>
       <label for="pt-b">Команда</label>
@@ -924,6 +926,18 @@
       </section>
     </div>
 
+    <!-- Каталог услуг (Окно 75, 28.08.2026). До него услуги заводились только
+         миграцией, и второй арендатор оставался без единой процедуры -->
+    <div class="tab-panel panel-g">
+      <section>
+        <div class="clients-toolbar">
+          <h2 class="section-title" id="servicesSectionTitle" data-term-cap data-term="service.nomPl">Услуги</h2>
+          <button type="button" class="btn-primary" id="serviceAddBtn">Добавить</button>
+        </div>
+        <div class="staff-list" id="servicesList"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
+      </section>
+    </div>
+
   </div>
 </main>
 
@@ -944,6 +958,9 @@
   // «Недополученная прибыль» в «Финансах» (Окно 59, 22.08.2026). Данные тянет при
   // первом раскрытии своей карточки, не на загрузке страницы
   import { wireMissedProfit, refreshMissedProfit } from './assets/crm-missed-profit.js';
+  // Каталог услуг (Окно 75, 28.08.2026): до него услуги заводились только миграцией,
+  // и второй арендатор оставался без единой процедуры
+  import { wireServicesCatalog, renderServicesCatalog } from './assets/crm-services-catalog.js';
   // Модуль подключён ради самого себя: он сам подписан на событие входа и рисует
   // «Команду» после проверки сессии, вызывать его отсюда руками не нужно
   import './assets/crm-team.js';
@@ -961,6 +978,8 @@
   wireScheduleAlerts();
   wireAnalytics();
   wireMissedProfit();
+  wireServicesCatalog();
+  renderServicesCatalog();
   initAppShell('owner');
 
   // Окно 45 (08.08.2026) - мягкое обновление: перечитывает данные всех уже
@@ -993,6 +1012,8 @@
     // «Клиенты» (21.08.2026) - тоже чистый рендер (fetch + innerHTML). Если раздел ещё
     // ни разу не открывали, список пуст и функция просто перечитает его в фоне
     renderClientsSection(),
+    // Каталог услуг - тот же чистый рендер: перечитать и перерисовать список
+    renderServicesCatalog(),
     // «Недополученная прибыль» (Окно 59) - тот же чистый рендер: сброс кэша периодов
     // и перерисовка открытого периода
     refreshMissedProfit(),

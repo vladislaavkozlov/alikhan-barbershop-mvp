@@ -41,7 +41,7 @@
 // тот же принцип, что уже применён к Клиентам/Настройкам выше (пункт появляется
 // в момент, когда раздел реально наполнен). Эмодзи-иконки заменены на SVG
 // (assets/crm-icons.js) - разный рендер эмодзи по ОС/браузерам ломал премиум-вид.
-import { ICON_SCHEDULE, ICON_TEAM, ICON_CLIENTS, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE, ICON_MENU } from './crm-icons.js';
+import { ICON_SCHEDULE, ICON_TEAM, ICON_SERVICES, ICON_CLIENTS, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE, ICON_MENU } from './crm-icons.js';
 import { T, Tc, P, C } from './crm-terms.js';
 
 // Правка 07.08.2026 - добавлен пункт "Уведомления" (radio pt-e/panel-e, новый слот):
@@ -65,11 +65,14 @@ const roleConfig = () => ({
   owner: {
     profileLabel: 'Владелец',
     defaultSection: 'schedule',
-    order: ['schedule', 'team', 'clients', 'finance', 'analytics', 'notifications'],
-    radio: { schedule: 'pt-a', team: 'pt-b', clients: 'pt-f', finance: 'pt-c', analytics: 'pt-d', notifications: 'pt-e' },
+    order: ['schedule', 'team', 'services', 'clients', 'finance', 'analytics', 'notifications'],
+    radio: { schedule: 'pt-a', team: 'pt-b', services: 'pt-g', clients: 'pt-f', finance: 'pt-c', analytics: 'pt-d', notifications: 'pt-e' },
     label: {
       schedule: 'Расписание',
       team: 'Команда',
+      // Слово раздела - из словаря вертикали: барбершоп продаёт услуги, клиника
+      // делает процедуры (Окно 75, 28.08.2026)
+      services: Tc('service.nomPl'),
       clients: Tc('client.nomPl'),
       finance: 'Финансы',
       analytics: 'Аналитика',
@@ -78,6 +81,7 @@ const roleConfig = () => ({
     icon: {
       schedule: ICON_SCHEDULE,
       team: ICON_TEAM,
+      services: ICON_SERVICES,
       clients: ICON_CLIENTS,
       finance: ICON_FINANCE,
       analytics: ICON_ANALYTICS,
@@ -155,7 +159,7 @@ function sidebarMarkup() {
   // сотрудника. Одна кнопка-источник, вторая - только способ до неё дотянуться.
   return `
     <nav class="app-nav">${items}</nav>
-    <div class="app-sidebar-location">Алихан, Ставрополь</div>
+    <div class="app-sidebar-location">${window.__crmTerms?.tenantName?.() || ''}</div>
     <div class="app-sidebar-profile" id="appShellProfile">${activeConfig.profileLabel}</div>
     <button type="button" class="app-sidebar-logout" id="appSidebarLogout">Выйти</button>
   `;
@@ -382,8 +386,34 @@ export function initAppShell(role = 'owner') {
   // меню к этому моменту подписаны барбершопными словами из запасного словаря. Когда
   // слова приходят, пересобираем подписи - иначе врач до перезагрузки страницы читал
   // бы «Клиенты» вместо «Пациенты» (Этап B, 24.08.2026)
+  // Шапка кабинета принадлежит арендатору, а не Алихану (28.08.2026, подключение
+  // клиники Карины). Вордмарк - картинка бренда конкретного контура: она лежит рядом
+  // с кабинетом, и у арендатора без своего логотипа её просто нет. Тогда вместо
+  // картинки читается название заведения, которое приезжает в appearance с сервера.
+  // Признак «своего логотипа» - наличие файла, а не список имён в коде: список
+  // пришлось бы править при каждом новом клиенте, и первый же забытый показал бы
+  // клиенту чужой герб.
+  function applyBrand() {
+    const name = window.__crmTerms?.tenantName?.() || '';
+    if (!name) return;
+    for (const link of document.querySelectorAll('a.brand')) {
+      link.setAttribute('aria-label', `${name} - на сайт`);
+      const img = link.querySelector('.brand-wordmark');
+      const label = link.querySelector('.brand-name');
+      if (label) label.textContent = name;
+      // Картинка уже отгрузилась к этому моменту - onerror в разметке отработал сам.
+      // Здесь ловится второй случай: событие пришло раньше, чем браузер понял, что
+      // файла нет.
+      if (img && img.complete && img.naturalWidth === 0) {
+        img.hidden = true;
+        if (label) label.hidden = false;
+      }
+    }
+  }
+
   document.addEventListener('crm:appearance', () => {
     activeConfig = roleConfig()[shellRole] || roleConfig().owner;
+    applyBrand();
     for (const btn of document.querySelectorAll('#appSidebar [data-section]')) {
       const label = btn.querySelector('.app-nav-label');
       const id = btn.dataset.section;
@@ -391,6 +421,8 @@ export function initAppShell(role = 'owner') {
     }
     const mobileSection = el('appShellSection');
     if (mobileSection) mobileSection.textContent = activeConfig.label[currentSection] || '';
+    const sidebarLocation = document.querySelector('.app-sidebar-location');
+    if (sidebarLocation) sidebarLocation.textContent = window.__crmTerms?.tenantName?.() || '';
   });
 
   goToSection(activeConfig.defaultSection);
