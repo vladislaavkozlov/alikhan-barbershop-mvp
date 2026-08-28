@@ -213,6 +213,21 @@ export async function handleStaffPinSet(req, res, parts) {
     [hashPin(newPin), staffId],
   );
   if (result.rowCount === 0) return sendJson(res, 404, { error: 'staff_not_found' });
+
+  // Обрываем прежние входы этого сотрудника (Окно 72, 28.08.2026).
+  //
+  // Интерфейс после смены пароля говорит «войти по старому уже нельзя» - и до
+  // этой правки это было неправдой. Сессия держится на своём токене и живёт 30
+  // дней независимо от пароля: вкладка, открытая со старым паролем, продолжала
+  // работать как ни в чём не бывало. Для смены пароля «потому что старый утёк»
+  // это ровно тот случай, ради которого пароль и меняют.
+  //
+  // Текущую сессию не трогаем: владелец, задающий пароль самому себе, иначе
+  // выкинул бы себя из кабинета на середине работы с командой.
+  const currentToken = req.headers.authorization?.startsWith('Bearer ')
+    ? req.headers.authorization.slice(7).trim()
+    : '';
+  await pool.query('DELETE FROM sessions WHERE staff_id = $1 AND token <> $2', [staffId, currentToken]);
   return sendJson(res, 200, { ok: true });
 }
 
