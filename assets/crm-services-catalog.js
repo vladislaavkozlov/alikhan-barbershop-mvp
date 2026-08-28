@@ -6,58 +6,20 @@
 // запроса. Этот раздел закрывает дыру со стороны человека, роуты - со стороны сервера
 // (api/routes/services.js).
 //
+// Вёрстка НЕ изобретается заново (конвенция проекта): плитка каталога - тот же
+// компонент .service-check в сетке .service-picker, что и «Услуги и время» в карточке
+// сотрудника, с теми же инлайн-полями цены и длительности. Разница только по смыслу:
+// там владелец раздаёт мастеру услуги из каталога, здесь - заводит сам каталог,
+// поэтому вместо галки «делает / не делает» стоит кнопка удаления.
+//
 // Словарь вертикали работает и здесь: у барбершопа раздел называется «Услуги», у
-// клиники - «Процедуры», и то же слово стоит в кнопках и подтверждениях. Название
-// приходит с сервера, в разметке его нет.
+// клиники - «Процедуры», и то же слово стоит в кнопках и подтверждениях.
 import { fetchJson, apiSend } from './crm-auth.js';
-import { T, Tc } from './crm-terms.js';
-import { showError, describeError } from './crm-toast.js';
+import { T, Tc, P } from './crm-terms.js';
+import { showError, showSuccess, describeError } from './crm-toast.js';
 
-const money = (value) => `${Number(value || 0).toLocaleString('ru-RU')} руб.`;
+let services = [];
 
-// Пустой каталог - нормальное состояние нового арендатора, а не ошибка. Поэтому текст
-// не «ничего не найдено», а прямая инструкция, что сделать
-function emptyHtml() {
-  return `<p class="crm-empty">${Tc('service.nomPl')} ещё не заведены. Нажмите «Добавить», чтобы создать первую -
-  без этого ${T('client.nomPl')} не смогут записаться, а расписание останется пустым</p>`;
-}
-
-function cardHtml(service) {
-  return `
-    <details class="staff-card" data-service-id="${service.id}">
-      <summary>
-        <span class="staff-card__name">${escapeHtml(service.name)}</span>
-        <span class="staff-card__meta">${service.durationMin} мин · ${money(service.price)}</span>
-      </summary>
-      <div class="staff-card__body">
-        <div class="field">
-          <label>Название</label>
-          <input type="text" data-field="name" value="${escapeHtml(service.name)}" maxlength="120">
-        </div>
-        <div class="field">
-          <label>Длительность, минут</label>
-          <input type="number" data-field="durationMin" value="${service.durationMin}" min="5" step="5">
-        </div>
-        <div class="field">
-          <label>Цена, рублей</label>
-          <input type="number" data-field="price" value="${service.price}" min="0" step="50">
-        </div>
-        <div class="staff-card__actions">
-          <button type="button" class="btn-primary" data-action="save">Сохранить</button>
-          <button type="button" class="btn-ghost" data-action="delete">Удалить</button>
-        </div>
-      </div>
-    </details>`;
-}
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (ch) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
-  ));
-}
-
-// Любой отказ сервера показывается словами, а не кодом: словарь переводов живёт в
-// crm-toast.js и покрыт тестом «каждый код ошибки переведён на человеческий язык»
 async function send(path, method, body) {
   const res = await apiSend(path, method, body);
   if (!res.ok) {
@@ -67,7 +29,41 @@ async function send(path, method, body) {
   return true;
 }
 
-let services = [];
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+));
+
+// Пустой каталог - нормальное состояние нового арендатора, а не ошибка. Поэтому текст
+// не «ничего не найдено», а прямая инструкция, что сделать
+function emptyHtml() {
+  return `<p class="crm-empty">${Tc('service.nomPl')} ещё не заведены. Нажмите «Добавить», чтобы создать первую -
+  без этого ${T('client.nomPl')} не смогут записаться, а расписание останется пустым</p>`;
+}
+
+function tileHtml(service) {
+  return `
+    <div class="service-check service-check--catalog" data-service-id="${service.id}">
+      <span>
+        <input type="text" class="sc-name sc-name-input" value="${escapeHtml(service.name)}" maxlength="120"
+               aria-label="Название: ${escapeHtml(service.name)}">
+        <span class="sc-meta">
+          <span class="sc-price">
+            <input type="text" inputmode="numeric" class="sc-price-input" value="${service.price}"
+                   aria-label="${escapeHtml(P('service.priceAria', { name: service.name }))}">
+            <span class="sc-price-unit">₽</span>
+          </span>
+          <span class="sc-dot">·</span>
+          <span class="sc-duration">
+            <input type="number" min="5" step="5" class="sc-duration-input" value="${service.durationMin}"
+                   aria-label="Длительность: ${escapeHtml(service.name)}">
+            <span class="sc-duration-unit">мин</span>
+          </span>
+        </span>
+      </span>
+      <button type="button" class="sc-remove" data-action="delete"
+              aria-label="Удалить: ${escapeHtml(service.name)}" title="Удалить">×</button>
+    </div>`;
+}
 
 export async function renderServicesCatalog() {
   const list = document.getElementById('servicesList');
@@ -78,63 +74,90 @@ export async function renderServicesCatalog() {
     list.innerHTML = `<p class="crm-empty">Не удалось загрузить ${T('service.accPl')}. Обновите страницу</p>`;
     return;
   }
-  list.innerHTML = services.length ? services.map(cardHtml).join('') : emptyHtml();
-  const title = document.getElementById('servicesSectionTitle');
-  if (title) title.textContent = Tc('service.nomPl');
+  list.className = services.length ? 'service-picker' : '';
+  list.innerHTML = services.length ? services.map(tileHtml).join('') : emptyHtml();
   const addBtn = document.getElementById('serviceAddBtn');
   if (addBtn) addBtn.textContent = `Добавить ${T('service.acc')}`;
+  setDirty(false);
 }
 
-function readCard(card) {
-  const value = (field) => card.querySelector(`[data-field="${field}"]`)?.value;
-  const name = String(value('name') ?? '').trim();
-  const durationMin = Number.parseInt(value('durationMin'), 10);
-  const price = Number.parseInt(value('price'), 10);
-  return { name, durationMin, price };
+// Правки копятся и уезжают одной кнопкой - тот же порядок, что в карточке сотрудника:
+// человек правит несколько плиток подряд и сохраняет разом, а не ловит по тосту на
+// каждое поле
+function setDirty(value) {
+  const save = document.getElementById('servicesSaveBtn');
+  if (save) save.hidden = !value;
+}
+
+function readTile(tile) {
+  const name = String(tile.querySelector('.sc-name-input')?.value ?? '').trim();
+  const price = Number.parseInt(String(tile.querySelector('.sc-price-input')?.value ?? '').replace(/\s/g, ''), 10);
+  const durationMin = Number.parseInt(tile.querySelector('.sc-duration-input')?.value, 10);
+  return { name, price, durationMin };
+}
+
+function changedTiles(list) {
+  const out = [];
+  for (const tile of list.querySelectorAll('.service-check[data-service-id]')) {
+    const id = tile.dataset.serviceId;
+    const was = services.find((s) => s.id === id);
+    const now = readTile(tile);
+    if (!was) continue;
+    if (was.name !== now.name || was.price !== now.price || was.durationMin !== now.durationMin) {
+      out.push({ id, tile, ...now });
+    }
+  }
+  return out;
 }
 
 export function wireServicesCatalog() {
   const list = document.getElementById('servicesList');
   const addBtn = document.getElementById('serviceAddBtn');
+  const saveBtn = document.getElementById('servicesSaveBtn');
   if (!list || !addBtn) return;
 
+  list.addEventListener('input', () => setDirty(changedTiles(list).length > 0));
+
   addBtn.addEventListener('click', async () => {
-    // Новая услуга рождается с понятным черновиком, а не с пустой формой: человеку
-    // проще исправить название, чем заполнить четыре поля с нуля
+    // Новая услуга рождается понятным черновиком, а не пустой формой: исправить
+    // название проще, чем заполнить три поля с нуля
     const draft = { name: `Новая ${T('service.nom')}`, durationMin: 30, price: 0 };
     if (!(await send('/services', 'POST', draft))) return;
     await renderServicesCatalog();
-    // Новая карточка уходит в конец списка - раскрываем именно её, иначе человек
-    // ищет, что же изменилось
-    const cards = list.querySelectorAll('[data-service-id]');
-    const fresh = cards[cards.length - 1];
-    if (fresh) {
-      fresh.open = true;
-      fresh.querySelector('[data-field="name"]')?.select();
+    const tiles = list.querySelectorAll('.service-check[data-service-id]');
+    const fresh = tiles[tiles.length - 1];
+    fresh?.querySelector('.sc-name-input')?.select();
+  });
+
+  saveBtn?.addEventListener('click', async () => {
+    const changes = changedTiles(list);
+    for (const change of changes) {
+      if (!change.name) return showError('Название - обязательное поле');
+      if (!Number.isInteger(change.durationMin) || change.durationMin <= 0) {
+        return showError('Длительность - целое число минут больше нуля');
+      }
+      if (!Number.isInteger(change.price) || change.price < 0) {
+        return showError('Цена - целое число рублей, ноль или больше');
+      }
     }
+    for (const change of changes) {
+      const ok = await send(`/services/${change.id}`, 'PUT', {
+        name: change.name, price: change.price, durationMin: change.durationMin,
+      });
+      if (!ok) return;
+    }
+    await renderServicesCatalog();
+    if (changes.length) showSuccess('Сохранено');
   });
 
   list.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-action]');
+    const button = event.target.closest('[data-action="delete"]');
     if (!button) return;
-    const card = button.closest('[data-service-id]');
-    const id = card?.dataset.serviceId;
+    const tile = button.closest('[data-service-id]');
+    const id = tile?.dataset.serviceId;
     if (!id) return;
-
-    if (button.dataset.action === 'save') {
-      const body = readCard(card);
-      if (!body.name) return showError(`Название - обязательное поле`);
-      if (!Number.isInteger(body.durationMin) || body.durationMin <= 0) return showError('Длительность - целое число минут больше нуля');
-      if (!Number.isInteger(body.price) || body.price < 0) return showError('Цена - целое число рублей, ноль или больше');
-      if (await send(`/services/${id}`, 'PUT', body)) await renderServicesCatalog();
-      return;
-    }
-
-    if (button.dataset.action === 'delete') {
-      const service = services.find((s) => s.id === id);
-      // Подтверждение обязательно: удаление снимает услугу и со всех сотрудников
-      if (!window.confirm(`Удалить «${service?.name ?? ''}»? ${Tc('service.nom')} исчезнет из записи клиентов и у всех сотрудников. Записи, которые уже прошли с этой ${T('service.ins')}, удалить не даст сама система`)) return;
-      if (await send(`/services/${id}`, 'DELETE')) await renderServicesCatalog();
-    }
+    const service = services.find((s) => s.id === id);
+    if (!window.confirm(`Удалить «${service?.name ?? ''}»? ${Tc('service.nom')} исчезнет из записи и у всех сотрудников. Если она уже стоит в чьих-то визитах, система удалить не даст`)) return;
+    if (await send(`/services/${id}`, 'DELETE')) await renderServicesCatalog();
   });
 }

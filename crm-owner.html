@@ -933,8 +933,11 @@
         <div class="clients-toolbar">
           <h2 class="section-title" id="servicesSectionTitle" data-term-cap data-term="service.nomPl">Услуги</h2>
           <button type="button" class="btn-primary" id="serviceAddBtn">Добавить</button>
+          <!-- Кнопка появляется, только когда есть что сохранять - тот же порядок, что
+               в карточке сотрудника: правки копятся и уезжают разом -->
+          <button type="button" class="btn-primary" id="servicesSaveBtn" hidden>Сохранить изменения</button>
         </div>
-        <div class="staff-list" id="servicesList"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
+        <div id="servicesList"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
       </section>
     </div>
 
