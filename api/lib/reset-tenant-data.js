@@ -310,3 +310,172 @@ export async function dropResetSnapshotFromEnv(env = {}, out = console) {
     return null;
   }
 }
+
+// ── Удаление тестовых сотрудников ───────────────────────────────────────────
+//
+// Зачем отдельная операция. Штатный способ убрать человека из системы - увольнение:
+// оно сохраняет его записи, выручку и статистику за отработанные периоды, и для живого
+// мастера это единственно верное поведение. Но «Тест Аудит» и «Тест Сценарии» - не
+// уволенные сотрудники, а следы разработки, и в кабинете заказчика они видны разделом
+// «Уволенные (2)». Такой след чистится вместе с данными, а не прячется статусом
+// (правка 28.08.2026 по замечанию владельца).
+//
+// Роута для этого в API нет и не будет: удаление человека необратимо и делается раз в
+// жизни системы. Тот же канон, что у сброса - переменная окружения плюс перезапуск.
+export const PURGE_STAFF_VARIABLE = 'PURGE_STAFF';
+
+// Порядок важен: сначала то, что ссылается на сотрудника, потом он сам. sessions,
+// notifications и staff_media уходят каскадом по внешнему ключу, их в списке нет.
+//
+// Здесь перечислены только таблицы с прямой колонкой master_id. schedule_breaks в
+// список НЕ входит, хотя чистится тоже: перерыв привязан к смене (shift_id), а не к
+// мастеру, и удаляется через свои смены - см. PURGE_BREAKS_SQL ниже. Репетиция на
+// живой базе поймала это раньше прода: `column "master_id" does not exist`
+export const PURGE_STAFF_TABLES = [
+  'master_services',
+  'master_payroll_settings',
+  'master_weekly_schedule',
+  'schedule_shifts',
+  'schedule_change_requests',
+];
+
+// Перерывы уходят ДО смен, иначе внешний ключ не даст удалить смену
+export const PURGE_BREAKS_SQL = `DELETE FROM schedule_breaks
+   WHERE tenant_id = $1
+     AND shift_id IN (SELECT id FROM schedule_shifts WHERE tenant_id = $1 AND master_id = ANY($2::text[]))`;
+export const PURGE_BREAKS_SNAPSHOT_SQL = `SELECT * FROM schedule_breaks
+   WHERE shift_id IN (SELECT id FROM schedule_shifts WHERE master_id = ANY($1::text[]))`;
+
+export const purgeSnapshotKey = (label) => `staff-purge:${label}`;
+
+// Заявка: <номер арендатора>:<точное имя>:<метка>:<id через запятую>
+//
+// Идентификаторы стоят последними и отделены от метки двоеточием, а между собой
+// запятой: в id сотрудника запятой нет по построению, значит разбор однозначен даже
+// когда в названии салона есть двоеточие
+export function parsePurgeStaffSpec(raw, variable = PURGE_STAFF_VARIABLE) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+  const value = String(raw).trim();
+  if (/["'!]/.test(value)) {
+    fail('в значении есть кавычка или восклицательный знак - панель Amvera такие значения не принимает. Формат: 1:Название салона:metka:staff-aaa,staff-bbb', variable);
+  }
+  const parts = value.split(':');
+  if (parts.length < 4) {
+    fail(`значение «${value}» не похоже на заявку. Формат: <номер арендатора>:<точное название>:<метка>:<id через запятую>`, variable);
+  }
+  const tenantId = parts[0].trim();
+  const ids = parts[parts.length - 1].split(',').map((s) => s.trim()).filter(Boolean);
+  const label = parts[parts.length - 2].trim();
+  const tenantName = parts.slice(1, -2).join(':').trim();
+  if (!/^\d+$/.test(tenantId)) fail(`номер арендатора «${parts[0]}» - не число`, variable);
+  if (!tenantName) fail('название арендатора пустое, а сверка с базой по нему и держит всю операцию', variable);
+  if (!/^[a-z0-9.-]+$/.test(label)) fail(`метка «${label}» годится только из латиницы, цифр, точки и дефиса`, variable);
+  if (ids.length === 0) fail('не перечислен ни один сотрудник к удалению', variable);
+  return { tenantId: Number(tenantId), tenantName, label, ids };
+}
+
+export async function purgeStaff(spec, out = console) {
+  return runInTenant(spec.tenantId, async () => {
+    const tenant = await pool.query('SELECT id, name, vertical FROM tenants WHERE id = $1', [spec.tenantId]);
+    if (tenant.rows.length === 0) refuse(`арендатора ${spec.tenantId} в базе нет. Ничего не удалено`);
+    const actualName = tenant.rows[0].name;
+    if (actualName !== spec.tenantName) {
+      refuse(`арендатор ${spec.tenantId} называется «${actualName}», а в переменной указано «${spec.tenantName}». Ничего не удалено`);
+    }
+    const actualVertical = tenant.rows[0].vertical;
+    if (!RESET_ALLOWED_VERTICALS.includes(actualVertical)) {
+      refuse(`арендатор ${spec.tenantId} «${actualName}» имеет вертикаль «${actualVertical ?? '(не задана)'}», а операция разрешена только для: ${RESET_ALLOWED_VERTICALS.join(', ')}. Ничего не удалено`);
+    }
+
+    const key = purgeSnapshotKey(spec.label);
+    const already = await pool.query('SELECT updated_at FROM kv_store WHERE key = $1', [key]);
+    if (already.rows.length > 0) {
+      out.log(`Удаление с меткой ${spec.label} уже выполнено (${already.rows[0].updated_at}) - ничего не удалялось. Переменную ${PURGE_STAFF_VARIABLE} можно убрать из панели`);
+      return { applied: false, tenantId: spec.tenantId, label: spec.label, purged: [], deleted: null };
+    }
+
+    // Три рубежа на каждого названного человека. Цена ошибки здесь - отрезанный вход
+    // владельцу салона, поэтому проверяется не «похоже на тестового», а каждое условие
+    // по отдельности, и любое несовпадение останавливает операцию целиком
+    const found = await pool.query(
+      'SELECT id, name, role, employed, email FROM staff WHERE tenant_id = $1 AND id = ANY($2::text[]) ORDER BY name',
+      [spec.tenantId, spec.ids]
+    );
+    const missing = spec.ids.filter((id) => !found.rows.some((r) => r.id === id));
+    if (missing.length > 0) {
+      refuse(`этих сотрудников у арендатора ${spec.tenantId} нет: ${missing.join(', ')}. Ничего не удалено: расхождение со списком означает, что заявка составлена не по этой базе`);
+    }
+    const stillEmployed = found.rows.filter((r) => r.employed);
+    if (stillEmployed.length > 0) {
+      refuse(`эти люди числятся в штате: ${stillEmployed.map((r) => `${r.name} (${r.id})`).join(', ')}. Убираются только те, кто уже уволен - живого сотрудника из системы не вычёркивают`);
+    }
+    const withBookings = await pool.query(
+      'SELECT master_id, count(*)::int AS n FROM bookings WHERE tenant_id = $1 AND master_id = ANY($2::text[]) GROUP BY master_id',
+      [spec.tenantId, spec.ids]
+    );
+    if (withBookings.rows.length > 0) {
+      refuse(`за этими людьми числятся записи: ${withBookings.rows.map((r) => `${r.master_id}: ${r.n}`).join(', ')}. Ничего не удалено: история отработанных периодов важнее чистоты списка`);
+    }
+
+    // Снимок отката - полные строки самого сотрудника и всего, что на него ссылается,
+    // включая каскадные таблицы: каскад уносит их молча, и без снимка вернуть их нечем
+    // Строки сотрудников в снимок кладутся ЦЕЛИКОМ, а не той пятёркой колонок, по
+    // которой шли проверки выше: снимок из проекции нельзя вставить обратно - у
+    // строки не окажется ни tenant_id, ни точки, ни PIN, ни признаков видимости, а
+    // умолчание колонки tenant_id (миграция 057) в служебном контексте вообще падает.
+    // Репетиция на живой базе поймала это раньше прода
+    const snapshot = {
+      staff: (await pool.query('SELECT * FROM staff WHERE tenant_id = $1 AND id = ANY($2::text[])', [spec.tenantId, spec.ids])).rows,
+    };
+    for (const table of [...PURGE_STAFF_TABLES, 'staff_media', 'notifications', 'sessions']) {
+      const column = ['staff_media', 'notifications', 'sessions'].includes(table) ? 'staff_id' : 'master_id';
+      snapshot[table] = (await pool.query(
+        `SELECT * FROM ${table} WHERE ${column} = ANY($1::text[])`, [spec.ids]
+      )).rows;
+    }
+    snapshot.schedule_breaks = (await pool.query(PURGE_BREAKS_SNAPSHOT_SQL, [spec.ids])).rows;
+    await pool.query(
+      'INSERT INTO kv_store (tenant_id, key, value, updated_at) VALUES ($1, $2, $3, now())',
+      [spec.tenantId, key, JSON.stringify({ label: spec.label, tenantId: spec.tenantId, takenAt: new Date().toISOString(), ids: spec.ids, tables: snapshot })]
+    );
+
+    const deleted = {};
+    // Перерывы первыми: они держат внешний ключ на смены, которые уйдут следом
+    deleted.schedule_breaks = (await pool.query(PURGE_BREAKS_SQL, [spec.tenantId, spec.ids])).rowCount ?? 0;
+    for (const table of PURGE_STAFF_TABLES) {
+      const res = await pool.query(
+        `DELETE FROM ${table} WHERE tenant_id = $1 AND master_id = ANY($2::text[])`, [spec.tenantId, spec.ids]
+      );
+      deleted[table] = res.rowCount ?? 0;
+    }
+    const gone = await pool.query(
+      'DELETE FROM staff WHERE tenant_id = $1 AND id = ANY($2::text[])', [spec.tenantId, spec.ids]
+    );
+    deleted.staff = gone.rowCount ?? 0;
+
+    out.log(`Удаление тестовых сотрудников у арендатора ${spec.tenantId} «${actualName}», метка ${spec.label}`);
+    for (const person of found.rows) out.log(`  убран: ${person.name} (${person.role}, ${person.email ?? 'без почты'}, ${person.id})`);
+    for (const table of Object.keys(deleted)) out.log(`  ${table}: удалено строк ${deleted[table]}`);
+    out.log(`  снимок для отката лежит в kv_store, ключ ${key}`);
+    out.log(`Уберите переменную ${PURGE_STAFF_VARIABLE} из панели Amvera и перезапустите приложение`);
+    return { applied: true, tenantId: spec.tenantId, label: spec.label, purged: found.rows.map((r) => r.id), deleted };
+  });
+}
+
+// Тот же контракт, что у остальных точек входа: опечатка в переменной не роняет салон
+export async function purgeStaffFromEnv(env = {}, out = console) {
+  let spec;
+  try {
+    spec = parsePurgeStaffSpec(env[PURGE_STAFF_VARIABLE]);
+  } catch (error) {
+    out.error(`${error.message}. Ничего не удалено, приложение работает как прежде`);
+    return null;
+  }
+  if (!spec) return null;
+  try {
+    return await purgeStaff(spec, out);
+  } catch (error) {
+    out.error(`${PURGE_STAFF_VARIABLE}: операция не выполнена - ${error.message}. В базе ничего не изменено`);
+    return null;
+  }
+}

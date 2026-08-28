@@ -94,7 +94,7 @@ import { handleMissedProfit, handleMissedProfitClients } from './routes/missed-p
 import { handleBackup } from './routes/backup.js';
 // Подключение арендатора при старте из переменной NEW_TENANT (Окно 69, 26.08.2026)
 import { provisionTenantFromEnv } from './lib/provision-tenant.js';
-import { dropResetSnapshotFromEnv, resetTenantDataFromEnv } from './lib/reset-tenant-data.js';
+import { dropResetSnapshotFromEnv, purgeStaffFromEnv, resetTenantDataFromEnv } from './lib/reset-tenant-data.js';
 // Ре-экспорт для tests/*.test.js.
 export { describeClientRisk, getClientCard, listClientsAtRisk, computeOwnerAlerts } from './routes/clients.js';
 export { percentOf, shapeSourceRows, parseMonths, RETENTION_MONTHS, SOURCE_MONTHS } from './routes/analytics.js';
@@ -834,6 +834,13 @@ async function startServer() {
   // окажутся в панели разом, снимок сначала будет снят операцией, а потом убран, а не
   // наоборот. Тоже не бросает никогда.
   await dropResetSnapshotFromEnv(process.env);
+  // Удаление тестовых сотрудников из переменной PURGE_STAFF (28.08.2026, замечание
+  // владельца: «Тест Аудит» и «Тест Сценарии» - не уволенные люди, а следы разработки,
+  // и заказчику их видеть незачем). Стоит ПОСЛЕ сброса: сброс пишет график всем, кто в
+  // штате, а эти двое уволены и графика не получают - порядок значения не имеет, но так
+  // операция работает уже по вычищенной базе, где записей за ними заведомо ноль.
+  // Тоже не бросает никогда.
+  await purgeStaffFromEnv(process.env);
   server.listen(PORT, () => {
     console.log(`API alikhan-crm слушает порт ${PORT}`);
   });
