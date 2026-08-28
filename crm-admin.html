@@ -444,7 +444,7 @@
               <h4>Контакты</h4>
               <div class="field-grid">
                 <div class="field"><label>Телефон</label><input id="adminSelfPhone" value="—" readonly></div>
-                <div class="field"><label>Email</label><input id="adminSelfEmail" value="—" readonly></div>
+                <div class="field"><label>Логин для входа</label><input id="adminSelfEmail" value="—" readonly></div>
               </div>
               <h4>Доступ</h4>
               <!-- Поле «Точка» убрано 16.08.2026 по правке Влада: точка одна, выбор
@@ -456,13 +456,13 @@
                 <div class="field"><label>Роль</label><input value="Администратор" readonly></div>
               </div>
 
-              <!-- Смена PIN убрана 20.08.2026 (решение Влада): пины задаёт только
+              <!-- Смена пароля убрана 20.08.2026 (решение Влада): пароли задаёт только
                    владелец, в разделе «Команда» внутри карточки сотрудника. Роут
                    PUT /auth/pin снят с сервера вместе с этим блоком - оставлять
                    форму без роута значило бы показывать кнопку, которая всегда
                    отвечает 404. -->
               <h4>Вход в CRM</h4>
-              <p class="note">PIN для входа задаёт владелец. Если нужно сменить - попросите его</p>
+              <p class="note">Пароль для входа задаёт владелец. Если нужно сменить - попросите его</p>
             </div>
           </details>
         </div>
@@ -478,7 +478,7 @@
   import { initAppShell } from './assets/crm-app-shell.js';
   import { initCrmNavigationPanels, upgradeBookingPanel, upgradeScheduleViews } from './assets/crm-navigation-panels.js';
   import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
-  // Смена своего PIN в «Личных данных». Модуль сам подписан на событие входа
+  // Смена своего пароля в «Личных данных». Модуль сам подписан на событие входа
   // Раздел «Сотрудники» (16.08.2026). Модуль подключён ради самого себя: он подписан
   // на событие входа и сам рисует карточки из GET /staff, в режиме "только просмотр"
   // для роли admin - вызывать его отсюда руками не нужно, ровно как у владельца

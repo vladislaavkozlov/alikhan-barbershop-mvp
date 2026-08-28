@@ -1,7 +1,7 @@
 // Аудит кабинетов МАСТЕРА и АДМИНИСТРАТОРА перед сдачей проекта (16.08.2026).
 // Гоняется по ЖИВОМУ проду (GitHub Pages + Amvera) под боевыми логинами:
-//   мастер        - master3-test@alikhan.test (Елизавета, role=master)
-//   администратор - master4-test@alikhan.test (role=admin)
+//   мастер        - логин из MASTER_LOGIN (Елизавета, role=master)
+//   администратор - логин из ADMIN_LOGIN (role=admin)
 // master-2 (Мамедхан) больше не master, а manager - он работает на странице владельца,
 // поэтому для роли "мастер" берём master-3.
 //
@@ -11,13 +11,27 @@
 import { withBrowser } from './cdp.mjs';
 import { mkdirSync } from 'node:fs';
 
+// Окно 72 (28.08.2026): боевые логины и пароли убраны из кода - репозиторий публичный,
+// а до этой правки пароли всех пятерых сотрудников салона лежали здесь открытым
+// текстом. Скрипт берёт доступы из окружения, например:
+//   OWNER_LOGIN=aliovsad OWNER_PIN=<пароль> node tools/audit-2026-08-16-master-admin.mjs
+const env = (name) => {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`Не задан доступ ${name}. Пример: ${name}=<значение> node tools/audit-2026-08-16-master-admin.mjs`);
+    process.exit(1);
+  }
+  return value;
+};
+
+
 const SITE = process.env.SITE_URL || 'https://vladislaavkozlov.github.io/alikhan-barbershop-mvp';
 const OUT = '/tmp/audit-crm-2026-08-16';
 mkdirSync(OUT, { recursive: true });
 
 const ACCOUNTS = {
-  master: { page: 'crm-master.html', email: 'master3-test@alikhan.test', pin: '0708', sections: ['today', 'payroll', 'profile'] },
-  admin: { page: 'crm-admin.html', email: 'master4-test@alikhan.test', pin: '517563', sections: ['schedule', 'team', 'profile'] },
+  master: { page: 'crm-master.html', email: env('MASTER_LOGIN'), pin: env('MASTER_PIN'), sections: ['today', 'payroll', 'profile'] },
+  admin: { page: 'crm-admin.html', email: env('ADMIN_LOGIN'), pin: env('ADMIN_PIN'), sections: ['schedule', 'team', 'profile'] },
 };
 
 const INSTRUMENT = `

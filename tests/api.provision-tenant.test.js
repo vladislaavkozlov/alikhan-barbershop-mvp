@@ -94,18 +94,22 @@ test('вертикаль - только та, для которой есть с�
   assert.equal(parseTenantSpec(withDomains(['crm.example.ru'])).vertical, 'clinic');
 });
 
-test('почта владельца проверяется той же функцией, что и в кабинете', () => {
-  assert.throws(() => parseTenantSpec(withOwner({ name: 'К', email: 'karina' })), /почт|email/i);
+test('логин владельца проверяется той же функцией, что и в кабинете', () => {
+  // Окно 72 (28.08.2026): «karina» перестало быть ошибкой - это теперь валидный
+  // логин. Ошибкой осталось то, что логином быть не может: пустое и ломаный адрес
+  assert.throws(() => parseTenantSpec(withOwner({ name: 'К', email: 'bad@@mail' })), /почт|email/i);
+  assert.equal(parseTenantSpec(withOwner({ name: 'К', email: 'karina' })).owner.email, 'karina');
   assert.throws(() => parseTenantSpec(withOwner({ name: 'К' })), /почт|email/i);
   assert.throws(() => parseTenantSpec(withOwner({ email: 'k@example.ru' })), /имя|name/i);
   // Почта приводится к нижнему регистру - вход ищет сотрудника именно так
   assert.equal(parseTenantSpec(withOwner({ name: 'К', email: 'Karina@Urbashevichus.RU' })).owner.email, 'karina@urbashevichus.ru');
 });
 
-test('PIN необязателен, но заданный проходит проверку кабинета - 6 цифр', () => {
+test('пароль необязателен, но заданный проходит проверку кабинета - минимум 6 знаков', () => {
   assert.equal(parseTenantSpec(withOwner({ name: 'К', email: 'k@example.ru' })).owner.pin, null);
+  // Буквы теперь разрешены (Окно 72), слишком короткое и не-строка - нет
+  assert.equal(parseTenantSpec(withOwner({ name: 'К', email: 'k@example.ru', pin: '4829a3' })).owner.pin, '4829a3');
   assert.throws(() => parseTenantSpec(withOwner({ name: 'К', email: 'k@example.ru', pin: '48291' })), /pin/i);
-  assert.throws(() => parseTenantSpec(withOwner({ name: 'К', email: 'k@example.ru', pin: '4829a3' })), /pin/i);
   assert.throws(() => parseTenantSpec(withOwner({ name: 'К', email: 'k@example.ru', pin: 482913 })), /pin/i);
 });
 

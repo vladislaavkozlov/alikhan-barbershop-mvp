@@ -13,10 +13,15 @@ import { homedir } from 'node:os';
 
 const API = process.env.API_URL ?? 'https://alikhancrm1-vladislaavkozlov.amvera.io';
 const ORIGIN = process.env.ORIGIN ?? 'https://vladislaavkozlov.github.io';
-const EMAIL = process.env.OWNER_EMAIL ?? 'master1-test@alikhan.test';
-const PIN = process.env.OWNER_PIN ?? '4495';
+const EMAIL = process.env.OWNER_LOGIN ?? process.env.OWNER_EMAIL;
+const PIN = process.env.OWNER_PIN;
 const TOKEN = process.env.BACKUP_TOKEN;
 const OUT_DIR = process.argv[2] ?? join(homedir(), 'Desktop', 'alikhan-backups');
+
+if (!EMAIL || !PIN) {
+  console.error('Нужны доступы владельца: OWNER_LOGIN=<логин> OWNER_PIN=<пароль> BACKUP_TOKEN=<секрет> node tools/backup-prod.mjs');
+  process.exit(1);
+}
 
 if (!TOKEN) {
   console.error('Нужен секрет: BACKUP_TOKEN=<значение из панели Amvera> node tools/backup-prod.mjs');

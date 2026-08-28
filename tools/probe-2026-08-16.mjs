@@ -3,11 +3,30 @@
 // Запуск: node tools/probe-2026-08-16.mjs <role> "<js-выражение>"
 import { withBrowser } from './cdp.mjs';
 
+// Окно 72 (28.08.2026): боевые логины и пароли убраны из кода - репозиторий публичный,
+// а до этой правки пароли всех пятерых сотрудников салона лежали здесь открытым
+// текстом. Скрипт берёт доступы из окружения, например:
+//   OWNER_LOGIN=aliovsad OWNER_PIN=<пароль> node tools/probe-2026-08-16.mjs
+const env = (name) => {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`Не задан доступ ${name}. Пример: ${name}=<значение> node tools/probe-2026-08-16.mjs`);
+    process.exit(1);
+  }
+  return value;
+};
+
+
+// Окно 72 (28.08.2026): боевые логин и пароль владельца убраны из кода - репозиторий
+// публичный. Скрипт берёт их из окружения и без них не запускается:
+//   OWNER_LOGIN=<логин> OWNER_PIN=<пароль> node tools/probe-2026-08-16.mjs
+
+
 const SITE = process.env.SITE_URL || 'https://vladislaavkozlov.github.io/alikhan-barbershop-mvp';
 const ACC = {
-  master: { page: 'crm-master.html', email: 'master3-test@alikhan.test', pin: '0708' },
-  admin: { page: 'crm-admin.html', email: 'master4-test@alikhan.test', pin: '517563' },
-  owner: { page: 'crm-owner.html', email: 'master1-test@alikhan.test', pin: '4495' },
+  master: { page: 'crm-master.html', email: env('MASTER_LOGIN'), pin: env('MASTER_PIN') },
+  admin: { page: 'crm-admin.html', email: env('ADMIN_LOGIN'), pin: env('ADMIN_PIN') },
+  owner: { page: 'crm-owner.html', email: env('OWNER_LOGIN'), pin: OWNER_PIN },
 };
 
 const role = process.argv[2] || 'admin';

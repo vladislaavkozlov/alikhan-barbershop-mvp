@@ -10,6 +10,20 @@ import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { withBrowser } from './cdp.mjs';
 
+// Окно 72 (28.08.2026): боевые логины и пароли убраны из кода - репозиторий публичный,
+// а до этой правки пароли всех пятерых сотрудников салона лежали здесь открытым
+// текстом. Скрипт берёт доступы из окружения, например:
+//   OWNER_LOGIN=aliovsad OWNER_PIN=<пароль> node tools/verify-gotovnost-2026-08-01.mjs
+const env = (name) => {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`Не задан доступ ${name}. Пример: ${name}=<значение> node tools/verify-gotovnost-2026-08-01.mjs`);
+    process.exit(1);
+  }
+  return value;
+};
+
+
 const ROOT = process.cwd();
 const PORT = 8794;
 const outDir = process.argv[2] || '/tmp';
@@ -76,7 +90,7 @@ window.fetch = async (url, opts) => {
 
 const STAFF_BY_EMAIL = {
   'owner-test@alikhan.test': { id: 'master-1', name: 'Алиовсад', role: 'owner', locationId: null },
-  'master2-test@alikhan.test': { id: 'master-2', name: 'Мамедхан', role: 'master', locationId: null },
+  [env('MANAGER_LOGIN')]: { id: 'master-2', name: 'Мамедхан', role: 'master', locationId: null },
 };
 
 // --- Б.2: index-showcase.html должна физически уметь отправить форму ---
@@ -128,7 +142,7 @@ await withBrowser(async (s) => {
   await s.navigate(`${BASE}/crm-master.html`);
   await s.sleep(200);
   await s.eval(`(function(){
-    document.getElementById('loginEmail').value = 'master2-test@alikhan.test';
+    document.getElementById('loginEmail').value = env('MANAGER_LOGIN');
     document.getElementById('loginPin').value = '1111';
     document.getElementById('loginForm').dispatchEvent(new Event('submit', {cancelable:true, bubbles:true}));
   })()`);

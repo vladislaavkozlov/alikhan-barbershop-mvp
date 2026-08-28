@@ -44,17 +44,22 @@ test('управление ролями осталось management, его эт
   assert.notEqual(put('staff/master-3/pin').auth, 'management');
 });
 
-test('PIN - ровно шесть цифр, старые четырёхзначные больше не годятся', () => {
-  // Боевые PIN на момент правки: у владельца и мастера они четырёхзначные
-  // (наследие раннего прода), у администратора - шестизначный. Форма владельца
-  // и сервер держат одно правило, поэтому короткие при переустановке не пройдут.
-  assert.equal(isValidPin('517563'), true);
-  assert.equal(isValidPin('4495'), false);
-  assert.equal(isValidPin('0708'), false);
-  assert.equal(isValidPin('1234567'), false);
-  assert.equal(isValidPin('12a456'), false);
+test('пароль - минимум шесть знаков, старые четырёхзначные коды больше не годятся', () => {
+  // Окно 72 (28.08.2026): «ровно шесть цифр» заменено на «минимум шесть знаков,
+  // любые символы». Боевые коды на момент правки были четырёхзначными у владельца
+  // и мастера - они не проходят, и это намеренно: их и меняли этим окном.
+  assert.equal(isValidPin('726104'), true);
+  assert.equal(isValidPin('Alikhan2026'), true);
+  assert.equal(isValidPin('1234567'), true);
+  assert.equal(isValidPin('12a456'), true);
+  assert.equal(isValidPin('1234'), false);
+  assert.equal(isValidPin('0918'), false);
   assert.equal(isValidPin(''), false);
   assert.equal(isValidPin(undefined), false);
+  // Пробел по краям - почти всегда промах при наборе, а не часть пароля
+  assert.equal(isValidPin(' secret '), false);
+  // Верхняя граница: scrypt не должен считать хэш от огромного тела запроса
+  assert.equal(isValidPin('x'.repeat(73)), false);
 });
 
 test('обработчик проверяет роль сам, не полагаясь только на гейт реестра', () => {

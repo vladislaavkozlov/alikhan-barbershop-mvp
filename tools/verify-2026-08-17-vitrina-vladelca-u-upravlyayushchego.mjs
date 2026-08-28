@@ -17,8 +17,22 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { tmpdir } from 'node:os';
 
+// Окно 72 (28.08.2026): боевые логины и пароли убраны из кода - репозиторий публичный,
+// а до этой правки пароли всех пятерых сотрудников салона лежали здесь открытым
+// текстом. Скрипт берёт доступы из окружения, например:
+//   OWNER_LOGIN=aliovsad OWNER_PIN=<пароль> node tools/verify-2026-08-17-vitrina-vladelca-u-upravlyayushchego.mjs
+const env = (name) => {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`Не задан доступ ${name}. Пример: ${name}=<значение> node tools/verify-2026-08-17-vitrina-vladelca-u-upravlyayushchego.mjs`);
+    process.exit(1);
+  }
+  return value;
+};
+
+
 const API = 'https://alikhancrm1-vladislaavkozlov.amvera.io';
-const MANAGER = { email: 'master2-test@alikhan.test', pin: '5032' };
+const MANAGER = { email: env('MANAGER_LOGIN'), pin: env('MANAGER_PIN') };
 const TARGET = 'master-1'; // Алиовсад, защищённый владелец - именно его карточка была заперта
 // Порт эфемерный, а не 8793 из COMMANDS: на машине уже висел чужой процесс на 8793,
 // и прогон падал EADDRINUSE ещё до браузера. Реальный порт читаем из server.address()

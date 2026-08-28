@@ -6,9 +6,20 @@
 // Тестовая запись создаётся на свободное окно и удаляется в finally при любом исходе.
 import { withBrowser } from './cdp.mjs';
 
+// Окно 72 (28.08.2026): боевые логин и пароль владельца убраны из кода - репозиторий
+// публичный. Скрипт берёт их из окружения и без них не запускается:
+//   OWNER_LOGIN=<логин> OWNER_PIN=<пароль> node tools/verify-2026-08-17-prod-zhivoe-obnovlenie.mjs
+const OWNER_LOGIN = process.env.OWNER_LOGIN ?? process.env.OWNER_EMAIL;
+const OWNER_PIN = process.env.OWNER_PIN;
+if (!OWNER_LOGIN || !OWNER_PIN) {
+  console.error('Нужны доступы владельца: OWNER_LOGIN=<логин> OWNER_PIN=<пароль> node tools/verify-2026-08-17-prod-zhivoe-obnovlenie.mjs');
+  process.exit(1);
+}
+
+
 const BASE = 'https://vladislaavkozlov.github.io/alikhan-barbershop-mvp';
 const API = 'https://alikhancrm1-vladislaavkozlov.amvera.io';
-const OWNER = { email: 'master1-test@alikhan.test', pin: '4495' };
+const OWNER = { email: OWNER_LOGIN, pin: OWNER_PIN };
 const MASTER = 'master-2';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

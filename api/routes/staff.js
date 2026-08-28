@@ -123,18 +123,49 @@ export function isLastOwnerDemotion(ownerIds, staffId, nextRole) {
   return ownerIds.length <= 1 && ownerIds.includes(staffId);
 }
 
-export function normalizeEmail(value) {
-  const email = String(value ?? '').trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+// ── Логин и пароль (Окно 72, 28.08.2026) ──
+//
+// До передачи системы заказчику вход был устроен так: поле называлось «Email»,
+// значение обязано было выглядеть как почта, а фактически в базе лежали
+// master1-test@alikhan.test … master5-test@alikhan.test - служебные заготовки,
+// на которые письмо физически не дойдёт (`.test` - зарезервированная зона).
+// Человек не мог ни запомнить свой логин, ни соотнести его с собой: владелец
+// заходил как «master1», администратор - как «master4».
+//
+// Теперь логин - это обычное имя латиницей (aliovsad, renat, admin). Прежние
+// значения с собачкой ОСТАЮТСЯ валидными: тот же движок обслуживает второго
+// арендатора (клиника Карины) и уже выданные доступы ломать нельзя.
+export function normalizeLogin(value) {
+  const login = String(value ?? '').trim().toLowerCase();
+  if (!login) return null;
+  // Ветка совместимости: всё, что похоже на почту, принимаем как раньше.
+  if (login.includes('@')) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(login) ? login : null;
+  return /^[a-z0-9][a-z0-9._-]{2,31}$/.test(login) ? login : null;
 }
-export const isValidPin = (pin) => /^\d{6}$/.test(String(pin ?? ''));
+
+// Старое имя оставлено алиасом: на него завязаны provision-tenant и тесты
+// подключения арендатора, менять их в одном окне со сменой входа - лишний риск.
+export const normalizeEmail = normalizeLogin;
+
+// Пароль вместо шестизначного PIN (решение Влада 28.08.2026). Правило одно для
+// всех ролей: минимум 6 знаков, любые символы - кто хочет, ставит себе шесть
+// цифр, как раньше, и ничего не теряет. Верхняя граница - чтобы scrypt не
+// считал хэш от мегабайтного тела запроса.
+export const MIN_SECRET_LENGTH = 6;
+export const isValidSecret = (secret) => {
+  const value = String(secret ?? '');
+  return value.length >= MIN_SECRET_LENGTH && value.length <= 72 && value.trim() === value;
+};
+
+// Алиас прежнего имени - см. довод у normalizeEmail выше.
+export const isValidPin = isValidSecret;
 export const newTemporaryPin = () => String(randomBytes(4).readUInt32BE(0) % 900000 + 100000);
 
 export async function handleStaffCreate(req, res) {
   const auth = await authenticate(req);
   if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const body = await readBody(req);
-  const email = normalizeEmail(body.email);
+  const email = normalizeLogin(body.email ?? body.login);
   const name = String(body.name ?? '').trim();
   if (!name || !email || !isAssignableRole(body.role)) return sendJson(res, 400, { error: 'invalid_staff_data' });
   const id = `staff-${randomBytes(12).toString('hex')}`;
@@ -175,8 +206,8 @@ export async function handleStaffPinSet(req, res, parts) {
   if (!requireRole(auth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
   const staffId = parts[1];
   const body = await readBody(req);
-  const newPin = String(body.newPin ?? '');
-  if (!isValidPin(newPin)) return sendJson(res, 400, { error: 'invalid_pin' });
+  const newPin = String(body.newPin ?? body.newPassword ?? '');
+  if (!isValidSecret(newPin)) return sendJson(res, 400, { error: 'invalid_pin' });
   const result = await pool.query(
     'UPDATE staff SET pin_hash = $1, must_change_pin = false WHERE id = $2 RETURNING id',
     [hashPin(newPin), staffId],
@@ -192,7 +223,7 @@ export async function handleStaffUpdate(req, res, parts) {
   const body = await readBody(req);
   const target = await pool.query('SELECT protected_owner FROM staff WHERE id = $1', [staffId]);
   if (!target.rows.length) return sendJson(res, 404, { error: 'staff_not_found' });
-  const email = normalizeEmail(body.email);
+  const email = normalizeLogin(body.email ?? body.login);
   if (!email || !String(body.name ?? '').trim()) return sendJson(res, 400, { error: 'invalid_staff_data' });
   // Ни владельца, ни самого себя нельзя снять с состава и отрезать от системы -
   // эти два поля форсятся, остальную карточку редактируют как обычно.

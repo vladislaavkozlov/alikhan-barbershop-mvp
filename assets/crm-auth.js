@@ -55,17 +55,21 @@ function buildLoginGate() {
       <img class="login-brand-mark" src="assets/brand/lockup-footer.webp" alt="${tenantName()}">
       <p class="login-tag">Вход для сотрудников</p>
       <form id="loginForm" novalidate>
-        <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" required autocomplete="username"></div>
-        <div class="field"><label for="loginPin">PIN</label><input id="loginPin" type="password" inputmode="numeric" required autocomplete="current-password"></div>
+        <div class="field"><label for="loginEmail">Логин</label><input id="loginEmail" type="text" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+        <div class="field"><label for="loginPin">Пароль</label><input id="loginPin" type="password" required autocomplete="current-password"></div>
         <p id="loginError" class="login-error" role="alert" aria-live="polite" hidden></p>
         <button class="btn btn-primary" type="submit">Войти</button>
       </form>
-      <p class="login-hint">Введите рабочий email и PIN</p>
+      <p class="login-hint">Введите свой логин и пароль. Забыли - попросите владельца задать новый</p>
     </div>`;
   document.body.prepend(div);
   return div;
 }
 
+// Окно 72 (28.08.2026): поле «Email» стало «Логином», «PIN» - «Паролем». Названия
+// переменных и id элементов оставлены прежними намеренно: на них завязаны живые
+// прогоны tools/verify-*.mjs и контрактные тесты, а переименование ради косметики
+// в одном окне со сменой самого механизма входа - лишний риск на боевой системе.
 async function apiLogin(email, pin) {
   // Повтор на спящем сервере (21.08.2026) - вместе с честной подписью под кнопкой:
   // человек должен видеть, что система ЖДЁТ сервер, а не молча игнорирует его нажатие
@@ -74,7 +78,7 @@ async function apiLogin(email, pin) {
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, pin }),
+      body: JSON.stringify({ login: email, password: pin, email, pin }),
     },
     {
       onWait: () => {
@@ -86,8 +90,9 @@ async function apiLogin(email, pin) {
     }
   );
   // Раньше любой отказ на входе объяснялся «Неверный email или PIN» - и лежащий
-  // сервер, и пропавшая сеть выглядели как ошибка в наборе PIN. Теперь причина
-  // берётся из ответа: 401 так и останется про email и PIN, 503 скажет про сервер
+  // сервер, и пропавшая сеть выглядели как ошибка в наборе пароля. Теперь причина
+  // берётся из ответа: 401 так и останется про логин и пароль, 503 скажет про сервер,
+  // а 429 (Окно 72) честно скажет, что вход поставлен на паузу после промахов
   if (!res.ok) throw await requestError(res, '/auth/login');
   return res.json();
 }

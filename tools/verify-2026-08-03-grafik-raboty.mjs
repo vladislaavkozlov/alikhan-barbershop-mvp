@@ -10,6 +10,20 @@ import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { withBrowser } from './cdp.mjs';
 
+// Окно 72 (28.08.2026): боевые логины и пароли убраны из кода - репозиторий публичный,
+// а до этой правки пароли всех пятерых сотрудников салона лежали здесь открытым
+// текстом. Скрипт берёт доступы из окружения, например:
+//   OWNER_LOGIN=aliovsad OWNER_PIN=<пароль> node tools/verify-2026-08-03-grafik-raboty.mjs
+const env = (name) => {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`Не задан доступ ${name}. Пример: ${name}=<значение> node tools/verify-2026-08-03-grafik-raboty.mjs`);
+    process.exit(1);
+  }
+  return value;
+};
+
+
 const ROOT = process.cwd();
 const PORT = 8797;
 const outDir = process.argv[2] || '/tmp';
@@ -76,7 +90,7 @@ window.fetch = async (url, opts) => {
 
 const STAFF_BY_EMAIL = {
   'owner-test@alikhan.test': { id: 'master-1', name: 'Алиовсад', role: 'owner', locationId: null },
-  'master2-test@alikhan.test': { id: 'master-2', name: 'Мамедхан', role: 'master', locationId: null },
+  [env('MANAGER_LOGIN')]: { id: 'master-2', name: 'Мамедхан', role: 'master', locationId: null },
   'admin-test@alikhan.test': { id: 'master-2', name: 'Мамедхан', role: 'admin', locationId: 'loc-1' },
 };
 
@@ -100,7 +114,7 @@ async function login(s, page, email) {
 }
 
 // --- Ноль нативных input[type=date] на всех трёх страницах ---
-for (const [page, email] of [['crm-owner.html', 'owner-test@alikhan.test'], ['crm-master.html', 'master2-test@alikhan.test'], ['crm-admin.html', 'admin-test@alikhan.test']]) {
+for (const [page, email] of [['crm-owner.html', 'owner-test@alikhan.test'], ['crm-master.html', env('MANAGER_LOGIN')], ['crm-admin.html', 'admin-test@alikhan.test']]) {
   await withBrowser(async (s) => {
     await s.setViewport(1280, 1600, false);
     await s.send('Page.addScriptToEvaluateOnNewDocument', { source: mockFetchSource(STAFF_BY_EMAIL) });
@@ -189,7 +203,7 @@ await sleep(400);
 await withBrowser(async (s) => {
   await s.setViewport(430, 2200, true);
   await s.send('Page.addScriptToEvaluateOnNewDocument', { source: mockFetchSource(STAFF_BY_EMAIL) });
-  await login(s, 'crm-master.html', 'master2-test@alikhan.test');
+  await login(s, 'crm-master.html', env('MANAGER_LOGIN'));
   await s.eval(`document.getElementById('pt-c').click()`);
   await s.sleep(200);
   await s.eval(`document.getElementById('weeklyEditor-self').scrollIntoView({block:'center'})`);

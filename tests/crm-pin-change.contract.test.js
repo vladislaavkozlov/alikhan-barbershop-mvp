@@ -26,8 +26,13 @@ async function missing(path) {
 // вовсе. Самостоятельная смена снята, вместо неё PUT /staff/:id/pin с auth:
 // 'owner' и поле прямо в карточке сотрудника раздела «Команда».
 // Права проверяются отдельно - tests/api.pin-owner-only.test.js.
+//
+// 28.08.2026 (Окно 72), перед передачей системы заказчику: сам секрет перестал
+// быть «PIN из шести цифр» и стал паролем от шести знаков, а поле входа - из
+// «Email» превратилось в «Логин». Модель прав не изменилась: задаёт по-прежнему
+// только владелец, эти проверки ниже переписаны лишь по названиям и правилу длины.
 
-test('самостоятельной смены PIN у мастера и администратора больше нет', async () => {
+test('самостоятельной смены пароля у мастера и администратора больше нет', async () => {
   const [master, admin] = await Promise.all([source('crm-master.html'), source('crm-admin.html')]);
 
   for (const [name, html] of [['мастер', master], ['администратор', admin]]) {
@@ -36,7 +41,7 @@ test('самостоятельной смены PIN у мастера и адм�
     assert.doesNotMatch(html, /crm-pin\.js/, `${name}: модуль самостоятельной смены ещё подключён`);
     // Пустого места быть не должно: человек, который раньше менял PIN сам, обязан
     // узнать со страницы, куда теперь идти, а не гадать, почему форма исчезла
-    assert.match(html, /PIN для входа задаёт владелец/, `${name}: не сказано, кто теперь задаёт PIN`);
+    assert.match(html, /Пароль для входа задаёт владелец/, `${name}: не сказано, кто теперь задаёт пароль`);
   }
 });
 
@@ -48,33 +53,34 @@ test('модуль самостоятельной смены удалён, а н
   assert.doesNotMatch(auth, /export async function handlePinChange/, 'обработчик /auth/pin не удалён');
 });
 
-test('владелец задаёт PIN прямо в карточке сотрудника', async () => {
+test('владелец задаёт пароль прямо в карточке сотрудника', async () => {
   const team = await source('assets/crm-team.js');
 
   // Секцию рисуем только владельцу: раздел «Сотрудники» у администратора и
   // управляющего собирает этот же код, а роут им ответит 401
-  assert.match(team, /viewerRole === 'owner' \? section\('PIN для входа'/);
-  assert.match(team, /class="pin-new" type="password"[^>]*autocomplete="new-password"/, 'поле PIN не закрыто от автозаполнения');
-  assert.match(team, /class="pin-repeat" type="password"[^>]*autocomplete="new-password"/, 'повтор PIN не закрыт');
+  assert.match(team, /viewerRole === 'owner' \? section\('Пароль для входа'/);
+  assert.match(team, /class="pin-new" type="password"[^>]*autocomplete="new-password"/, 'поле пароля не закрыто от автозаполнения');
+  assert.match(team, /class="pin-repeat" type="password"[^>]*autocomplete="new-password"/, 'повтор пароля не закрыт');
   assert.match(team, /apiSend\(`\/staff\/\$\{staffId\}\/pin`, 'PUT'/, 'форма шлёт не тот роут');
 });
 
 test('форма повторяет правило сервера и не оставляет введённое на экране', async () => {
   const [team, staff] = await Promise.all([source('assets/crm-team.js'), source('api/routes/staff.js')]);
 
-  // Сервер принимает ровно шесть цифр - интерфейс обязан сказать об этом заранее,
-  // а не отказом после отправки
-  assert.match(staff, /export const isValidPin = \(pin\) => \/\^\\d\{6\}\$\/\.test/);
-  assert.match(team, /\/\^\\d\{6\}\$\/\.test\(newPin\)/);
+  // Сервер принимает пароль от шести знаков - интерфейс обязан сказать об этом
+  // заранее, а не отказом после отправки
+  assert.match(staff, /export const MIN_SECRET_LENGTH = 6;/);
+  assert.match(staff, /export const isValidSecret = \(secret\) =>/);
+  assert.match(team, /newPin\.length < 6/);
   assert.match(team, /newPin !== repeatEl\.value\.trim\(\)/);
-  // Введённый PIN стирается из полей после успеха: карточка часто открыта на
+  // Введённый пароль стирается из полей после успеха: карточка часто открыта на
   // экране в зале
   assert.match(team, /newEl\.value = '';\s*\n\s*repeatEl\.value = '';/);
   // и никуда не логируется
   assert.doesNotMatch(team, /console\.(log|info|warn|error)\([^)]*[Pp]in/);
 });
 
-test('временный PIN гасится при задании постоянного', async () => {
+test('временный пароль гасится при задании постоянного', async () => {
   const staff = await source('api/routes/staff.js');
   // must_change_pin ставится в true при заведении сотрудника. Снимала его раньше
   // самостоятельная смена; её больше нет, значит снять флаг может только эта

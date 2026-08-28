@@ -112,15 +112,15 @@ function roleControl(staff, viewerRole) {
   return rolePicker(staff.role, `role-${staff.id}`);
 }
 
-// Поля PIN намеренно БЕЗ атрибута name: снимок карточки (cardSnapshot) собирает
+// Поля пароля намеренно БЕЗ атрибута name: снимок карточки (cardSnapshot) собирает
 // значения по именам из SAVED_FIELDS, и любое названное поле разбудило бы кнопку
-// «Сохранить изменения». PIN сохраняется своей кнопкой и своим роутом, к общему
+// «Сохранить изменения». Пароль сохраняется своей кнопкой и своим роутом, к общему
 // сохранению карточки он отношения не имеет.
 function pinControl(staff) {
-  return `<p class="note">PIN - ровно шесть цифр. Сотрудник вводит его при входе вместе с рабочей почтой ${esc(staff.email ?? '')}</p>
-  <p class="note">Старый PIN знать не нужно: вы задаёте новый и передаёте его сотруднику</p>
-  <div class="team-editor-grid"><div class="field"><label>Новый PIN</label><input class="pin-new" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="6 цифр"></div><div class="field"><label>Повторите PIN</label><input class="pin-repeat" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="6 цифр"></div></div>
-  <button class="btn btn-ghost btn-sm" type="button" data-pin-save>Задать PIN</button>
+  return `<p class="note">Пароль - минимум шесть знаков, буквы и цифры на ваш выбор. Сотрудник вводит его при входе вместе со своим логином ${esc(staff.email ?? '')}</p>
+  <p class="note">Старый пароль знать не нужно: вы задаёте новый и передаёте его сотруднику</p>
+  <div class="team-editor-grid"><div class="field"><label>Новый пароль</label><input class="pin-new" type="password" autocomplete="new-password" maxlength="72" placeholder="минимум 6 знаков"></div><div class="field"><label>Повторите пароль</label><input class="pin-repeat" type="password" autocomplete="new-password" maxlength="72" placeholder="минимум 6 знаков"></div></div>
+  <button class="btn btn-ghost btn-sm" type="button" data-pin-save>Задать пароль</button>
   <p class="payroll-note" data-pin-note aria-live="polite"></p>`;
 }
 
@@ -179,7 +179,7 @@ function staffCard(staff, viewerRole, locations, viewerId) {
       ? P('team.servicesOwnerSelf')
       : P('team.pickServices');
   return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-role="${esc(staff.role)}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabels()[staff.role] ?? staff.role}${staff.employed === false ? ` · ${esc(firedNote(staff))}` : ''}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
-  ${section('Основное', detailsTitle, ICON_DETAILS,`<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'providesServices', title: P('team.acceptsClients'), description: P('team.acceptsHint'), checked: staff.providesServices, disabled: fieldsLocked })}</div>`)}
+  ${section('Основное', detailsTitle, ICON_DETAILS,`<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Логин для входа</label><input name="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="например renat" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'providesServices', title: P('team.acceptsClients'), description: P('team.acceptsHint'), checked: staff.providesServices, disabled: fieldsLocked })}</div>`)}
   ${/* Фото, портфолио и витрина на сайте - управление составом медиа, а оно на сервере
        management-only (POST/DELETE /staff/:id/media). Администратору секцию не рисуем
        вовсе: кнопка «Выбрать фото» у него давала бы только 401 в ответ. */''}
@@ -196,12 +196,12 @@ function staffCard(staff, viewerRole, locations, viewerId) {
        Вход теперь есть у каждого, кто числится в составе; колонка has_system_access в схеме
        осталась и по-прежнему проверяется при входе, но через интерфейс не выключается. */''}
   ${section('Доступ', 'Роль сотрудника и её права', ICON_ACCESS, roleControl(staff, viewerRole))}
-  ${/* PIN сотрудника (20.08.2026). Секцию видит ТОЛЬКО владелец - и на сервере
+  ${/* Пароль сотрудника (20.08.2026). Секцию видит ТОЛЬКО владелец - и на сервере
        PUT /staff/:id/pin тоже owner-only (реестр роутов в api/server.mjs). У
        управляющего и администратора раздел «Сотрудники» открывается тем же
        кодом, поэтому проверка роли обязана быть здесь, а не в разметке
        страницы: иначе они увидели бы поля, которые всегда отвечают 401. */''}
-  ${viewerRole === 'owner' ? section('PIN для входа', 'Пароль сотрудника от кабинета', ICON_ACCESS, pinControl(staff)) : ''}
+  ${viewerRole === 'owner' ? section('Пароль для входа', 'Доступ сотрудника в кабинет', ICON_ACCESS, pinControl(staff)) : ''}
   ${/* Кнопка одна на карточку, но у администратора она сохраняет ровно то, на что у
        него есть право - рабочую неделю (PUT /master-weekly-schedule). Поэтому у неё
        и другая надпись, и признак data-schedule-only, по которому saveCardSteps
@@ -269,7 +269,7 @@ function exceptionEditor(staffId) {
 function addCard(locations) {
   const empty = { locationId: locations[0]?.id ?? '' };
   const credentials = lastCreatedCredentials;
-  return `<details class="staff-card team-add-card" ${credentials ? 'open' : ''}><summary><div class="avatar-icon" aria-hidden="true">${ICON_ADD}</div><div class="summary-meta"><div class="name">Добавить сотрудника</div><div class="role">Создать доступ в CRM</div></div><span class="chevron">▸</span></summary><div class="staff-card-body"><div class="team-add-intro"><span aria-hidden="true">${ICON_PROFILE}</span><div><h3>Новый сотрудник</h3><p>Заполните данные для первого входа. Профиль для сайта настроите после создания</p></div></div><div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия"></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}"></div><div class="field"><label>Email для входа</label><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="mail@example.com"></div>${locationControl(empty, locations)}</div>${rolePicker('master', 'role-new')}${toggleControl({ name: 'providesServices', title: P('team.acceptsClients'), description: P('team.acceptsHintNew'), checked: false })}<div class="team-editor-actions"><button class="btn btn-primary" type="button" data-create>Создать сотрудника</button><p class="payroll-note" data-card-note aria-live="polite"></p></div><div class="team-create-result" data-create-result ${credentials ? '' : 'hidden'}><strong>Данные для первого входа</strong><span>${credentials ? esc(credentials.name) : ''} сможет войти по email и временному PIN</span><code data-temporary-pin>${credentials ? esc(credentials.pin) : ''}</code><button class="btn btn-ghost btn-sm" type="button" data-copy-pin>Скопировать PIN</button></div></div></details>`;
+  return `<details class="staff-card team-add-card" ${credentials ? 'open' : ''}><summary><div class="avatar-icon" aria-hidden="true">${ICON_ADD}</div><div class="summary-meta"><div class="name">Добавить сотрудника</div><div class="role">Создать доступ в CRM</div></div><span class="chevron">▸</span></summary><div class="staff-card-body"><div class="team-add-intro"><span aria-hidden="true">${ICON_PROFILE}</span><div><h3>Новый сотрудник</h3><p>Заполните данные для первого входа. Логин - имя латиницей, например renat. Профиль для сайта настроите после создания</p></div></div><div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия"></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}"></div><div class="field"><label>Логин для входа</label><input name="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="например renat"></div>${locationControl(empty, locations)}</div>${rolePicker('master', 'role-new')}${toggleControl({ name: 'providesServices', title: P('team.acceptsClients'), description: P('team.acceptsHintNew'), checked: false })}<div class="team-editor-actions"><button class="btn btn-primary" type="button" data-create>Создать сотрудника</button><p class="payroll-note" data-card-note aria-live="polite"></p></div><div class="team-create-result" data-create-result ${credentials ? '' : 'hidden'}><strong>Данные для первого входа</strong><span>${credentials ? esc(credentials.name) : ''} сможет войти по своему логину и временному паролю</span><code data-temporary-pin>${credentials ? esc(credentials.pin) : ''}</code><button class="btn btn-ghost btn-sm" type="button" data-copy-pin>Скопировать пароль</button></div></div></details>`;
 }
 
 function cardValue(card, name) {
@@ -652,8 +652,9 @@ function wireExceptionPickers(editor) {
   renderTimeSelect(`${ids.breakEnd}-slot`, ids.breakEnd, '14:00');
 }
 
-// Владелец задаёт PIN сотруднику (20.08.2026). Отдельная кнопка и отдельный роут:
-// к общему «Сохранить изменения» это не относится, иначе PIN уезжал бы вместе с
+// Владелец задаёт пароль сотруднику (20.08.2026, переименовано в Окне 72). Отдельная
+// кнопка и отдельный роут: к общему «Сохранить изменения» это не относится, иначе
+// пароль уезжал бы вместе с
 // именем и телефоном, и его нельзя было бы задать, не тронув остальное.
 async function savePin(button) {
   const card = button.closest('[data-staff-id]');
@@ -668,25 +669,27 @@ async function savePin(button) {
     focus?.focus();
   };
   const newPin = newEl.value.trim();
-  // Ровно шесть цифр - то же правило, что на сервере (isValidPin, api/routes/staff.js).
-  // Держим его здесь, чтобы человек узнал об этом до отправки, а не из отказа
-  if (!/^\d{6}$/.test(newPin)) return fail('PIN - ровно шесть цифр', newEl);
-  if (newPin !== repeatEl.value.trim()) return fail('PIN и повтор не совпали', repeatEl);
+  // Минимум шесть знаков - то же правило, что на сервере (isValidSecret,
+  // api/routes/staff.js). Держим его здесь, чтобы человек узнал об этом до
+  // отправки, а не из отказа
+  if (newPin.length < 6) return fail('Пароль - минимум шесть знаков', newEl);
+  if (newPin.length > 72) return fail('Пароль слишком длинный - до 72 знаков', newEl);
+  if (newPin !== repeatEl.value.trim()) return fail('Пароль и повтор не совпали', repeatEl);
   setButtonBusy(button, true);
   const result = await apiSend(`/staff/${staffId}/pin`, 'PUT', { newPin });
   setButtonBusy(button, false);
   if (!result.ok) {
-    const text = errorMessage(result, 'Не удалось задать PIN');
+    const text = errorMessage(result, 'Не удалось задать пароль');
     if (note) note.textContent = text;
     showError(text);
     return;
   }
   // Поля не оставляем заполненными: карточка часто открыта на экране в зале,
-  // и заданный PIN не должен висеть на нём до перезагрузки страницы
+  // и заданный пароль не должен висеть на нём до перезагрузки страницы
   newEl.value = '';
   repeatEl.value = '';
   const name = card.querySelector('.summary-meta .name')?.textContent?.trim() || 'сотрудника';
-  const text = `PIN задан. Передайте его ${name} - войти по старому уже нельзя`;
+  const text = `Пароль задан. Передайте его ${name} - войти по старому уже нельзя`;
   if (note) note.textContent = text;
   showSuccess(text);
 }
@@ -789,10 +792,10 @@ function wire(root) {
     if (!pin) return;
     try {
       await navigator.clipboard.writeText(pin);
-      event.currentTarget.textContent = 'PIN скопирован';
+      event.currentTarget.textContent = 'Пароль скопирован';
     } catch {
       event.currentTarget.textContent = 'Не удалось скопировать';
-      showError('Не удалось скопировать PIN. Выделите его и скопируйте вручную');
+      showError('Не удалось скопировать пароль. Выделите его и скопируйте вручную');
     }
   });
   create?.addEventListener('click', async () => {

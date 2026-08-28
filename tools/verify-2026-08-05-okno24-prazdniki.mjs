@@ -21,13 +21,27 @@ import { extname, join } from 'node:path';
 import pg from 'pg';
 import { withBrowser } from './cdp.mjs';
 
+// Окно 72 (28.08.2026): боевые логины и пароли убраны из кода - репозиторий публичный,
+// а до этой правки пароли всех пятерых сотрудников салона лежали здесь открытым
+// текстом. Скрипт берёт доступы из окружения, например:
+//   OWNER_LOGIN=aliovsad OWNER_PIN=<пароль> node tools/verify-2026-08-05-okno24-prazdniki.mjs
+const env = (name) => {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`Не задан доступ ${name}. Пример: ${name}=<значение> node tools/verify-2026-08-05-okno24-prazdniki.mjs`);
+    process.exit(1);
+  }
+  return value;
+};
+
+
 const ROOT = process.cwd();
 const PORT = 8799;
 const API_URL = process.env.API_URL || 'http://localhost:8092';
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css' };
 const SHOTS = '/tmp/okno24';
 
-const OWNER_EMAIL = process.env.W24_OWNER_EMAIL || 'master1-test@alikhan.test';
+const OWNER_EMAIL = process.env.W24_OWNER_EMAIL || env('OWNER_LOGIN');
 const OWNER_PIN = process.env.W24_OWNER_PIN;
 if (!OWNER_PIN) {
   console.error(
