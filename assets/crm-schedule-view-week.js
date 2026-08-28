@@ -14,7 +14,7 @@ import { errorMessage, showError } from './crm-toast.js';
 import { showSkeleton } from './crm-loading.js';
 
 export function wireWeekView(ctx) {
-  const { masters, isSolo, fetchJson, holidayMapForRange, scheduleViewState, setView } = ctx;
+  const { masters, isSolo, canEditSchedule, fetchJson, holidayMapForRange, scheduleViewState, setView } = ctx;
 
   async function loadWeek() {
     const grid = document.getElementById('weekGrid');
@@ -25,9 +25,9 @@ export function wireWeekView(ctx) {
     try {
       const data = await loadMatrixData({ masters, from, to, fetchJson, holidayMapForRange });
       const model = buildMatrixModel({ masters, from, to, ...data });
-      grid.innerHTML = matrixHtml(model, { editable: !isSolo });
+      grid.innerHTML = matrixHtml(model, { editable: canEditSchedule });
       wireMatrixClicks(grid, {
-        editable: !isSolo,
+        editable: canEditSchedule,
         onOpenDay: (date) => setView('day', date),
         // Клик по ячейке правит график ИМЕННО того мастера, чья это строка - поэтому
         // общий masterId переставляется здесь, а не остаётся тем, что выбрали в другом

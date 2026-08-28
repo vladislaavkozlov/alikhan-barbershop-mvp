@@ -75,6 +75,9 @@
 
   #pt-c:checked ~ .tab-bar label[for="pt-c"] { color: var(--accent); border-color: var(--accent); }
   #pt-c:checked ~ .panel-c { display: block; }
+  /* Раздел «Уведомления» (28.08.2026) */
+  #pt-e:checked ~ .tab-bar label[for="pt-e"] { color: var(--accent); border-color: var(--accent); }
+  #pt-e:checked ~ .panel-e { display: block; }
 </style>
   <link rel="manifest" href="manifest-admin.webmanifest">
   <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon-180.png">
@@ -109,10 +112,12 @@
     <input type="radio" name="pt" id="pt-a" checked>
     <input type="radio" name="pt" id="pt-b">
     <input type="radio" name="pt" id="pt-c">
+    <input type="radio" name="pt" id="pt-e">
     <div class="tab-bar">
       <label for="pt-a">Расписание</label>
       <label for="pt-b">Сотрудники</label>
       <label for="pt-c">Личные данные</label>
+      <label for="pt-e">Уведомления</label>
     </div>
 
     <!-- ======================= РАСПИСАНИЕ ======================= -->
@@ -468,13 +473,27 @@
                    отвечает 404. -->
               <h4>Вход в CRM</h4>
               <p class="note">Пароль для входа задаёт владелец. Если нужно сменить - попросите его</p>
-              <!-- Уведомления на телефон (Окно 73, 28.08.2026), рисует assets/crm-push.js -->
-              <div data-push-host></div>
+
             </div>
           </details>
         </div>
       </section>
     </div>
+    <!-- ======================= УВЕДОМЛЕНИЯ ======================= -->
+    <!-- Раздел добавлен 28.08.2026 по находке Влада: колокольчик в шапке был у всех
+         трёх кабинетов, а полный раздел - только у владельца. Сервер уведомления
+         этим ролям отдавал и раньше (GET /notifications отвечает 200 и админу, и
+         мастеру), не хватало ровно места, где их показать: renderCenter искал
+         контейнер #notifCenter и молча не находил его. Разметка и источник данных
+         те же, что у владельца. -->
+    <div class="tab-panel panel-e">
+      <section>
+        <!-- Уведомления на телефон (Окно 73, 28.08.2026), рисует assets/crm-push.js -->
+        <div data-push-host></div>
+        <div id="notifCenter" class="ntf-list"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
+      </section>
+    </div>
+
   </div>
 </main>
 

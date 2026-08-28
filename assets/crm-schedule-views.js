@@ -61,6 +61,11 @@ export function wireScheduleViews(ctx) {
 
   const { staff, staffList, services, priceOf, fetchJson, apiSend, renderDateSelect, renderTimeSelect, timeSelectValue, todayStr, renderDayCalendar } = ctx;
   const isSolo = staff.role === 'master';
+  // Правка 28.08.2026 (Влад): график работы меняют только владелец и управляющий.
+  // Раньше признак редактируемости выводился из одного лишь isSolo - то есть править
+  // мог любой, кроме мастера, включая администратора. Сервер теперь такие запросы
+  // отклоняет (api/routes/schedule.js), и интерфейс не должен вести в этот отказ.
+  const canEditSchedule = staff.role === 'owner' || staff.role === 'manager';
   const masters = isSolo ? [staff] : mastersOf(staffList);
   if (masters.length === 0) return; // роль без доступа к расписанию (не должно случиться, но не падаем)
 
@@ -279,10 +284,10 @@ export function wireScheduleViews(ctx) {
   // было на момент создания геттера.
   let weekApi, monthApi;
   weekApi = wireWeekView({
-    masters, isSolo, fetchJson, holidayMapForRange, scheduleViewState, setView, getMonthApi: () => monthApi,
+    masters, isSolo, canEditSchedule, fetchJson, holidayMapForRange, scheduleViewState, setView, getMonthApi: () => monthApi,
   });
   monthApi = wireMonthView({
-    masters, isSolo, fetchJson, apiSend, holidayMapForRange, renderTimeSelect, timeSelectValue,
+    masters, isSolo, canEditSchedule, fetchJson, apiSend, holidayMapForRange, renderTimeSelect, timeSelectValue,
     scheduleViewState, setView, getWeekApi: () => weekApi,
   });
   const yearApi = wireYearView({

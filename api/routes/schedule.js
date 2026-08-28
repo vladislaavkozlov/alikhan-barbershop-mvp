@@ -5,7 +5,11 @@
 import { sendJson, readBody } from '../lib/http.js';
 import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
-import { BOOKING_OPERATOR_ROLES, canManageStaff } from '../lib/permissions.js';
+// Правка 28.08.2026 (Влад): график работы меняют только владелец и управляющий.
+// До неё изменение стояло на BOOKING_OPERATOR_ROLES - туда входит администратор, и
+// он мог править смены мастеров своей точки. Чтение осталось прежним: администратор
+// график видит, иначе он не сможет работать с записями.
+import { canManageStaff } from '../lib/permissions.js';
 import { addDaysIso, enumerateDateRange, shopNow, toMinutes } from '../lib/time.js';
 // Живое обновление (17.08.2026): изменённый график перерисовывает расписание у всех
 import { publish } from '../lib/events.js';
@@ -44,16 +48,12 @@ export function scheduleExceptionBreaks(type, effective, breakStart, breakEnd) {
 // одна транзакция либо применяет их все, либо не меняет ничего
 export async function handleScheduleExceptions(req, res) {
   const auth = await authenticate(req);
-  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
+  if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
   const body = await readBody(req);
   const { masterId, dateFrom, dateTo, type, breakStart, breakEnd } = body;
   if (!masterId || !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo ?? '')) return sendJson(res, 400, { error: 'missing_fields' });
   const dates = enumerateDateRange(dateFrom, dateTo);
   if (!dates.length || dates.length > 31) return sendJson(res, 400, { error: 'invalid_range', maxDays: 31 });
-  if (auth.role === 'admin') {
-    const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [masterId]);
-    if (staffRes.rows.length === 0 || staffRes.rows[0].location_id !== auth.locationId) return sendJson(res, 403, { error: 'forbidden' });
-  }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -168,16 +168,10 @@ export async function handleSchedule(req, res, url) {
 
   if (req.method === 'POST') {
     const auth = await authenticate(req);
-    if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
+    if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
     const body = await readBody(req);
     if (!body.masterId || !body.date || !body.startTime || !body.endTime) {
       return sendJson(res, 400, { error: 'missing_fields' });
-    }
-    if (auth.role === 'admin') {
-      const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [body.masterId]);
-      if (staffRes.rows.length === 0 || staffRes.rows[0].location_id !== auth.locationId) {
-        return sendJson(res, 403, { error: 'forbidden' });
-      }
     }
     const client = await pool.connect();
     try {
@@ -227,16 +221,10 @@ export async function handleSchedule(req, res, url) {
   // специально восстанавливать не нужно, это уже гарантия резолвера.
   if (req.method === 'DELETE') {
     const auth = await authenticate(req);
-    if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
+    if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
     const masterId = url.searchParams.get('masterId');
     const date = url.searchParams.get('date');
     if (!masterId || !date) return sendJson(res, 400, { error: 'missing_fields' });
-    if (auth.role === 'admin') {
-      const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [masterId]);
-      if (staffRes.rows.length === 0 || staffRes.rows[0].location_id !== auth.locationId) {
-        return sendJson(res, 403, { error: 'forbidden' });
-      }
-    }
     const result = await pool.query('DELETE FROM schedule_shifts WHERE master_id = $1 AND date = $2 RETURNING id', [
       masterId,
       date,
@@ -447,7 +435,7 @@ export async function handleMasterWeeklySchedule(req, res, url) {
   }
 
   if (req.method === 'PUT') {
-    if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
+    if (!canManageStaff(auth)) return sendJson(res, 401, { error: 'unauthorized' });
     const body = await readBody(req);
     const { rows, error: weeklyError } = analyzeWeeklyChanges(body.weeklyChanges);
     if (!body.masterId) return sendJson(res, 400, { error: 'missing_fields' });
@@ -460,12 +448,6 @@ export async function handleMasterWeeklySchedule(req, res, url) {
     // describeError, assets/crm-toast.js), остальные поля (день недели и сами часы)
     // рядом, чтобы можно было собрать фразу с конкретикой
     if (!rows) return sendJson(res, 400, { error: weeklyError.code, ...weeklyError });
-    if (auth.role === 'admin') {
-      const staffRes = await pool.query('SELECT location_id FROM staff WHERE id = $1', [body.masterId]);
-      if (staffRes.rows.length === 0 || staffRes.rows[0].location_id !== auth.locationId) {
-        return sendJson(res, 403, { error: 'forbidden' });
-      }
-    }
     const client = await pool.connect();
     try {
       await client.query('BEGIN');

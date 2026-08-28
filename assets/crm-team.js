@@ -30,11 +30,11 @@ const editableRoles = ['master', 'admin', 'manager'];
 // роли, что MANAGEMENT_ROLES на сервере (api/lib/permissions.js). Администратор сюда
 // НЕ входит: с 16.08.2026 он видит тот же раздел «Сотрудники», но только смотрит.
 const MANAGEMENT_VIEWERS = ['owner', 'manager'];
-// А вот график - его работа: PUT /master-weekly-schedule и POST /schedule-exceptions
-// пускают BOOKING_OPERATOR_ROLES, то есть владельца, управляющего И администратора
-// (по своей точке). Разделение намеренное: администратор ставит смены и выходные, но
-// не меняет состав команды, прайс и ставки.
-const SCHEDULE_EDITORS = ['owner', 'manager', 'admin'];
+// График с 28.08.2026 (правка Влада) правят только владелец и управляющий. До этого
+// сюда входил и администратор: он ставил смены и выходные по своей точке. Сервер
+// теперь такие запросы отклоняет (api/routes/schedule.js, замок canManageStaff), и
+// список здесь совпадает с ним - иначе интерфейс показывал бы форму, ведущую в отказ.
+const SCHEDULE_EDITORS = ['owner', 'manager'];
 // Показываем ли человеку его услуги. Единственный критерий - принимает ли он клиентов:
 // у администратора услуг нет вовсе, и каталог со снятыми галками в его карточке - это
 // не «нельзя менять», а «этого у меня нет». Поля providesServices может не быть в
@@ -190,7 +190,11 @@ function staffCard(staff, viewerRole, locations, viewerId) {
        стилем .service-picker.readonly, но видимый. Приглушённое поле читается как
        «у тебя это есть, только трогать нельзя», а у него этого нет совсем. */''}
   ${showsServicesSection(staff) ? section(P('team.servicesSection'), servicesTitle, ICON_SERVICES, `<div class="service-picker" data-master-id="${id}">${skeletonMarkup(4)}</div>`) : ''}
-  ${section('График', 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}">${skeletonMarkup(3)}</div>${exceptionEditor(staff.id)}`)}
+  ${/* График показываем только тем, кто его правит (28.08.2026). Администратору
+       секция теперь не рисуется вовсе - показывать редактор, который на сохранении
+       ответит 401, хуже, чем не показывать ничего. Смены он по-прежнему видит в
+       разделе «Расписание», только read-only. */''}
+  ${canManage ? section('График', 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}">${skeletonMarkup(3)}</div>${exceptionEditor(staff.id)}`) : ''}
   ${/* Тумблер "Разрешить вход в CRM" убран 13.08.2026 по решению владельца: он дублировал
        "Работает в компании" в глазах салона и создавал риск случайно отрезать себе вход.
        Вход теперь есть у каждого, кто числится в составе; колонка has_system_access в схеме
@@ -202,11 +206,6 @@ function staffCard(staff, viewerRole, locations, viewerId) {
        кодом, поэтому проверка роли обязана быть здесь, а не в разметке
        страницы: иначе они увидели бы поля, которые всегда отвечают 401. */''}
   ${viewerRole === 'owner' ? section('Пароль для входа', 'Доступ сотрудника в кабинет', ICON_ACCESS, pinControl(staff)) : ''}
-  ${/* Кнопка одна на карточку, но у администратора она сохраняет ровно то, на что у
-       него есть право - рабочую неделю (PUT /master-weekly-schedule). Поэтому у неё
-       и другая надпись, и признак data-schedule-only, по которому saveCardSteps
-       останавливается сразу после графика и не шлёт PUT /staff, /portfolio, /role -
-       они вернули бы ему 401 и «Не удалось сохранить» поверх уже сохранённого. */''}
   ${/* Увольнение (22.08.2026). Раньше здесь был тумблер «Работает в компании» рядом с
        «Принимает клиентов» - два похожих переключателя, из которых один тихо обрывал
        человеку вход и убирал его с сайта. Теперь это отдельное названное действие с
@@ -214,7 +213,11 @@ function staffCard(staff, viewerRole, locations, viewerId) {
        Своё сохранение ему не нужно: PUT /staff/:id/employment уходит сразу по кнопке,
        не подхватывая несохранённые правки соседних полей. */''}
   ${employmentSection(staff, employmentLocked)}
-  <div class="team-editor-actions"><button class="btn btn-primary" type="button" data-save ${canManage ? '' : 'data-schedule-only'} disabled>${canManage ? 'Сохранить изменения' : 'Сохранить график'}</button><p class="payroll-note" data-card-note aria-live="polite"></p></div></div></details>`;
+  ${/* Кнопка только у тех, кто правит карточку. Прежде она была и у администратора
+       с надписью «Сохранить график» и признаком data-schedule-only - вместе с самой
+       секцией графика это потеряло смысл 28.08.2026: сохранять в карточке ему больше
+       нечего, а кнопка без действия читается как сломанная. */''}
+  <div class="team-editor-actions">${canManage ? '<button class="btn btn-primary" type="button" data-save disabled>Сохранить изменения</button>' : ''}<p class="payroll-note" data-card-note aria-live="polite"></p></div></div></details>`;
 }
 
 // Подпись уволенного - одна на карточку и на её свёрнутый вид: дату увольнения видно
@@ -227,7 +230,12 @@ function firedNote(staff) {
 
 // Секция «Состав команды». У работающего - кнопка «Уволить», у уволенного - дата и
 // возврат в команду. Замок тот же, что на сервере (guardAccountLockout): владельца и
-// самого себя уволить нельзя - вместо кнопки объяснение, почему её нет.
+// самого себя уволить нельзя.
+//
+// Пояснение «Себя уволить нельзя - это закрыло бы вам вход в CRM» убрано 28.08.2026
+// по правке Влада: запрет очевиден без слов, а надпись занимала место и звучала как
+// отказ системы там, где человек ничего и не пытался сделать. Кнопки в этом случае
+// просто нет - замок на сервере от этого никуда не делся.
 function employmentSection(staff, employmentLocked) {
   const fired = staff.employed === false;
   if (fired) {
@@ -239,7 +247,7 @@ function employmentSection(staff, employmentLocked) {
   }
   if (employmentLocked) {
     return section('Состав команды', 'Работает в компании', ICON_PROFILE,
-      `<div class="team-employment" data-employed="1"><p class="payroll-note">${staff.protectedOwner ? 'Владельца уволить нельзя' : 'Себя уволить нельзя - это закрыло бы вам вход в CRM'}</p></div>`);
+      `<div class="team-employment" data-employed="1"></div>`);
   }
   return section('Состав команды', 'Работает в компании', ICON_PROFILE,
     `<div class="team-employment" data-employment data-staff-id="${esc(staff.id)}" data-employed="1">
@@ -379,14 +387,6 @@ async function saveCardSteps(card) {
       }
       return noteApiFail(card, scheduleResult, 'Не удалось сохранить график');
     }
-  }
-  // Администратор (data-schedule-only) правит в карточке только график - на этом его
-  // сохранение и заканчивается. Остальные шаги ниже - management-роуты, для него это
-  // гарантированный 401 поверх успешно сохранённой недели
-  if (card.querySelector('[data-save][data-schedule-only]')) {
-    noteOk(card, 'График сохранён');
-    await renderTeam();
-    return;
   }
   const main = await apiSend(`/staff/${encodeURIComponent(id)}`, 'PUT', {
     name: value('name').value,

@@ -37,11 +37,13 @@ test('услуги снятого с приёма не выбираются, г�
   ]);
   // редактор услуг получает canEdit=false - чекбоксы и длительности отключаются штатно
   assert.match(team, /renderMasterServiceEditor\([\s\S]{0,160}staffCanEdit && staff\.providesServices !== false/);
-  // график НЕ зависит от приёма клиентов: у администратора он свой и нужен ему самому.
-  // С 16.08.2026 право на график шире права на карточку - его правят и owner/manager,
-  // и admin (SCHEDULE_EDITORS), поэтому флаг тут свой, не staffCanEdit
+  // График НЕ зависит от приёма клиентов - это по-прежнему так, флаг у него свой.
+  // Но состав ролей сузился 28.08.2026 (правка Влада): администратор график больше
+  // не правит, поэтому SCHEDULE_EDITORS совпал с ролями управления. Отдельный флаг
+  // сохранён намеренно: право на график и право на карточку - разные вещи, и
+  // склеивать их в одну переменную значило бы потерять это различие в коде
   assert.match(team, /wireWeeklyScheduleEditor\(staff\.id, canEditSchedule && [^,]+, fetchJson\)/);
-  assert.match(team, /const SCHEDULE_EDITORS = \['owner', 'manager', 'admin'\]/);
+  assert.match(team, /const SCHEDULE_EDITORS = \['owner', 'manager'\]/);
   assert.doesNotMatch(team, /wireWeeklyScheduleEditor\([^)]*providesServices/);
   // отключённый чекбокс услуги виден неактивным - он нарисован сам, браузер его не гасит
   assert.match(css, /\.service-check:has\(input\[type="checkbox"\]:disabled\)/);

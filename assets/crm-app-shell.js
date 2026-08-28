@@ -87,10 +87,13 @@ const roleConfig = () => ({
   admin: {
     profileLabel: 'Администратор',
     defaultSection: 'schedule',
-    order: ['schedule', 'team', 'profile'],
-    radio: { schedule: 'pt-a', team: 'pt-b', profile: 'pt-c' },
-    label: { schedule: 'Расписание', team: 'Сотрудники', profile: 'Личные данные' },
-    icon: { schedule: ICON_SCHEDULE, team: ICON_TEAM, profile: ICON_PROFILE },
+    // «Уведомления» добавлены 28.08.2026 (находка Влада): колокольчик в шапке был у
+    // всех трёх кабинетов, а раздел - только у владельца. Администратор принимает
+    // клиентов и должен видеть запись целиком, а не одну строку в колокольчике
+    order: ['schedule', 'team', 'notifications', 'profile'],
+    radio: { schedule: 'pt-a', team: 'pt-b', notifications: 'pt-e', profile: 'pt-c' },
+    label: { schedule: 'Расписание', team: 'Сотрудники', notifications: 'Уведомления', profile: 'Личные данные' },
+    icon: { schedule: ICON_SCHEDULE, team: ICON_TEAM, notifications: ICON_BELL, profile: ICON_PROFILE },
   },
   // «Моя зарплата» убрана из меню 22.08.2026 (правка Влада). Сама вкладка исчезла
   // ещё 17.08.2026 вместе с правкой «сотрудники не должны видеть свою зарплату,
@@ -100,10 +103,13 @@ const roleConfig = () => ({
   master: {
     profileLabel: Tc('master.nom'),
     defaultSection: 'today',
-    order: ['today', 'profile'],
-    radio: { today: 'pt-a', profile: 'pt-c' },
-    label: { today: 'Мой день', profile: 'Личные данные' },
-    icon: { today: ICON_SCHEDULE, profile: ICON_PROFILE },
+    // «Уведомления» добавлены 28.08.2026 - см. довод у роли admin выше. Мастеру
+    // приходят уведомления о записях именно к нему, и до этой правки посмотреть их
+    // целиком он не мог нигде
+    order: ['today', 'notifications', 'profile'],
+    radio: { today: 'pt-a', notifications: 'pt-e', profile: 'pt-c' },
+    label: { today: 'Мой день', notifications: 'Уведомления', profile: 'Личные данные' },
+    icon: { today: ICON_SCHEDULE, notifications: ICON_BELL, profile: ICON_PROFILE },
   },
 });
 

@@ -30,7 +30,7 @@ import { T, Tc, P, C } from './crm-terms.js';
 
 export function wireMonthView(ctx) {
   const {
-    masters, isSolo, fetchJson, apiSend, holidayMapForRange, renderTimeSelect, timeSelectValue,
+    masters, isSolo, canEditSchedule, fetchJson, apiSend, holidayMapForRange, renderTimeSelect, timeSelectValue,
     scheduleViewState, setView,
   } = ctx;
 
@@ -61,6 +61,10 @@ export function wireMonthView(ctx) {
   // masterId - Окно 65: ячейка матрицы сама называет мастера своей строки. Без него
   // модалка правила бы график того, кто остался в общем состоянии от прошлого действия.
   function openDayEditModal(date, masterId) {
+    // Второй замок, помимо editable у матрицы: точек входа в правку дня несколько
+    // (клик по ячейке недели, клик по ячейке месяца), и права проверяются здесь -
+    // в одном месте, а не в каждой из них
+    if (!canEditSchedule) return;
     const modal = document.getElementById('dayEditModal');
     if (!modal) return;
     if (masterId) scheduleViewState.masterId = masterId;
@@ -214,9 +218,9 @@ export function wireMonthView(ctx) {
     try {
       const data = await loadMatrixData({ masters, from: firstOfMonth, to: lastOfMonth, fetchJson, holidayMapForRange });
       const model = buildMatrixModel({ masters, from: firstOfMonth, to: lastOfMonth, ...data });
-      grid.innerHTML = matrixHtml(model, { editable: !isSolo });
+      grid.innerHTML = matrixHtml(model, { editable: canEditSchedule });
       wireMatrixClicks(grid, {
-        editable: !isSolo,
+        editable: canEditSchedule,
         onOpenDay: (date) => setView('day', date),
         onEditCell: (date, masterId) => openDayEditModal(date, masterId),
       });

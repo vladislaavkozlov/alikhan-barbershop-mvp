@@ -53,7 +53,9 @@ test('карточка сотрудника у администратора - п
   const team = await source('assets/crm-team.js');
 
   assert.match(team, /const MANAGEMENT_VIEWERS = \['owner', 'manager'\]/);
-  assert.match(team, /const SCHEDULE_EDITORS = \['owner', 'manager', 'admin'\]/);
+  // 28.08.2026: администратор больше не правит график - список сузился до тех же
+  // ролей, что и на сервере
+  assert.match(team, /const SCHEDULE_EDITORS = \['owner', 'manager'\]/);
   assert.match(team, /const canManage = MANAGEMENT_VIEWERS\.includes\(viewerRole\)/);
   // поля и тумблеры состава закрыты для всех, кто не управляет командой
   assert.match(team, /const fieldsLocked = locked \|\| !canManage/);
@@ -61,9 +63,12 @@ test('карточка сотрудника у администратора - п
   // секции с management-роутами не рисуются вовсе, а не рисуются нерабочими
   assert.match(team, /canManage \? section\('Профиль на сайте'/);
   assert.match(team, /canEdit \? addCard\(locations\) : ''/);
-  // единственное сохранение, доступное администратору - рабочая неделя
-  assert.match(team, /data-schedule-only/);
-  assert.match(team, /noteOk\(card, 'График сохранён'\)/);
+  // Сохранять в карточке администратору больше нечего (28.08.2026): график правят
+  // только владелец и управляющий, поэтому у него нет ни секции графика, ни кнопки.
+  // Прежде здесь проверялись data-schedule-only и «График сохранён» - и то, и другое
+  // убрано вместе с самим правом
+  assert.doesNotMatch(team, /button[^>]*data-save[^>]*data-schedule-only/);
+  assert.match(team, /canManage \? section\('График'/, 'секция графика показывается не только управляющим');
 });
 
 test('администратор получил раздел Личные данные на реальных данных сессии', async () => {
@@ -78,7 +83,9 @@ test('администратор получил раздел Личные дан
   assert.match(html, /id="adminSelfPhone"/);
   assert.match(html, /id="adminSelfEmail"/);
   assert.match(dashboard, /wireAdminSelfData\(staff, staffList\)/);
-  assert.match(shell, /order: \['schedule', 'team', 'profile'\]/);
+  // «Уведомления» добавлены администратору 28.08.2026 (находка Влада): колокольчик
+  // в шапке у него был, а раздела с полными карточками записей не было нигде
+  assert.match(shell, /order: \['schedule', 'team', 'notifications', 'profile'\]/);
   assert.match(shell, /profile: 'pt-c'/);
   assert.match(self, /current\.name \|\| staff\.name/);
   assert.match(self, /current\.phone \|\| staff\.phone/);
