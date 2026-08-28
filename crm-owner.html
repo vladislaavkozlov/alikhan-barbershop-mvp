@@ -111,6 +111,11 @@
   #wi1-month:checked ~ .panel-wi1-month, #wi1-3m:checked ~ .panel-wi1-3m,
   #wi1-6m:checked ~ .panel-wi1-6m, #wi1-year:checked ~ .panel-wi1-year { display: block; }
 </style>
+  <link rel="manifest" href="manifest-owner.webmanifest">
+  <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Алихан">
 </head>
 <body class="crm-navigation-ui">
 
@@ -882,6 +887,11 @@
              плюс «Открыть запись» и связь с клиентом в один клик.
              Блок «Заявки на изменение графика», живший здесь с 07.08.2026, удалён
              вместе со всем механизмом заявок (решение Влада). -->
+        <!-- Уведомления на телефон (Окно 73, 28.08.2026). Стоит над лентой
+             намеренно: человек, пришедший в раздел уведомлений, здесь же узнаёт,
+             что их можно получать не только открыв кабинет. Рисует
+             assets/crm-push.js -->
+        <div data-push-host></div>
         <div id="notifCenter" class="ntf-list"><div class="crm-skeleton" role="status" aria-label="Загружаю данные"><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span><span class="crm-skeleton__row"></span></div></div>
       </section>
     </div>
@@ -920,6 +930,7 @@
 <script>window.ALIKHAN_API_URL = 'https://alikhancrm1-vladislaavkozlov.amvera.io';</script>
 <script src="assets/mockup-crm.js"></script>
 <script type="module">
+  import { initPushCard } from './assets/crm-push.js';
   import { initCrmNavigationPanels, upgradeBookingPanel } from './assets/crm-navigation-panels.js';
   import { initCrmAuth } from './assets/crm-auth.js';
   import { wireClientsRisk, renderRiskList, wireClientsSection, renderClientsSection } from './assets/crm-clients.js';
@@ -942,6 +953,7 @@
   import './assets/crm-live.js';
 
   initCrmAuth(['owner', 'manager']);
+  initPushCard();
   wireClientsRisk();
   // Раздел «Клиенты» (21.08.2026). Сам подписывается на первый заход в раздел и
   // тянет базу только тогда - см. wireClientsSection, assets/crm-clients.js

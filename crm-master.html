@@ -44,6 +44,11 @@
      клиента не показывается вообще, а пустая строка с пояснением "скрыто" была лишним
      шумом в карточке визита (правка Влада). */
 </style>
+  <link rel="manifest" href="manifest-master.webmanifest">
+  <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Алихан">
 </head>
 <body class="crm-navigation-ui">
 
@@ -325,6 +330,8 @@
                    отвечает 404. -->
               <h4 style="margin-top:18px">Вход в CRM</h4>
               <p class="note">Пароль для входа задаёт владелец. Если нужно сменить - попросите его</p>
+              <!-- Уведомления на телефон (Окно 73, 28.08.2026), рисует assets/crm-push.js -->
+              <div data-push-host></div>
             </div>
           </details>
         </div>
@@ -337,6 +344,8 @@
 <script src="assets/mockup-crm.js"></script>
 <script type="module">
   import { initCrmAuth } from './assets/crm-auth.js';
+  // Уведомления на телефон (Окно 73, 28.08.2026)
+  import { initPushCard } from './assets/crm-push.js';
   import { initAppShell } from './assets/crm-app-shell.js';
   import { initCrmNavigationPanels, upgradeScheduleViews, upgradeMasterBookingPanel } from './assets/crm-navigation-panels.js';
   import { initCrmRefreshControl } from './assets/crm-refresh-control.js';
@@ -349,6 +358,7 @@
   upgradeScheduleViews(['day', 'week', 'month']);
   upgradeMasterBookingPanel();
   initCrmAuth('master');
+  initPushCard();
   initAppShell('master');
   initCrmNavigationPanels();
   initCrmRefreshControl();

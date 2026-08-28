@@ -84,6 +84,8 @@ import {
   handleNotificationDismiss,
   handleNotificationsReadAll,
 } from './routes/notifications.js';
+// Уведомления на телефон (Окно 73, 28.08.2026)
+import { handlePushKey, handlePushStatus, handlePushSubscribe, handlePushUnsubscribe } from './routes/push.js';
 import { handlePayrollSettings, handlePayroll, handleRevenueToday, handleDiscountSettings } from './routes/payroll.js';
 import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard, handleClientRenew } from './routes/clients.js';
 // Раздел «Аналитика» владельца (22.08.2026) - возвращаемость по мастерам и каналы
@@ -191,6 +193,13 @@ const ROUTES = [
   { method: 'POST', path: 'notifications/:id/read', auth: 'any-staff' },
   { method: 'POST', path: 'notifications/:id/dismiss', auth: 'any-staff' },
   { method: 'POST', path: 'notifications/read-all', auth: 'any-staff' },
+  // Подписка устройства на уведомления (Окно 73, 28.08.2026). Все четыре требуют
+  // входа: подписка привязывается к конкретному сотруднику, аноним подписать
+  // некого и незачем
+  { method: 'GET', path: 'push/key', auth: 'any-staff' },
+  { method: 'GET', path: 'push/status', auth: 'any-staff' },
+  { method: 'POST', path: 'push/subscribe', auth: 'any-staff' },
+  { method: 'POST', path: 'push/unsubscribe', auth: 'any-staff' },
   // 17.08.2026: деньги (ставки, зарплаты, выручка) - только владелец и управляющий
   { method: 'GET', path: 'payroll-settings', auth: 'management', module: 'payroll' },
   { method: 'PUT', path: 'payroll-settings', auth: 'management', module: 'payroll' },
@@ -613,6 +622,14 @@ async function handleRequest(req, res, url, parts, tenant) {
     // осталась в базе с историей решений, но обработчиков к ней больше нет: держать
     // открытый POST, который создаёт заявку, которую никто уже не увидит, - хуже, чем
     // честный 404.
+
+    // ── /push - подписка устройства на уведомления (Окно 73, 28.08.2026) ──
+    if (parts[0] === 'push' && parts.length === 2) {
+      if (parts[1] === 'key' && req.method === 'GET') return handlePushKey(req, res);
+      if (parts[1] === 'status' && req.method === 'GET') return handlePushStatus(req, res);
+      if (parts[1] === 'subscribe' && req.method === 'POST') return handlePushSubscribe(req, res);
+      if (parts[1] === 'unsubscribe' && req.method === 'POST') return handlePushUnsubscribe(req, res);
+    }
 
     // ── /notifications - Задача 5 (Окно 14, 02.08.2026). In-app поллинг, не push -
     // список/бейдж на странице, обновляется по таймеру фронтенда.

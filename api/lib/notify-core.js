@@ -4,6 +4,10 @@
 // bookings через createBookingTx, фоновый scanBookingReminders).
 import { randomBytes } from 'node:crypto';
 import { mastersWithWorkingSchedule } from './schedule-core.js';
+// Уведомление на телефон (Окно 73, 28.08.2026). Импорт здесь, а не в вызывающих
+// роутах, намеренно: любое уведомление, попавшее в колокольчик, должно попасть и
+// на телефон - иначе нашёлся бы путь, по которому одно есть, а другого нет.
+import { deliverPushLater } from './push-delivery.js';
 
 // Задача 5 (Окно 14, 02.08.2026) - создаёт уведомление в личном кабинете. Уникальные
 // индексы notifications_booking_dedup/notifications_schedreq_dedup (миграция 015)
@@ -29,12 +33,18 @@ export async function notifyStaff(
 ) {
   const params = [`ntf-${randomBytes(8).toString('hex')}`, staffId, type, bookingId, scheduleRequestId, relatedMasterId, title, body];
   if (!refresh) {
-    await client.query(
+    const inserted = await client.query(
       `INSERT INTO notifications (id, staff_id, type, booking_id, schedule_request_id, related_master_id, title, body)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT DO NOTHING`,
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
       params
     );
+    // Только если строка действительно появилась. При повторном вызове по той же
+    // брони (фоновый сканер плюс ручное действие в одну минуту) ON CONFLICT молча
+    // ничего не вставляет - телефон в этом случае звонить не должен, иначе человек
+    // получит два одинаковых уведомления на одно событие.
+    if (inserted.rowCount > 0) deliverPushLater(staffId, { title, body });
     return;
   }
   // Таргет конфликта назван явно (частичный индекс требует повторить его предикат) -
@@ -53,6 +63,9 @@ export async function notifyStaff(
                    read_at = NULL, dismissed_at = NULL`,
     params
   );
+  // Обновление (перенос записи) - это новая информация, а не дубль: строка
+  // возвращается в непрочитанные, значит и телефон должен зазвонить снова
+  deliverPushLater(staffId, { title, body });
 }
 
 // Окно 35 (06.08.2026) - чистая функция: из мастеров, которые оказывают услуги,

@@ -161,11 +161,26 @@ test('миграция - только про схему, без QA-фиксту�
 
 test('ни одна таблица данных не забыта - список сверяется с миграциями, а не с памятью', async () => {
   const dataTables = await tablesCreatedByMigrations();
-  const covered = [...migrationSql.matchAll(/ALTER TABLE ([a-z_]+) ADD COLUMN IF NOT EXISTS tenant_id/gi)]
-    .map((m) => m[1])
-    .sort();
-  assert.deepEqual(covered, dataTables, 'признак арендатора обязан быть у каждой таблицы данных');
+  // Признак арендатора появляется у таблицы одним из двух способов, и оба
+  // засчитываются (расширено в Окне 73, 28.08.2026). Таблицы, существовавшие до
+  // Фазы 2, получили колонку отдельной командой в 057. Таблица, заведённая позже,
+  // объявляет её прямо в своём CREATE TABLE - требовать для неё ALTER задним
+  // числом в чужой миграции неправильно: миграции после накатывания не меняют.
+  const files = (await readdir(MIGRATIONS)).filter((f) => f.endsWith('.sql')).sort();
+  const covered = new Set(
+    [...migrationSql.matchAll(/ALTER TABLE ([a-z_]+) ADD COLUMN IF NOT EXISTS tenant_id/gi)].map((m) => m[1]),
+  );
+  for (const file of files) {
+    const sql = await readFile(new URL(file, MIGRATIONS), 'utf8');
+    // CREATE TABLE, в теле которого объявлен tenant_id
+    for (const m of sql.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?([a-z_]+)\s*\(([\s\S]*?)\n\);/gi)) {
+      if (/\btenant_id\b/i.test(m[2])) covered.add(m[1]);
+    }
+  }
+  assert.deepEqual([...covered].sort(), dataTables, 'признак арендатора обязан быть у каждой таблицы данных');
   // Число зафиксировано отдельно: если следующая миграция заведёт таблицу, тест
   // упадёт здесь и заставит принять решение про арендатора осознанно.
-  assert.equal(dataTables.length, 20, 'таблиц данных 20 - не 14, как считалось в плане до сверки со схемой');
+  // 21-я - push_subscriptions (Окно 73, 28.08.2026): решение про арендатора принято,
+  // колонка объявлена в самой таблице, замок стоит в той же миграции
+  assert.equal(dataTables.length, 21, 'таблиц данных 21 - число меняется только вместе с осознанным решением про арендатора');
 });

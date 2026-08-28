@@ -9,7 +9,18 @@ import test from 'node:test';
 import { readFile, readdir } from 'node:fs/promises';
 
 const MIGRATIONS = new URL('../api/migrations/', import.meta.url);
-const rlsSql = await readFile(new URL('058_rls.sql', MIGRATIONS), 'utf8');
+// Правила замка собираются из ВСЕХ миграций, а не только из 058 (расширено в
+// Окне 73, 28.08.2026). Замок для таблиц, существовавших на момент Фазы 3, живёт в
+// 058; таблица, заведённая позже, приносит свой замок в собственной миграции - иначе
+// её пришлось бы дописывать в старый файл задним числом, а миграции неизменяемы
+// после накатывания. Проверка от этого не слабеет: требование «у каждой таблицы
+// данных есть ENABLE, FORCE и политика» остаётся ровно тем же.
+const rlsSql = await (async () => {
+  const files = (await readdir(MIGRATIONS)).filter((f) => f.endsWith('.sql')).sort();
+  const parts = [];
+  for (const file of files) parts.push(await readFile(new URL(file, MIGRATIONS), 'utf8'));
+  return parts.join('\n');
+})();
 
 // Служебные таблицы: история накатывания схемы и сам справочник арендаторов.
 const SERVICE_TABLES = ['schema_migrations', 'tenants'];
@@ -31,7 +42,8 @@ async function tablesCreatedByMigrations() {
 const DATA_TABLES = await tablesCreatedByMigrations();
 
 test('замок включён и распространяется на владельца таблиц (ловушка 1)', () => {
-  assert.ok(DATA_TABLES.length === 20, `таблиц данных должно быть 20, найдено ${DATA_TABLES.length}`);
+  // 21-я таблица - push_subscriptions (Окно 73, 28.08.2026), подписки устройств
+  assert.ok(DATA_TABLES.length === 21, `таблиц данных должно быть 21, найдено ${DATA_TABLES.length}`);
   for (const table of DATA_TABLES) {
     assert.match(
       rlsSql,
@@ -91,9 +103,17 @@ test('справочник арендаторов сознательно ост�
   assert.match(rlsSql, /tenants/i, 'решение по справочнику должно быть объяснено в самой миграции');
 });
 
-test('миграция - только про схему, без данных', () => {
-  const body = rlsSql.replace(/--[^\n]*/g, '');
-  assert.doesNotMatch(body, /INSERT INTO/i);
-  assert.doesNotMatch(body, /DELETE FROM/i);
-  assert.doesNotMatch(body, /DROP TABLE/i);
+// Проверка чистоты смотрит на КОНКРЕТНЫЕ миграции, а не на их склейку: ранние
+// миграции проекта (002) содержат заготовку данных по историческим причинам, и
+// сверять с ними бессмысленно. Здесь перечислены те, что вводят замок и таблицы
+// под ним, - для них правило «миграция только про схему» действует строго.
+const SCHEMA_ONLY_MIGRATIONS = ['058_rls.sql', '061_push_subscriptions.sql'];
+
+test('миграция - только про схему, без данных', async () => {
+  for (const file of SCHEMA_ONLY_MIGRATIONS) {
+    const body = (await readFile(new URL(file, MIGRATIONS), 'utf8')).replace(/--[^\n]*/g, '');
+    assert.doesNotMatch(body, /INSERT INTO/i, `${file}: миграция вставляет данные`);
+    assert.doesNotMatch(body, /DELETE FROM/i, `${file}: миграция удаляет данные`);
+    assert.doesNotMatch(body, /DROP TABLE/i, `${file}: миграция роняет таблицу`);
+  }
 });
