@@ -1501,3 +1501,15 @@ button.sm-cell {
 .service-check--catalog:hover .sc-remove { opacity: 1; }
 .service-check--catalog .sc-remove:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
 .service-check--catalog .sc-remove:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; opacity: 1; }
+
+/* День с единственным сотрудником (28.08.2026, находка Влада на кабинете клиники).
+   Базовое правило сетки - grid-auto-columns: minmax(220px, 1fr) - делит ширину между
+   колонками, и у барбершопа с пятью мастерами это ровно то, что нужно. Но когда
+   сотрудник один, 1fr растягивает его колонку на весь экран: часовая дорожка шириной
+   в монитор, запись на 30 минут - полосой через всю страницу.
+   Правило точечное, через :only-child, поэтому кабинеты с несколькими сотрудниками
+   работают ровно как раньше */
+.panel-sp-day .schedule-grid:has(> .schedule-col:only-child) {
+  grid-auto-columns: minmax(220px, 420px);
+  justify-content: start;
+}
