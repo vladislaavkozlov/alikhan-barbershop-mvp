@@ -94,6 +94,7 @@ import { handleMissedProfit, handleMissedProfitClients } from './routes/missed-p
 import { handleBackup } from './routes/backup.js';
 // Подключение арендатора при старте из переменной NEW_TENANT (Окно 69, 26.08.2026)
 import { provisionTenantFromEnv } from './lib/provision-tenant.js';
+import { dropResetSnapshotFromEnv, resetTenantDataFromEnv } from './lib/reset-tenant-data.js';
 // Ре-экспорт для tests/*.test.js.
 export { describeClientRisk, getClientCard, listClientsAtRisk, computeOwnerAlerts } from './routes/clients.js';
 export { percentOf, shapeSourceRows, parseMonths, RETENTION_MONTHS, SOURCE_MONTHS } from './routes/analytics.js';
@@ -821,6 +822,18 @@ async function startServer() {
   // опечатка в переменной, относящейся к другому клиенту, не должна ронять живой
   // салон Алихана (спека, раздел «Что делать с ошибкой в самой переменной»).
   await provisionTenantFromEnv(process.env);
+  // Разовый сброс рабочих данных арендатора из переменной RESET_TENANT_DATA
+  // (27.08.2026, передача кабинета заказчику). То же место и та же причина, что у
+  // заведения арендатора выше: после миграций - схема обязана быть свежей, до listen -
+  // никто не должен успеть создать запись в базу, которую прямо сейчас чистят.
+  // Функция не бросает никогда, и повторный старт с той же меткой не удаляет ничего.
+  await resetTenantDataFromEnv(process.env);
+  // Уборка снимка отката из переменной RESET_TENANT_DATA_DROP_SNAPSHOT: снимок держит
+  // полные строки клиентов с телефонами и нужен только до того, как заказчик
+  // подтвердит первый день. Стоит после самого сброса сознательно: если обе переменные
+  // окажутся в панели разом, снимок сначала будет снят операцией, а потом убран, а не
+  // наоборот. Тоже не бросает никогда.
+  await dropResetSnapshotFromEnv(process.env);
   server.listen(PORT, () => {
     console.log(`API alikhan-crm слушает порт ${PORT}`);
   });

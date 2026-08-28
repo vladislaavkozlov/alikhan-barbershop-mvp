@@ -35,6 +35,14 @@ const MANAGEMENT_VIEWERS = ['owner', 'manager'];
 // (по своей точке). Разделение намеренное: администратор ставит смены и выходные, но
 // не меняет состав команды, прайс и ставки.
 const SCHEDULE_EDITORS = ['owner', 'manager', 'admin'];
+// Показываем ли человеку его услуги. Единственный критерий - принимает ли он клиентов:
+// у администратора услуг нет вовсе, и каталог со снятыми галками в его карточке - это
+// не «нельзя менять», а «этого у меня нет». Поля providesServices может не быть в
+// старом снимке состава - тогда считаем, что человек принимает: потерять секцию услуг
+// у мастера хуже, чем показать лишнюю у того, кого в снимке нет.
+export function showsServicesSection(staff) {
+  return staff?.providesServices !== false;
+}
 let lastCreatedCredentials = null;
 const esc = (value = '') => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const section = (title, description, icon, content, modifier = '') => `<section class="team-editor-section${modifier ? ` ${modifier}` : ''}"><header class="team-section-head"><span class="team-section-icon" aria-hidden="true">${icon}</span><div><h3>${title}</h3><p>${description}</p></div></header>${content}</section>`;
@@ -176,7 +184,12 @@ function staffCard(staff, viewerRole, locations, viewerId) {
        management-only (POST/DELETE /staff/:id/media). Администратору секцию не рисуем
        вовсе: кнопка «Выбрать фото» у него давала бы только 401 в ответ. */''}
   ${canManage ? section('Профиль на сайте', P('team.publicProfileHint'), ICON_PUBLIC, mediaMarkup(staff)) : ''}
-  ${section(P('team.servicesSection'), servicesTitle, ICON_SERVICES, `<div class="service-picker" data-master-id="${id}">${skeletonMarkup(4)}</div>`)}
+  ${/* Услуги показываем только тому, кто принимает клиентов (27.08.2026, находка
+       владельца). До этой правки секция рисовалась безусловно, и администратор,
+       который услуг не оказывает вовсе, видел у себя весь каталог - приглушённый
+       стилем .service-picker.readonly, но видимый. Приглушённое поле читается как
+       «у тебя это есть, только трогать нельзя», а у него этого нет совсем. */''}
+  ${showsServicesSection(staff) ? section(P('team.servicesSection'), servicesTitle, ICON_SERVICES, `<div class="service-picker" data-master-id="${id}">${skeletonMarkup(4)}</div>`) : ''}
   ${section('График', 'Рабочая неделя и разовые изменения', ICON_SCHEDULE, `<div id="weeklyEditor-${id}">${skeletonMarkup(3)}</div>${exceptionEditor(staff.id)}`)}
   ${/* Тумблер "Разрешить вход в CRM" убран 13.08.2026 по решению владельца: он дублировал
        "Работает в компании" в глазах салона и создавал риск случайно отрезать себе вход.
@@ -830,10 +843,14 @@ export async function renderTeam() {
       // у администратора - человеку нужно видеть и менять свои смены и выходные, даже
       // когда он не появляется в расписании записи (правка Влада 13.08.2026).
       const staffCanEdit = canEdit && !(me.staff.role === 'manager' && staff.protectedOwner);
+      // Контейнера у того, кто клиентов не принимает, больше нет вовсе (правка
+      // 27.08.2026) - редактор в этом случае даже не зовём, иначе он упал бы на null
       const picker = host.querySelector(`.service-picker[data-master-id="${staff.id}"]`);
-      renderMasterServiceEditor(picker, staff.id, staffCanEdit && staff.providesServices !== false, services, masterServices, () => {
-        picker.closest('.team-editor-card')?.dispatchEvent(new CustomEvent('crm:card-dirty', { bubbles: true }));
-      });
+      if (picker) {
+        renderMasterServiceEditor(picker, staff.id, staffCanEdit && staff.providesServices !== false, services, masterServices, () => {
+          picker.closest('.team-editor-card')?.dispatchEvent(new CustomEvent('crm:card-dirty', { bubbles: true }));
+        });
+      }
       wireWeeklyScheduleEditor(staff.id, canEditSchedule && !(me.staff.role === 'manager' && staff.protectedOwner), fetchJson);
     });
     wire(host);
