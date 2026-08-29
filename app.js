@@ -10,6 +10,7 @@ import {
   toggleServiceSelection,
   filterBookableMasters,
   sortByServiceOrder,
+  catalogFromPublicMasters,
   masterCoversServices,
   masterTierForServices,
   masterTotalsForServices,
@@ -45,7 +46,17 @@ if (!window.ALIKHAN_API_URL) {
 // В боевом режиме список начинается пустым: нельзя на мгновение показать старых
 // демо-мастеров, а затем молча заменить их ответом API или оставить при его ошибке
 let masters = window.ALIKHAN_API_URL ? [] : getMasters();
-const services = getServices();
+// Каталог услуг сайта. Стартовое значение - зашитый список из storage.js: он нужен,
+// пока не ответил API и в офлайн-демо без бэкенда. Как только приходят публичные
+// мастера, каталог заменяется живым (см. catalogFromPublicMasters) - иначе услуга,
+// заведённая владельцем в разделе «Услуги» кабинета (Окно 75), до клиента не доходит
+// вовсе, а удалённая продолжает висеть на сайте.
+let services = getServices();
+// Каталог пришёл с сервера - клиентскую сортировку по зашитому порядку больше не
+// применяем: живые строки уже идут в порядке services.sort_order, который владелец
+// задаёт сам, и подмена его порядком из статики отменяла бы его решение.
+let catalogFromApi = false;
+
 
 const priceGrid = document.getElementById('price-grid');
 const mastersGrid = document.getElementById('masters-grid');
@@ -447,11 +458,16 @@ function renderPrice() {
     duration.className = 'price-card-duration';
     duration.textContent = service.durationLabel;
 
-    const comp = document.createElement('p');
-    comp.className = 'price-card-comp';
-    comp.textContent = service.composition;
+    card.append(head, duration);
 
-    card.append(head, duration, comp);
+    // Состава может не быть: у услуги, заведённой владельцем в кабинете, описание
+    // никто не писал - пустой абзац на его месте выглядел бы обрывом вёрстки
+    if (service.composition) {
+      const comp = document.createElement('p');
+      comp.className = 'price-card-comp';
+      comp.textContent = service.composition;
+      card.append(comp);
+    }
     priceGrid.append(card);
     armReveal(card, i * 50);
     i += 1;
@@ -799,7 +815,7 @@ function renderMasterOptions() {
 // точную сумму визита клиент увидит на карточке выбранного мастера и в сводке.
 function serviceCatalogForDisplay() {
   const bookableIds = filterBookableMasters(masters, masterWorkingSchedule).map((m) => m.id);
-  return sortByServiceOrder(services).map((service) => {
+  return orderedCatalog().map((service) => {
     const rows = masterServicesReady
       ? masterServices.filter((r) => r.serviceId === service.id && bookableIds.includes(r.masterId))
       : [];
@@ -816,6 +832,12 @@ function serviceCatalogForDisplay() {
       fromPrice: Math.max(...prices) !== minPrice,
     };
   });
+}
+
+// Порядок показа услуг: живой каталог - как его отдал сервер (services.sort_order),
+// статический фоллбэк - как раньше, зашитым порядком SERVICE_ORDER
+function orderedCatalog() {
+  return catalogFromApi ? services : sortByServiceOrder(services);
 }
 
 function renderServiceOptions() {
@@ -1134,6 +1156,18 @@ renumberSteps();
 if (window.ALIKHAN_API_URL) {
   loadPublicMasters(window.ALIKHAN_API_URL).then((rows) => {
     masters = rows.map((m) => ({ ...m, workWindow: { start: '10:00', end: '20:00' }, isPlaceholder: false }));
+    // Пустой ответ (никто не назначен на услуги или сеть отдала обрезанные данные) не
+    // должен схлопывать прайс сайта в ничто - в этом случае остаёмся на статике
+    const liveCatalog = catalogFromPublicMasters(rows, getServices());
+    if (liveCatalog.length) {
+      services = liveCatalog;
+      catalogFromApi = true;
+      // Выбор клиента мог указывать на услугу, которой в живом каталоге уже нет
+      // (владелец удалил её, пока страница была открыта)
+      const liveIds = new Set(liveCatalog.map((s) => s.id));
+      for (const id of [...selectedServiceIds]) if (!liveIds.has(id)) selectedServiceIds.delete(id);
+      renderPrice();
+    }
     renderMasters(); renderServiceOptions(); renderTierOptions(); renderMasterOptions();
   }).catch(() => {
     // витрина команды остаётся на разметке-фоллбэке из index.html (см. renderMasters),

@@ -366,6 +366,53 @@ export function sortByServiceOrder(list, getId = (item) => item.id) {
 // превращаться в комплекс. Один список правил, не два места с одной и той же
 // логикой - используется и публичной записью (app.js), и формой мастера (wireWalkIn
 // в crm-auth.js), оба уже импортируют storage.js.
+export function durationLabel(min) {
+  if (min < 60) return `${min} мин`;
+  const hours = Math.floor(min / 60);
+  const rest = min % 60;
+  const hoursLabel = hours === 1 ? '1 час' : `${hours} ч`;
+  return rest ? `${hoursLabel} ${rest} мин` : hoursLabel;
+}
+
+// Живой каталог собирается из услуг публичных мастеров: /public/masters отдаёт их с
+// именем, ценой и длительностью и не требует логина. Отдельного публичного роута
+// каталога нет намеренно - на сайте и так показываем только то, что кто-то реально
+// оказывает, иначе клиент выберет услугу и упрётся в отказ сервера на последнем шаге.
+// Описание состава и подпись длительности берём из статики по совпадению id: у услуг
+// барбершопа они написаны вручную и в базе не живут, а у новой услуги описания просто
+// нет - карточка прайса тогда идёт без него, а не с пустой строкой.
+export function catalogFromPublicMasters(masterRows, staticServices) {
+  const staticById = new Map(staticServices.map((s) => [s.id, s]));
+  const catalog = new Map();
+  for (const master of masterRows) {
+    for (const service of master.services ?? []) {
+      if (catalog.has(service.id)) {
+        // Одна и та же услуга у разных мастеров стоит по-разному - в каталоге
+        // остаётся минимальная цена, как и в самой форме записи («от»)
+        const known = catalog.get(service.id);
+        known.price = Math.min(known.price, service.price);
+        known.durationMin = Math.min(known.durationMin, service.durationMin);
+        continue;
+      }
+      catalog.set(service.id, {
+        id: service.id,
+        name: service.name,
+        price: service.price,
+        durationMin: service.durationMin,
+        composition: staticById.get(service.id)?.composition ?? '',
+      });
+    }
+  }
+  // Подписи считаем в конце, а не при первой встрече услуги: цена и длительность к
+  // этому моменту уже сведены к минимальным по всем мастерам, а собранные раньше
+  // подписи показывали бы цену того мастера, кто просто оказался первым в списке
+  return [...catalog.values()].map((service) => ({
+    ...service,
+    priceLabel: `${service.price.toLocaleString('ru-RU')}₽`,
+    durationLabel: durationLabel(service.durationMin),
+  }));
+}
+
 export const SERVICE_COMBOS = [
   {
     comboId: 'kompleks-strizhka-boroda',
