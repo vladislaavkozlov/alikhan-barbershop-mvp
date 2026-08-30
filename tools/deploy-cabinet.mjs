@@ -51,8 +51,10 @@ const FILES = [
   'app.js', 'storage.js', 'sw.js',
   'manifest-owner.webmanifest', 'manifest-admin.webmanifest', 'manifest-master.webmanifest',
 ];
-// Картинки бренда Алихана. Иконки заменяются иконками клиента, если они переданы;
-// вензель и герб не заменяются ничем - именно поэтому кабинет покажет название текстом.
+// Картинки бренда Алихана. Иконки заменяются иконками клиента, если они переданы.
+// Вензель и локап тоже заменяются - если у клиента есть свой знак (папка brand/ в его
+// проекте, см. BRAND_MAP). Знака нет - файлы просто не едут, и кабинет показывает
+// название заведения текстом, как было до 30.08.2026.
 const BRAND_SKIP = ['wordmark-header.webp', 'crest-hero.webp', 'lockup-footer.webp'];
 // Фотографии Алихана вне папки brand. Интерьер барбершопа стоял фоном экрана входа
 // (assets/crm-theme-daylight.css, .login-gate) и до 30.08.2026 ехал в чужой контур
@@ -60,6 +62,14 @@ const BRAND_SKIP = ['wordmark-header.webp', 'crest-hero.webp', 'lockup-footer.we
 // проверено запросом - файл отдавался с 200 и весил 305 КБ. Тема клиники фотографию
 // больше не показывает, но и лежать у клиента ей незачем
 const PHOTO_SKIP = ['interior-honeycomb.jpg'];
+// Фирменный знак клиента под именами, которые ждёт разметка кабинета. Герб
+// (crest-hero) намеренно не заменяется ничем: это водяной знак на фоне рабочей
+// области, приём бренда Алихана, и чужой теме он не нужен - тема клиники этот фон
+// переопределяет совсем.
+const BRAND_MAP = {
+  'wordmark-header.webp': 'brand/wordmark-header.webp',
+  'lockup-footer.webp': 'brand/lockup-footer.webp',
+};
 const ICON_MAP = {
   'favicon.ico': 'favicon.ico',
   'apple-touch-icon-180.png': 'apple-touch-icon.png',
@@ -107,9 +117,9 @@ cpSync(join(ROOT, 'assets'), join(clone, 'assets'), {
     !PHOTO_SKIP.some((skip) => src.endsWith(`/assets/${skip}`)),
 });
 
-// Иконки клиента под именами, которые ждёт кабинет: свои файлы вместо герба Алихана
+// Иконки и фирменный знак клиента под именами, которые ждёт кабинет
 if (iconsDir) {
-  for (const [target, source] of Object.entries(ICON_MAP)) {
+  for (const [target, source] of Object.entries({ ...ICON_MAP, ...BRAND_MAP })) {
     const from = join(iconsDir, source);
     if (existsSync(from)) cpSync(from, join(clone, 'assets', 'brand', target));
     else console.log(`  иконка ${source} у клиента не найдена - в контур не поехала`);
@@ -201,8 +211,9 @@ for (const rel of listFiles(join(ROOT, 'assets'))) {
   // читает намеренное отсутствие как разъезд версий и останавливает выкладку
   if (PHOTO_SKIP.includes(rel)) continue;
   const target = join(clone, 'assets', rel);
-  const isIcon = rel.startsWith('brand/') && Object.keys(ICON_MAP).includes(rel.slice('brand/'.length));
-  if (isIcon && iconsDir) continue; // иконки намеренно заменены на клиентские
+  const swapped = { ...ICON_MAP, ...BRAND_MAP };
+  const isIcon = rel.startsWith('brand/') && Object.keys(swapped).includes(rel.slice('brand/'.length));
+  if (isIcon && iconsDir) continue; // иконки и знак намеренно заменены на клиентские
   if (!existsSync(target) || sha(join(ROOT, 'assets', rel)) !== sha(target)) drift.push(`assets/${rel}`);
 }
 if (drift.length) {
