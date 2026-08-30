@@ -1,0 +1,376 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Тема «Клиника» (30.08.2026). Кабинет клиники говорит языком её сайта.
+
+   ЗАЧЕМ. Кабинет и сайт клиники видит один и тот же человек - врач утром
+   открывает свой сайт, а через минуту расписание приёмов. До этой темы он
+   попадал из молочно-шампанской типографики Cormorant в зелёно-графитовый
+   барбершоп: другая бумага, другой шрифт, другое золото. Слова уже приходили
+   верные («врач», «приём» - Этап B), а цвет оставался чужим.
+
+   ОТКУДА ЦВЕТА. Один в один :root сайта клиники (karina-landing,
+   assets/css/styles.css): молоко #F7F3ED / #EFE8DE / #E7DED2, графит #1E1C1A и
+   #3A3632, чернила #6E665C и #9A9186, шампань #B2915F и #D9C4A2, линии
+   rgba(30,28,26,.14). Шрифты оттуда же: Cormorant Garamond в заголовках,
+   Inter в тексте.
+
+   ГЛАВНАЯ ПРАВКА ПРОТИВ САЙТА - АКЦЕНТ. Сайтовая шампань #B2915F на молоке
+   даёт 2.4-2.8:1 при пороге 4.5 для мелкого текста: на лендинге ею набраны
+   крупные засечные заголовки, а в кабинете тем же токеном красятся подписи
+   0.76rem. Замер (tools/verify-2026-08-30-tema-kliniki.mjs) дал рабочую пару
+   из того же семейства: #7C5E33 - 4.93:1 на полотне и 5.75:1 на карточке,
+   #6E522B - 5.94:1 там, где подложка темнее. Настоящая сайтовая шампань никуда
+   не делась: она живёт в тёмном хроме (5.75:1 на графите) и в заливках, где
+   несёт не текст, а плоскость.
+
+   КАК ЭТО УСТРОЕНО. Файл подключается ПОСЛЕДНИМ, после crm-theme-daylight.css,
+   и работает дельтой поверх него: светлую тему он не отменяет, а перекрашивает.
+   КАЖДОЕ правило висит на [data-theme="clinic"]. Атрибут ставит кабинету сервер
+   (GET /tenant/appearance отдаёт theme по вертикали арендатора). У барбершопа
+   тема `default`, атрибут не появляется никогда, и весь этот файл применяет
+   РОВНО НОЛЬ правил - проверяется прогоном, а не обещанием.
+   Откат = снять одну строку <link> в трёх crm-*.html.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Шрифты сайта клиники. Грузятся вместе с файлом темы, а не по условию: у
+   барбершопа этого <link> нет вовсе, так что лишнего он не тянет */
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:wght@200;300;400;500;600&display=swap");
+
+:root[data-theme="clinic"] {
+  /* ── Полотно и поверхности ───────────────────────────────────────────────
+     Шкала сайта, развёрнутая на слои кабинета: полотно на ступень глубже
+     карточки, чтобы карточка всплывала - тот же приём, что в светлой теме.
+     Молоко #F7F3ED с лендинга стоит не фоном страницы, а фоном карточки:
+     на сайте оно и есть цвет светлого блока, а не рамы. */
+  --bg-main: #EFE8DE;
+  --bg: var(--bg-main);
+  --surface: #FCFAF6;
+  --surface-2: #F7F3ED;
+  --surface-3: #EFE8DE;
+  --panel-bg-collapsed: #FCFAF6;
+  --panel-bg-light: #F9F6F0;
+  /* Чистого белого в палитре сайта нет вовсе: самый светлый тон там #F7F3ED, и
+     белая плашка рядом с ним читается как дырка в бумаге. Самый верхний слой
+     кабинета - молочно-белый, на ступень выше карточки, но всё ещё тёплый */
+  --panel-bg: #FDFCF9;
+  --popup-bg: #FCFAF6;
+
+  /* Дорожка расписания - самый большой прямоугольник в кабинете. Рабочие часы
+     светлее полотна (лист), выходной и «нет графика» - на две ступени глубже */
+  --track-bg: #FCFAF6;
+  --track-off-bg: #EBE4D9;
+  --track-off-stripe: rgba(30, 28, 26, 0.05);
+  --track-none-bg: #E7DED2;
+
+  /* Хром - сайтовый графит. На лендинге это цвет текста и подвала, здесь он
+     собирает боковое меню и шапку в тёмную раму вокруг светлого поля */
+  --bg-sidebar: #1E1C1A;
+  --bg-header: #1E1C1A;
+
+  /* ── Чернила ─────────────────────────────────────────────────────────────
+     Графит сайта как есть: 13.97:1 на полотне. Приглушённый текст - сайтовый
+     ink-60 #6E665C (4.64:1), а не ink-40: #9A9186 даёт 2.55:1 и годится только
+     декоративной линии, не подписи */
+  --text: #1E1C1A;
+  --text-muted: #6E665C;
+  --border: rgba(30, 28, 26, 0.14);
+
+  /* ── Шампань ─────────────────────────────────────────────────────────────
+     Глубокая ступень для текста и рамок (см. замер в шапке файла). Молочный
+     --leather - цвет текста ПОВЕРХ шампанской заливки */
+  --accent: #7C5E33;
+  --accent-hover: #63491F;
+  --wood: #6E522B;
+  --leather: #F7F3ED;
+
+  /* ── Статусы ─────────────────────────────────────────────────────────────
+     Смысл тот же, что везде, тон уведён в тёплую сторону: в клинике рядом с
+     молоком и шампанью холодная зелень барбершопа читается медицинским
+     пластиком */
+  --success: #4E7A55;
+  --danger: #A8503C;
+  --info: #4A6B86;
+
+  /* ── Тени ────────────────────────────────────────────────────────────────
+     На бумаге слой создаёт тень, а не рамка. Тень тёплая - от графита сайта,
+     не от нейтрального чёрного */
+  --shadow-sm: 0 1px 2px rgba(30, 28, 26, 0.06);
+  --shadow-md: 0 4px 16px -6px rgba(30, 28, 26, 0.13);
+  --shadow-lg: 0 20px 44px -24px rgba(30, 28, 26, 0.24);
+}
+
+/* ── Тёмный хром ────────────────────────────────────────────────────────────
+   Те же токены, локально возвращённые к сайтовым значениям: всё, что нарисовано
+   внутри меню и шапки, читает их через те же var(), отдельных правил не нужно.
+   Здесь живёт НАСТОЯЩАЯ шампань лендинга - на графите она даёт 5.75:1 */
+[data-theme="clinic"] .app-sidebar,
+[data-theme="clinic"] header.site {
+  --surface: #2A2724;
+  --surface-2: #332F2B;
+  --surface-3: #3A3632;
+  --text: #F7F3ED;
+  --text-muted: #9A9186;
+  --border: rgba(247, 243, 237, 0.14);
+  --accent: #B2915F;
+  --accent-hover: #D9C4A2;
+  --leather: #1E1C1A;
+  color: var(--text);
+}
+
+/* ── Типографика сайта ──────────────────────────────────────────────────────
+   На лендинге тексты набраны Inter light: 300 в теле, 400 в акцентах. В
+   кабинете 300 на мелкой подписи по данным поплыл бы, поэтому базовый вес 400,
+   а лёгкость отдана крупным начертаниям - там она и читается как воздух */
+[data-theme="clinic"] body,
+[data-theme="clinic"] button,
+[data-theme="clinic"] input,
+[data-theme="clinic"] select,
+[data-theme="clinic"] textarea {
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+}
+[data-theme="clinic"] h1,
+[data-theme="clinic"] h2,
+[data-theme="clinic"] h3,
+[data-theme="clinic"] .crm-panel-title,
+[data-theme="clinic"] .login-kicker,
+[data-theme="clinic"] .brand-title {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+}
+/* Крупные заголовки на сайте - светлые засечные с широкой разрядкой. В кабинете
+   они мельче, поэтому вес поднят на ступень: Cormorant в 300 на 18px выцветает */
+[data-theme="clinic"] h1 { font-weight: 400; }
+
+/* ── Полотно ────────────────────────────────────────────────────────────────
+   На сайте фон плоский молочный, глубину дают фотографии и воздух. Здесь тот же
+   принцип: вместо двух подсветок светлой темы - одна очень мягкая тёплая, чтобы
+   полотно не выглядело залитым краской */
+[data-theme="clinic"] html { background: var(--bg-main); }
+[data-theme="clinic"] body {
+  background:
+    radial-gradient(circle at 84% 0%, rgba(255, 255, 255, 0.5), transparent 34rem),
+    radial-gradient(circle at 6% 40%, rgba(178, 145, 95, 0.07), transparent 28rem),
+    var(--bg-main);
+  background-attachment: fixed, fixed, fixed;
+}
+/* Зерна на лендинге клиники нет вовсе - там чистая бумага */
+[data-theme="clinic"] body::before { opacity: 0; }
+
+/* ── Рабочая область ────────────────────────────────────────────────────────
+   Светлая тема кладёт сюда водяным знаком герб барбершопа
+   (brand/crest-hero.webp). В контур клиники этот файл не едет по замыслу
+   выкладки (tools/deploy-cabinet.mjs, BRAND_SKIP) - значит здесь висел запрос в
+   никуда, отдающий 404. Убираем и запрос, и сам приём: у клиники фирменного
+   знака под фон нет, её лендинг держит воздух пустотой, а не подложкой */
+[data-theme="clinic"] body.app-shell-active .crm-shell-main,
+[data-theme="clinic"] body.app-shell-active main,
+[data-theme="clinic"] body.app-shell-active #crmMain {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 240px),
+    var(--bg-main);
+  background-repeat: no-repeat, no-repeat;
+  background-position: center top, center top;
+  background-size: auto, auto;
+  background-attachment: scroll, scroll;
+}
+
+/* Шапка на графите сайта */
+[data-theme="clinic"] body.app-shell-active .app-topbar,
+[data-theme="clinic"] header.site {
+  background: var(--bg-header);
+  border-bottom: 1px solid rgba(30, 28, 26, 0.2);
+}
+
+/* ── Сетка расписания ───────────────────────────────────────────────────────
+   Часовые линии тоньше, чем в светлой теме: на лендинге линия - это
+   rgba(30,28,26,.07), самый тихий элемент макета */
+[data-theme="clinic"] .schedule-track {
+  background-image: linear-gradient(rgba(30, 28, 26, 0.07) 1px, transparent 1px);
+  box-shadow: inset 0 0 0 1px rgba(30, 28, 26, 0.05);
+}
+[data-theme="clinic"] .panel-sp-day .hour-marks {
+  background: rgba(252, 250, 246, 0.75);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* ── Карточки приёма ────────────────────────────────────────────────────────
+   Смысл цвета сохранён (ожидание - шампань, пришёл - зелёный, не пришёл -
+   красный, выбран - синий), гамма уведена в тёплую: те же заливки светлой темы,
+   но на молочной основе, а не на зеленовато-бумажной */
+[data-theme="clinic"] .appt--new      { background: #F6EAD3; border-color: #DEC49B; color: #3A2C12; }
+[data-theme="clinic"] .appt--done     { background: #E0EDE2; border-color: #A6C6AC; color: #1B3322; }
+[data-theme="clinic"] .appt--noshow   { background: #F7DFD8; border-color: #DFAA99; color: #46190F; }
+[data-theme="clinic"] .appt--selected { background: #DFE7EF; border-color: #A8BACB; color: #17293A; }
+[data-theme="clinic"] .appt--break {
+  background: repeating-linear-gradient(135deg, rgba(30, 28, 26, 0.06) 0 9px, rgba(30, 28, 26, 0.02) 9px 18px);
+  background-color: #F1EBE1;
+  color: var(--text-muted);
+}
+[data-theme="clinic"] .appt--offhours {
+  background: repeating-linear-gradient(135deg, rgba(30, 28, 26, 0.045) 0 10px, transparent 10px 20px);
+  background-color: #EBE4D9;
+}
+[data-theme="clinic"] .appt--cancelled { background: #EDE7DC; color: #79726A; }
+[data-theme="clinic"] .appt:hover { box-shadow: 0 8px 18px -10px rgba(30, 28, 26, 0.42); }
+[data-theme="clinic"] .appt--expanded { box-shadow: 0 14px 30px -14px rgba(30, 28, 26, 0.38); }
+[data-theme="clinic"] .appt--expanded::before { background: #FCFAF6; }
+[data-theme="clinic"] .appt-expand:hover { background: rgba(30, 28, 26, 0.09); }
+[data-theme="clinic"] .appt-new-client { color: #7C5E33; }
+[data-theme="clinic"] .week-day-cell.is-dayoff {
+  background-color: #E7DED2;
+  background-image: repeating-linear-gradient(135deg, rgba(30, 28, 26, 0.05) 0 9px, transparent 9px 18px);
+  --accent: #6E522B;
+}
+
+/* ── Поля ввода ─────────────────────────────────────────────────────────────
+   На сайте поля формы записи - молочные с тонкой линией снизу. Здесь линия по
+   контуру (кабинет плотнее), но той же тишины */
+[data-theme="clinic"] .field input,
+[data-theme="clinic"] .field select,
+[data-theme="clinic"] .field textarea,
+[data-theme="clinic"] input[type="text"],
+[data-theme="clinic"] input[type="tel"],
+[data-theme="clinic"] input[type="email"],
+[data-theme="clinic"] input[type="number"],
+[data-theme="clinic"] textarea {
+  background: #F9F6F0;
+  border-color: rgba(30, 28, 26, 0.16);
+}
+[data-theme="clinic"] .field input::placeholder,
+[data-theme="clinic"] textarea::placeholder { color: #9A9186; }
+
+/* ── Кнопки ─────────────────────────────────────────────────────────────────
+   Контурная кнопка лежит на молоке, залитая - на шампани. Подпор тенью в тон */
+[data-theme="clinic"] button,
+[data-theme="clinic"] .btn { background: #FCFAF6; }
+[data-theme="clinic"] .btn-primary { box-shadow: 0 6px 16px -10px rgba(110, 82, 43, 0.65); }
+[data-theme="clinic"] header.site button,
+[data-theme="clinic"] .app-sidebar button { background: transparent; }
+
+/* Залитые шампанью элементы. Тот же приём, что в светлой теме: --accent остаётся
+   глубоким для текста, а на самих заливках подменяется локально на сайтовую
+   шампань - иначе плашка «День» превращается в коричневое пятно */
+[data-theme="clinic"] .btn-primary,
+[data-theme="clinic"] .seg-bar label,
+[data-theme="clinic"] .seg-bar.master-pill-row button.master-pill.active,
+[data-theme="clinic"] .custom-date-cell.selected,
+[data-theme="clinic"] .badge-role-owner,
+[data-theme="clinic"] .day-dot--edit,
+[data-theme="clinic"] .crm-navigation-ui details.staff-card[open] summary > .avatar,
+[data-theme="clinic"] button:hover:not(:disabled):not(.custom-select-trigger):not(.custom-date-trigger):not(.app-drawer-scrim):not(.app-drawer-btn),
+[data-theme="clinic"] .btn:hover:not(:disabled),
+[data-theme="clinic"] .crm-navigation-ui .team-file-action:hover {
+  --accent: #A9884F;
+  --accent-hover: #C4A575;
+  --leather: #1E1C1A;
+}
+/* Аватар и инициалы лежат на тонированном кружке - там подложка темнее, и
+   шампань для текста берётся на ступень глубже */
+[data-theme="clinic"] .avatar,
+[data-theme="clinic"] .avatar-icon { --accent: #6E522B; }
+
+/* ── Всплывающие слои ───────────────────────────────────────────────────────
+   Вуаль модалки - графит сайта, а не зеленоватый графит барбершопа */
+[data-theme="clinic"] .day-edit-modal { background: rgba(30, 28, 26, 0.32); }
+[data-theme="clinic"] .app-drawer-scrim { background: rgba(30, 28, 26, 0.38) !important; }
+[data-theme="clinic"] .crm-crop-overlay { background: rgba(30, 28, 26, 0.55); }
+
+/* Бегущий блик скелетона - молочный */
+[data-theme="clinic"] .crm-skeleton__row {
+  background: linear-gradient(100deg, #EBE4D9 30%, #FBF8F3 48%, #EBE4D9 66%);
+  background-size: 280% 100%;
+}
+
+/* ── Экран входа ────────────────────────────────────────────────────────────
+   Светлая тема кладёт сюда фотографию интерьера барбершопа
+   (assets/interior-honeycomb.jpg). В контуре клиники этот файл физически
+   присутствует - выкладка отсеивает только вензель, герб и локап - и до этой
+   темы врач видел на входе чужое заведение. Здесь фотография убрана совсем:
+   вход клиники - молочный экран с карточкой на нём, как первый экран её сайта.
+   Карточка светлая, а не тёмная: у лендинга нет ни одного тёмного блока с
+   формой, весь его контраст держится на воздухе и тонкой линии */
+[data-theme="clinic"] .login-gate {
+  background:
+    radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.85), transparent 32rem),
+    radial-gradient(circle at 12% 88%, rgba(178, 145, 95, 0.1), transparent 30rem),
+    #EFE8DE;
+}
+[data-theme="clinic"] .login-card,
+[data-theme="clinic"] .crm-navigation-ui .login-card {
+  --surface: #FCFAF6;
+  --surface-2: #F7F3ED;
+  --text: #1E1C1A;
+  --text-muted: #6E665C;
+  --border: rgba(30, 28, 26, 0.14);
+  --accent: #7C5E33;
+  --accent-hover: #63491F;
+  --leather: #F7F3ED;
+  background: #FCFAF6;
+  color: var(--text);
+  box-shadow: 0 30px 70px -34px rgba(30, 28, 26, 0.42);
+}
+[data-theme="clinic"] .login-card .field input,
+[data-theme="clinic"] .login-card input[type="text"],
+[data-theme="clinic"] .login-card input[type="tel"],
+[data-theme="clinic"] .login-card input[type="email"],
+[data-theme="clinic"] .login-card input[type="number"] {
+  background: #F4F0E8;
+  border-color: rgba(30, 28, 26, 0.16);
+  color: #1E1C1A;
+}
+[data-theme="clinic"] .login-card button { background: transparent; }
+[data-theme="clinic"] .login-card .btn-primary { background: var(--accent); color: var(--leather); }
+/* Надпись над карточкой входа - та же разрядка, что у надзаголовков лендинга
+   (.eyebrow: 11px, letter-spacing .24em, верхний регистр) */
+[data-theme="clinic"] .crm-navigation-ui .login-kicker,
+[data-theme="clinic"] .login-kicker {
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #9A9186;
+}
+
+/* Карточка входа: рамка и полоса. В общей вёрстке рамка замешана на акценте
+   (color-mix 52% от --accent), а слева стоит полоса 3px тем же акцентом - на графите
+   это читалось как золотая грань. На молоке та же пара даёт коричневый контур с
+   жирным штрихом сбоку, а у лендинга весь контраст держится на воздухе и линии
+   толщиной в пиксель. Рамка уходит в тихую линию сайта, полоса - в тонкий штрих
+   настоящей шампанью */
+[data-theme="clinic"] .crm-navigation-ui .login-card {
+  border-color: rgba(30, 28, 26, 0.12);
+}
+[data-theme="clinic"] .crm-navigation-ui .login-card::before {
+  width: 1px;
+  background: #B2915F;
+}
+
+/* Название заведения на входе. В контуре клиники фирменной картинки нет вовсе
+   (выкладка не везёт вензель, герб и локап), поэтому разметка сама прячет <img> и
+   показывает вместо него текст - assets/crm-auth.js, onerror. Текст этот набран
+   Playfair, шрифтом барбершопа: здесь он переводится на засечный шрифт лендинга и
+   получает разрядку, с которой на сайте набрано имя в шапке */
+[data-theme="clinic"] .login-brand-name {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 400;
+  font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: 0.06em;
+  color: #1E1C1A;
+  margin: 6px 0 10px;
+}
+/* Подпись под названием - тот же тихий тон, что у надзаголовков сайта */
+[data-theme="clinic"] .login-tag { color: #6E665C; }
+
+/* Название в шапке кабинета (тот же случай «своего логотипа нет») */
+[data-theme="clinic"] .brand-name {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+/* Мобильная нижняя панель вкладок лежит на молоке */
+@media (max-width: 1023px) {
+  [data-theme="clinic"] .tab-bar { background: #FCFAF6; border-bottom: 1px solid var(--border); }
+}

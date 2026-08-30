@@ -157,8 +157,18 @@ test('неизвестная фраза отдаёт барбершопную, �
   assert.equal(phrase('clinic', 'booking.nosuch'), 'booking.nosuch');
 });
 
-test('appearanceFor не отдаёт наружу ничего, кроме слов и вертикали', () => {
-  assert.deepEqual(Object.keys(appearanceFor('clinic')).sort(), ['phrases', 'terms', 'vertical']);
+// Список закрытый намеренно: роут публичный, до входа. Каждое новое поле в ответе
+// - это то, что видит любой, кто знает домен. 30.08.2026 к словам добавилось имя
+// темы оформления (`default`/`clinic`): про заведение оно говорит ровно столько же,
+// сколько сама вертикаль, которая тут была с первого дня
+test('appearanceFor не отдаёт наружу ничего, кроме слов, вертикали и темы', () => {
+  assert.deepEqual(Object.keys(appearanceFor('clinic')).sort(), ['phrases', 'terms', 'theme', 'vertical']);
+});
+
+test('тема кабинета приходит от вертикали, барбершоп остаётся на своей', () => {
+  assert.equal(appearanceFor('barbershop').theme, 'default');
+  assert.equal(appearanceFor('clinic').theme, 'clinic');
+  assert.equal(appearanceFor('petshop').theme, 'default');
 });
 
 test('appearanceFor отдаёт копию, правка ответа не портит словарь', () => {

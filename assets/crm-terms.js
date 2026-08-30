@@ -14,6 +14,9 @@
 
 export const FALLBACK = Object.freeze({
   vertical: 'barbershop',
+  // Тема оформления. `default` - вид, который был у кабинета всегда: сеть легла или
+  // сервер молчит, значит «осталось как было», а не голый экран
+  theme: 'default',
   name: 'CRM',
   terms: {
     "master": {
@@ -279,11 +282,41 @@ function mergeAppearance(payload) {
     ? payload.vertical
     : FALLBACK.vertical;
   const name = typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : FALLBACK.name;
-  return { vertical, name, terms, phrases, modules };
+  // Имя темы приходит в разметку атрибутом, поэтому в нём допущены только буквы,
+  // цифры и дефис: сервер свой, но подставлять его ответ в DOM без проверки нельзя
+  const theme = typeof payload.theme === 'string' && /^[a-z0-9-]{1,32}$/.test(payload.theme)
+    ? payload.theme
+    : FALLBACK.theme;
+  return { vertical, theme, name, terms, phrases, modules };
 }
 
 // Токена здесь нет и быть не может: слова нужны экрану входа, то есть раньше, чем
 // человек вошёл. Роут на сервере публичный ровно поэтому
+// ── Тема оформления ────────────────────────────────────────────────────────────
+// Тему выбирает сервер по вертикали арендатора, а красит CSS: файл темы подключён
+// всегда, но каждое его правило висит на [data-theme="<имя>"], поэтому у кабинета с
+// другой темой он не применяет ни одного правила.
+//
+// Ответ сервера приходит по сети, то есть ПОСЛЕ первой отрисовки. Без кэша это
+// означало бы вспышку чужой палитры на каждом открытии кабинета. Поэтому имя темы
+// кладётся в localStorage, а короткий скрипт в <head> трёх crm-*.html ставит атрибут
+// из кэша ещё до отрисовки. Сеть остаётся источником истины: пришедшее значение
+// перезаписывает и атрибут, и кэш.
+export const THEME_STORAGE_KEY = 'crm.theme';
+
+export function applyTheme(theme = current.theme) {
+  const value = typeof theme === 'string' && /^[a-z0-9-]{1,32}$/.test(theme) ? theme : FALLBACK.theme;
+  const root = globalThis.document?.documentElement;
+  if (root) root.dataset.theme = value;
+  try {
+    globalThis.localStorage?.setItem(THEME_STORAGE_KEY, value);
+  } catch {
+    // Приватный режим и заблокированное хранилище - не повод ронять кабинет: без
+    // кэша тема просто применится на кадр позже
+  }
+  return value;
+}
+
 export async function loadAppearance(apiBase, fetchImpl = globalThis.fetch) {
   try {
     const res = await fetchImpl(`${apiBase}/tenant/appearance`, { credentials: 'omit' });
@@ -292,6 +325,11 @@ export async function loadAppearance(apiBase, fetchImpl = globalThis.fetch) {
       return current;
     }
     current = mergeAppearance(await res.json());
+    // Тема применяется ТОЛЬКО по успешному ответу - и здесь же, а не у вызывающего:
+    // иначе моргнувшая сеть означала бы «оставить как есть» для слов и «перекрасить
+    // в чужое» для темы. Кэш при провале не трогается вовсе, поэтому кабинет
+    // остаётся в своём виде, даже когда сервер молчит
+    applyTheme(current.theme);
   } catch {
     // Сеть легла, сервер спит, домен не заведён - кабинет всё равно должен открыться.
     // У Алихана это буквально означает «ничего не изменилось»

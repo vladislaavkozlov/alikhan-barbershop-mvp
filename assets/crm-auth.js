@@ -172,6 +172,9 @@ export function initCrmAuth(requiredRole) {
   // разметке, поэтому упавшая загрузка означает «осталось как было», а не пустой экран
   loadAppearance(API).then(() => {
     applyTerms();
+    // Тему здесь звать не нужно: её ставит сама loadAppearance и только при удачном
+    // ответе. До ответа действует значение из кэша, которое проставил скрипт в
+    // <head>, поэтому смены палитры на глазах у человека не происходит
     document.dispatchEvent(new CustomEvent('crm:appearance'));
   });
   const gate = buildLoginGate();

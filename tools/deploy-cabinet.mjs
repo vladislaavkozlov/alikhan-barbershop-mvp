@@ -54,6 +54,12 @@ const FILES = [
 // Картинки бренда Алихана. Иконки заменяются иконками клиента, если они переданы;
 // вензель и герб не заменяются ничем - именно поэтому кабинет покажет название текстом.
 const BRAND_SKIP = ['wordmark-header.webp', 'crest-hero.webp', 'lockup-footer.webp'];
+// Фотографии Алихана вне папки brand. Интерьер барбершопа стоял фоном экрана входа
+// (assets/crm-theme-daylight.css, .login-gate) и до 30.08.2026 ехал в чужой контур
+// вместе со всеми остальными файлами assets: врач видел на входе чужое заведение,
+// проверено запросом - файл отдавался с 200 и весил 305 КБ. Тема клиники фотографию
+// больше не показывает, но и лежать у клиента ей незачем
+const PHOTO_SKIP = ['interior-honeycomb.jpg'];
 const ICON_MAP = {
   'favicon.ico': 'favicon.ico',
   'apple-touch-icon-180.png': 'apple-touch-icon.png',
@@ -96,7 +102,9 @@ for (const entry of readdirSync(clone)) {
 for (const file of FILES) cpSync(join(ROOT, file), join(clone, file));
 cpSync(join(ROOT, 'assets'), join(clone, 'assets'), {
   recursive: true,
-  filter: (src) => !BRAND_SKIP.some((skip) => src.endsWith(`/brand/${skip}`)),
+  filter: (src) =>
+    !BRAND_SKIP.some((skip) => src.endsWith(`/brand/${skip}`)) &&
+    !PHOTO_SKIP.some((skip) => src.endsWith(`/assets/${skip}`)),
 });
 
 // Иконки клиента под именами, которые ждёт кабинет: свои файлы вместо герба Алихана
@@ -189,6 +197,9 @@ for (const file of FILES) {
 }
 for (const rel of listFiles(join(ROOT, 'assets'))) {
   if (BRAND_SKIP.some((skip) => rel.endsWith(`brand/${skip}`))) continue;
+  // Фото Алихана в контур не едет, значит и требовать его там нельзя - иначе сверка
+  // читает намеренное отсутствие как разъезд версий и останавливает выкладку
+  if (PHOTO_SKIP.includes(rel)) continue;
   const target = join(clone, 'assets', rel);
   const isIcon = rel.startsWith('brand/') && Object.keys(ICON_MAP).includes(rel.slice('brand/'.length));
   if (isIcon && iconsDir) continue; // иконки намеренно заменены на клиентские

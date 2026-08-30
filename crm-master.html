@@ -30,6 +30,21 @@
 <!-- Тема «Дневной свет» (19.08.2026) - подключается ПОСЛЕДНЕЙ, переопределяет только
      токены. Снять эту строку = вернуть тёмный кабинет. Подробности - в самом файле. -->
 <link rel="stylesheet" href="assets/crm-theme-daylight.css" />
+<!-- Тема арендатора (30.08.2026). Подключается ПОСЛЕ «Дневного света» и работает
+     дельтой поверх него. Каждое правило внутри висит на [data-theme="clinic"],
+     атрибут ставит сервер по вертикали арендатора - у барбершопа он не появляется,
+     и файл применяет ноль правил. Снять эту строку = вернуть общий вид всем. -->
+<link rel="stylesheet" href="assets/crm-theme-clinic.css" />
+<script>
+  /* Имя темы приходит с сервера по сети, то есть после первой отрисовки. Чтобы
+     кабинет не мигал чужой палитрой на каждом открытии, атрибут ставится здесь же
+     из кэша прошлого ответа (ключ crm.theme, пишет assets/crm-terms.js). Сеть
+     остаётся источником истины и перезапишет значение, когда ответ придёт. */
+  try {
+    var t = localStorage.getItem('crm.theme');
+    if (t && /^[a-z0-9-]{1,32}$/.test(t)) document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
 <style>
   #sp-day:checked ~ .panel-sp-day, #sp-week:checked ~ .panel-sp-week,
   #sp-month:checked ~ .panel-sp-month, #sp-year:checked ~ .panel-sp-year { display: block; }
