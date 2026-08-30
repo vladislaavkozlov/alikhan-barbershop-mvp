@@ -338,7 +338,12 @@
    осталась бы единственной прямоугольной в кабинете */
 [data-theme="clinic"] .crm-navigation-ui .btn-primary,
 [data-theme="clinic"] .crm-navigation-ui .btn,
-[data-theme="clinic"] .login-card .btn-primary {
+[data-theme="clinic"] .login-card .btn-primary,
+/* Кнопку входа радиусом держит `.crm-navigation-ui .login-card button[type="submit"]`
+   (0,3,1) - она весомее селектора с одним атрибутом темы, поэтому здесь селектор той
+   же формы с добавленной темой (0,4,1). Проверено разбором применённых правил в
+   браузере, а не на глаз */
+[data-theme="clinic"] .crm-navigation-ui .login-card button[type="submit"] {
   border-radius: 999px;
   letter-spacing: 0.08em;
   font-weight: 500;
