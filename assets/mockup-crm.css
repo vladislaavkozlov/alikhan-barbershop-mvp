@@ -1250,6 +1250,57 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .sc-price-input.is-invalid:focus,
 .sc-price-input.is-invalid:focus-visible { color: var(--danger); border-bottom-color: var(--danger); border-bottom-width: 2px; }
 .service-check .sc-price { display: inline-flex; align-items: baseline; gap: 2px; white-space: nowrap; }
+
+/* Инлайн-цифры строки услуги: возврат к собственному замыслу компонента (31.08.2026,
+   правка Влада «очень костыльно выглядят формы заполнения данных»).
+
+   Правила выше рисуют цену и длительность цифрой внутри текста: прозрачный фон,
+   подчёркивание вместо рамки. Светлые темы, пришедшие позже, красят ЛЮБОЕ текстовое
+   поле заливкой (`[data-theme="clinic"] input[type="text"]` - 0,2,1, весомее одиночного
+   класса 0,1,0), и замысел ломался ровно наоборот: поле получало бежевую плашку без
+   рамки и без внутреннего поля, то есть читалось дыркой в строке. Замер computed:
+   фон rgb(249,246,240) при заявленном transparent, у обеих светлых тем.
+
+   Селектор здесь длиннее ровно настолько, чтобы перевесить тему (0,3,1), и живёт в
+   одном файле с остальной строкой услуги - разносить её по двум файлам значит ломать
+   при следующей правке (тот же довод, что у правил цены выше).
+
+   Заодно ширины: 46px под цену рассчитаны на «3000», а «10000» в них уже упирается, и
+   у клиники с пятизначным прайсом цифра обрезалась. Теперь поле растёт по содержимому
+   до шестизначной суммы, оставаясь компактным. */
+.service-picker .service-check input.sc-price-input,
+.service-picker .service-check input.sc-duration-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0 2px 1px;
+  text-align: center;
+}
+.service-picker .service-check input.sc-price-input { width: 62px; }
+.service-picker .service-check input.sc-duration-input { width: 38px; }
+.service-picker .service-check input.sc-price-input:focus,
+.service-picker .service-check input.sc-duration-input:focus,
+.service-picker .service-check input.sc-price-input:focus-visible,
+.service-picker .service-check input.sc-duration-input:focus-visible {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+.service-picker .service-check input.sc-price-input:disabled,
+.service-picker .service-check input.sc-duration-input:disabled {
+  opacity: 0.55;
+  border-bottom-style: dotted;
+}
+/* Неверное значение остаётся красным и при новых ширинах - правило is-invalid выше
+   красит цвет и линию, здесь оно только не должно быть перебито рамкой темы */
+.service-picker .service-check input.is-invalid,
+.service-picker .service-check input.is-invalid:focus,
+.service-picker .service-check input.is-invalid:focus-visible {
+  color: var(--danger);
+  border-bottom-color: var(--danger);
+  border-bottom-width: 2px;
+}
 .service-check .sc-price-unit { opacity: 0.7; }
 /* Галка "топ" - последняя в мета-строке и с отступом слева: она про деньги клиента на
    сайте, а не про настройку услуги, и визуально не должна слипаться с длительностью */

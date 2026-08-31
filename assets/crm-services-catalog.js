@@ -6,11 +6,20 @@
 // запроса. Этот раздел закрывает дыру со стороны человека, роуты - со стороны сервера
 // (api/routes/services.js).
 //
-// Вёрстка НЕ изобретается заново (конвенция проекта): плитка каталога - тот же
-// компонент .service-check в сетке .service-picker, что и «Услуги и время» в карточке
-// сотрудника, с теми же инлайн-полями цены и длительности. Разница только по смыслу:
-// там владелец раздаёт мастеру услуги из каталога, здесь - заводит сам каталог,
-// поэтому вместо галки «делает / не делает» стоит кнопка удаления.
+// Вёрстка (31.08.2026, правка Влада «очень костыльно выглядят формы заполнения данных
+// в создании услуг/процедур»). Сначала каталог был собран из плитки .service-check -
+// того же компонента, которым в карточке сотрудника отмечают «делает / не делает».
+// Компонент этот придуман для ЧТЕНИЯ: название и через точку мелкая строка «3000 ₽ ·
+// 30 мин», где цифры правятся инлайн, подчёркиванием вместо поля. Как только тем же
+// компонентом стали ЗАВОДИТЬ услуги, он поехал: цена шире четырёх знаков вылезала за
+// поле шириной 46px («10000» на скриншоте Влада), у трёх полей подряд не было ни одной
+// подписи (какая цифра цена, а какая минуты, читалось только по значку рядом), а
+// заливка светлой темы превращала инлайн-цифры в три разнокалиберных прямоугольника.
+//
+// Здесь каталог собран как обычная форма кабинета - из компонента .field (подпись
+// сверху, поле под ней), того же, которым набраны карточка сотрудника и все прочие
+// формы. Ничего нового не рисуется, меняется только выбор компонента: заполнение
+// данных - это форма, а не строка описания с правкой по месту.
 //
 // Словарь вертикали работает и здесь: у барбершопа раздел называется «Услуги», у
 // клиники - «Процедуры», и то же слово стоит в кнопках и подтверждениях.
@@ -41,25 +50,26 @@ function emptyHtml() {
 }
 
 function tileHtml(service) {
+  // id полей нужны подписям: <label for> делает подпись кликабельной и связывает её с
+  // полем для чтения с экрана. Без него подпись остаётся картинкой над полем
+  const id = escapeHtml(service.id);
   return `
-    <div class="service-check service-check--catalog" data-service-id="${service.id}">
-      <span>
-        <input type="text" class="sc-name sc-name-input" value="${escapeHtml(service.name)}" maxlength="120"
-               aria-label="Название: ${escapeHtml(service.name)}">
-        <span class="sc-meta">
-          <span class="sc-price">
-            <input type="text" inputmode="numeric" class="sc-price-input" value="${service.price}"
-                   aria-label="${escapeHtml(P('service.priceAria', { name: service.name }))}">
-            <span class="sc-price-unit">₽</span>
-          </span>
-          <span class="sc-dot">·</span>
-          <span class="sc-duration">
-            <input type="number" min="5" step="5" class="sc-duration-input" value="${service.durationMin}"
-                   aria-label="Длительность: ${escapeHtml(service.name)}">
-            <span class="sc-duration-unit">мин</span>
-          </span>
-        </span>
-      </span>
+    <div class="service-card" data-service-id="${id}">
+      <div class="field service-card-name">
+        <label for="svc-name-${id}">Название</label>
+        <input id="svc-name-${id}" type="text" class="sc-name-input" value="${escapeHtml(service.name)}" maxlength="120">
+      </div>
+      <div class="service-card-row">
+        <div class="field">
+          <label for="svc-price-${id}">Цена, ₽</label>
+          <input id="svc-price-${id}" type="text" inputmode="numeric" class="sc-price-input" value="${service.price}"
+                 aria-label="${escapeHtml(P('service.priceAria', { name: service.name }))}">
+        </div>
+        <div class="field">
+          <label for="svc-duration-${id}">Время, мин</label>
+          <input id="svc-duration-${id}" type="number" min="5" step="5" class="sc-duration-input" value="${service.durationMin}">
+        </div>
+      </div>
       <button type="button" class="sc-remove" data-action="delete"
               aria-label="Удалить: ${escapeHtml(service.name)}" title="Удалить">×</button>
     </div>`;
@@ -74,7 +84,7 @@ export async function renderServicesCatalog() {
     list.innerHTML = `<p class="crm-empty">Не удалось загрузить ${T('service.accPl')}. Обновите страницу</p>`;
     return;
   }
-  list.className = services.length ? 'service-picker' : '';
+  list.className = services.length ? 'service-cards' : '';
   list.innerHTML = services.length ? services.map(tileHtml).join('') : emptyHtml();
   const addBtn = document.getElementById('serviceAddBtn');
   if (addBtn) addBtn.textContent = `Добавить ${T('service.acc')}`;
@@ -98,7 +108,7 @@ function readTile(tile) {
 
 function changedTiles(list) {
   const out = [];
-  for (const tile of list.querySelectorAll('.service-check[data-service-id]')) {
+  for (const tile of list.querySelectorAll('.service-card[data-service-id]')) {
     const id = tile.dataset.serviceId;
     const was = services.find((s) => s.id === id);
     const now = readTile(tile);
@@ -124,7 +134,7 @@ export function wireServicesCatalog() {
     const draft = { name: `Новая ${T('service.nom')}`, durationMin: 30, price: 0 };
     if (!(await send('/services', 'POST', draft))) return;
     await renderServicesCatalog();
-    const tiles = list.querySelectorAll('.service-check[data-service-id]');
+    const tiles = list.querySelectorAll('.service-card[data-service-id]');
     const fresh = tiles[tiles.length - 1];
     fresh?.querySelector('.sc-name-input')?.select();
   });
