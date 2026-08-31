@@ -41,8 +41,13 @@
 // тот же принцип, что уже применён к Клиентам/Настройкам выше (пункт появляется
 // в момент, когда раздел реально наполнен). Эмодзи-иконки заменены на SVG
 // (assets/crm-icons.js) - разный рендер эмодзи по ОС/браузерам ломал премиум-вид.
-import { ICON_SCHEDULE, ICON_TEAM, ICON_CATALOG, ICON_CLIENTS, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE, ICON_MENU } from './crm-icons.js';
-import { T, Tc, P, C } from './crm-terms.js';
+import { ICON_SCHEDULE, ICON_CATALOG, ICON_CLIENTS, ICON_FINANCE, ICON_ANALYTICS, ICON_BELL, ICON_SIDEBAR_TOGGLE, ICON_PROFILE, ICON_MENU, verticalIcon } from './crm-icons.js';
+import { T, Tc, P, C, currentAppearance } from './crm-terms.js';
+
+// Иконка раздела «Команда» зависит от вертикали ровно так же, как его слова:
+// у барбершопа ножницы, у клиники стетоскоп (31.08.2026, правка Влада). Берётся
+// вызовом, а не константой при импорте - вертикаль приезжает с сервера позже
+const teamIcon = () => verticalIcon('team', currentAppearance().vertical);
 
 // Правка 07.08.2026 - добавлен пункт "Уведомления" (radio pt-e/panel-e, новый слот):
 // "Заявки мастеров на изменение графика" переехали сюда из "Расписания" целиком
@@ -80,7 +85,7 @@ const roleConfig = () => ({
     },
     icon: {
       schedule: ICON_SCHEDULE,
-      team: ICON_TEAM,
+      team: teamIcon(),
       services: ICON_CATALOG,
       clients: ICON_CLIENTS,
       finance: ICON_FINANCE,
@@ -97,7 +102,7 @@ const roleConfig = () => ({
     order: ['schedule', 'team', 'notifications', 'profile'],
     radio: { schedule: 'pt-a', team: 'pt-b', notifications: 'pt-e', profile: 'pt-c' },
     label: { schedule: 'Расписание', team: 'Сотрудники', notifications: 'Уведомления', profile: 'Личные данные' },
-    icon: { schedule: ICON_SCHEDULE, team: ICON_TEAM, notifications: ICON_BELL, profile: ICON_PROFILE },
+    icon: { schedule: ICON_SCHEDULE, team: teamIcon(), notifications: ICON_BELL, profile: ICON_PROFILE },
   },
   // «Моя зарплата» убрана из меню 22.08.2026 (правка Влада). Сама вкладка исчезла
   // ещё 17.08.2026 вместе с правкой «сотрудники не должны видеть свою зарплату,
@@ -418,6 +423,11 @@ export function initAppShell(role = 'owner') {
       const label = btn.querySelector('.app-nav-label');
       const id = btn.dataset.section;
       if (label && activeConfig.label[id]) label.textContent = activeConfig.label[id];
+      // Рисунок пересобирается вместе со словом: до ответа сервера в меню стоит
+      // барбершопная иконка из запасного словаря, и без этой строки врач до
+      // перезагрузки страницы видел бы «Команду» с ножницами (31.08.2026)
+      const icon = btn.querySelector('.app-nav-icon');
+      if (icon && activeConfig.icon[id]) icon.innerHTML = activeConfig.icon[id];
     }
     const mobileSection = el('appShellSection');
     if (mobileSection) mobileSection.textContent = activeConfig.label[currentSection] || '';

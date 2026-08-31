@@ -7,8 +7,8 @@ import {
   ICON_PROFILE,
   ICON_PUBLIC,
   ICON_SCHEDULE,
-  ICON_SERVICES,
   ICON_UPLOAD,
+  verticalIcon,
 } from './crm-icons.js';
 import { initCrmNavigationPanels } from './crm-navigation-panels.js';
 import { collectServiceChanges, DURATION_ERROR, markInvalidServiceDurations, markInvalidServicePrices, PRICE_ERROR, renderMasterServiceEditor, saveServiceChanges } from './crm-master-services.js';
@@ -21,7 +21,7 @@ import { PHONE_PLACEHOLDER, formatStoredPhone, wirePhoneFields } from './crm-pho
 import { todayStr } from './crm-shared.js';
 import { scheduleExceptionLabel } from './crm-schedule-shared.js';
 import { dateSelectValue, renderDateSelect, renderTimeSelect, timeSelectValue } from './crm-widgets.js';
-import { T, Tc, P, C } from './crm-terms.js';
+import { T, Tc, P, C, currentAppearance } from './crm-terms.js';
 
 // Вызовом, не константой (Этап B): слово роли приходит из словаря вертикали
 const roleLabels = () => ({ owner: 'Владелец', manager: 'Управляющий', admin: 'Администратор', master: Tc('master.nom') });
@@ -189,7 +189,7 @@ function staffCard(staff, viewerRole, locations, viewerId) {
        который услуг не оказывает вовсе, видел у себя весь каталог - приглушённый
        стилем .service-picker.readonly, но видимый. Приглушённое поле читается как
        «у тебя это есть, только трогать нельзя», а у него этого нет совсем. */''}
-  ${showsServicesSection(staff) ? section(P('team.servicesSection'), servicesTitle, ICON_SERVICES, `<div class="service-picker" data-master-id="${id}">${skeletonMarkup(4)}</div>`) : ''}
+  ${showsServicesSection(staff) ? section(P('team.servicesSection'), servicesTitle, verticalIcon('services', currentAppearance().vertical), `<div class="service-picker" data-master-id="${id}">${skeletonMarkup(4)}</div>`) : ''}
   ${/* График показываем только тем, кто его правит (28.08.2026). Администратору
        секция теперь не рисуется вовсе - показывать редактор, который на сохранении
        ответит 401, хуже, чем не показывать ничего. Смены он по-прежнему видит в

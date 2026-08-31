@@ -22,9 +22,14 @@ test('команда строится из API плоскими секциями
   assert.match(js, /data-role/);
   assert.match(js, /locationId/);
   assert.match(js, /crm:authenticated/);
-  for (const icon of ['ICON_PROFILE', 'ICON_SERVICES', 'ICON_SCHEDULE', 'ICON_ACCESS', 'ICON_UPLOAD']) {
+  for (const icon of ['ICON_PROFILE', 'ICON_SCHEDULE', 'ICON_ACCESS', 'ICON_UPLOAD']) {
     assert.match(js, new RegExp(icon));
   }
+  // Иконка секции процедур с 31.08.2026 зависит от вертикали (у барбершопа ножницы,
+  // у клиники крест), поэтому в файле стоит не константа ICON_SERVICES, а выбор по
+  // вертикали - сам выбор проверяет tests/crm-vertical-icons.contract.test.js
+  assert.match(js, /verticalIcon\('services', currentAppearance\(\)\.vertical\)/);
+  assert.doesNotMatch(js, /ICON_SERVICES/);
   assert.match(js, /class="switch"/);
   assert.match(js, /team-file-action/);
   assert.match(js, /team-role-option/);

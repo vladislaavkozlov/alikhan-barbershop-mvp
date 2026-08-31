@@ -306,6 +306,34 @@
 [data-theme="clinic"] header.site button,
 [data-theme="clinic"] .app-sidebar button { background: transparent; }
 
+/* Главная кнопка (31.08.2026, находка Влада: «ВКЛЮЧИТЬ УВЕДОМЛЕНИЯ» и «Добавить»
+   в процедурах читались пустой пилюлей). Правило выше красит молоком ЛЮБУЮ кнопку
+   - селекторы `[data-theme="clinic"] button` (0,1,1) и `.btn` (0,2,0) весомее
+   `.btn-primary` (0,1,0) из mockup-crm.css, поэтому заливка главной кнопки уходила
+   в молоко, а текст оставался привязан к --leather, который в блоке заливок ниже
+   переведён на молочный #F7F3ED. Молоко на молоке = 1.03:1, надпись пропадала;
+   замер computed-стилей headless-браузером дал bg #FCFAF6 при color #F7F3ED.
+   Здесь заливка возвращается явно и в языке лендинга: графитовая пилюля с молочной
+   надписью, ровно как «Записаться на консультацию» на сайте клиники - 14.5:1.
+   Наведение не трогаем: его держит правило daylight с :hover и пятью :not (0,6,1),
+   оно весомее этого и уводит фон в --accent-hover (#3A3632) */
+[data-theme="clinic"] .btn-primary,
+[data-theme="clinic"] button.btn-primary,
+[data-theme="clinic"] .crm-navigation-ui .btn-primary {
+  background: var(--accent);
+  color: var(--leather);
+  border-color: var(--accent);
+}
+/* Выключенная главная кнопка не должна выглядеть рабочей: графит уходит в бумагу,
+   надпись - в тихий тон. Без этого disabled-кнопка оставалась чёрной пилюлей */
+[data-theme="clinic"] .btn-primary:disabled,
+[data-theme="clinic"] button.btn-primary:disabled,
+[data-theme="clinic"] .crm-navigation-ui .btn-primary:disabled {
+  background: #EFE8DE;
+  color: #9A9186;
+  border-color: rgba(30, 28, 26, 0.12);
+}
+
 /* ── Заливки: графит вместо золота ──────────────────────────────────────────
    Главная кнопка сайта («Записаться на консультацию») - графитовая пилюля с
    молочным текстом, и это единственное тёмное пятно на всём лендинге. Золотой
