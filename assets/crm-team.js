@@ -277,7 +277,7 @@ function exceptionEditor(staffId) {
 function addCard(locations) {
   const empty = { locationId: locations[0]?.id ?? '' };
   const credentials = lastCreatedCredentials;
-  return `<details class="staff-card team-add-card" ${credentials ? 'open' : ''}><summary><div class="avatar-icon" aria-hidden="true">${ICON_ADD}</div><div class="summary-meta"><div class="name">Добавить сотрудника</div><div class="role">Создать доступ в CRM</div></div><span class="chevron">▸</span></summary><div class="staff-card-body"><div class="team-add-intro"><span aria-hidden="true">${ICON_PROFILE}</span><div><h3>Новый сотрудник</h3><p>Заполните данные для первого входа. Логин - имя латиницей, например renat. Профиль для сайта настроите после создания</p></div></div><div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия"></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}"></div><div class="field"><label>Логин для входа</label><input name="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="например renat"></div>${locationControl(empty, locations)}</div>${rolePicker('master', 'role-new')}${toggleControl({ name: 'providesServices', title: P('team.acceptsClients'), description: P('team.acceptsHintNew'), checked: false })}<div class="team-editor-actions"><button class="btn btn-primary" type="button" data-create>Создать сотрудника</button><p class="payroll-note" data-card-note aria-live="polite"></p></div><div class="team-create-result" data-create-result ${credentials ? '' : 'hidden'}><strong>Данные для первого входа</strong><span>${credentials ? esc(credentials.name) : ''} сможет войти по своему логину и временному паролю</span><code data-temporary-pin>${credentials ? esc(credentials.pin) : ''}</code><button class="btn btn-ghost btn-sm" type="button" data-copy-pin>Скопировать пароль</button></div></div></details>`;
+  return `<details class="staff-card team-add-card" ${credentials ? 'open' : ''}><summary><div class="avatar-icon" aria-hidden="true">${ICON_ADD}</div><div class="summary-meta"><div class="name">Добавить сотрудника</div><div class="role">Создать доступ в CRM</div></div><span class="chevron">▸</span></summary><div class="staff-card-body"><div class="team-add-intro"><span aria-hidden="true">${ICON_PROFILE}</span><div><h3>Новый сотрудник</h3><p>Заполните данные для первого входа. Логин - имя латиницей, например renat. Профиль для сайта настроите после создания</p></div></div><div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия"></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}"></div><div class="field"><label>Логин для входа</label><input name="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="например renat"></div>${locationControl(empty, locations)}<div class="field" data-module="payroll"><label>Ставка от выручки, %</label><input name="payrollPct" type="number" min="0" max="100" step="1" inputmode="numeric" placeholder="например 40"></div></div>${rolePicker('master', 'role-new')}${toggleControl({ name: 'providesServices', title: P('team.acceptsClients'), description: P('team.acceptsHintNew'), checked: false })}<div class="team-editor-actions"><button class="btn btn-primary" type="button" data-create>Создать сотрудника</button><p class="payroll-note" data-card-note aria-live="polite"></p></div><div class="team-create-result" data-create-result ${credentials ? '' : 'hidden'}><strong>Данные для первого входа</strong><span>${credentials ? esc(credentials.name) : ''} сможет войти по своему логину и временному паролю.${credentials?.note ? esc(credentials.note) : ''}</span><code data-temporary-pin>${credentials ? esc(credentials.pin) : ''}</code><button class="btn btn-ghost btn-sm" type="button" data-copy-pin>Скопировать пароль</button></div></div></details>`;
 }
 
 function cardValue(card, name) {
@@ -804,7 +804,31 @@ function wire(root) {
     showNote(card, 'Создаю…');
     const out = await apiSend('/staff', 'POST', { name: value('name').value, phone: value('phone').value, email: value('email').value, locationId: value('locationId')?.value || null, role: selectedRoleInput(card)?.value, providesServices: value('providesServices').checked });
     if (!out.ok) return noteApiFail(card, out, 'Не удалось создать сотрудника');
-    lastCreatedCredentials = { name: value('name').value.trim(), pin: out.data.temporaryPin };
+    // Ставка спрашивается здесь же, при заведении (31.08.2026, конкурентный аудит).
+    // Раньше её задавали отдельно в «Финансах», и пока до этого не доходили руки,
+    // «Зарплаты» показывали 0 ₽, а «Чистый доход» равнялся выручке - то есть кабинет
+    // нового арендатора врал про деньги ровно до тех пор, пока владелец не найдёт
+    // нужное поле в другом разделе. У Алихана ставки давно заданы, поэтому дефект
+    // виден только на новом заведении - и бьёт по каждому следующему клиенту.
+    // Поле необязательное: сотруднику без приёма клиентов (администратору) ставка не
+    // нужна, и требовать её было бы навязчиво. Пустое значение просто не отправляем.
+    const staffId = out.data?.staff?.id ?? out.data?.id ?? null;
+    const pctRaw = value('payrollPct')?.value?.trim();
+    let pctNote = '';
+    if (staffId && pctRaw) {
+      const pct = Number(pctRaw);
+      if (Number.isFinite(pct) && pct >= 0 && pct <= 100) {
+        const saved = await apiSend('/payroll-settings', 'PUT', { masterId: staffId, pct });
+        // Сотрудник уже создан, и падать целиком из-за ставки нельзя: человек решит,
+        // что не создалось, и заведёт второго. Поэтому только честная подпись
+        pctNote = saved.ok ? '' : ' Ставку сохранить не удалось - задайте её в «Финансах»';
+      } else {
+        pctNote = ' Ставка не сохранена: нужно число от 0 до 100';
+      }
+    } else if (staffId && value('providesServices').checked) {
+      pctNote = ' Ставка не задана - «Зарплаты» будут показывать 0 ₽, пока не зададите её в «Финансах»';
+    }
+    lastCreatedCredentials = { name: value('name').value.trim(), pin: out.data.temporaryPin, note: pctNote };
     await renderTeam();
   });
 }

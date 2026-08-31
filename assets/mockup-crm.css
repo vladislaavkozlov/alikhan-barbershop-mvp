@@ -670,6 +670,21 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
    в обрезание снизу. */
 .appt--compact { display: flex; align-items: center; padding-top: 1px; padding-bottom: 1px; }
 .appt--compact .t { line-height: 1; }
+/* Единственная строка короткой записи - имя клиента, а не время (31.08.2026,
+   конкурентный аудит на песочнице клиники). Время читается по позиции карточки
+   напротив часовой шкалы слева, ради этого сетка и рисуется, а имя по позиции не
+   угадать ничем - поэтому в 32px, куда помещается ровно одна строка, ставим имя.
+   .tc рисует JS только при durationMin < 32 (crm-calendar.js), поэтому у длинных
+   записей этого элемента нет вовсе. При наведении и в раскрытой карточке место
+   возвращается обычной паре «время + клиент · услуга» - ничего не потеряно. */
+.appt .tc { display: none; }
+.appt--compact .tc {
+  display: block; font-weight: 700; line-height: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.appt--compact .t { display: none; }
+.appt--compact:hover .t, .appt--compact.appt--expanded .t { display: block; }
+.appt--compact:hover .tc, .appt--compact.appt--expanded .tc { display: none; }
 /* Телефон и канал клиента (17.08.2026) - третья строка карточки. Прячется там же,
    где и вторая: в карточку короткой записи она физически не влезает, и раскрыть её
    можно кнопкой ниже. Права на сами данные держит сервер (телефон и источник

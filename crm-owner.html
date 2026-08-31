@@ -648,9 +648,15 @@
         </summary>
         <div class="staff-card-body">
         <div class="seg-tabs">
-          <input type="radio" name="rv-period-all" id="rvpa-day" checked>
+          <!-- Раздел открывается на «Месяце», а не на «Дне» (31.08.2026, конкурентный
+               аудит). На «Дне» владелец, зайдя утром, видел «Выручка 0 ₽» - цифра
+               честная (сегодняшние визиты ещё не закрыты), но она отвечает не на тот
+               вопрос, с которым открывают «Финансы». Месяц показывает состояние дел,
+               день остаётся одним кликом рядом. Та же логика, что у «Недополученной
+               прибыли» ниже - там месяц стоял дефолтом изначально. -->
+          <input type="radio" name="rv-period-all" id="rvpa-day">
           <input type="radio" name="rv-period-all" id="rvpa-week">
-          <input type="radio" name="rv-period-all" id="rvpa-month">
+          <input type="radio" name="rv-period-all" id="rvpa-month" checked>
           <input type="radio" name="rv-period-all" id="rvpa-quarter">
           <input type="radio" name="rv-period-all" id="rvpa-year">
           <div class="seg-bar">

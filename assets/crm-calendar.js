@@ -164,7 +164,8 @@ export function buildApptCard(booking, { masterName, services, priceOf }) {
   // высоту (min-height снижен в mockup-crm.css), .c скрывается, чтобы не обрезаться
   // криво, полная строка "клиент · услуга" возвращается на hover (.appt--compact:hover).
   const durationMin = toMinutes(booking.endTime) - toMinutes(booking.startTime);
-  const compactClass = durationMin < 32 ? ' appt--compact' : '';
+  const isCompact = durationMin < 32;
+  const compactClass = isCompact ? ' appt--compact' : '';
   // Запись вне рабочих часов (17.08.2026). Шкала дня идёт строго по графику, поэтому
   // такая запись прижата к краю трека - без явной метки человек прочитал бы её как
   // обычную запись на 10:00 (или на конец дня) и не понял, почему она стоит вплотную
@@ -236,6 +237,22 @@ export function buildApptCard(booking, { masterName, services, priceOf }) {
   // они некликабельны целиком (buildCancelledCard выше).
   const expandBtn = `<button type="button" class="appt-expand" aria-expanded="false" aria-label="${P('booking.expand')}" onclick="window.toggleApptExpand(this, event)">⌄</button>`;
 
+  // Единственная строка короткой записи - имя, а не время (31.08.2026, находка
+  // конкурентного аудита на песочнице клиники). В 32px помещается ровно одна строка,
+  // и до этой правки её занимало время - самая бесполезная здесь информация: время
+  // записи и так читается по её позиции напротив часовой шкалы слева, ради этого
+  // сетка и рисуется. Имя по позиции не угадать ничем.
+  // Для барбершопа это ничего не меняет: стрижка идёт 40-60 минут, порог compact не
+  // срабатывает вовсе. А у ортодонта почти весь день состоит из получасовых приёмов
+  // (консультация, активация брекетов, контроль элайнеров), и владелец смотрел в
+  // сетку из безымянных интервалов.
+  // Время не потеряно: .t возвращается на hover и при раскрытии карточки - см.
+  // .appt--compact .t / .appt--compact .tc в mockup-crm.css. Warn-значок неявки
+  // едет вместе с именем, иначе на короткой записи он исчезал совсем.
+  const compactName = isCompact
+    ? `<span class="tc">${warn}${escapeHtml(clientName)}</span>`
+    : '';
+
   return `<div class="appt ${cssClass} ${stripeClass}${compactClass}${outsideClass}" style="${positionStyle(booking.startTime, booking.endTime)}"${outsideTitle} tabindex="0" onclick="(window.openBookingEdit||window.openBooking)(this)"
        data-id="${escapeHtml(booking.id)}" data-client="${escapeHtml(clientName)}" data-phone="${escapeHtml(booking.clientPhone || '')}" data-master="${escapeHtml(masterName)}"
        data-master-id="${escapeHtml(booking.masterId || '')}" data-service-ids="${escapeHtml((booking.serviceIds || []).join(','))}"
@@ -246,7 +263,7 @@ export function buildApptCard(booking, { masterName, services, priceOf }) {
        data-actual-price="${booking.actualPrice ?? ''}" data-staff-comment="${escapeHtml(booking.staffComment || '')}"
        data-client-source="${escapeHtml(booking.clientSource || '')}" data-client-new="${booking.clientIsNew ? 'true' : 'false'}"
        data-master-tier="${escapeHtml(booking.masterTier || '')}">
-    <span class="t">${escapeHtml(planned)}</span><span class="c">${warn}${escapeHtml(clientName)} · ${escapeHtml(nameLabel)}</span>${details}${expandBtn}
+    <span class="t">${escapeHtml(planned)}</span>${compactName}<span class="c">${warn}${escapeHtml(clientName)} · ${escapeHtml(nameLabel)}</span>${details}${expandBtn}
   </div>`;
 }
 
