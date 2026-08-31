@@ -318,9 +318,30 @@ export async function computeUnlinkedVisits(db) {
 // Вариант «не обсуждали» - законный ответ, а не провинность, поэтому врать мастеру
 // смысла нет: поставил месяц по умолчанию - метрика это показала, и разговор владельца
 // с мастером идёт про работу, а не про заполнение полей.
+//
+// Салонная строка считается ОТДЕЛЬНЫМ запросом, а не суммой строк мастеров
+// (31.08.2026, найдено конкурентным аудитом на песочнице). Пара «мастер+клиент»
+// уникальна внутри мастера, но один и тот же человек, побывавший у трёх мастеров,
+// попадал в сумму трижды: у клиники с 24 живыми пациентами салонный итог показывал
+// 56. Процент от этого страдал мало - задваивались и числитель, и знаменатель, - а
+// вот число под ним, то самое, по которому владелец судит о размере базы, врало тем
+// сильнее, чем чаще клиенты ходят к разным мастерам. Возвращаемость
+// (computeRetention выше) считает салон отдельным запросом ровно по этой причине,
+// здесь теперь так же.
 export async function computeRenewDiscussed(db, months) {
   const periodSql = `b.date > CURRENT_DATE - make_interval(months => $1) AND b.date <= CURRENT_DATE`;
-  const [byMasterRes, staffRes] = await Promise.all([
+  const [salonRes, byMasterRes, staffRes] = await Promise.all([
+    db.query(
+      `WITH active AS (
+         SELECT DISTINCT b.client_id, c.renew_reason
+         FROM bookings b JOIN clients c ON c.id = b.client_id
+         WHERE b.status = 'done' AND b.client_id IS NOT NULL AND ${periodSql}
+       )
+       SELECT count(*)::int AS clients,
+              count(*) FILTER (WHERE renew_reason IS NOT NULL AND renew_reason <> 'not_discussed')::int AS discussed
+       FROM active`,
+      [months]
+    ),
     db.query(
       `WITH active AS (
          SELECT DISTINCT b.master_id, b.client_id, c.renew_reason
@@ -355,8 +376,9 @@ export async function computeRenewDiscussed(db, months) {
       };
     });
 
-  const clients = masters.reduce((sum, m) => sum + m.clients, 0);
-  const discussed = masters.reduce((sum, m) => sum + m.discussed, 0);
+  const salonRow = salonRes.rows[0] ?? { clients: 0, discussed: 0 };
+  const clients = salonRow.clients;
+  const discussed = salonRow.discussed;
   return { months, salon: { clients, discussed, pct: percentOf(discussed, clients) }, masters };
 }
 

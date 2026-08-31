@@ -239,6 +239,11 @@ test('невернувшиеся: клиент, приходивший на эт
 test('доля обсуждённых: «не обсуждали» в числитель не идёт', async () => {
   const db = {
     async query(sql) {
+      // Салонная строка - отдельный запрос без master_id (31.08.2026). Двое клиентов
+      // ходили и к m1, и к m2: пар «мастер+клиент» 14, живых людей 12
+      if (sql.includes('WITH active AS') && !sql.includes('GROUP BY master_id')) {
+        return { rows: [{ clients: 12, discussed: 7 }] };
+      }
       if (sql.includes('WITH active AS')) {
         return {
           rows: [
@@ -266,5 +271,9 @@ test('доля обсуждённых: «не обсуждали» в числи
   assert.equal(out.masters[1].pct, 0);
   // Мастер без клиентов за период - прочерк, считать не из чего
   assert.equal(out.masters[2].pct, null);
-  assert.equal(out.salon.pct, 50, 'по салону - 7 обсуждённых из 14 клиентов');
+  // Салон берётся из своего запроса: 7 из 12 живых людей, а не 7 из 14 пар. Сумма
+  // строк мастеров задваивала клиента, ходившего к нескольким (аудит 31.08.2026)
+  assert.equal(out.salon.clients, 12, 'по салону считаем людей, а не пары «мастер+клиент»');
+  assert.equal(out.salon.discussed, 7);
+  assert.equal(out.salon.pct, 58, 'по салону - 7 обсуждённых из 12 клиентов');
 });
