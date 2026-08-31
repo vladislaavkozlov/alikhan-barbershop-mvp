@@ -23,6 +23,18 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const PORT = 8793;
 
+// Фирменные файлы Алихана. В контур клиента их не возит и выкладка (deploy-cabinet.mjs,
+// BRAND_SKIP/PHOTO_SKIP) - по той же причине они не отдаются и здесь: песочница это не
+// барбершоп Алихана, и его вензель в её шапке сбивает с толку ровно так же, как сбивал
+// бы врача. Файла нет - разметка сама показывает вместо картинки название заведения,
+// которое приезжает с сервера (assets/crm-app-shell.js, applyBrand)
+const BRAND_SKIP = [
+  '/assets/brand/wordmark-header.webp',
+  '/assets/brand/crest-hero.webp',
+  '/assets/brand/lockup-footer.webp',
+  '/assets/interior-honeycomb.jpg',
+];
+
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -45,6 +57,10 @@ createServer(async (req, res) => {
   const file = join(ROOT, rel);
   if (!file.startsWith(ROOT)) {
     res.writeHead(403).end('Нельзя');
+    return;
+  }
+  if (BRAND_SKIP.includes(`/${rel.replace(/^\/+/, '')}`)) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Фирменный файл другого заведения');
     return;
   }
   try {

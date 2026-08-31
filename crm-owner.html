@@ -996,8 +996,10 @@
   wireScheduleAlerts();
   wireAnalytics();
   wireMissedProfit();
+  // renderServicesCatalog() здесь больше не зовётся (31.08.2026): до входа токена нет,
+  // запрос отвечал 401 и раздел на всю сессию оставался с надписью об ошибке. Каталог
+  // грузится при первом заходе в раздел - подписка внутри wireServicesCatalog
   wireServicesCatalog();
-  renderServicesCatalog();
   initAppShell('owner');
 
   // Окно 45 (08.08.2026) - мягкое обновление: перечитывает данные всех уже

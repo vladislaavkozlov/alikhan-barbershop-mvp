@@ -28,6 +28,14 @@ import { T, Tc, P } from './crm-terms.js';
 import { showError, showSuccess, describeError } from './crm-toast.js';
 
 let services = [];
+// Раздел грузится при первом заходе в него, а не при загрузке страницы (31.08.2026,
+// найдено на песочнице). Раньше renderServicesCatalog() звался прямо из разметки
+// кабинета, то есть ДО входа: токена в этот момент нет, запрос отвечает 401, и в
+// разделе на всю сессию оставалась надпись «Не удалось загрузить процедуры» - при
+// том что данные на сервере в порядке. Заметно это только на первом входе: при
+// повторных заходах токен уже лежит в браузере, поэтому баг и жил незамеченным.
+// Приём тот же, что у «Клиентов» и «Аналитики» - событие crm:section от оболочки
+let sectionLoaded = false;
 
 async function send(path, method, body) {
   const res = await apiSend(path, method, body);
@@ -86,9 +94,16 @@ export async function renderServicesCatalog() {
   }
   list.className = services.length ? 'service-cards' : '';
   list.innerHTML = services.length ? services.map(tileHtml).join('') : emptyHtml();
+  applyAddButtonLabel();
+  setDirty(false);
+}
+
+// Слово вертикали на кнопке: у барбершопа «Добавить услугу», у клиники «Добавить
+// процедуру». Отдельной функцией, потому что словарь приезжает с сервера и позже
+// загрузки страницы, и раньше первого захода в раздел
+function applyAddButtonLabel() {
   const addBtn = document.getElementById('serviceAddBtn');
   if (addBtn) addBtn.textContent = `Добавить ${T('service.acc')}`;
-  setDirty(false);
 }
 
 // Правки копятся и уезжают одной кнопкой - тот же порядок, что в карточке сотрудника:
@@ -127,6 +142,16 @@ export function wireServicesCatalog() {
   if (!list || !addBtn) return;
 
   list.addEventListener('input', () => setDirty(changedTiles(list).length > 0));
+
+  // Первый заход в раздел - здесь и только здесь идёт запрос за каталогом
+  document.addEventListener('crm:section', (event) => {
+    if (event.detail?.section !== 'services' || sectionLoaded) return;
+    sectionLoaded = true;
+    renderServicesCatalog();
+  });
+  // Слово на кнопке правится, как только приехал словарь вертикали - даже если в
+  // раздел ещё не заходили
+  document.addEventListener('crm:appearance', applyAddButtonLabel);
 
   addBtn.addEventListener('click', async () => {
     // Новая услуга рождается понятным черновиком, а не пустой формой: исправить

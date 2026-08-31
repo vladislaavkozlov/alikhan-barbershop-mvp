@@ -70,3 +70,22 @@ test('инлайн-цифры в карточке сотрудника пере�
   const width = mockup.match(/\.service-picker \.service-check input\.sc-price-input \{ width: (\d+)px; \}/);
   assert.ok(width && Number(width[1]) >= 60, 'поле цены снова слишком узкое');
 });
+
+test('каталог грузится при первом заходе в раздел, а не до входа в кабинет', async () => {
+  // Баг найден 31.08.2026 на песочнице: renderServicesCatalog() звался прямо из
+  // разметки кабинета, то есть до логина. Токена в этот момент нет, /services отвечает
+  // 401, и раздел на всю сессию оставался с надписью «Не удалось загрузить». Видно
+  // только на первом входе - при повторных токен уже лежит в браузере
+  assert.match(js, /crm:section/);
+  assert.match(js, /event\.detail\?\.section !== 'services' \|\| sectionLoaded/);
+  const owner = await readFile(new URL('crm-owner.html', root), 'utf8');
+  const startup = owner.slice(owner.indexOf('wireServicesCatalog();'), owner.indexOf("initAppShell('owner')"));
+  assert.doesNotMatch(startup, /renderServicesCatalog\(\)/);
+  // В мягком обновлении по кнопке вызов остаётся - там человек уже вошёл
+  assert.match(owner, /renderServicesCatalog\(\),/);
+});
+
+test('слово вертикали на кнопке добавления ставится и до захода в раздел', () => {
+  assert.match(js, /document\.addEventListener\('crm:appearance', applyAddButtonLabel\)/);
+  assert.match(js, /Добавить \$\{T\('service\.acc'\)\}/);
+});
