@@ -22,8 +22,16 @@ const rlsSql = await (async () => {
   return parts.join('\n');
 })();
 
-// Служебные таблицы: история накатывания схемы и сам справочник арендаторов.
-const SERVICE_TABLES = ['schema_migrations', 'tenants'];
+// Служебные таблицы: история накатывания схемы, сам справочник арендаторов и
+// справочник их ботов.
+//
+// tenant_channels (миграция 062) остаётся без замка не по недосмотру, а по факту,
+// проверенному живым запросом 01.09.2026: политика вызывает app_current_tenant(),
+// а тот падает с «unrecognized configuration parameter», если контекста нет
+// вообще. Входящее обновление от бота приходит ДО контекста - по этой таблице
+// как раз и определяется, чей это бот. Замок здесь означал бы, что webhook не
+// может себя найти. Клиентских данных в таблице нет, только конфигурация канала.
+const SERVICE_TABLES = ['schema_migrations', 'tenants', 'tenant_channels'];
 
 // Список берётся из ВСЕХ миграций, а не из 057: таблица, заведённая будущей
 // миграцией, обязана уронить этот тест и заставить принять решение про замок
@@ -42,8 +50,11 @@ async function tablesCreatedByMigrations() {
 const DATA_TABLES = await tablesCreatedByMigrations();
 
 test('замок включён и распространяется на владельца таблиц (ловушка 1)', () => {
-  // 21-я таблица - push_subscriptions (Окно 73, 28.08.2026), подписки устройств
-  assert.ok(DATA_TABLES.length === 21, `таблиц данных должно быть 21, найдено ${DATA_TABLES.length}`);
+  // 21-я таблица - push_subscriptions (Окно 73, 28.08.2026), подписки устройств.
+  // 22-24 - client_channels, client_channel_invites, client_messages (Волна 1,
+  // 01.09.2026): привязка клиента к боту, одноразовые приглашения и очередь
+  // сообщений. Это переписка с клиентами заведения, замок обязателен.
+  assert.ok(DATA_TABLES.length === 24, `таблиц данных должно быть 24, найдено ${DATA_TABLES.length}`);
   for (const table of DATA_TABLES) {
     assert.match(
       rlsSql,
@@ -101,6 +112,16 @@ test('миграция отказывается ставить замок там
 test('справочник арендаторов сознательно остаётся без замка - с обоснованием в тексте', () => {
   assert.doesNotMatch(rlsSql, /ALTER TABLE tenants ENABLE ROW LEVEL SECURITY/i);
   assert.match(rlsSql, /tenants/i, 'решение по справочнику должно быть объяснено в самой миграции');
+});
+
+test('справочник ботов тоже без замка - и это объяснено в своей миграции', async () => {
+  const sql = await readFile(new URL('062_client_messaging.sql', MIGRATIONS), 'utf8');
+  assert.doesNotMatch(sql, /ALTER TABLE tenant_channels ENABLE ROW LEVEL SECURITY/i);
+  assert.match(sql, /Замка арендатора здесь нет/i, 'решение по справочнику ботов должно быть объяснено в миграции');
+  // А вот три таблицы с перепиской клиентов замок обязаны иметь
+  for (const table of ['client_channels', 'client_channel_invites', 'client_messages']) {
+    assert.match(sql, new RegExp(`CREATE POLICY tenant_isolation ON ${table}`, 'i'), `${table}: переписка клиентов без замка`);
+  }
 });
 
 // Проверка чистоты смотрит на КОНКРЕТНЫЕ миграции, а не на их склейку: ранние

@@ -86,8 +86,11 @@ import {
 } from './routes/notifications.js';
 // Уведомления на телефон (Окно 73, 28.08.2026)
 import { handlePushKey, handlePushStatus, handlePushSubscribe, handlePushUnsubscribe } from './routes/push.js';
+import { handleTelegramWebhook } from './routes/telegram.js';
+import { tickAll } from './lib/client-messaging.js';
+import { provisionChannelFromEnv } from './lib/provision-channel.js';
 import { handlePayrollSettings, handlePayroll, handleRevenueToday, handleDiscountSettings } from './routes/payroll.js';
-import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard, handleClientRenew } from './routes/clients.js';
+import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard, handleClientRenew, handleClientInvite } from './routes/clients.js';
 // Раздел «Аналитика» владельца (22.08.2026) - возвращаемость по мастерам и каналы
 // привлечения. Считает по уже существующим полям броней, своих таблиц не заводит.
 import { handleAnalyticsRetention, handleAnalyticsSources, handleAnalyticsLapsed, handleAnalyticsUnlinked, handleAnalyticsRenewDiscussed } from './routes/analytics.js';
@@ -215,6 +218,7 @@ const ROUTES = [
   // Срок обновления стрижки задним числом (Окно 59) - те же роли, что ставят статус
   // визита: разговор про срок ведёт тот же человек, что закрывает визит
   { method: 'PATCH', path: 'clients/:id/renew', auth: 'any-staff' },
+  { method: 'POST', path: 'clients/:id/invite', auth: 'any-staff' },
   { method: 'GET', path: 'owner/alerts', auth: 'management' },
   // Аналитика салона - тот же круг, что и деньги: владелец и управляющий
   { method: 'GET', path: 'analytics/retention', auth: 'management' },
@@ -296,6 +300,17 @@ const server = createServer(async (req, res) => {
         startedAt: STARTED_AT,
         runtime: { cpus: availableParallelism(), memoryMb: Math.round(totalmem() / 1024 / 1024) },
       });
+    }
+
+    // ── Обновления от бота Telegram - до разбора домена ───────────────────
+    // У этого запроса нет домена заведения: Telegram стучится на домен самого API
+    // и о наших арендаторах не знает. Арендатор определяется по секрету в адресе
+    // (api/routes/telegram.js), поэтому маршрут разбирается здесь, до
+    // resolveTenantForRequest - иначе обновление бота Карины досталось бы Алихану,
+    // чей домен у API прописан.
+    if (parts[0] === 'tg' && parts.length === 2 && req.method === 'POST') {
+      setCors(res, null); // браузеру этот адрес не нужен вовсе
+      return handleTelegramWebhook(req, res, parts[1]);
     }
 
     // ── Чей это запрос ────────────────────────────────────────────────────
@@ -771,6 +786,10 @@ async function handleRequest(req, res, url, parts, tenant) {
     if (parts[0] === 'clients' && parts.length === 2 && req.method === 'GET') {
       return handleClientCard(req, res, parts);
     }
+    // Ссылка-приглашение в бота для этого клиента (Волна 1, 01.09.2026)
+    if (parts[0] === 'clients' && parts[1] && parts[2] === 'invite' && parts.length === 3 && req.method === 'POST') {
+      return handleClientInvite(req, res, parts);
+    }
     if (parts[0] === 'clients' && parts[1] && parts[2] === 'renew' && parts.length === 3 && req.method === 'PATCH') {
       return handleClientRenew(req, res, parts);
     }
@@ -872,9 +891,43 @@ async function startServer() {
   // операция работает уже по вычищенной базе, где записей за ними заведомо ноль.
   // Тоже не бросает никогда.
   await purgeStaffFromEnv(process.env);
+  // Подключение бота арендатора из переменной BOT_CHANNEL (Волна 1, 01.09.2026).
+  // После миграций - таблица каналов появляется как раз ими; до listen - webhook
+  // должен быть установлен до того, как Telegram начнёт стучаться. Не бросает.
+  await provisionChannelFromEnv(process.env);
   server.listen(PORT, () => {
     console.log(`API alikhan-crm слушает порт ${PORT}`);
   });
+  startClientMessaging();
+}
+
+// Планировщик сообщений клиенту (Волна 1, 01.09.2026). Раз в минуту забирает из
+// очереди то, чему пришёл срок, и отправляет. Минута выбрана по смыслу задачи:
+// напоминание за два часа с точностью до минуты - это ровно то, что нужно, а
+// более частый опрос базы ничего не улучшает.
+//
+// Тик не накладывается сам на себя: медленный Telegram не должен приводить к
+// двум параллельным разборам одной очереди и двум одинаковым сообщениям человеку.
+// Ошибка тика гасится здесь же - планировщик обязан пережить сбой сети, иначе
+// одна неудачная минута молча убивает все будущие напоминания.
+const MESSAGING_TICK_MS = 60_000;
+function startClientMessaging() {
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const stats = await tickAll();
+      const moved = Object.values(stats).some((s) => s.sent || s.failed || s.noChannel);
+      if (moved) console.log('сообщения клиентам:', JSON.stringify(stats));
+    } catch (err) {
+      console.error('тик сообщений клиентам не прошёл:', err.message);
+    } finally {
+      running = false;
+    }
+  };
+  setInterval(tick, MESSAGING_TICK_MS);
+  tick();
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

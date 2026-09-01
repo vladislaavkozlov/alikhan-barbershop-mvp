@@ -46,6 +46,13 @@ const TYPE_ICON = {
   booking_moved_out: ICON_BOOKING_MOVED_OUT,
   booking_moved_in: ICON_BOOKING_MOVED_IN,
   booking_cancelled: ICON_BOOKING_CANCELLED,
+  // Ответы клиента из бота (Волна 1, 01.09.2026). Иконки берём из того же набора,
+  // по смыслу события: просьба перенести - та же стрелка переноса, просьба
+  // отменить и предупреждение об опоздании - крестик и колокол соответственно.
+  // Новых картинок не рисуем: чужеродная иконка в ленте видна сразу
+  client_wants_move: ICON_BOOKING_MOVED_OUT,
+  client_wants_cancel: ICON_BOOKING_CANCELLED,
+  client_will_be_late: ICON_BELL,
 };
 
 function getToken() {
@@ -300,6 +307,11 @@ const EVENT_VERB = {
   booking_moved_in: 'перенесена',
   booking_moved_out: 'перенесена',
   booking_cancelled: 'отменена',
+  // Ответы клиента: сама запись при этом никуда не делась, поэтому глагол про
+  // просьбу, а не про запись - иначе лента врёт, как врала до 20.08.2026
+  client_wants_move: 'просьба',
+  client_wants_cancel: 'просьба',
+  client_will_be_late: 'предупредил',
 };
 
 function timeLine(n) {

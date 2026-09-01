@@ -3,12 +3,14 @@
 // 07.08.2026), код перенесён без изменений.
 import { randomBytes } from 'node:crypto';
 import { sendJson, readBody } from '../lib/http.js';
-import { pool } from '../lib/db.js';
+import { currentTenantId, pool } from '../lib/db.js';
+import { currentVertical } from '../lib/tenant-context.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { BOOKING_OPERATOR_ROLES, BOOKING_STAFF_ROLES } from '../lib/permissions.js';
 import { addMinutes, dateColToStr, intervalsOverlap, shopNow, toMinutes } from '../lib/time.js';
 import { mastersWithWorkingSchedule, masterAcceptsClients, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
 import { notifyStaff } from '../lib/notify-core.js';
+import { cancelPendingForBooking, deliverForClientSoon, enqueueForBooking } from '../lib/client-messaging.js';
 import { findClientIdByPhone } from './clients.js';
 // Живое обновление кабинетов (17.08.2026): каждое изменение брони уходит в открытые
 // кабинеты сразу, чтобы запись появлялась в расписании без кнопки «Обновить»
@@ -27,7 +29,7 @@ import { p } from '../lib/vertical-terms.js';
 // попадал вовсе и о новых записях не узнавал ничего (решение Влада: должен узнавать,
 // точка у Алихана одна). Уволенные и лишённые доступа отсеиваются - иначе строки
 // копились бы в базе на людей, которые в CRM уже не войдут.
-async function bookingWatcherIds(client, locationId) {
+export async function bookingWatcherIds(client, locationId) {
   const res = await client.query(
     `SELECT id FROM staff
       WHERE employed = true AND has_system_access = true
@@ -251,7 +253,23 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
         body: `${startTime}–${endTime}${clientName ? ' · ' + clientName : ''}`,
       });
     }
+    // Сообщения самому клиенту (Волна 1, 01.09.2026): подтверждение, напоминания за
+    // сутки и за два часа, просьба об отзыве. Здесь только постановка в очередь, в
+    // той же транзакции, что и сама запись - отправка идёт своим чередом
+    // (lib/client-messaging.js). Запись без клиента (walk-in с улицы) очереди не
+    // порождает: писать некому.
+    if (clientId) {
+      await enqueueForBooking(
+        { id: bookingId, client_id: clientId, date, start_time: startTime, end_time: endTime },
+        new Date(),
+        client,
+      );
+    }
     await client.query('COMMIT');
+    // Клиент уже в боте - подтверждение уходит сразу после фиксации записи, а не
+    // через минуту. Отдельно от транзакции: администратор не должен ждать сеть,
+    // а неудачная отправка не должна откатывать саму запись
+    if (clientId) deliverForClientSoon(currentTenantId(), currentVertical(), clientId);
     return {
       status: 200,
       body: {
@@ -630,6 +648,10 @@ export async function handleBookingCancel(req, res, parts) {
   const refundEligible = hoursUntilBooking >= CANCEL_FULL_REFUND_HOURS;
 
   await pool.query(`UPDATE bookings SET status = 'cancelled' WHERE id = $1`, [bookingId]);
+  // Напоминания и просьба об отзыве по отменённой записи отменяются вместе с ней:
+  // «ждём вас завтра» по отменённому визиту - худшее, что может прислать бот.
+  // Уже отправленное не трогаем, сказанного не вернуть (Волна 1, 01.09.2026)
+  await cancelPendingForBooking(bookingId);
   await notifyAboutCancelledBooking(booking, bookingDate);
   publish('bookings', { bookingId, date: bookingDate, masterId: booking.master_id ?? null, reason: 'cancelled' });
   publish('notifications', { reason: 'booking-cancelled' });
@@ -740,9 +762,14 @@ export async function handleBookingStatus(req, res, parts) {
       await client.query('UPDATE clients SET no_show_streak = 0 WHERE id = $1', [booking.client_id]);
     }
     if (body.status === 'done') {
-      // Задача 6, Блок 11 в.45: только точка расширения - канал отправки отзыва
-      // не выбран (см. Ограничения промпта корректировки), реальной отправки нет.
+      // Флаг остаётся как след факта «визит закрыт»: на него смотрят отчёты.
+      // Само письмо с просьбой об отзыве стоит в очереди с момента записи и уходит
+      // через два часа после конца визита (lib/client-messaging.js, Волна 1)
       await client.query('UPDATE bookings SET review_request_pending = true WHERE id = $1', [bookingId]);
+    }
+    if (body.status === 'no_show' || body.status === 'cancelled') {
+      // Человек не пришёл или визит отменён: напоминать и просить отзыв не за что
+      await cancelPendingForBooking(bookingId, null, client);
     }
     await client.query('COMMIT');
   } catch (err) {
@@ -1173,6 +1200,16 @@ async function rescheduleBookingTx({ bookingId, masterId, date, startTime, isSta
     // быть топовой, у нового та же стрижка - обычная. Оставить прежний тариф значило бы
     // показывать в карточке условия, по которым этот визит уже не проходит.
     await refreshMasterTier(client, bookingId, masterId);
+    // Сроки сообщений клиенту считаются от времени визита, значит перенос обязан их
+    // пересчитать. Постановка идемпотентна: строки не плодятся, отправленное не
+    // воскресает (lib/client-messaging.js, Волна 1, 01.09.2026)
+    if (booking.client_id) {
+      await enqueueForBooking(
+        { id: bookingId, client_id: booking.client_id, date, start_time: startTime, end_time: endTime },
+        new Date(),
+        client,
+      );
+    }
 
     const previousDate = dateColToStr(booking.date);
     const previousSlot = {

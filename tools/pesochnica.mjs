@@ -23,6 +23,13 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const PORT = 8793;
 
+// Адрес API. По умолчанию боевой - песочница это отдельный арендатор на том же
+// сервере, а не отдельный сервер. Флагом --api=http://localhost:8794 кабинет
+// разворачивается на локальный сервер: так проверяется код, которого на проде
+// ещё нет (сквозной прогон Волны 1, 01.09.2026).
+const API_OVERRIDE = process.argv.find((a) => a.startsWith('--api='))?.slice('--api='.length) ?? null;
+const PROD_API = 'https://alikhancrm1-vladislaavkozlov.amvera.io';
+
 // Фирменные файлы Алихана. В контур клиента их не возит и выкладка (deploy-cabinet.mjs,
 // BRAND_SKIP/PHOTO_SKIP) - по той же причине они не отдаются и здесь: песочница это не
 // барбершоп Алихана, и его вензель в её шапке сбивает с толку ровно так же, как сбивал
@@ -64,7 +71,12 @@ createServer(async (req, res) => {
     return;
   }
   try {
-    const body = await readFile(file);
+    let body = await readFile(file);
+    // Подмена адреса API в разметке кабинета - только когда попросили явно.
+    // Файлы на диске при этом не трогаются: правка живёт ровно в этом ответе
+    if (API_OVERRIDE && extname(file) === '.html') {
+      body = Buffer.from(String(body).split(PROD_API).join(API_OVERRIDE));
+    }
     // Кабинет статикой не кэшируется: песочница нужна как раз чтобы видеть свежую
     // правку сразу, без охоты за старым файлом в кэше браузера
     res.writeHead(200, { 'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
@@ -76,6 +88,7 @@ createServer(async (req, res) => {
   console.log(`
 Песочница поднята.
 
+  API:                ${API_OVERRIDE ?? PROD_API}${API_OVERRIDE ? '  (локальный, подменён флагом --api)' : ''}
   Кабинет владельца:  http://localhost:${PORT}/crm-owner.html
   Кабинет админа:     http://localhost:${PORT}/crm-admin.html
   Кабинет сотрудника: http://localhost:${PORT}/crm-master.html

@@ -34,6 +34,9 @@ function makeFakeClient({ lookupRows = [], clientRows = [], visitRows = [], serv
       // проверяем его ПЕРВЫМ, до общего 'FROM clients' (тот же приём упорядоченного
       // диспатча, что в tests/api.clients-risk.test.js).
       if (sql.includes('regexp_replace')) return { rows: lookupRows };
+      // Состояние бота у клиента (Волна 1, 01.09.2026): карточка спрашивает его
+      // всегда, а этим тестам оно неинтересно - отвечаем «бота нет»
+      if (sql.includes('FROM client_channels')) return { rows: [] };
       if (sql.includes('FROM booking_services')) return { rows: serviceLinkRows };
       if (sql.includes('FROM bookings')) return { rows: visitRows };
       if (sql.includes('FROM clients')) return { rows: clientRows };

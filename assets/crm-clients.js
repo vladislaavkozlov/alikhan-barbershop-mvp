@@ -35,6 +35,10 @@ import { messengerButtonsHtml, clientMessageText, openBookingFromNotification, w
 // Срок обновления стрижки (Окно 59, 22.08.2026) - словарь подписей один на весь
 // проект, тот же, что в форме закрытия визита
 import { renewReasonLabels, renewReasonShort } from './renew-reason.js';
+// Приглашение клиента в бота (Волна 1, 01.09.2026) - отдельным модулем, чтобы
+// разметку можно было проверить тестом: сам crm-clients.js при импорте трогает
+// window и в тестовом окружении не поднимается
+import { botSectionMarkup } from './crm-client-bot.js';
 import { T, Tc, P, C } from './crm-terms.js';
 
 function escapeHtml(s) {
@@ -423,6 +427,52 @@ function renewDaysText(days) {
   return `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'день' : n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14) ? 'дня' : 'дней'}`;
 }
 
+// Выдача ссылки. Кнопка на время запроса выключается: два нажатия подряд выдали бы
+// две ссылки, и первая молча перестала бы работать у клиента, которому её уже
+// отправили
+function wireBotInvite(root) {
+  const btn = root.querySelector('[data-bot-invite]');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const box = root.querySelector('[data-bot-link]');
+    const field = root.querySelector('[data-bot-link-value]');
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = 'Готовим...';
+    try {
+      // apiSend, а не fetchJson: выдача ссылки меняет состояние (гасит прежний
+      // токен), и повторять её при обрыве сети нельзя
+      const res = await apiSend(`/clients/${encodeURIComponent(btn.dataset.botInvite)}/invite`, 'POST');
+      field.value = res.link;
+      box.hidden = false;
+      field.focus();
+      field.select();
+      btn.textContent = 'Новая ссылка';
+    } catch (err) {
+      showError(errorMessage(err, 'Не удалось выдать ссылку'));
+      btn.textContent = label;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  const copy = root.querySelector('[data-bot-copy]');
+  if (copy) {
+    copy.addEventListener('click', async () => {
+      const field = root.querySelector('[data-bot-link-value]');
+      try {
+        await navigator.clipboard.writeText(field.value);
+        copy.textContent = 'Скопировано';
+        setTimeout(() => { copy.textContent = 'Скопировать'; }, 1500);
+      } catch {
+        // Буфер обмена может быть недоступен (нет https, отказ в правах) - тогда
+        // выделяем текст, чтобы человек скопировал сам, а не остался ни с чем
+        field.focus();
+        field.select();
+      }
+    });
+  }
+}
+
 function renewSectionMarkup(card) {
   const renew = card.renew ?? {};
   const daysText = renewDaysText(renew.days);
@@ -560,9 +610,10 @@ async function fetchClientHistory(details, body) {
       })
       : '';
     actions.push(messengerButtonsHtml(card.phone, messageText));
-    body.innerHTML = `${renewSectionMarkup(card)}${visits}<div class="client-card-actions">${actions.join('')}</div>`;
+    body.innerHTML = `${renewSectionMarkup(card)}${botSectionMarkup(card)}${visits}<div class="client-card-actions">${actions.join('')}</div>`;
     wireVisitOpen(body);
     wireRenewEditor(body, card.id);
+    wireBotInvite(body);
     wireMessengerLinks(body); // MAX: ссылки на чат по номеру у него нет, кнопка копирует номер
     const rebookBtn = body.querySelector('[data-rebook]');
     if (rebookBtn) {

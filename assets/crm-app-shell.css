@@ -1393,6 +1393,32 @@ button.sm-cell {
   border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit;
 }
 .client-renew-field:not(.client-renew-field--wide) input { max-width: 120px; font-variant-numeric: tabular-nums; }
+/* Приглашение клиента в бота (Волна 1, 01.09.2026). Блок повторяет форму соседа -
+   «Приходит снова через»: тот же фон, та же рамка, тот же ритм. Новый раздел
+   собирается из уже существующих приёмов карточки, а не рисуется по-своему */
+.client-bot {
+  margin: 0 0 12px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  display: grid; gap: 6px;
+}
+.client-bot-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.client-bot-label { font-size: 0.78rem; color: var(--text-muted); }
+.client-bot-value { font-size: 0.88rem; color: var(--text); }
+.client-bot-head .btn { margin-left: auto; }
+.client-bot-note { font-size: 0.74rem; color: var(--text-muted); }
+.client-bot-link { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Ссылка длинная, а поле не должно распирать карточку: занимает всё свободное
+   место в строке и переносит кнопку копирования под себя на узком экране */
+.client-bot-link input {
+  flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 0 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit;
+  font-size: 0.82rem;
+}
+.client-bot-link .client-bot-note { flex-basis: 100%; }
+/* Скрытие блока ссылки: авторский display на .client-bot-link перебил бы атрибут
+   hidden, поэтому правило явное (та же грабля, что ловили в проекте раньше) */
+.client-bot-link[hidden] { display: none; }
+
 /* Объяснение вместо пустого места, когда визит закрывают у клиента без телефона
    (23.08.2026). Тон спокойный - это не ошибка человека, а свойство такой записи */
 .renew-nophone {

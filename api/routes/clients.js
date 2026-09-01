@@ -6,6 +6,9 @@ import { pool } from '../lib/db.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { mastersWithWorkingSchedule } from '../lib/schedule-core.js';
 import { canManageStaff, BOOKING_STAFF_ROLES, BOOKING_OPERATOR_ROLES } from '../lib/permissions.js';
+import { createInvite, inviteLink } from '../lib/client-messaging.js';
+import { telegramConfig } from '../lib/channel-telegram.js';
+import { currentTenantId } from '../lib/db.js';
 import { findMastersMissingSchedule } from '../lib/notify-core.js';
 import { normalizeRenewInput } from '../lib/renew-reason.js';
 import { publish } from '../lib/events.js';
@@ -115,10 +118,28 @@ export async function getClientCard(client, clientId) {
     staffComment: r.staff_comment ?? null,
   }));
 
+  // Состояние бота у этого человека (Волна 1, 01.09.2026). Нужно карточке, чтобы
+  // не предлагать «пригласить» тому, кто уже в боте, и не показывать кнопку вовсе,
+  // если у заведения бота нет: недоступное действие лучше не показывать, чем
+  // показывать с объяснением, почему оно не работает.
+  const channelRes = await client.query(
+    `SELECT linked_at, unsubscribed_at FROM client_channels
+      WHERE client_id = $1 AND channel = 'telegram'`,
+    [clientId],
+  );
+  const channelRow = channelRes.rows[0];
+
   return {
     id: row.id,
     name: row.name,
     phone: row.phone,
+    // Заполняется вызывающим роутом: сама функция роль-агностична и о ботах
+    // заведения не знает (тот же принцип, что с видимостью телефона)
+    bot: {
+      linkedAt: channelRow?.linked_at instanceof Date ? channelRow.linked_at.toISOString() : channelRow?.linked_at ?? null,
+      unsubscribedAt: channelRow?.unsubscribed_at instanceof Date ? channelRow.unsubscribed_at.toISOString() : channelRow?.unsubscribed_at ?? null,
+      available: false,
+    },
     birthday: row.birthday instanceof Date ? row.birthday.toISOString().slice(0, 10) : row.birthday,
     noShowStreak: row.no_show_streak,
     risk: describeClientRisk(row.no_show_streak),
@@ -461,6 +482,48 @@ export async function handleClientsAtRisk(req, res, url) {
 // вообще»). Мастер срок ВИДИТ в карточке клиента, но не ставит и не правит: договор о
 // сроке фиксирует тот же человек, что закрывает визит. Scope администратора - как у
 // GET /clients/:id: только клиент, у которого есть визит на его точке.
+// Ссылка-приглашение в бота (Волна 1, 01.09.2026). Клиент нигде не оставляет себя
+// в мессенджере сам: у Карины запись вообще заводит администратор. Поэтому ссылку
+// выдаёт сотрудник из карточки и пересылает её человеку в тот канал, где они уже
+// общаются - директ,WhatsApp, СМС.
+//
+// Токен одноразовый и живёт сутки (lib/client-messaging.js). Повторная выдача -
+// это НОВЫЙ токен, а не показ старого: пересланная ссылка могла уйти не туда, и
+// возможность отозвать её нажатием кнопки важнее удобства «та же ссылка всегда».
+export async function handleClientInvite(req, res, parts) {
+  const auth = await authenticate(req);
+  if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 403, { error: 'forbidden' });
+  const clientId = decodeURIComponent(parts[1]);
+
+  const card = await getClientCard(pool, clientId);
+  if (!card) return sendJson(res, 404, { error: 'client_not_found' });
+  if (auth.role === 'admin' && !card.visits.some((v) => v.locationId === auth.locationId)) {
+    return sendJson(res, 403, { error: 'forbidden' });
+  }
+
+  const bot = await telegramConfig(currentTenantId());
+  // Канал не подключён - честный отказ вместо ссылки в никуда. Интерфейс по этому
+  // ответу прячет кнопку, а не показывает её сломанной
+  if (!bot?.username) return sendJson(res, 409, { error: 'channel_not_configured' });
+
+  const token = await createInvite(clientId, 'telegram');
+  const existing = await pool.query(
+    `SELECT linked_at, unsubscribed_at FROM client_channels
+      WHERE client_id = $1 AND channel = 'telegram'`,
+    [clientId],
+  );
+  const row = existing.rows[0];
+  return sendJson(res, 200, {
+    ok: true,
+    link: inviteLink(bot.username, token),
+    expiresInHours: 24,
+    // Чтобы интерфейс мог честно сказать «уже подключён» или «отписался», а не
+    // предлагать одно и то же в любой ситуации
+    linkedAt: row?.linked_at ?? null,
+    unsubscribedAt: row?.unsubscribed_at ?? null,
+  });
+}
+
 export async function handleClientRenew(req, res, parts) {
   const auth = await authenticate(req);
   if (!requireRole(auth, BOOKING_OPERATOR_ROLES)) return sendJson(res, 403, { error: 'forbidden' });
@@ -510,6 +573,13 @@ export async function handleClientRenew(req, res, parts) {
 // ЭТОГО мастера (403, не тихий пустой ответ - тот же приём, что у /payroll с
 // чужим masterId). Существование клиента проверяется ДО scope-проверки - 404
 // для несуществующего id одинаков для всех ролей, не палит своей/чужой доступ.
+// Есть ли у заведения подключённый бот. Отдельно от getClientCard: та функция
+// про клиента, а это про заведение
+async function botAvailable() {
+  const bot = await telegramConfig(currentTenantId());
+  return Boolean(bot?.username);
+}
+
 export async function handleClientCard(req, res, parts) {
   const auth = await authenticate(req);
   if (!requireRole(auth, BOOKING_STAFF_ROLES)) return sendJson(res, 401, { error: 'unauthorized' });
@@ -522,6 +592,10 @@ export async function handleClientCard(req, res, parts) {
   if (auth.role === 'master' && !card.visits.some((v) => v.masterId === auth.id)) {
     return sendJson(res, 403, { error: 'forbidden' });
   }
+  // Приглашать в бота может тот, кто ведёт запись. Мастеру этой кнопки не нужно -
+  // он не общается с клиентом от лица заведения
+  card.bot.available = auth.role !== 'master' && (await botAvailable());
+
   if (auth.role === 'master') {
     // Найдено живым прогоном 13.08.2026: этот роут (в отличие от опознания клиента
     // по телефону, shapeClientCardForViewer) срезает мастеру только телефон, список
