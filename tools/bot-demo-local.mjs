@@ -79,6 +79,19 @@ await runInTenant(2, async () => {
   // проверяет как раз путь администратора - создать запись и пригласить в бота
   await pool.query("INSERT INTO staff (id, location_id, name, role, email, pin_hash) VALUES ('doc', 91, 'Карина Урбашевичус', 'owner', 'doc@demo.local', $1)", [hashPin('1234')]);
   await pool.query("INSERT INTO services (id, name, category, duration_min, price) VALUES ('consult', 'Консультация ортодонта', 'base', 60, 3000)");
+  // Врач попадает на сайт только при трёх условиях сразу (routes/public-masters.js):
+  // он принимает клиентов, у него есть компетенция и есть недельный график. Найдено
+  // живым прогоном 01.09.2026: без этих строк форма записи молча показывала пустой
+  // список услуг, и выглядело это как поломка виджета
+  await pool.query("UPDATE staff SET provides_services = true WHERE id = 'doc'");
+  await pool.query("INSERT INTO master_services (master_id, service_id, price, duration_min) VALUES ('doc', 'consult', 3000, 60)");
+  for (let weekday = 1; weekday <= 6; weekday += 1) {
+    await pool.query(
+      `INSERT INTO master_weekly_schedule (master_id, weekday, is_working, work_start, work_end, break_start, break_end)
+       VALUES ('doc', $1, true, '10:00', '20:00', '13:00', '14:00')`,
+      [weekday],
+    );
+  }
   await pool.query("INSERT INTO clients (id, phone, name) VALUES ('demo-client', '+79000000001', 'Влад')");
 }, 'clinic');
 
@@ -135,6 +148,8 @@ await runInTenant(2, async () => {
   console.log('Самопроверка пройдена: после привязки подтверждение уходит\n');
 }, 'clinic');
 
+console.log('\n  Сайт с формой записи (в другом окне терминала):');
+console.log('    node tools/site-demo.mjs        # копия сайта клиники на локальный API');
 console.log('\n  Кабинет (запустить рядом, в другом окне терминала):');
 console.log('    node tools/pesochnica.mjs --api=http://localhost:8794');
 console.log('    вход: doc@demo.local · PIN 1234');
