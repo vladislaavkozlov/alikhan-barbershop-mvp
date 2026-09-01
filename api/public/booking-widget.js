@@ -25,6 +25,14 @@ function isoDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+const WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+const WEEKDAYS_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+
+function weekday(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return WEEKDAYS_SHORT[new Date(y, m - 1, d).getDay()];
+}
+
 function humanDate(iso) {
   const [y, m, d] = iso.split('-').map(Number);
   return `${d} ${MONTHS[m - 1]}`;
@@ -113,16 +121,34 @@ export function mountBookingWidget(target, options) {
     if (list.length === 1) selectMaster(list[0].id, true);
   }
 
-  function renderDays() {
+  // Дни показываем вместе с днём недели и заранее гасим те, где мест нет: без
+  // этого человек тыкает наугад и раз за разом получает «свободного времени нет».
+  // Занятость на весь диапазон отдаёт один запрос, а не двадцать один
+  async function renderDays() {
     const today = new Date();
     const days = [];
-    for (let i = 0; i < DAYS_AHEAD; i += 1) {
-      const d = new Date(today.getTime() + i * 86400e3);
-      days.push(isoDate(d));
-    }
-    el('days').innerHTML = days.map((iso) => `
-      <button type="button" class="bw-day" data-day="${iso}">${humanDate(iso)}</button>`).join('');
+    for (let i = 0; i < DAYS_AHEAD; i += 1) days.push(isoDate(new Date(today.getTime() + i * 86400e3)));
+    const box = el('days');
+    box.innerHTML = '<span class="bw-note">Смотрим свободные дни...</span>';
     showStep('date', true);
+
+    let busy = new Set();
+    try {
+      const res = await fetch(url('/schedule-availability', {
+        masterId: state.masterId, serviceId: [state.serviceId], from: days[0], to: days.at(-1),
+      }));
+      const data = await res.json();
+      if (Array.isArray(data)) busy = new Set(data.filter((d) => !d.hasSlots).map((d) => d.date));
+    } catch {
+      // Не ответило - показываем все дни: лучше лишний клик, чем пустой экран
+    }
+    box.innerHTML = days.map((iso, i) => {
+      const free = !busy.has(iso);
+      return `<button type="button" class="bw-day${free ? '' : ' is-busy'}" data-day="${iso}"${free ? '' : ' disabled'}>
+        <span class="bw-day-num">${i === 0 ? 'Сегодня' : i === 1 ? 'Завтра' : humanDate(iso)}</span>
+        <span class="bw-day-dow">${weekday(iso)}</span>
+      </button>`;
+    }).join('');
   }
 
   async function renderSlots() {
@@ -135,8 +161,25 @@ export function mountBookingWidget(target, options) {
       state.slots = data.slots ?? [];
       // Пустой день - это ответ, а не ошибка: человек должен видеть, что тут
       // занято, и выбрать другой, а не гадать, загрузилось ли
+      // Три десятка времён подряд читаются как таблица расписания поездов. Утро,
+      // день и вечер - то, как человек на самом деле выбирает время визита
+      const parts = [
+        { title: 'Утро', from: 0, to: 12 },
+        { title: 'День', from: 12, to: 17 },
+        { title: 'Вечер', from: 17, to: 24 },
+      ];
       box.innerHTML = state.slots.length
-        ? state.slots.map((t) => `<button type="button" class="bw-slot" data-slot="${t}">${t}</button>`).join('')
+        ? parts.map((part) => {
+            const list = state.slots.filter((t) => {
+              const h = Number(t.slice(0, 2));
+              return h >= part.from && h < part.to;
+            });
+            if (!list.length) return '';
+            return `<div class="bw-slot-part">
+              <span class="bw-slot-part-title">${part.title}</span>
+              <div class="bw-slot-row">${list.map((t) => `<button type="button" class="bw-slot" data-slot="${t}">${t}</button>`).join('')}</div>
+            </div>`;
+          }).join('')
         : '<span class="bw-note">На этот день свободного времени нет - выберите другой</span>';
     } catch {
       box.innerHTML = '<span class="bw-note">Не удалось загрузить свободное время. Обновите страницу</span>';
@@ -157,6 +200,13 @@ export function mountBookingWidget(target, options) {
     renderDays();
   }
 
+  // Следующий шаг появляется ниже по странице, и на длинной форме его легко не
+  // заметить - особенно на телефоне. Подводим взгляд к нему сами
+  function focusStep(name) {
+    const step = root.querySelector(`[data-step="${name}"]`);
+    if (step && !step.hidden) step.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   root.addEventListener('click', (event) => {
     const service = event.target.closest('[data-service]');
     if (service) {
@@ -165,16 +215,18 @@ export function mountBookingWidget(target, options) {
       root.querySelectorAll('[data-service]').forEach((b) => b.classList.toggle('is-active', b === service));
       showStep('date', false); showStep('time', false); showStep('who', false);
       renderMasters();
+      focusStep(root.querySelector('[data-step="master"]').hidden ? 'date' : 'master');
       return;
     }
     const master = event.target.closest('[data-master]');
     if (master) { selectMaster(master.dataset.master); showStep('time', false); showStep('who', false); return; }
     const day = event.target.closest('[data-day]');
     if (day) {
+      if (day.classList.contains('is-busy')) return;
       state.date = day.dataset.day; state.time = null;
       root.querySelectorAll('[data-day]').forEach((b) => b.classList.toggle('is-active', b === day));
       showStep('who', false);
-      renderSlots();
+      renderSlots().then(() => focusStep('time'));
       return;
     }
     const slot = event.target.closest('[data-slot]');
@@ -182,6 +234,7 @@ export function mountBookingWidget(target, options) {
       state.time = slot.dataset.slot;
       root.querySelectorAll('[data-slot]').forEach((b) => b.classList.toggle('is-active', b === slot));
       renderSummary();
+      focusStep('who');
     }
   });
 
