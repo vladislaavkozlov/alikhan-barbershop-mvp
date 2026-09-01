@@ -12,6 +12,10 @@ import { normalizeDomain, clearTenantCache } from './tenants.js';
 
 const ALLOWED_KEYS = ['domain', 'publicKey', 'origins'];
 
+// Замечено 01.09.2026: коммит, который меняет ТОЛЬКО amvera.yml, Amvera не считает
+// поводом пересобрать проект - переменная попадает в репозиторий, но не в
+// работающий контейнер. Разовые операции поэтому выкатываются вместе хоть с одной
+// строкой кода, иначе выглядит, будто механизм не сработал.
 export async function provisionWidgetFromEnv(env = process.env) {
   const raw = env.TENANT_WIDGET;
   if (!raw) return null;
