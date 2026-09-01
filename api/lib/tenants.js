@@ -68,6 +68,28 @@ export async function findTenantByDomain(domain) {
   return tenant;
 }
 
+// Заведение по публичному ключу (миграция 067). Нужно там, где домен ничего не
+// говорит: сайты клиентов на GitHub Pages приходят с одного адреса на всех.
+//
+// Ключ действует только вместе с разрешённым источником: знать «karina» мало,
+// запрос должен прийти с сайта, который сама Карина в справочнике и указала.
+// Иначе ключ из чужой вкладки открывал бы её каталог с любого адреса в интернете.
+export async function findTenantByPublicKey(key, originDomain) {
+  if (!key || !originDomain) return null;
+  const cacheKey = `key:${key}|${originDomain}`;
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.tenant;
+  const res = await registryQuery(
+    `SELECT id, name, vertical, status, domains, modules FROM tenants
+      WHERE status = 'active' AND public_key = $1 AND $2 = ANY(widget_origins) LIMIT 1`,
+    [String(key), originDomain]
+  );
+  const tenant = res.rows[0] ?? null;
+  if (cache.size >= CACHE_MAX_ENTRIES) cache.clear();
+  cache.set(cacheKey, { tenant, at: Date.now() });
+  return tenant;
+}
+
 // Аварийная ручка (24.08.2026, перед переключением прода). База Amvera живёт во
 // внутренней сети - выполнить откат схемы снаружи невозможно, а самый вероятный
 // сбой переключения не в замке, а в домене: какой-то реальный клиент придёт с

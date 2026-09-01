@@ -32,6 +32,8 @@ import {
   analyzeWeeklyChanges,
   findWeeklyScheduleConflicts,
   writeWeeklySchedule,
+  freeSlotsFor,
+  isScheduleDayOff,
 } from '../lib/schedule-core.js';
 
 export function scheduleExceptionBreaks(type, effective, breakStart, breakEnd) {
@@ -323,6 +325,36 @@ export async function handleHolidaysClose(req, res) {
 // про занятость только после выбора даты (GET /schedule) или вовсе на POST /bookings
 // (schedule_blocked). Анонимный доступ - тот же уровень, что у GET /schedule (публичный
 // виджет записи, без логина), только с явными masterId+serviceId+узкий диапазон дат.
+// Свободные начала визита на конкретный день (01.09.2026, виджет записи).
+// Публичный роут: он отдаёт ровно то, что и так видно любому на форме записи -
+// когда у врача свободно. Считает сервер, а не страница: иначе каждый новый сайт
+// клиента повторял бы сетку слотов у себя.
+export async function handleFreeSlots(req, res, url) {
+  const masterId = url.searchParams.get('masterId');
+  const serviceIds = url.searchParams.getAll('serviceId');
+  const date = url.searchParams.get('date');
+  if (!masterId || serviceIds.length === 0 || !date) return sendJson(res, 400, { error: 'missing_fields' });
+
+  // Длительность - сумма выбранных услуг ИМЕННО у этого мастера, как и при записи
+  const msRes = await pool.query(
+    'SELECT service_id, duration_min FROM master_services WHERE master_id = $1 AND service_id = ANY($2)',
+    [masterId, serviceIds]
+  );
+  if (msRes.rows.length !== serviceIds.length) return sendJson(res, 400, { error: 'unknown_master_service' });
+  const durationMin = msRes.rows.reduce((sum, r) => sum + r.duration_min, 0);
+
+  const schedule = await getEffectiveSchedule(pool, masterId, date);
+  if (!schedule || isScheduleDayOff(schedule)) return sendJson(res, 200, { date, durationMin, slots: [] });
+
+  const bookingsRes = await pool.query(
+    `SELECT start_time AS "startTime", end_time AS "endTime", status
+       FROM bookings WHERE master_id = $1 AND date = $2`,
+    [masterId, date]
+  );
+  const slots = freeSlotsFor(schedule, bookingsRes.rows, durationMin, date);
+  return sendJson(res, 200, { date, durationMin, slots });
+}
+
 export async function handleScheduleAvailability(req, res, url) {
   const masterId = url.searchParams.get('masterId');
   // Клиент реально может выбрать НЕСКОЛЬКО услуг за визит (Окно 11, ?serviceId=

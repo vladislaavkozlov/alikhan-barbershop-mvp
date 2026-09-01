@@ -62,7 +62,12 @@ test('аварийная ручка выключена по умолчанию �
 const serverSource = await readFile(new URL('../api/server.mjs', import.meta.url), 'utf8');
 
 test('арендатор определяется до маршрутизации, неизвестный домен получает 404', () => {
-  assert.match(serverSource, /const tenant = await resolveTenantForRequest\(req\)/);
+  // Ключ заведения (миграция 067) добавил второй путь резолва - для сайтов на общем
+  // домене. Домен остаётся основным: ключ только предшествует ему и только на
+  // публичных путях, поэтому проверяем оба выражения и их порядок
+  assert.match(serverSource, /await resolveTenantForRequest\(req\)/);
+  assert.match(serverSource, /findTenantByPublicKey\(publicKey, requestDomain\(req\)\)/);
+  assert.match(serverSource, /PUBLIC_WIDGET_ROUTES\.has\(parts\[0\]\)/, 'ключ действует не на всех путях');
   assert.match(serverSource, /sendJson\(res, 404, \{ error: 'unknown_tenant' \}\)/);
   const resolveAt = serverSource.indexOf('resolveTenantForRequest(req)');
   const matchAt = serverSource.indexOf('matchRoute(req.method, parts)');
@@ -83,7 +88,7 @@ test('проверка живости отвечает и без арендат�
 });
 
 test('CORS ставится по арендатору, а не по одной переменной окружения (ловушка 7)', () => {
-  assert.match(serverSource, /setCors\(res, corsOriginFor\(/);
+  assert.match(serverSource, /corsOriginFor\(tenant, req\.headers\.origin\)/);
   const httpSource = readFileSync(new URL('../api/lib/http.js', import.meta.url), 'utf8');
   assert.match(httpSource, /export function setCors\(res, allowedOrigin\)/);
   assert.doesNotMatch(
@@ -91,6 +96,20 @@ test('CORS ставится по арендатору, а не по одной �
     /const ALLOWED_ORIGIN = process\.env\.ALLOWED_ORIGIN/,
     'один домен из окружения больше не источник истины - список берётся из справочника'
   );
+});
+
+test('ключ заведения открывает только публичные пути, и только со своего сайта', async () => {
+  // Сито от расширения: ключ - это способ различить сайты на общем домене
+  // GitHub Pages, а не универсальная отмычка. Список путей закрытый, и кабинетных
+  // среди них быть не должно
+  const list = serverSource.match(/const PUBLIC_WIDGET_ROUTES = new Set\(\[([^\]]*)\]/s)?.[1] ?? '';
+  for (const forbidden of ['staff', 'payroll', 'clients', 'analytics', 'finance', 'backup', 'auth', 'notifications']) {
+    assert.doesNotMatch(list, new RegExp(`'${forbidden}'`), `ключом открывается «${forbidden}» - это путь за логином`);
+  }
+  const sql = await readFile(new URL('../api/migrations/067_tenant_public_key.sql', import.meta.url), 'utf8');
+  assert.match(sql, /widget_origins/, 'ключ без списка разрешённых сайтов работал бы с любого адреса');
+  const src = await readFile(new URL('../api/lib/tenants.js', import.meta.url), 'utf8');
+  assert.match(src, /public_key = \$1 AND \$2 = ANY\(widget_origins\)/, 'ключ обязан проверяться вместе с источником');
 });
 
 test('домены Алихана прописаны миграцией - иначе прод получит 404 на первом же запросе', async () => {

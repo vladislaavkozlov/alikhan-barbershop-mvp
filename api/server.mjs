@@ -20,7 +20,15 @@ import { setCors, sendJson, createBufferedResponse } from './lib/http.js';
 import { pool, runInTenant, runDetached, registryQuery, dbRoleIsSafe, poolStats } from './lib/db.js';
 import { availableParallelism, totalmem } from 'node:os';
 import { SYSTEM_TENANT } from './lib/tenant-context.js';
-import { resolveTenantForRequest, corsOriginFor } from './lib/tenants.js';
+import { resolveTenantForRequest, corsOriginFor, findTenantByPublicKey, requestDomain } from './lib/tenants.js';
+
+// Пути, на которых ключ заведения разрешён. Список закрытый и короткий: это ровно
+// то, что нужно форме записи на сайте клиента - каталог, свободное время, запись.
+// Всё остальное ключом не открывается.
+const PUBLIC_WIDGET_ROUTES = new Set([
+  'tenant', 'public', 'services', 'master-services', 'schedule',
+  'schedule-availability', 'holidays', 'bookings', 'masters-next-availability',
+]);
 import { authenticate, requireRole } from './lib/auth.js';
 import { canManageStaff } from './lib/permissions.js';
 import { isModuleEnabled } from './lib/vertical-modules.js';
@@ -76,6 +84,7 @@ import {
   handleScheduleAvailability,
   handleMastersNextAvailability,
   handleMasterWeeklySchedule,
+  handleFreeSlots,
 } from './routes/schedule.js';
 import {
   handleNotificationsList,
@@ -89,6 +98,7 @@ import { handlePushKey, handlePushStatus, handlePushSubscribe, handlePushUnsubsc
 import { handleTelegramWebhook } from './routes/telegram.js';
 import { tickAll } from './lib/client-messaging.js';
 import { provisionChannelFromEnv } from './lib/provision-channel.js';
+import { provisionWidgetFromEnv } from './lib/provision-widget.js';
 import { startTelegramPolling } from './lib/telegram-poller.js';
 import { handlePayrollSettings, handlePayroll, handleRevenueToday, handleDiscountSettings } from './routes/payroll.js';
 import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard, handleClientRenew, handleClientInvite } from './routes/clients.js';
@@ -192,6 +202,7 @@ const ROUTES = [
   { method: 'GET', path: 'holidays', auth: 'public' },
   { method: 'POST', path: 'holidays/close', auth: 'management' },
   { method: 'GET', path: 'schedule-availability', auth: 'public' },
+  { method: 'GET', path: 'free-slots', auth: 'public' },
   { method: 'GET', path: 'masters-next-availability', auth: 'public' },
   { method: 'GET', path: 'master-weekly-schedule', auth: 'any-staff' },
   { method: 'PUT', path: 'master-weekly-schedule', auth: 'any-staff' },
@@ -309,6 +320,21 @@ const server = createServer(async (req, res) => {
     // (api/routes/telegram.js), поэтому маршрут разбирается здесь, до
     // resolveTenantForRequest - иначе обновление бота Карины досталось бы Алихану,
     // чей домен у API прописан.
+    // Виджет записи для сайтов клиентов (01.09.2026). Отдаётся с API, а не из
+    // репозитория барбершопа: сайт клиники не должен тянуть скрипт с чужого
+    // адреса, а версия виджета обязана совпадать с версией сервера, который его
+    // обслуживает. Домен здесь не разбирается - файл один на всех.
+    if (url.pathname === '/widget.js' && req.method === 'GET') {
+      setCors(res, '*');
+      try {
+        const body = readFileSync(join(WIDGET_DIR, 'booking-widget.js'));
+        res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+        return res.end(body);
+      } catch {
+        return sendJson(res, 404, { error: 'widget_not_found' });
+      }
+    }
+
     if (parts[0] === 'tg' && parts.length === 2 && req.method === 'POST') {
       setCors(res, null); // браузеру этот адрес не нужен вовсе
       return handleTelegramWebhook(req, res, parts[1]);
@@ -317,8 +343,19 @@ const server = createServer(async (req, res) => {
     // ── Чей это запрос ────────────────────────────────────────────────────
     // Определяется по домену, ДО поиска роута и до любого обработчика. Неизвестный
     // домен получает 404, а не данные первого попавшегося арендатора (критерий 4).
-    const tenant = await resolveTenantForRequest(req);
-    setCors(res, corsOriginFor(tenant, req.headers.origin));
+    // Ключ заведения на публичных роутах (миграция 067). Сайты клиентов живут на
+    // общем домене GitHub Pages, и различить их можно только явным ключом. Ключ
+    // действует ТОЛЬКО здесь и только на публичных путях: за логином заведение
+    // по-прежнему определяется доменом, иначе ключом можно было бы притвориться
+    // чужим кабинетом.
+    const publicKey = url.searchParams.get('t');
+    const widgetTenant = publicKey && PUBLIC_WIDGET_ROUTES.has(parts[0])
+      ? await findTenantByPublicKey(publicKey, requestDomain(req))
+      : null;
+    const tenant = widgetTenant ?? (await resolveTenantForRequest(req));
+    // Источник разрешён либо как домен заведения, либо как сайт, которому это
+    // заведение выдало ключ
+    setCors(res, widgetTenant ? String(req.headers.origin).replace(/\/+$/, '') : corsOriginFor(tenant, req.headers.origin));
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
       res.end();
@@ -617,6 +654,10 @@ async function handleRequest(req, res, url, parts, tenant) {
     // про занятость только после выбора даты (GET /schedule) или вовсе на POST /bookings
     // (schedule_blocked). Анонимный доступ - тот же уровень, что у GET /schedule (публичный
     // виджет записи, без логина), только с явными masterId+serviceId+узкий диапазон дат.
+    // Свободные начала визита на день - для формы записи на сайте клиента
+    if (parts[0] === 'free-slots' && parts.length === 1 && req.method === 'GET') {
+      return handleFreeSlots(req, res, url);
+    }
     if (parts[0] === 'schedule-availability' && parts.length === 1 && req.method === 'GET') {
       return handleScheduleAvailability(req, res, url);
     }
@@ -811,6 +852,9 @@ async function handleRequest(req, res, url, parts, tenant) {
 // сам догоняет непроменённые файлы по имени, по одному разу каждый - без внешнего
 // инструмента, без хардкода списка версий.
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
+// Виджет записи живёт внутри api/ единственной копией: в контур клиента едет
+// только эта папка, а две копии одного файла разошлись бы на первой правке
+const WIDGET_DIR = join(dirname(fileURLToPath(import.meta.url)), 'public');
 
 async function runMigrations() {
   await pool.query(
@@ -896,6 +940,8 @@ async function startServer() {
   // После миграций - таблица каналов появляется как раз ими; до listen - webhook
   // должен быть установлен до того, как Telegram начнёт стучаться. Не бросает.
   await provisionChannelFromEnv(process.env);
+  // Ключ заведения для формы записи на его сайте (миграция 067). Тоже не бросает
+  await provisionWidgetFromEnv(process.env);
   server.listen(PORT, () => {
     console.log(`API alikhan-crm слушает порт ${PORT}`);
   });

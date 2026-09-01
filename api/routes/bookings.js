@@ -10,7 +10,8 @@ import { BOOKING_OPERATOR_ROLES, BOOKING_STAFF_ROLES } from '../lib/permissions.
 import { addMinutes, dateColToStr, intervalsOverlap, shopNow, toMinutes } from '../lib/time.js';
 import { mastersWithWorkingSchedule, masterAcceptsClients, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
 import { notifyStaff } from '../lib/notify-core.js';
-import { cancelPendingForBooking, deliverForClientSoon, enqueueForBooking } from '../lib/client-messaging.js';
+import { cancelPendingForBooking, createInvite, deliverForClientSoon, enqueueForBooking, inviteLink } from '../lib/client-messaging.js';
+import { telegramConfig } from '../lib/channel-telegram.js';
 import { findClientIdByPhone } from './clients.js';
 // Живое обновление кабинетов (17.08.2026): каждое изменение брони уходит в открытые
 // кабинеты сразу, чтобы запись появлялась в расписании без кнопки «Обновить»
@@ -270,10 +271,22 @@ async function createBookingTx({ masterId, serviceIds, date, startTime, clientNa
     // через минуту. Отдельно от транзакции: администратор не должен ждать сеть,
     // а неудачная отправка не должна откатывать саму запись
     if (clientId) deliverForClientSoon(currentTenantId(), currentVertical(), clientId);
+
+    // Что сказать человеку про бота прямо на экране «вы записаны» (01.09.2026).
+    // Уже подключён - подтверждение ему уже летит, предлагать нечего. Не подключён -
+    // отдаём одноразовую ссылку, чтобы кнопка на сайте вела сразу в диалог.
+    //
+    // Осознанный компромисс первой версии: ссылку получает тот, кто оформил запись
+    // на этот телефон. Знающий чужой номер может записать человека и привязаться
+    // вместо него - тогда чужие напоминания пойдут ему. Полностью это закрывается
+    // только подтверждением номера кодом, которого у нас пока нет; до тех пор
+    // приглашение одноразовое, живёт сутки, а привязку видно в карточке клиента.
+    const bot = clientId ? await botInviteFor(clientId) : null;
     return {
       status: 200,
       body: {
         ok: true,
+        bot,
         booking: {
           id: bookingId,
           masterId,
@@ -449,6 +462,27 @@ async function listBookingsForRequest(url, auth) {
 }
 
 // ── /bookings - GET публичный (без клиентских данных) + по роли, POST для записи ──
+// Состояние бота для только что созданной записи: либо «подтверждение уже летит»,
+// либо ссылка на подключение. Ошибки здесь глушим: запись создана, и рассказ про
+// бота не должен превращать успех в ошибку на экране человека.
+async function botInviteFor(clientId) {
+  try {
+    const config = await telegramConfig(currentTenantId());
+    if (!config?.username) return null;
+    const linked = await pool.query(
+      `SELECT 1 FROM client_channels
+        WHERE client_id = $1 AND channel = 'telegram' AND unsubscribed_at IS NULL`,
+      [clientId],
+    );
+    if (linked.rowCount) return { linked: true };
+    const token = await createInvite(clientId, 'telegram');
+    return { linked: false, link: inviteLink(config.username, token) };
+  } catch (err) {
+    console.error('приглашение в бота не выдано (запись создана):', err.message);
+    return null;
+  }
+}
+
 export async function handleBookings(req, res, url) {
   if (req.method === 'GET') {
     const auth = await authenticate(req);

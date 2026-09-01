@@ -143,6 +143,42 @@ export function hasAvailableSlot(schedule, bookings, durationMin) {
   return dayEnd - cursor >= durationMin;
 }
 
+// Список конкретных свободных начал визита (01.09.2026, виджет записи на сайте
+// клиента). До этого сетку слотов считал только клиентский storage.js, и любой
+// новый сайт должен был бы повторить её у себя - две копии одного правила разошлись
+// бы на первой же правке. Логика та же, что там: шаг 15 минут, отсекаются перерывы,
+// непогашенные брони и уже прошедшее время сегодняшнего дня.
+//
+// Время заведения - московское (см. lib/client-messaging.js): сервер живёт в UTC,
+// и без явного пересчёта «сегодня после 13:38» считалось бы неверно.
+export function freeSlotsFor(schedule, bookings, durationMin, dateStr, stepMin = 15, now = new Date()) {
+  const toM = (t) => {
+    const [h, m] = String(t).split(':').map(Number);
+    return h * 60 + m;
+  };
+  const fromM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const overlaps = (aStart, aEnd, bStart, bEnd) => aStart < toM(bEnd) && toM(bStart) < aEnd;
+
+  const windowStart = toM(schedule.startTime);
+  const windowEnd = toM(schedule.endTime);
+
+  // «Сейчас» по Москве: сдвигаем UTC на три часа и читаем поля как местные
+  const msk = new Date(now.getTime() + 3 * 3600e3);
+  const todayStr = msk.toISOString().slice(0, 10);
+  const nowMinutes = dateStr === todayStr ? msk.getUTCHours() * 60 + msk.getUTCMinutes() : -1;
+
+  const busy = bookings.filter((b) => b.status !== 'cancelled');
+  const slots = [];
+  for (let start = windowStart; start + durationMin <= windowEnd; start += stepMin) {
+    if (start <= nowMinutes) continue;
+    const end = start + durationMin;
+    if (busy.some((b) => overlaps(start, end, b.startTime, b.endTime))) continue;
+    if (schedule.breaks.some((b) => overlaps(start, end, b.startTime, b.endTime))) continue;
+    slots.push(fromM(start));
+  }
+  return slots;
+}
+
 // Окно 17 (04.08.2026) - GET /schedule-range (Задача 1). "Выходной день" в рамках
 // эффективного графика ОДНОГО дня - когда хотя бы один перерыв целиком покрывает
 // реальное рабочее окно этого дня (schedule.startTime/endTime из getEffectiveSchedule,
