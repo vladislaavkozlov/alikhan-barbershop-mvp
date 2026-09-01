@@ -106,6 +106,12 @@ test('ключ заведения открывает только публичн
   for (const forbidden of ['staff', 'payroll', 'clients', 'analytics', 'finance', 'backup', 'auth', 'notifications']) {
     assert.doesNotMatch(list, new RegExp(`'${forbidden}'`), `ключом открывается «${forbidden}» - это путь за логином`);
   }
+  // Каждый путь, которым пользуется форма записи, обязан быть в списке. Забытый
+  // путь не ломает сборку - он тихо уходит к соседнему заведению и отвечает
+  // «нет такой услуги» (поймано живым прогоном 01.09.2026 на /free-slots)
+  for (const needed of ['public', 'free-slots', 'bookings', 'tenant']) {
+    assert.match(list, new RegExp(`'${needed}'`), `форма записи ходит в «${needed}», а ключ там не действует`);
+  }
   const sql = await readFile(new URL('../api/migrations/067_tenant_public_key.sql', import.meta.url), 'utf8');
   assert.match(sql, /widget_origins/, 'ключ без списка разрешённых сайтов работал бы с любого адреса');
   const src = await readFile(new URL('../api/lib/tenants.js', import.meta.url), 'utf8');

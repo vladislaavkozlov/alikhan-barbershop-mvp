@@ -27,7 +27,8 @@ import { resolveTenantForRequest, corsOriginFor, findTenantByPublicKey, requestD
 // Всё остальное ключом не открывается.
 const PUBLIC_WIDGET_ROUTES = new Set([
   'tenant', 'public', 'services', 'master-services', 'schedule',
-  'schedule-availability', 'holidays', 'bookings', 'masters-next-availability',
+  'schedule-availability', 'free-slots', 'holidays', 'bookings',
+  'masters-next-availability',
 ]);
 import { authenticate, requireRole } from './lib/auth.js';
 import { canManageStaff } from './lib/permissions.js';
