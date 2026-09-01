@@ -59,7 +59,10 @@ async function onStart(bot, chatId, payload, vertical) {
   if (!payload) {
     // Пришёл сам, без приглашения. Врать «всё готово» нельзя: напоминания ему не
     // придут, потому что мы не знаем, кто он
-    await sendMessage(bot.token, chatId, 'Здравствуйте. Чтобы получать напоминания о визите, откройте бота по персональной ссылке - её выдаёт администратор при записи');
+    // Слово о самом событии - из словаря вертикали: у клиники «о приёме», у
+    // барбершопа «о записи». Найдено на живом боте 01.09.2026: текст был зашит
+    // руками и клиника здоровалась барбершопными словами
+    await sendMessage(bot.token, chatId, `Здравствуйте. Чтобы получать напоминания о ${term(vertical, 'booking.pre')}, откройте бота по персональной ссылке - её выдаёт администратор при записи`);
     return { action: 'start_without_payload' };
   }
   const clientId = await redeemInvite(payload, chatId);
@@ -217,7 +220,7 @@ async function onFreeText(bot, chatId, vertical) {
       return { action: 'free_text_with_booking' };
     }
   }
-  await sendMessage(bot.token, chatId, 'Этот бот присылает напоминания о визите. Если нужно что-то уточнить, позвоните нам');
+  await sendMessage(bot.token, chatId, `Этот бот присылает напоминания о ${term(vertical, 'booking.pre')}. Если нужно что-то уточнить, позвоните нам`);
   return { action: 'free_text' };
 }
 
