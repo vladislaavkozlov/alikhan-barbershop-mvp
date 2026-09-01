@@ -18,26 +18,57 @@ import { setWebhook, getMe } from './channel-telegram.js';
 
 const ALLOWED_KEYS = ['domain', 'channel', 'token', 'enabled', 'webhookBase'];
 
+// Спецификаций может быть несколько: одна перестановка бота с заведения на
+// заведение это две операции - выключить там, включить здесь. Разбивать их на два
+// перезапуска боевого сервера ради формы записи неправильно.
+function parseAll(raw) {
+  let text = String(raw).trim();
+  if (!text.startsWith('{') && !text.startsWith('[')) text = Buffer.from(text, 'base64').toString('utf8');
+  const parsed = JSON.parse(text);
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  return list.map(validate);
+}
+
 function parseSpec(raw) {
   let text = String(raw).trim();
   // Переменную удобнее вставлять в панель одной строкой без кавычек и переносов,
   // поэтому принимается и base64 - тот же приём, что у NEW_TENANT_B64
   if (!text.startsWith('{')) text = Buffer.from(text, 'base64').toString('utf8');
-  const spec = JSON.parse(text);
+  return validate(JSON.parse(text));
+}
+
+function validate(spec) {
   for (const key of Object.keys(spec)) {
     if (!ALLOWED_KEYS.includes(key)) throw new Error(`незнакомый ключ «${key}». Ожидались: ${ALLOWED_KEYS.join(', ')}`);
   }
   if (!spec.domain) throw new Error('нужен domain заведения');
   if (spec.channel && spec.channel !== 'telegram') throw new Error('пока поддержан только channel: telegram');
-  if (!spec.token) throw new Error('нужен token бота');
+  // Токен нужен, чтобы бота ВКЛЮЧИТЬ. Чтобы выключить - не нужен: отзыв доступа не
+  // должен требовать самого доступа, иначе выключить чужого бота нечем
+  if (spec.enabled !== false && !spec.token) throw new Error('нужен token бота');
   return spec;
 }
 
 export async function provisionChannelFromEnv(env = process.env) {
   const raw = env.BOT_CHANNEL ?? env.BOT_CHANNEL_B64;
   if (!raw) return null;
+  let list;
   try {
-    const spec = parseSpec(raw);
+    list = parseAll(raw);
+  } catch (err) {
+    console.error('BOT_CHANNEL: подключение бота не выполнено -', err.message);
+    return null;
+  }
+  const done = [];
+  for (const spec of list) {
+    const result = await applyOne(spec, env);
+    if (result) done.push(result);
+  }
+  return done.length ? done : null;
+}
+
+async function applyOne(spec, env) {
+  try {
     const domain = normalizeDomain(spec.domain);
     const found = await registryQuery(
       `SELECT id, name FROM tenants WHERE $1 = ANY(domains) AND status = 'active'`,
@@ -45,6 +76,17 @@ export async function provisionChannelFromEnv(env = process.env) {
     );
     const tenant = found.rows[0];
     if (!tenant) throw new Error(`заведение с доменом «${spec.domain}» не найдено`);
+
+    // Выключение - самый короткий путь: ни Telegram, ни токен для него не нужны
+    if (spec.enabled === false) {
+      await runInTenant(tenant.id, () => pool.query(
+        `UPDATE tenant_channels SET enabled = false WHERE tenant_id = $1 AND channel = 'telegram'`,
+        [tenant.id],
+      ));
+      clearTenantCache();
+      console.log(`BOT_CHANNEL: бот выключен у «${tenant.name}»`);
+      return { tenantId: tenant.id, enabled: false };
+    }
 
     // Имя бота спрашиваем у самого Telegram: ссылка-приглашение собирается из него,
     // и опечатка в руках человека превратилась бы в ссылку в никуда
@@ -60,7 +102,7 @@ export async function provisionChannelFromEnv(env = process.env) {
       [tenant.id],
     );
     const secret = existing.rows[0]?.webhook_secret ?? randomBytes(24).toString('base64url');
-    const enabled = spec.enabled !== false;
+    const enabled = true;
 
     await runInTenant(tenant.id, () => pool.query(
       `INSERT INTO tenant_channels (tenant_id, channel, bot_token, bot_username, webhook_secret, enabled)
