@@ -14,9 +14,9 @@
 import { randomBytes } from 'node:crypto';
 import { pool, runInTenant, registryQuery } from './db.js';
 import { normalizeDomain, clearTenantCache } from './tenants.js';
-import { setWebhook, getMe } from './channel-telegram.js';
+import { setWebhook, getMe, deleteWebhook } from './channel-telegram.js';
 
-const ALLOWED_KEYS = ['domain', 'channel', 'token', 'enabled', 'webhookBase'];
+const ALLOWED_KEYS = ['domain', 'channel', 'token', 'enabled', 'webhookBase', 'delivery'];
 
 // Спецификаций может быть несколько: одна перестановка бота с заведения на
 // заведение это две операции - выключить там, включить здесь. Разбивать их на два
@@ -104,15 +104,26 @@ async function applyOne(spec, env) {
     const secret = existing.rows[0]?.webhook_secret ?? randomBytes(24).toString('base64url');
     const enabled = true;
 
+    // По умолчанию опрос: webhook на этом хостинге не работает (миграция 066).
+    // Явное delivery: 'webhook' оставлено на случай переезда на другой хостинг
+    const delivery = spec.delivery === 'webhook' ? 'webhook' : 'polling';
     await runInTenant(tenant.id, () => pool.query(
-      `INSERT INTO tenant_channels (tenant_id, channel, bot_token, bot_username, webhook_secret, enabled)
-       VALUES ($1, 'telegram', $2, $3, $4, $5)
+      `INSERT INTO tenant_channels (tenant_id, channel, bot_token, bot_username, webhook_secret, enabled, delivery)
+       VALUES ($1, 'telegram', $2, $3, $4, $5, $6)
        ON CONFLICT (tenant_id, channel)
          DO UPDATE SET bot_token = EXCLUDED.bot_token, bot_username = EXCLUDED.bot_username,
-                       webhook_secret = EXCLUDED.webhook_secret, enabled = EXCLUDED.enabled`,
-      [tenant.id, spec.token, username, secret, enabled],
+                       webhook_secret = EXCLUDED.webhook_secret, enabled = EXCLUDED.enabled,
+                       delivery = EXCLUDED.delivery`,
+      [tenant.id, spec.token, username, secret, enabled, delivery],
     ));
     clearTenantCache();
+
+    // Опрос и webhook одновременно Telegram не разрешает
+    if (delivery === 'polling') {
+      await deleteWebhook(spec.token);
+      console.log(`BOT_CHANNEL: бот @${username} подключён к «${tenant.name}», доставка опросом`);
+      return { tenantId: tenant.id, username, delivery };
+    }
 
     // Адрес, на который Telegram будет присылать обновления. База берётся из
     // переменной или из адреса самого сервиса - подставлять домен кабинета нельзя,

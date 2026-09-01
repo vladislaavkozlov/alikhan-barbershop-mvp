@@ -29,7 +29,7 @@ const API = 'https://api.telegram.org';
 const CALL_TIMEOUT_MS = 8000;
 const CALL_RETRIES = 2;
 
-async function call(token, method, payload) {
+async function call(token, method, payload, timeoutMs = CALL_TIMEOUT_MS) {
   let res;
   let lastNetworkError = null;
   for (let attempt = 1; attempt <= CALL_RETRIES; attempt += 1) {
@@ -38,7 +38,7 @@ async function call(token, method, payload) {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       lastNetworkError = null;
       break;
@@ -144,6 +144,17 @@ export async function setWebhook(token, url, secretHeader) {
     allowed_updates: ['message', 'callback_query', 'my_chat_member'],
     drop_pending_updates: true,
   });
+}
+
+// Опрос обновлений. Держим соединение открытым до timeout секунд: пустой ответ
+// приходит только когда за это время ничего не случилось, поэтому реакция бота
+// мгновенная, а запросов - единицы в минуту, а не сотни.
+export async function getUpdates(token, offset, timeoutSec = 25) {
+  return call(token, 'getUpdates', {
+    offset,
+    timeout: timeoutSec,
+    allowed_updates: ['message', 'callback_query', 'my_chat_member'],
+  }, (timeoutSec + 10) * 1000);
 }
 
 export async function getMe(token) {

@@ -89,6 +89,7 @@ import { handlePushKey, handlePushStatus, handlePushSubscribe, handlePushUnsubsc
 import { handleTelegramWebhook } from './routes/telegram.js';
 import { tickAll } from './lib/client-messaging.js';
 import { provisionChannelFromEnv } from './lib/provision-channel.js';
+import { startTelegramPolling } from './lib/telegram-poller.js';
 import { handlePayrollSettings, handlePayroll, handleRevenueToday, handleDiscountSettings } from './routes/payroll.js';
 import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard, handleClientRenew, handleClientInvite } from './routes/clients.js';
 // Раздел «Аналитика» владельца (22.08.2026) - возвращаемость по мастерам и каналы
@@ -899,6 +900,10 @@ async function startServer() {
     console.log(`API alikhan-crm слушает порт ${PORT}`);
   });
   startClientMessaging();
+  // Опрос обновлений от ботов (01.09.2026). Webhook на этом хостинге не работает:
+  // Telegram до нас не доходит, диагноз снят с их же getWebhookInfo. Подробности -
+  // в миграции 066 и lib/telegram-poller.js
+  await startTelegramPolling();
 }
 
 // Планировщик сообщений клиенту (Волна 1, 01.09.2026). Раз в минуту забирает из
