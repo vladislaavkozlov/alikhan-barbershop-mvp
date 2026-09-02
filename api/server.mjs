@@ -107,6 +107,7 @@ import { handleOwnerAlerts, handleClientsAtRisk, handleClientCard, handleClientR
 // привлечения. Считает по уже существующим полям броней, своих таблиц не заводит.
 import { handleAnalyticsRetention, handleAnalyticsSources, handleAnalyticsLapsed, handleAnalyticsUnlinked, handleAnalyticsRenewDiscussed } from './routes/analytics.js';
 import { handleMissedProfit, handleMissedProfitClients } from './routes/missed-profit.js';
+import { handleReturned, handleReturnedVisits } from './routes/returned.js';
 // Своя резервная копия базы (24.08.2026) - см. подробный комментарий в самом файле
 import { handleBackup } from './routes/backup.js';
 // Подключение арендатора при старте из переменной NEW_TENANT (Окно 69, 26.08.2026)
@@ -244,6 +245,10 @@ const ROUTES = [
   // Недополученная прибыль (Окно 59) - раздел «Финансы», деньги и телефоны клиентов
   { method: 'GET', path: 'finance/missed-profit', auth: 'management', module: 'missedProfit' },
   { method: 'GET', path: 'finance/missed-profit/clients', auth: 'management', module: 'missedProfit' },
+  // «Возвращено» - парная карточка к недополученной прибыли (02.09.2026). Тот же
+  // модуль арендатора: обе цифры про одни и те же деньги, порознь они неполны
+  { method: 'GET', path: 'finance/returned', auth: 'management', module: 'missedProfit' },
+  { method: 'GET', path: 'finance/returned/visits', auth: 'management', module: 'missedProfit' },
   // Живое обновление кабинетов (17.08.2026). /events - поток событий от сервера,
   // /changes - его фолбэк опросом на случай, если прокси не пропустит долгое
   // соединение. Обоим достаточно любого валидного токена: они не отдают данных,
@@ -808,6 +813,15 @@ async function handleRequest(req, res, url, parts, tenant) {
     }
     if (parts[0] === 'finance' && parts[1] === 'missed-profit' && parts[2] === 'clients' && parts.length === 3 && req.method === 'GET') {
       return handleMissedProfitClients(req, res, url);
+    }
+
+    // ── /finance/returned - «Возвращено» (02.09.2026). Сколько денег система вернула
+    // клинике: та же карточка с другой стороны. Правила атрибуции - lib/returned.js
+    if (parts[0] === 'finance' && parts[1] === 'returned' && parts.length === 2 && req.method === 'GET') {
+      return handleReturned(req, res, url);
+    }
+    if (parts[0] === 'finance' && parts[1] === 'returned' && parts[2] === 'visits' && parts.length === 3 && req.method === 'GET') {
+      return handleReturnedVisits(req, res, url);
     }
 
     // ── /clients?risk=true - Окно 39 (06.08.2026, Задача 1). Список "требует

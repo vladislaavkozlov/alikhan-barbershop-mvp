@@ -93,7 +93,10 @@ async function loadNoShows(db, from, to) {
   return res.rows;
 }
 
-async function loadServiceIds(db, bookingIds) {
+// Экспортируется с 02.09.2026: тем же способом собирает услуги броней карточка
+// «Возвращено» (routes/returned.js). Копия запроса в двух файлах разошлась бы при
+// первой же правке схемы booking_services
+export async function loadServiceIds(db, bookingIds) {
   if (bookingIds.length === 0) return new Map();
   const res = await db.query(
     'SELECT booking_id, service_id FROM booking_services WHERE booking_id = ANY($1)',
