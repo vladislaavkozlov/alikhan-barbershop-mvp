@@ -15,7 +15,7 @@
 // того же нажатия кнопки - это второе уведомление администратору на один клик.
 import { timingSafeEqual } from 'node:crypto';
 import { sendJson, readBody } from '../lib/http.js';
-import { pool, runInTenant } from '../lib/db.js';
+import { pool, runInTenant, registryQuery, currentTenantId } from '../lib/db.js';
 import { notifyStaff } from '../lib/notify-core.js';
 import { answerCallback, buttons, dropKeyboard, sendMessage, tenantByWebhookSecret } from '../lib/channel-telegram.js';
 import { deliverForClient, redeemInvite } from '../lib/client-messaging.js';
@@ -45,6 +45,14 @@ async function clientByChat(chatId) {
 // Бронь, о которой идёт речь, обязана принадлежать именно этому человеку. Данные
 // кнопки приходят от клиента и подделываются тривиально: чужой id записи в
 // callback_data - самый очевидный вектор, и он закрывается здесь, а не доверием.
+// Адрес формы записи заведения (миграция 069). Лежит в реестре арендаторов, а не в
+// данных заведения: замок 058 закрывает таблицу tenants от обычных запросов, читать
+// её положено реестровым соединением - тем же, каким сервер узнаёт заведение по домену
+async function tenantBookingUrl() {
+  const res = await registryQuery('SELECT booking_url FROM tenants WHERE id = $1', [currentTenantId()]);
+  return res.rows[0]?.booking_url ?? null;
+}
+
 async function bookingOfClient(bookingId, clientId) {
   const res = await pool.query(
     `SELECT b.id, b.date, b.start_time, b.location_id, b.master_id, b.status, c.name AS client_name
@@ -154,14 +162,19 @@ async function onCallback(bot, cb, vertical) {
     return { action: 'client_will_be_late', bookingId, minutes };
   }
 
-  // Ответ на письмо после неявки (04.09.2026). Бот сам время не подбирает - он
-  // отмечает ответ и передаёт человека администратору. Именно этот факт превращает
-  // строку в списке владельца в подсвеченную «ответил, ждёт звонка»: звонят уже
-  // тому, кто сказал «да», а не вслепую по всему списку
-  if (verb === 'rb' || verb === 'rn') {
-    const reply = verb === 'rb' ? 'wants_time' : 'not_now';
-    await pool.query('UPDATE bookings SET noshow_reply = $2, noshow_reply_at = now() WHERE id = $1', [bookingId, reply]);
-    if (verb === 'rb') {
+  // Ответ «да» на письмо после неявки (04.09.2026, замечание Влада: «нахера
+  // администратору с ним связываться, он сам может через форму новое время себе
+  // выбрать»). Человек получает ссылку на форму записи и выбирает свободное время
+  // сам - это не перенос чужой брони ботом, которого мы избегаем, а обычная новая
+  // запись, ровно та же, что делает любой клиент с сайта.
+  //
+  // Администратора зовём только там, где ссылки нет: обещать самозапись заведению
+  // без формы записи значит обещать неработающее. Ответ в любом случае ложится на
+  // бронь - именно он поднимает строку в списке владельца наверх
+  if (verb === 'rb') {
+    await pool.query("UPDATE bookings SET noshow_reply = 'wants_time', noshow_reply_at = now() WHERE id = $1", [bookingId]);
+    const bookingUrl = await tenantBookingUrl();
+    if (!bookingUrl) {
       const client = await pool.connect();
       try {
         const recipients = [booking.master_id, ...(await bookingWatcherIds(client, booking.location_id))];
@@ -176,12 +189,43 @@ async function onCallback(bot, cb, vertical) {
         client.release();
       }
     }
-    await answerCallback(bot.token, cb.id, verb === 'rb' ? 'Передали администратору' : 'Спасибо, поняли');
+    await answerCallback(bot.token, cb.id, bookingUrl ? 'Открывайте форму записи' : 'Передали администратору');
     if (cb.message?.message_id) await dropKeyboard(bot.token, chatId, cb.message.message_id);
-    await sendMessage(bot.token, chatId, verb === 'rb'
-      ? 'Передали администратору - он свяжется с вами и подберёт удобное время'
-      : 'Хорошо. Будем рады видеть вас позже - напишите нам, когда соберётесь');
-    return { action: verb === 'rb' ? 'noshow_wants_time' : 'noshow_not_now', bookingId };
+    if (bookingUrl) {
+      await sendMessage(bot.token, chatId, 'Выберите удобное время - свободные окна видны сразу', buttons([
+        [{ text: '📅 Выбрать время', url: bookingUrl }],
+      ]));
+    } else {
+      await sendMessage(bot.token, chatId, 'Передали администратору - он свяжется с вами и подберёт удобное время');
+    }
+    return { action: 'noshow_wants_time', bookingId, selfBooking: Boolean(bookingUrl) };
+  }
+
+  // Ответ «пока не планирую». Вопрос Влада: «а можно у него уточнить, почему не
+  // планирует?». Можно - это единственная обратная связь от человека, который уже
+  // проголосовал ногами, и она стоит одного вопроса. Один экран, четыре варианта,
+  // ответ необязателен: не ответит - останется просто отказ, без причины
+  if (verb === 'rn') {
+    await pool.query("UPDATE bookings SET noshow_reply = 'not_now', noshow_reply_at = now() WHERE id = $1", [bookingId]);
+    await answerCallback(bot.token, cb.id, 'Спасибо, поняли');
+    if (cb.message?.message_id) await dropKeyboard(bot.token, chatId, cb.message.message_id);
+    await sendMessage(bot.token, chatId, 'Понятно, не настаиваем\n\nПодскажете, почему? Это поможет нам стать удобнее', buttons([
+      [{ text: 'Дорого', data: `rp:${bookingId}` }, { text: 'Неудобное время', data: `rt:${bookingId}` }],
+      [{ text: 'Хожу в другое место', data: `ro:${bookingId}` }, { text: 'Просто передумал', data: `rm:${bookingId}` }],
+    ]));
+    return { action: 'noshow_not_now', bookingId };
+  }
+
+  // Названная причина отказа. Отдельные глаголы вместо одного с параметром - формат
+  // callback_data здесь везде «два символа : id», и ломать его ради одного случая
+  // значило бы переписывать разбор в начале функции
+  const REASONS = { rp: 'price', rt: 'time', ro: 'other_place', rm: 'changed_mind' };
+  if (REASONS[verb]) {
+    await pool.query('UPDATE bookings SET noshow_reason = $2 WHERE id = $1', [bookingId, REASONS[verb]]);
+    await answerCallback(bot.token, cb.id, 'Спасибо');
+    if (cb.message?.message_id) await dropKeyboard(bot.token, chatId, cb.message.message_id);
+    await sendMessage(bot.token, chatId, 'Спасибо, что сказали. Будем рады видеть вас, когда будет удобно');
+    return { action: 'noshow_reason', bookingId, reason: REASONS[verb] };
   }
 
   if (verb === 'mv' || verb === 'no') {

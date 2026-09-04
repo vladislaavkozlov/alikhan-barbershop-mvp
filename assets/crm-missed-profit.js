@@ -179,14 +179,25 @@ export function noShowMessageText(client) {
 // ответит - игнорить его?». Нет: молчащий остаётся в списке со своей подписью и своим
 // местом в очереди работы. Подпись отвечает ровно на один вопрос - что владельцу
 // делать с этой строкой прямо сейчас
+const DECLINE_REASONS = {
+  price: 'дорого',
+  time: 'неудобное время',
+  other_place: 'ходит в другое место',
+  changed_mind: 'просто передумал',
+};
+
 export function followupChip(client) {
   const map = {
-    replied: ['ответил: подберите время', 'mp-state--replied'],
+    replied: [P('missed.repliedNoBooking'), 'mp-state--replied'],
     silent: [`написали, молчит ${client.silentDays ?? 0} ${plural(client.silentDays ?? 0, 'день', 'дня', 'дней')} - звоните сами`, 'mp-state--silent'],
     queued: ['письмо в очереди - подождите ответа', 'mp-state--quiet'],
     no_channel: ['бота у него нет - только звонок', 'mp-state--silent'],
     none: ['письма не было - только звонок', 'mp-state--silent'],
-    declined: ['ответил: пока не планирует', 'mp-state--quiet'],
+    rebooked: [P('missed.rebooked', { date: dateText(client.rebookedDate) }), 'mp-state--done'],
+    declined: [
+      client.reason ? `не планирует: ${DECLINE_REASONS[client.reason] ?? client.reason}` : 'ответил: пока не планирует',
+      'mp-state--quiet',
+    ],
   };
   const found = map[client.state];
   if (!found) return '';

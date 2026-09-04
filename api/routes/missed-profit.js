@@ -90,7 +90,14 @@ async function loadNoShows(db, from, to) {
     // список отвечал бы только на «кому мы написали», а владельцу нужно «кому
     // звонить сейчас и кого не потерять из виду», см. lib/client-messaging.js
     `SELECT b.id, b.master_id, b.service_id, b.date, b.client_id, c.name, c.phone,
-            b.noshow_reply, b.noshow_reply_at,
+            b.noshow_reply, b.noshow_reply_at, b.noshow_reason,
+            -- Записался ли человек сам после того, как ответил боту «да». Ровно это
+            -- отличает «дело сделано» от «ответил и пропал»: во втором случае звонит
+            -- администратор, в первом звонить незачем (04.09.2026, замечание Влада о
+            -- самозаписи вместо звонка)
+            (SELECT min(nb.date::text) FROM bookings nb
+              WHERE nb.client_id = b.client_id AND nb.status = 'planned'
+                AND nb.created_at > b.noshow_reply_at) AS rebooked_date,
             m.status AS msg_status, m.last_error AS msg_error,
             -- Дата отправки сразу строкой и сразу в московском времени: письмо,
             -- ушедшее в 00:30 по Москве, в UTC относится ко вчера, и «молчит N дней»
@@ -115,8 +122,13 @@ async function loadNoShows(db, from, to) {
 //   no_channel- бота у человека нет, писать некому: только звонок
 //   none      - неявка старше самого механизма, письма по ней не было и не будет
 function followupState(row, todayDate) {
-  if (row.noshow_reply === 'wants_time') return { state: 'replied', silentDays: 0 };
-  if (row.noshow_reply === 'not_now') return { state: 'declined', silentDays: 0 };
+  if (row.noshow_reply === 'wants_time') {
+    // Ответил и уже записался сам - строка остаётся в списке (деньги за пропущенный
+    // приём никуда не делись), но звонить по ней не надо, и она уходит вниз
+    if (row.rebooked_date) return { state: 'rebooked', silentDays: 0, rebookedDate: row.rebooked_date };
+    return { state: 'replied', silentDays: 0 };
+  }
+  if (row.noshow_reply === 'not_now') return { state: 'declined', silentDays: 0, reason: row.noshow_reason ?? null };
   if (row.msg_status === 'sent') {
     const sent = row.msg_sent_date ?? null;
     return { state: 'silent', silentDays: sent ? Math.max(daysBetween(sent, todayDate), 0) : 0 };
@@ -233,13 +245,13 @@ export function sortLists(result) {
   const overdue = [...result.overdue].sort((a, b) => (a.lastVisit ?? '').localeCompare(b.lastVisit ?? '') || b.amount - a.amount);
   const sparse = [...result.sparse].sort((a, b) => b.amount - a.amount || (a.name ?? '').localeCompare(b.name ?? ''));
   // Порядок в списке неявок - это порядок работы владельца, а не хронология.
-  // Сначала те, кто ответил боту «подберите время»: они уже прогреты, звонок им
-  // самый дешёвый. Дальше молчащие - вопрос Влада «а если клиент не ответит?»
+  // Сначала те, кто ответил боту «подберите время», но ещё не записался: они уже
+  // прогреты, звонок им самый дешёвый, и без звонка они потеряются. Дальше молчащие - вопрос Влада «а если клиент не ответит?»
   // закрывается тем, что молчащий не исчезает, а просто идёт вторым: его прозванивают
   // руками. Потом те, кому бот написать не смог, потом отказавшиеся. Внутри группы -
   // свежие сверху: разговор про пропущенный вчера приём человек ещё помнит.
   // Безымянные (бронь без клиента) в список не попадают: писать и звонить некому
-  const NOSHOW_ORDER = { replied: 0, silent: 1, queued: 2, no_channel: 3, none: 3, declined: 4 };
+  const NOSHOW_ORDER = { replied: 0, silent: 1, queued: 2, no_channel: 3, none: 3, rebooked: 4, declined: 5 };
   const noshow = [...result.noShows]
     .filter((r) => r.clientId && r.name)
     .sort(

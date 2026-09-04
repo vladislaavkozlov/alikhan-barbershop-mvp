@@ -8,7 +8,10 @@
 //   3. нажатие «Да, подберите время» записывает ответ на бронь и зовёт администратора;
 //   4. список владельца ставит ответившего первым, а молчащего - вторым со сроком
 //      молчания (вопрос Влада: «а если клиент не ответит - игнорить его?» - не игнорить);
-//   5. снятая по ошибке отметка неявки гасит неотправленное письмо.
+//   5. снятая по ошибке отметка неявки гасит неотправленное письмо;
+//   6. «да» приводит не к звонку администратора, а к ссылке на форму записи, и когда
+//      человек записался сам, строка в списке владельца это показывает;
+//   7. «пока не планирую» спрашивает причину, и названная причина видна владельцу.
 //
 // Запуск: node tools/verify-2026-09-04-noshow-followup.mjs
 import pg from 'pg';
@@ -162,6 +165,63 @@ try {
     assert.equal(noshow[1].state, 'silent', `молчащий выпал из списка или помечен как ${noshow[1].state}`);
     assert.equal(noshow[1].silentDays, 3, `срок молчания ${noshow[1].silentDays} вместо 3`);
     assert.ok(noshow.every((r) => r.phone), 'в списке нет телефона - звонить не по чему');
+  });
+
+  await step('«да» ведёт на форму записи, а не к звонку администратора', async () => {
+    // Адрес формы у заведения появился - именно он отменяет звонок администратора
+    const admin = new pg.Pool({ host, database: DB, user: ROLE, password: PASSWORD });
+    await admin.query("UPDATE tenants SET booking_url = 'https://example.org/zapis?t=probe' WHERE id = 2");
+    await admin.end();
+    await runInTenant(TENANT, async () => {
+      await pool.query(`INSERT INTO bookings (id, location_id, master_id, service_id, client_id, date, start_time, end_time, status)
+        VALUES ('bk-sam', 91, 'doc', 'consult', 'molchit', '2026-09-02', '18:00', '19:00', 'no_show')`);
+    }, 'clinic');
+    apiCalls.length = 0;
+    const update = { callback_query: { id: 'cb2', data: 'rb:bk-sam', from: { id: 555002 }, message: { message_id: 20, chat: { id: 555002 } } } };
+    const out = await runDetached(TENANT, () => telegram.processUpdate(update, { token: 'probe-token' }, 'clinic'), 'clinic');
+    assert.equal(out.selfBooking, true, 'бот всё равно позвал администратора, хотя форма записи есть');
+    const sent = apiCalls.find((c) => c.url.includes('sendMessage') && c.body.reply_markup);
+    assert.ok(sent, 'человеку не пришло сообщение со ссылкой');
+    const link = sent.body.reply_markup.inline_keyboard.flat()[0];
+    assert.equal(link.url, 'https://example.org/zapis?t=probe', `ссылка не та: ${JSON.stringify(link)}`);
+    const notif = await runInTenant(TENANT, async () => (await pool.query("SELECT count(*)::int AS n FROM notifications WHERE booking_id = 'bk-sam'")).rows[0], 'clinic');
+    assert.equal(notif.n, 0, 'администратора дёрнули зря - человек записывается сам');
+  });
+
+  await step('записался сам - список это показывает и звонить не просит', async () => {
+    await runInTenant(TENANT, async () => {
+      await pool.query(`INSERT INTO bookings (id, location_id, master_id, service_id, client_id, date, start_time, end_time, status)
+        VALUES ('bk-novaya', 91, 'doc', 'consult', 'molchit', '2026-09-12', '10:00', '11:00', 'planned')`);
+    }, 'clinic');
+    const { noshow } = await runInTenant(TENANT, async () => {
+      const result = await missed.computeMissedProfit(pool, '2026-08-01', TODAY, TODAY);
+      return missed.sortLists(result);
+    }, 'clinic');
+    const row = noshow.find((r) => r.bookingId === 'bk-sam');
+    assert.equal(row.state, 'rebooked', `состояние ${row.state} вместо «записался сам»`);
+    assert.equal(row.rebookedDate, '2026-09-12', `дата новой записи ${row.rebookedDate}`);
+    assert.equal(noshow.at(-1).bookingId, 'bk-sam', 'закрытая строка не ушла вниз списка');
+  });
+
+  await step('«пока не планирую» спрашивает причину, и причина видна владельцу', async () => {
+    apiCalls.length = 0;
+    const no = { callback_query: { id: 'cb3', data: 'rn:bk-molchit', from: { id: 555002 }, message: { message_id: 30, chat: { id: 555002 } } } };
+    await runDetached(TENANT, () => telegram.processUpdate(no, { token: 'probe-token' }, 'clinic'), 'clinic');
+    const ask = apiCalls.find((c) => c.url.includes('sendMessage') && /почему/i.test(c.body.text ?? ''));
+    assert.ok(ask, 'бот не спросил причину');
+    const options = ask.body.reply_markup.inline_keyboard.flat().map((b) => b.text);
+    assert.equal(options.length, 4, `вариантов ответа ${options.length} вместо четырёх: ${options}`);
+
+    const why = { callback_query: { id: 'cb4', data: 'rp:bk-molchit', from: { id: 555002 }, message: { message_id: 31, chat: { id: 555002 } } } };
+    const out = await runDetached(TENANT, () => telegram.processUpdate(why, { token: 'probe-token' }, 'clinic'), 'clinic');
+    assert.equal(out.reason, 'price');
+    const { noshow } = await runInTenant(TENANT, async () => {
+      const result = await missed.computeMissedProfit(pool, '2026-08-01', TODAY, TODAY);
+      return missed.sortLists(result);
+    }, 'clinic');
+    const row = noshow.find((r) => r.bookingId === 'bk-molchit');
+    assert.equal(row.state, 'declined', `состояние ${row.state} вместо отказа`);
+    assert.equal(row.reason, 'price', `причина ${row.reason} вместо «дорого»`);
   });
 
   await step('снятая отметка неявки гасит неотправленное письмо', async () => {

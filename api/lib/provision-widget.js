@@ -10,7 +10,11 @@
 import { registryQuery, pool, runInTenant } from './db.js';
 import { normalizeDomain, clearTenantCache } from './tenants.js';
 
-const ALLOWED_KEYS = ['domain', 'publicKey', 'origins'];
+// bookingUrl (04.09.2026) - полный адрес формы записи заведения. Его нельзя собрать
+// из домена: сайты клиентов стоят на общем github.io, у каждого свой путь и свой ключ
+// заведения в адресе. Нужен боту, чтобы не пришедший выбирал новое время сам, а не
+// ждал звонка администратора
+const ALLOWED_KEYS = ['domain', 'publicKey', 'origins', 'bookingUrl'];
 
 // Две грабли Amvera, пойманные 01.09.2026 её же логами сборки:
 //
@@ -48,13 +52,28 @@ export async function provisionWidgetFromEnv(env = process.env) {
     const tenant = found.rows[0];
     if (!tenant) throw new Error(`заведение с доменом «${spec.domain}» не найдено`);
 
+    // Адрес формы принимаем только по https и только на разрешённый сайт заведения:
+    // ссылка уедет живому человеку в мессенджер, и подставить туда чужой адрес не
+    // должно быть возможно даже случайной опечаткой в переменной
+    let bookingUrl = null;
+    if (spec.bookingUrl) {
+      const parsed = new URL(String(spec.bookingUrl));
+      if (parsed.protocol !== 'https:') throw new Error('bookingUrl должен быть https');
+      if (!origins.includes(normalizeDomain(parsed.hostname))) {
+        throw new Error(`bookingUrl ведёт на «${parsed.hostname}», которого нет в origins`);
+      }
+      bookingUrl = parsed.toString();
+    }
+
     await runInTenant(tenant.id, () => pool.query(
-      `UPDATE tenants SET public_key = $2, widget_origins = $3 WHERE id = $1`,
-      [tenant.id, String(spec.publicKey), origins],
+      `UPDATE tenants SET public_key = $2, widget_origins = $3,
+              booking_url = COALESCE($4, booking_url)
+        WHERE id = $1`,
+      [tenant.id, String(spec.publicKey), origins, bookingUrl],
     ));
     clearTenantCache();
-    console.log(`TENANT_WIDGET: «${tenant.name}» получил ключ ${spec.publicKey} для сайтов: ${origins.join(', ')}`);
-    return { tenantId: tenant.id, publicKey: spec.publicKey, origins };
+    console.log(`TENANT_WIDGET: «${tenant.name}» получил ключ ${spec.publicKey} для сайтов: ${origins.join(', ')}${bookingUrl ? `, форма записи: ${bookingUrl}` : ''}`);
+    return { tenantId: tenant.id, publicKey: spec.publicKey, origins, bookingUrl };
   } catch (err) {
     console.error('TENANT_WIDGET: ключ заведения не выдан -', err.message);
     return null;

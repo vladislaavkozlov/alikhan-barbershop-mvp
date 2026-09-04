@@ -1310,6 +1310,11 @@ button.sm-cell {
 }
 .mp-state--replied::before { background: var(--accent); }
 .mp-state--quiet { background: transparent; border-color: color-mix(in srgb, var(--border) 55%, transparent); }
+/* Человек записался сам - строка закрыта, но из списка не убрана: деньги за
+   пропущенный приём никуда не делись. Тот же зелёный, что у состоявшегося визита
+   в расписании, чтобы язык цветов не пришлось учить заново */
+.mp-state--done { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); color: var(--success); }
+.mp-state--done::before { background: var(--success); }
 .an-lapsed-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 /* На телефоне кнопки связи уходят под имя, а не жмутся в одну строку с ним */
 @media (max-width: 560px) {
