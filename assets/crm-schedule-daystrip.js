@@ -44,7 +44,13 @@ export function dayStripMonthLabel(selectedDate) {
   return `${MONTH_LABEL[firstMonth - 1]}-${MONTH_LABEL[lastMonth - 1]} ${year}`;
 }
 
-const DOCK_QUERY = '(max-width: 1023.98px)';
+// Стыковка к низу экрана - жест пальца, а не размер окна. Условие pointer: coarse
+// добавлено 04.09.2026 после находки Влада: окно Chrome на Маке в половину экрана это
+// ~950 точек, кабинет считал его телефоном, выносил полоску дней поверх страницы, и
+// рядом с раскрытой карточкой «Неделя» на экране висели две одинаковые недели.
+// Запрос обязан совпадать с медиа-запросом .day-strip.is-docked в crm-app-shell.css:
+// класс ставит JS, а fixed рисует CSS - разъехавшись, они дадут полоску без стыковки
+const DOCK_QUERY = '(max-width: 1023.98px) and (pointer: coarse)';
 const BODY_DOCKED_CLASS = 'day-strip-docked';
 
 export function wireDayStrip({ scheduleViewState, setView }) {
