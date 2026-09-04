@@ -154,6 +154,36 @@ async function onCallback(bot, cb, vertical) {
     return { action: 'client_will_be_late', bookingId, minutes };
   }
 
+  // Ответ на письмо после неявки (04.09.2026). Бот сам время не подбирает - он
+  // отмечает ответ и передаёт человека администратору. Именно этот факт превращает
+  // строку в списке владельца в подсвеченную «ответил, ждёт звонка»: звонят уже
+  // тому, кто сказал «да», а не вслепую по всему списку
+  if (verb === 'rb' || verb === 'rn') {
+    const reply = verb === 'rb' ? 'wants_time' : 'not_now';
+    await pool.query('UPDATE bookings SET noshow_reply = $2, noshow_reply_at = now() WHERE id = $1', [bookingId, reply]);
+    if (verb === 'rb') {
+      const client = await pool.connect();
+      try {
+        const recipients = [booking.master_id, ...(await bookingWatcherIds(client, booking.location_id))];
+        for (const staffId of [...new Set(recipients.filter(Boolean))]) {
+          await notifyStaff(client, staffId, 'client_wants_move', {
+            bookingId,
+            title: 'Не пришёл и просит новое время',
+            body: `${when}${booking.client_name ? ' · ' + booking.client_name : ''}`,
+          });
+        }
+      } finally {
+        client.release();
+      }
+    }
+    await answerCallback(bot.token, cb.id, verb === 'rb' ? 'Передали администратору' : 'Спасибо, поняли');
+    if (cb.message?.message_id) await dropKeyboard(bot.token, chatId, cb.message.message_id);
+    await sendMessage(bot.token, chatId, verb === 'rb'
+      ? 'Передали администратору - он свяжется с вами и подберёт удобное время'
+      : 'Хорошо. Будем рады видеть вас позже - напишите нам, когда соберётесь');
+    return { action: verb === 'rb' ? 'noshow_wants_time' : 'noshow_not_now', bookingId };
+  }
+
   if (verb === 'mv' || verb === 'no') {
     // Бот сам не переносит и не отменяет: за расписанием стоит живой человек, и
     // окно, освобождённое ботом по ошибке, стоит дороже, чем ручной звонок

@@ -582,6 +582,38 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   position: relative; z-index: 4;
 }
 .panel-sp-day .schedule-row-with-gutter { width: max-content; min-width: 100%; }
+/* 04.09.2026 - расписание обрезалось справа уже на трёх врачах. Причина: у сетки
+   колонок стоит min-width:100% (mockup-crm.css, .schedule-grid), и эти 100% считались
+   от всей ширины области прокрутки, БЕЗ учёта часовой дорожки слева (.hour-gutter,
+   44px + 8px флекс-зазора). Сетка выходила ровно на эти 52px за правый край, и третья
+   колонка молча срезалась по вертикальной границе - выглядело как сломанная вёрстка.
+   Здесь сетка занимает остаток строки (flex:1) и считает колонки от него; когда колонок
+   столько, что минимума 220px им не хватает, строка (width:max-content) честно
+   разъезжается и включается горизонтальная прокрутка с тенью у правого края (ниже). */
+.panel-sp-day .schedule-row-with-gutter > .schedule-grid {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* Тень у правого края области прокрутки - видимый признак того, что справа есть ещё
+   колонки (класс и геометрию ставит syncDayScrollHint в assets/crm-calendar.js).
+   Рисуется панелью, а не самой областью: псевдоэлемент внутри прокручиваемого
+   контейнера уехал бы вместе с содержимым и тень ушла бы за экран. */
+.seg-panel.panel-sp-day { position: relative; }
+.seg-panel.panel-sp-day::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: var(--day-scroll-top, 0px);
+  height: var(--day-scroll-height, 0px);
+  width: 34px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 160ms var(--ease-out);
+  background: linear-gradient(to left, var(--panel-bg), color-mix(in srgb, var(--panel-bg) 0%, transparent));
+  box-shadow: inset -22px 0 20px -20px rgba(0, 0, 0, 0.55);
+  z-index: 5;
+}
+.seg-panel.panel-sp-day.has-scroll-right::after { opacity: 1; }
 /* Правка Влада 07.08.2026 - шапка колонки мастера в "День" по центру, имя под
    кружком-аватаром (было в ряд, слева) */
 .schedule-col-head {
@@ -682,6 +714,10 @@ button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   display: block; font-weight: 700; line-height: 1;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Время начала внутри той же строки (04.09.2026): чуть приглушено, чтобы имя осталось
+   первым по силе, но цифры на плашке есть всегда - без них короткая запись читалась
+   как выпавшая из сетки */
+.appt--compact .tc-time { font-weight: 700; opacity: 0.72; }
 .appt--compact .t { display: none; }
 .appt--compact:hover .t, .appt--compact.appt--expanded .t { display: block; }
 .appt--compact:hover .tc, .appt--compact.appt--expanded .tc { display: none; }
@@ -1527,6 +1563,14 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .stat-card .sc-value .unsure { font-size: 0.78rem; color: var(--wood); font-family: 'Manrope'; font-weight: 600; }
 .stat-card .sc-note { color: var(--text-muted); font-size: 0.72rem; font-style: italic; margin-top: 6px; }
 .stat-card--net { border-color: var(--accent); }
+/* Самая крупная потеря на экране «Недополученной прибыли» (04.09.2026). Карточки причин
+   различаются на порядок по сумме, а выглядели одинаково - вес даётся цифре, а не
+   заливке: рамка чуть плотнее и число крупнее, палитра и подписи те же */
+.stat-card--major { border-color: color-mix(in srgb, var(--accent) 46%, var(--border)); }
+.stat-card--major .sc-value { font-size: 2.05rem; }
+@media (max-width: 640px) {
+  .stat-card--major .sc-value { font-size: 1.85rem; }
+}
 
 /* ---------- неявка без предупреждения -> предоплата в следующий раз ---------- */
 .noshow-banner {
@@ -1680,8 +1724,14 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
      скролл (как у .masters-row/.schedule-scroll) технически работал, но правая пилюля
      обрезалась по кромке экрана и выглядела визуально сломанной ("Го" вместо "Год") -
      на коротких пилюлях перенос на вторую строку честнее, весь текст виден сразу */
-  .seg-bar { max-width: 100%; flex-wrap: wrap; row-gap: 6px; }
-  .seg-bar label { flex-shrink: 0; }
+  /* Правка 04.09.2026 (осмотр кабинета с телефона): пять периодов «День · Неделя ·
+     Месяц · Квартал · Год» не помещались в строку, и «Год» сваливался на вторую строку
+     один и прижатый влево - пилюля выглядела сломанной. Боковые поля пилюль на телефоне
+     ужаты (по 9px вместо 16px): пяти периодам этого хватает, чтобы встать одной ровной
+     строкой. Перенос как механизм оставлен для более длинных наборов, но теперь он
+     симметричный - остаток строки центрируется, а не висит у левого края */
+  .seg-bar { max-width: 100%; flex-wrap: wrap; row-gap: 6px; justify-content: center; }
+  .seg-bar label { flex-shrink: 0; padding-left: 9px; padding-right: 9px; }
 
   /* ── Переключатель мастеров в "Неделе" и "Месяце" (16.08.2026) ──────────────
      Жалоба Влада: "на выборе Неделя выбор мастера вылазит из окошка и выглядит криво".

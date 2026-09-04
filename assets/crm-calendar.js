@@ -249,8 +249,14 @@ export function buildApptCard(booking, { masterName, services, priceOf }) {
   // Время не потеряно: .t возвращается на hover и при раскрытии карточки - см.
   // .appt--compact .t / .appt--compact .tc в mockup-crm.css. Warn-значок неявки
   // едет вместе с именем, иначе на короткой записи он исчезал совсем.
+  // Правка 04.09.2026 (осмотр кабинета владельцем). Одного имени оказалось мало:
+  // получасовые приёмы ортодонта выглядели как плашки, повисшие вне сетки - «Сергей
+  // Гущин» без единой цифры рядом, и к какому часу он относится, глазом по позиции
+  // никто не считывал. Время начала вернулось в ту же единственную строку перед именем
+  // (в 220px минимальной ширины колонки «17:30 · Сергей Гущин» помещается целиком),
+  // решение 31.08.2026 при этом в силе: имя осталось, и оно по-прежнему главное.
   const compactName = isCompact
-    ? `<span class="tc">${warn}${escapeHtml(clientName)}</span>`
+    ? `<span class="tc">${warn}<span class="tc-time">${escapeHtml(booking.startTime)}</span> · ${escapeHtml(clientName)}</span>`
     : '';
 
   return `<div class="appt ${cssClass} ${stripeClass}${compactClass}${outsideClass}" style="${positionStyle(booking.startTime, booking.endTime)}"${outsideTitle} tabindex="0" onclick="(window.openBookingEdit||window.openBooking)(this)"
@@ -569,6 +575,31 @@ export function upsertDayBooking(booking, { staff, staffList, services, priceOf,
   return Boolean(added);
 }
 
+// 04.09.2026 - признак горизонтальной прокрутки в виде "День". Пока колонок мало, они
+// делят ширину области и прокрутки нет вовсе. Когда сотрудников столько, что минимума
+// 220px на колонку не хватает (у кабинета на 5-8 специалистов это норма), область
+// начинает прокручиваться - и до этой правки прокрутка была молчаливой: правая колонка
+// просто обрывалась по границе, что читается как сломанная вёрстка, а не как "справа
+// есть ещё". Тень у правого края включается ровно тогда, когда справа осталось
+// непоказанное, и гаснет, когда прокрутили до конца.
+// Геометрия тени приезжает в CSS переменными: сам .schedule-scroll - прокручиваемый
+// контейнер, псевдоэлемент на нём уехал бы вместе с содержимым, поэтому тень рисует
+// родительская панель, которой нужно знать, где внутри неё лежит область прокрутки.
+function syncDayScrollHint() {
+  const scroll = document.querySelector('.panel-sp-day .schedule-scroll');
+  const panel = document.querySelector('.seg-panel.panel-sp-day');
+  if (!scroll || !panel) return;
+  const hidden = scroll.scrollWidth - scroll.clientWidth - scroll.scrollLeft;
+  panel.style.setProperty('--day-scroll-top', `${scroll.offsetTop}px`);
+  panel.style.setProperty('--day-scroll-height', `${scroll.offsetHeight}px`);
+  panel.classList.toggle('has-scroll-right', hidden > 2);
+  if (!scroll.dataset.scrollHintWired) {
+    scroll.dataset.scrollHintWired = '1';
+    scroll.addEventListener('scroll', syncDayScrollHint, { passive: true });
+    window.addEventListener('resize', syncDayScrollHint);
+  }
+}
+
 // Окно 43 - горизонтальная линия "сейчас": видна только когда открыт РЕАЛЬНО
 // сегодняшний день и текущее время внутри рабочего окна разметки (10:00-20:00,
 // DAY_START_MIN/DAY_END_MIN выше - та же шкала, что и у .hour-marks во всех 3 файлах).
@@ -773,6 +804,7 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
       });
     }
     renderNowLine(today);
+    syncDayScrollHint();
     return;
   }
 
@@ -794,4 +826,5 @@ export async function renderDayCalendar({ staff, staffList, services, priceOf, b
     });
   });
   renderNowLine(today);
+  syncDayScrollHint();
 }

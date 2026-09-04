@@ -21,6 +21,8 @@ import { showSkeleton, showSpinner, setButtonBusy } from './crm-loading.js';
 // Подписи каналов («Яндекс Карты», «2ГИС», …) для строки «откуда пришёл» в разделе
 // «Клиенты» - один словарь на весь проект, см. assets/client-source.js
 import { CLIENT_SOURCE_LABELS } from './client-source.js';
+// Инициалы в кружке - тот же генератор, что у карточек сотрудников в «Команде»
+import { initialsOfName } from './crm-avatar.js';
 // Кнопка «Развернуть все» над списком карточек - общий механизм разделов владельца
 // (assets/crm-navigation-panels.js). Зовём его ПОСЛЕ отрисовки списка: на загрузке
 // страницы он уже отработал, а карточек клиентов тогда ещё не было ни одной, и
@@ -255,7 +257,11 @@ function clientFacts(c) {
     facts.push(chip(`принёс <b>${formatMoney(c.revenue)}</b>`, ' client-chip--money'));
   }
   if (c.firstVisitDate) {
-    facts.push(chip(`с нами с ${formatVisitDate(c.firstVisitDate)}`));
+    // Дата первого визита - самый тихий из пяти фактов строки (04.09.2026, осмотр
+    // кабинета: «глаз не сразу находит главное»). Убирать её не стали - в свёрнутом
+    // виде она отвечает на вопрос «давно ли человек с нами», - но вес ей снижен,
+    // чтобы взгляд шёл по деньгам, риску и визитам, а не по всем пяти плашкам сразу
+    facts.push(chip(`с нами с ${formatVisitDate(c.firstVisitDate)}`, ' client-chip--quiet'));
     // «Откуда» показываем только когда канал реально записан на первой брони.
     // Клиент, записанный до появления этого поля (миграция 050, 17.08.2026), источника
     // не имеет - и строка «Другое» тут была бы выдумкой, а не фактом.
@@ -269,11 +275,22 @@ function clientFacts(c) {
 const ICON_CLIENT_AVATAR =
   '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="7" r="3"/><path d="M4 16.5c0-3.1 2.7-5 6-5s6 1.9 6 5"/></svg>';
 
+// Кружок пациента - инициалы, а не одинаковая серая иконка человека (04.09.2026,
+// осмотр кабинета владельцем: список из тридцати одинаковых силуэтов не различался
+// вообще, глаз не за что зацепить). Приём и разметка ровно те же, что в «Команде»
+// на соседнем экране (assets/crm-avatar.js): владелец уже читает эти кружки там.
+// Безымянному клиенту инициалы взять неоткуда - ему остаётся прежняя иконка
+function clientAvatarMarkup(c) {
+  const label = initialsOfName(c.name);
+  if (!label) return `<div class="avatar-icon" aria-hidden="true">${ICON_CLIENT_AVATAR}</div>`;
+  return `<div class="avatar" aria-hidden="true">${escapeHtml(label)}</div>`;
+}
+
 function clientCardMarkup(c) {
   const phone = c.phone ? `<div class="role">${escapeHtml(c.phone)}</div>` : '';
   return `<details class="staff-card client-card" data-client-id="${escapeHtml(c.id)}">
     <summary>
-      <div class="avatar-icon" aria-hidden="true">${ICON_CLIENT_AVATAR}</div>
+      ${clientAvatarMarkup(c)}
       <div class="summary-meta">
         <div class="name">${escapeHtml(c.name || 'Без имени')}</div>
         ${phone}

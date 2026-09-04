@@ -85,12 +85,45 @@ async function loadClientVisits(db, from, to) {
 // занято этой бронью, и её цена - ровно то, чего салон не получил.
 async function loadNoShows(db, from, to) {
   const res = await db.query(
-    `SELECT b.id, b.master_id, b.service_id, b.date, b.client_id, c.name, c.phone
-     FROM bookings b LEFT JOIN clients c ON c.id = b.client_id
+    // Вместе с неявкой приезжает судьба письма, которое бот отправил не пришедшему
+    // (04.09.2026): ответил человек, молчит или письма не было вовсе. Без этого
+    // список отвечал бы только на «кому мы написали», а владельцу нужно «кому
+    // звонить сейчас и кого не потерять из виду», см. lib/client-messaging.js
+    `SELECT b.id, b.master_id, b.service_id, b.date, b.client_id, c.name, c.phone,
+            b.noshow_reply, b.noshow_reply_at,
+            m.status AS msg_status, m.last_error AS msg_error,
+            -- Дата отправки сразу строкой и сразу в московском времени: письмо,
+            -- ушедшее в 00:30 по Москве, в UTC относится ко вчера, и «молчит N дней»
+            -- ошибалось бы на сутки в пользу спешки. Тот же приём, что в
+            -- lib/client-messaging.js - время визита там тоже приводится явно
+            to_char((m.sent_at AT TIME ZONE 'Europe/Moscow')::date, 'YYYY-MM-DD') AS msg_sent_date
+     FROM bookings b
+     LEFT JOIN clients c ON c.id = b.client_id
+     LEFT JOIN client_messages m ON m.booking_id = b.id AND m.kind = 'no_show_followup'
      WHERE b.status = 'no_show' AND b.date >= $1 AND b.date <= $2`,
     [from, to]
   );
   return res.rows;
+}
+
+// Состояние разговора по одной неявке. Пять слов, которыми список объясняет владельцу,
+// что с человеком уже произошло и что от него, владельца, требуется:
+//   replied   - сказал «подберите время», это очередь на прозвон
+//   declined  - сказал «пока не планирую», звонить не надо, но деньги всё равно потеряны
+//   silent    - письмо ушло, ответа нет: молчащего звонят руками, а не забывают
+//   queued    - письмо ещё в очереди, ждём отправки
+//   no_channel- бота у человека нет, писать некому: только звонок
+//   none      - неявка старше самого механизма, письма по ней не было и не будет
+function followupState(row, todayDate) {
+  if (row.noshow_reply === 'wants_time') return { state: 'replied', silentDays: 0 };
+  if (row.noshow_reply === 'not_now') return { state: 'declined', silentDays: 0 };
+  if (row.msg_status === 'sent') {
+    const sent = row.msg_sent_date ?? null;
+    return { state: 'silent', silentDays: sent ? Math.max(daysBetween(sent, todayDate), 0) : 0 };
+  }
+  if (row.msg_status === 'pending' || row.msg_status === 'sending') return { state: 'queued', silentDays: 0 };
+  if (row.msg_status === 'skipped' || row.msg_status === 'failed') return { state: 'no_channel', silentDays: 0 };
+  return { state: 'none', silentDays: 0 };
 }
 
 // Экспортируется с 02.09.2026: тем же способом собирает услуги броней карточка
@@ -173,6 +206,11 @@ export async function computeMissedProfit(db, from, to, todayDate = new Date().t
     date: dstr(r.date),
     clientId: r.client_id ?? null,
     name: r.name ?? null,
+    ...followupState(r, todayDate),
+    // Телефон нужен списку «Кому напомнить о себе» (04.09.2026): по неявкам владелец
+    // теперь не только видит сумму, но и пишет человеку - ровно тем же набором кнопок,
+    // что уже стоит у невернувшихся. Права те же: ручка закрыта MONEY_VIEWERS
+    phone: r.phone ?? null,
     amount: priceOfBooking(r, r.id, r.service_id),
   }));
 
@@ -188,11 +226,29 @@ export async function computeMissedProfit(db, from, to, todayDate = new Date().t
 }
 
 // Списки сортируются так, как по ним работают: просроченных обзванивают начиная с тех,
-// кто пропал давно; разрежённым объясняют срок начиная с тех, кто недодал больше денег
-function sortLists(result) {
+// кто пропал давно; разрежённым объясняют срок начиная с тех, кто недодал больше денег.
+// Экспортируется ради теста порядка неявок: очередь работы владельца - это поведение
+// продукта, а не деталь реализации, и проверяться должна прямо, а не через HTTP
+export function sortLists(result) {
   const overdue = [...result.overdue].sort((a, b) => (a.lastVisit ?? '').localeCompare(b.lastVisit ?? '') || b.amount - a.amount);
   const sparse = [...result.sparse].sort((a, b) => b.amount - a.amount || (a.name ?? '').localeCompare(b.name ?? ''));
-  return { overdue, sparse };
+  // Порядок в списке неявок - это порядок работы владельца, а не хронология.
+  // Сначала те, кто ответил боту «подберите время»: они уже прогреты, звонок им
+  // самый дешёвый. Дальше молчащие - вопрос Влада «а если клиент не ответит?»
+  // закрывается тем, что молчащий не исчезает, а просто идёт вторым: его прозванивают
+  // руками. Потом те, кому бот написать не смог, потом отказавшиеся. Внутри группы -
+  // свежие сверху: разговор про пропущенный вчера приём человек ещё помнит.
+  // Безымянные (бронь без клиента) в список не попадают: писать и звонить некому
+  const NOSHOW_ORDER = { replied: 0, silent: 1, queued: 2, no_channel: 3, none: 3, declined: 4 };
+  const noshow = [...result.noShows]
+    .filter((r) => r.clientId && r.name)
+    .sort(
+      (a, b) =>
+        (NOSHOW_ORDER[a.state] ?? 9) - (NOSHOW_ORDER[b.state] ?? 9) ||
+        (b.date ?? '').localeCompare(a.date ?? '') ||
+        b.amount - a.amount
+    );
+  return { overdue, sparse, noshow };
 }
 
 export async function handleMissedProfit(req, res, url) {
@@ -223,7 +279,7 @@ export async function handleMissedProfitClients(req, res, url) {
   const to = url.searchParams.get('to');
   if (!isDateStr(from) || !isDateStr(to) || from > to) return sendJson(res, 400, { error: 'invalid_period' });
   const kind = url.searchParams.get('kind');
-  if (kind !== 'overdue' && kind !== 'sparse') return sendJson(res, 400, { error: 'invalid_kind' });
+  if (kind !== 'overdue' && kind !== 'sparse' && kind !== 'noshow') return sendJson(res, 400, { error: 'invalid_kind' });
 
   const result = await computeMissedProfit(pool, from, to);
   const lists = sortLists(result);

@@ -46,6 +46,11 @@ export function messageText(kind, ctx) {
       return `Ждём вас сегодня <b>${when}</b>\n${masterNom}: ${ctx.masterName}\n\n${ctx.placeName}`;
     case 'review_request':
       return `${ctx.clientName}, спасибо, что были у нас\n\nЕсли всё понравилось, оставьте, пожалуйста, отзыв - это две минуты, а нам помогает сильно`;
+    // Письмо после неявки (04.09.2026). Ни упрёка, ни счёта за пропущенное время:
+    // задача не пристыдить, а вернуть человека в расписание. Продукт обещает
+    // «показывает потерю и называет, что делать» - вот здесь он это и делает
+    case 'no_show_followup':
+      return `${ctx.clientName}, вы не смогли прийти <b>${when}</b>\n\nБывает. Подобрать вам новое время?`;
     default:
       throw new Error(`unknown_kind_${kind}`);
   }
@@ -56,6 +61,16 @@ function keyboardFor(kind, bookingId, links) {
     return buttons([
       [{ text: '✅ Приду', data: `ok:${bookingId}` }],
       [{ text: '🕗 Перенести', data: `mv:${bookingId}` }, { text: '✖️ Отменить', data: `no:${bookingId}` }],
+    ]);
+  }
+  // Ответ на письмо после неявки - это и есть очередь на прозвон: нажал «да» -
+  // попал в список владельца подсвеченным, и звонит ему уже живой человек. Бот сам
+  // время не подбирает по той же причине, что не переносит и не отменяет: за
+  // расписанием стоит администратор
+  if (kind === 'no_show_followup') {
+    return buttons([
+      [{ text: '📅 Да, подберите время', data: `rb:${bookingId}` }],
+      [{ text: 'Пока не планирую', data: `rn:${bookingId}` }],
     ]);
   }
   if (kind === 'review_request') {
@@ -90,6 +105,32 @@ export function plannedMessages(booking, now = new Date()) {
     { kind: 'reminder_2h', dueAt: new Date(start.getTime() - 2 * 3600e3) },
     { kind: 'review_request', dueAt: new Date(end.getTime() + 2 * 3600e3) },
   ];
+}
+
+// Письмо после неявки ставится отдельно от plannedMessages: те четыре сообщения
+// живут по времени визита и ставятся при создании брони, а это - следствие события,
+// которого могло и не случиться. Срок «сейчас»: администратор отмечает неявку в тот
+// же день, и разговор про пропущенный сегодня приём человек ещё помнит.
+//
+// Идемпотентность даёт тот же уникальный индекс (одна бронь - одно письмо каждого
+// вида): повторный клик по «Клиент не пришёл» вторым письмом не обернётся. Уже
+// отправленное не воскресает - сказанное сказано.
+export async function enqueueNoShowFollowup(booking, now = new Date(), db = pool) {
+  if (!booking?.client_id) return null; // бронь без клиента - писать некому
+  const res = await db.query(
+    `INSERT INTO client_messages (id, client_id, booking_id, kind, due_at, status)
+     VALUES ($1, $2, $3, 'no_show_followup', $4, 'pending')
+     ON CONFLICT (tenant_id, booking_id, kind) WHERE booking_id IS NOT NULL
+     DO UPDATE SET
+       due_at = EXCLUDED.due_at,
+       status = CASE WHEN client_messages.status = 'sent' THEN 'sent' ELSE 'pending' END,
+       attempts = CASE WHEN client_messages.status = 'sent' THEN client_messages.attempts ELSE 0 END,
+       claimed_at = NULL,
+       last_error = NULL
+     RETURNING id, kind, status`,
+    [id('cm'), booking.client_id, booking.id, now.toISOString()],
+  );
+  return res.rows[0] ?? null;
 }
 
 // db - соединение текущей транзакции, если постановка идёт вместе с записью брони.

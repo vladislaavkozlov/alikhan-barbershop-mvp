@@ -10,7 +10,7 @@ import { BOOKING_OPERATOR_ROLES, BOOKING_STAFF_ROLES } from '../lib/permissions.
 import { addMinutes, dateColToStr, intervalsOverlap, shopNow, toMinutes } from '../lib/time.js';
 import { mastersWithWorkingSchedule, masterAcceptsClients, getEffectiveSchedule, blockedIntervalsFor } from '../lib/schedule-core.js';
 import { notifyStaff } from '../lib/notify-core.js';
-import { cancelPendingForBooking, createInvite, deliverForClientSoon, enqueueForBooking, inviteLink } from '../lib/client-messaging.js';
+import { cancelPendingForBooking, createInvite, deliverForClientSoon, enqueueForBooking, enqueueNoShowFollowup, inviteLink } from '../lib/client-messaging.js';
 import { telegramConfig } from '../lib/channel-telegram.js';
 import { findClientIdByPhone } from './clients.js';
 // Живое обновление кабинетов (17.08.2026): каждое изменение брони уходит в открытые
@@ -805,6 +805,19 @@ export async function handleBookingStatus(req, res, parts) {
       // Человек не пришёл или визит отменён: напоминать и просить отзыв не за что
       await cancelPendingForBooking(bookingId, null, client);
     }
+    // Не пришёл - пишем ему сами (04.09.2026, решение владельца по карточке
+    // «Неявки»). Порядок важен: строку ставим ПОСЛЕ отмены остальных писем по этой
+    // брони, иначе она гасится тем же запросом. Условие по прежнему статусу - то же,
+    // что у счётчика неявок выше: повторный PATCH на уже не пришедшую бронь не должен
+    // писать человеку второй раз
+    if (body.status === 'no_show' && booking.status !== 'no_show') {
+      await enqueueNoShowFollowup({ id: bookingId, client_id: booking.client_id }, new Date(), client);
+    }
+    // Отметку сняли (ошиблись, человек всё-таки пришёл) - неотправленное письмо
+    // после неявки теряет смысл. Отправленное остаётся: сказанное клиенту сказано
+    if (booking.status === 'no_show' && body.status !== 'no_show') {
+      await cancelPendingForBooking(bookingId, ['no_show_followup'], client);
+    }
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -813,6 +826,12 @@ export async function handleBookingStatus(req, res, parts) {
     client.release();
   }
   publish('bookings', { bookingId, reason: 'status', status: body.status });
+  // Письмо после неявки уходит сразу, не дожидаясь тика планировщика: администратор
+  // отмечает неявку, когда время визита уже прошло, и минута задержки тут ничего не
+  // экономит, зато человек получает вопрос, пока помнит, что не пришёл
+  if (body.status === 'no_show' && booking.status !== 'no_show' && booking.client_id) {
+    deliverForClientSoon(currentTenantId(), currentVertical(), booking.client_id);
+  }
   // renew в ответе - чтобы форма закрытия визита показала мастеру, что именно
   // записано, и не пересчитывала это у себя (при причине «не обсуждали» срок ставит
   // сервер, а не поле в интерфейсе)

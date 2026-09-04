@@ -121,9 +121,19 @@
 }
 
 @media (max-width: 640px) {
+  /* На телефоне кнопка перестаёт быть плавающей и встаёт в поток - ровно туда, где она
+     и создаётся в разметке (assets/crm-navigation-panels.js, list.before(controls)):
+     над списком карточек, под заголовком раздела. Причина - на 390x844 в "Финансах"
+     плавающая кнопка садилась поверх карточки "Неявки", то есть поверх самой крупной
+     цифры экрана (219 500 из 235 500 в демо-данных). Владелец салона смотрит кабинет с
+     телефона, и главное число продукта у него было перекрыто. Гасить кнопку при скролле
+     не стали: в потоке контент до неё не доходит вообще, ни при какой прокрутке. */
   .crm-navigation-ui .panel-group-controls {
-    right: max(12px, env(safe-area-inset-right));
-    bottom: max(12px, env(safe-area-inset-bottom));
+    position: static;
+    right: auto;
+    bottom: auto;
+    justify-content: flex-end;
+    margin: 0 0 10px;
   }
 
   .crm-navigation-ui .panel-group-toggle {

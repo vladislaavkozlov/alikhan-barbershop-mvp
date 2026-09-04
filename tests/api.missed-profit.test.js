@@ -12,7 +12,7 @@
 // прятать самых потерянных - см. loadClientVisits, api/routes/missed-profit.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeMissedProfit, isDateStr } from '../api/routes/missed-profit.js';
+import { computeMissedProfit, isDateStr, sortLists } from '../api/routes/missed-profit.js';
 
 // Сегодня для всех тестов ниже - 22.08.2026 (дата окна), чтобы просроченность не
 // зависела от дня прогона
@@ -113,6 +113,56 @@ test('неявка считается по цене того визита, ко�
   const out = await computeMissedProfit(db, '2026-08-01', TODAY, TODAY);
   assert.equal(out.lostNoShow, 1200);
   assert.equal(out.counts.noShow, 1);
+});
+
+// 04.09.2026 - у карточки «Неявки» появилось действие «Кому напомнить о себе», и списку
+// нужен телефон человека: без него кнопки связи нарисовать не из чего, а сумма без
+// возможности написать - ровно та немота на самой большой потере, из-за которой правку
+// и делали
+test('неявка отдаёт имя, дату и телефон - списку «кому напомнить» есть с чем работать', async () => {
+  const db = fakeDb({
+    links: [{ booking_id: 'ns1', service_id: 'strizhka' }],
+    masterServices: [{ masterId: 'm2', serviceId: 'strizhka', price: 1200 }],
+    services: [{ id: 'strizhka', price: 1500 }],
+    noShows: [{ id: 'ns1', master_id: 'm2', service_id: null, date: '2026-08-10', client_id: 'c9', name: 'Олег', phone: '+79990009999' }],
+  });
+  const out = await computeMissedProfit(db, '2026-08-01', TODAY, TODAY);
+  assert.deepEqual(out.noShows, [
+    { bookingId: 'ns1', date: '2026-08-10', clientId: 'c9', name: 'Олег', state: 'none', silentDays: 0, phone: '+79990009999', amount: 1200 },
+  ]);
+});
+
+// Вопрос Влада 04.09.2026: «а если клиент не ответит на сообщение - игнорить его?».
+// Ответ продукта: не игнорить, а ставить вторым. Порядок списка - это порядок работы
+// владельца, поэтому он и проверяется: ответивший первым, молчащий следом со своим
+// сроком молчания, отказавшийся последним
+test('неявки идут в порядке работы: ответил - молчит - только звонок - отказался', async () => {
+  const noShows = [
+    { id: 'n1', master_id: 'm2', service_id: 'strizhka', date: '2026-08-01', client_id: 'c1', name: 'Молчит', phone: '1', msg_status: 'sent', msg_sent_date: '2026-08-01' },
+    { id: 'n2', master_id: 'm2', service_id: 'strizhka', date: '2026-08-02', client_id: 'c2', name: 'Отказался', phone: '2', noshow_reply: 'not_now' },
+    { id: 'n3', master_id: 'm2', service_id: 'strizhka', date: '2026-08-03', client_id: 'c3', name: 'Ответил', phone: '3', noshow_reply: 'wants_time' },
+    { id: 'n4', master_id: 'm2', service_id: 'strizhka', date: '2026-08-04', client_id: 'c4', name: 'Без бота', phone: '4', msg_status: 'skipped', msg_error: 'no_channel' },
+  ];
+  const db = fakeDb({ noShows, masterServices: [{ masterId: 'm2', serviceId: 'strizhka', price: 1000 }], services: [{ id: 'strizhka', price: 1000 }] });
+  const out = await computeMissedProfit(db, '2026-08-01', TODAY, TODAY);
+  const { noshow } = sortLists(out);
+  assert.deepEqual(noshow.map((r) => r.name), ['Ответил', 'Молчит', 'Без бота', 'Отказался']);
+  assert.equal(noshow[1].state, 'silent');
+  assert.equal(noshow[1].silentDays, 21);
+});
+
+// Безымянная бронь (запись без клиента) в список не идёт: писать и звонить некому,
+// а строка «Без имени - позвоните ему» это обещание, которое продукт не выполнит
+test('неявка без клиента в список не попадает, но в сумме потерь остаётся', async () => {
+  const db = fakeDb({
+    noShows: [{ id: 'n9', master_id: 'm2', service_id: null, date: '2026-08-10', client_id: null, name: null, phone: null }],
+    links: [{ booking_id: 'n9', service_id: 'strizhka' }],
+    masterServices: [{ masterId: 'm2', serviceId: 'strizhka', price: 700 }],
+    services: [{ id: 'strizhka', price: 700 }],
+  });
+  const out = await computeMissedProfit(db, '2026-08-01', TODAY, TODAY);
+  assert.equal(out.lostNoShow, 700);
+  assert.deepEqual(sortLists(out).noshow, []);
 });
 
 test('нет ни визитов, ни неявок за период - прочерк, а не ноль рублей', async () => {

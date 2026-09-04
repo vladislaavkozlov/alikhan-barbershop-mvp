@@ -74,11 +74,11 @@ function plural(n, one, few, many) {
   return many;
 }
 
-function statCard({ label, value, note, lead = false, action = null }) {
+function statCard({ label, value, note, lead = false, action = null, major = false }) {
   const actionHtml = action
     ? `<button type="button" class="sc-action" data-mp-kind="${escapeHtml(action.kind)}" data-mp-from="${escapeHtml(action.from)}" data-mp-to="${escapeHtml(action.to)}">${escapeHtml(action.text)}</button>`
     : '';
-  return `<div class="stat-card${lead ? ' stat-card--net' : ''}">
+  return `<div class="stat-card${lead ? ' stat-card--net' : ''}${major ? ' stat-card--major' : ''}">
     <div class="sc-label">${escapeHtml(label)}</div>
     <div class="sc-value">${escapeHtml(value)}</div>
     ${note ? `<div class="sc-note">${escapeHtml(note)}</div>` : ''}
@@ -100,31 +100,50 @@ export function missedProfitHtml(data, periodLabel) {
     note: `${periodLabel}, из них потеряно ${formatMoney((data.lostLapsed ?? 0) + (data.lostNoShow ?? 0))}`,
   });
 
-  const lapsedCard = statCard({
+  const lapsed = {
+    sum: data.lostLapsed,
     label: 'Не вернулись в срок',
     value: moneyText(data.lostLapsed),
     note: counts.overdue > 0 ? `${counts.overdue} ${C('client', counts.overdue)} - потеряно` : 'Таких клиентов нет',
     action: counts.overdue > 0 ? { kind: 'overdue', from, to, text: 'Кому звонить сейчас' } : null,
-  });
+  };
 
   // Формулировка «если бы ходили по рекомендованному сроку» - не украшение, а суть:
   // это НЕ потеря, клиент согласился на свой срок и ничего салону не должен
-  const sparseCard = statCard({
+  const sparse = {
+    sum: data.potentialSparse,
     label: P('missed.sparseLabel'),
     value: moneyText(data.potentialSparse),
     note: counts.sparse > 0 ? `${counts.sparse} ${C('client', counts.sparse)} - столько принесли бы по рекомендованному сроку` : 'Таких клиентов нет',
     action: counts.sparse > 0 ? { kind: 'sparse', from, to, text: 'Кому объяснить срок' } : null,
-  });
+  };
 
-  const noShowCard = statCard({
+  // Действие по неявкам (04.09.2026, решение владельца). Раньше на самой большой потере
+  // экрана продукт молчал: сумма есть, делать нечего. Теперь тот же приём, что у
+  // невернувшихся - поимённый список и кнопки связи с готовым текстом: сначала человеку
+  // пишут в мессенджер, а звонит администратор уже тому, кто ответил
+  const noShow = {
+    sum: data.lostNoShow,
     label: 'Неявки',
     value: moneyText(data.lostNoShow),
     note: counts.noShow > 0 ? `${counts.noShow} ${C('booking', counts.noShow)} - потеряно` : 'Неявок не было',
-  });
+    action: counts.noShow > 0 ? { kind: 'noshow', from, to, text: 'Кому напомнить о себе' } : null,
+  };
+
+  // 04.09.2026 (осмотр кабинета владельцем). Три причины потери стояли в фиксированном
+  // порядке и с одинаковым визуальным весом, хотя различаются на порядок: в демо-данных
+  // неявки дают 219 500 из 235 500, а «не вернулись в срок» - 16 000, и взгляд владельца
+  // первым попадал на наименьшую потерю. Теперь порядок и вес задаёт сама сумма:
+  // наибольшая идёт первой и набрана крупнее (stat-card--major), нулевые и пустые
+  // уходят в конец. Подписи, формулировки и действия при этом не трогаются
+  const reasons = [lapsed, sparse, noShow].sort((a, b) => (b.sum ?? -1) - (a.sum ?? -1));
+  const reasonCards = reasons
+    .map((r, i) => statCard({ ...r, major: i === 0 && Boolean(r.sum) }))
+    .join('');
 
   return `
     <div class="stat-cards">${totalCard}</div>
-    <div class="stat-cards">${lapsedCard}${sparseCard}${noShowCard}</div>
+    <div class="stat-cards">${reasonCards}</div>
     <p class="payroll-note mp-legend">${P('missed.legend')}</p>
     <div class="mp-list" id="mpList" hidden></div>
   `;
@@ -141,9 +160,42 @@ export function overdueMessageText(client) {
   return `Здравствуйте, ${name}это ${tenantName()}. ${P('msg.refresh')}`;
 }
 
+const LIST_TITLES = {
+  overdue: 'Кому звонить сейчас',
+  sparse: 'Кому объяснить срок',
+  noshow: 'Кому напомнить о себе',
+};
+
+// Текст по неявке. Ни упрёка, ни счёта за пропуск: система предлагает написать первой,
+// чтобы администратор звонил уже тому, кто ответил. Что предлагать дальше - скидку,
+// предоплату, другое время - решает салон, продукт за него не придумывает
+export function noShowMessageText(client) {
+  const name = client?.name ? `${client.name}, ` : '';
+  const when = client?.date ? ` ${dateText(client.date)}` : '';
+  return `Здравствуйте, ${name}это ${tenantName()}. Вы не смогли прийти${when} - подобрать вам новое время?`;
+}
+
+// Состояние разговора по неявке. Вопрос владельца 04.09.2026: «а если клиент не
+// ответит - игнорить его?». Нет: молчащий остаётся в списке со своей подписью и своим
+// местом в очереди работы. Подпись отвечает ровно на один вопрос - что владельцу
+// делать с этой строкой прямо сейчас
+export function followupChip(client) {
+  const map = {
+    replied: ['ответил: подберите время', 'mp-state--replied'],
+    silent: [`написали, молчит ${client.silentDays ?? 0} ${plural(client.silentDays ?? 0, 'день', 'дня', 'дней')} - звоните сами`, 'mp-state--silent'],
+    queued: ['письмо в очереди - подождите ответа', 'mp-state--quiet'],
+    no_channel: ['бота у него нет - только звонок', 'mp-state--silent'],
+    none: ['письма не было - только звонок', 'mp-state--silent'],
+    declined: ['ответил: пока не планирует', 'mp-state--quiet'],
+  };
+  const found = map[client.state];
+  if (!found) return '';
+  return `<span class="mp-state ${found[1]}">${escapeHtml(found[0])}</span>`;
+}
+
 export function listHtml(data, kind) {
   const clients = data.clients ?? [];
-  const title = kind === 'overdue' ? 'Кому звонить сейчас' : 'Кому объяснить срок';
+  const title = LIST_TITLES[kind] ?? LIST_TITLES.overdue;
   if (clients.length === 0) return `<p class="payroll-note">${escapeHtml(P('analytics.noSuchClients', { title }))}</p>`;
 
   const rows = clients
@@ -155,14 +207,18 @@ export function listHtml(data, kind) {
       const detail =
         kind === 'overdue'
           ? `был ${dateText(c.lastVisit)} - опоздал на ${c.daysLate} ${plural(c.daysLate, 'день', 'дня', 'дней')}`
-          : `${c.shortfallVisits} ${plural(c.shortfallVisits, 'визит', 'визита', 'визитов')} мимо, договаривались на ${c.renewDays} ${plural(c.renewDays, 'день', 'дня', 'дней')}${c.renewReason ? ` (${renewReasonShort()[c.renewReason] ?? c.renewReason})` : ''}`;
+          : kind === 'noshow'
+            ? `не пришёл ${dateText(c.date)} - время держали, деньги не пришли`
+            : `${c.shortfallVisits} ${plural(c.shortfallVisits, 'визит', 'визита', 'визитов')} мимо, договаривались на ${c.renewDays} ${plural(c.renewDays, 'день', 'дня', 'дней')}${c.renewReason ? ` (${renewReasonShort()[c.renewReason] ?? c.renewReason})` : ''}`;
+      const state = kind === 'noshow' ? followupChip(c) : '';
       return `<div class="an-lapsed-row">
         <div class="an-lapsed-who">
           <span class="mp-name">${escapeHtml(c.name || 'Без имени')}</span>
           <span class="an-lapsed-when">${escapeHtml(detail)}</span>
+          ${state}
         </div>
         <div class="mp-amount">${escapeHtml(formatMoney(c.amount))}</div>
-        <div class="an-lapsed-actions">${phone ? messengerButtonsHtml(phone, kind === 'overdue' ? overdueMessageText(c) : '') : ''}</div>
+        <div class="an-lapsed-actions">${phone ? messengerButtonsHtml(phone, kind === 'overdue' ? overdueMessageText(c) : kind === 'noshow' ? noShowMessageText(c) : '') : ''}</div>
       </div>`;
     })
     .join('');
