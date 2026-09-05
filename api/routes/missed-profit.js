@@ -72,10 +72,23 @@ async function loadClientVisits(db, from, to) {
      )
      SELECT l.client_id, coalesce(a.visits, 0) AS visits, a.first_date, a.period_last_date,
             l.last_date, l.booking_id, l.master_id, l.service_id,
-            c.name, c.phone, c.renew_days, c.renew_days_recommended, c.renew_reason
+            c.name, c.phone, c.renew_days, c.renew_days_recommended, c.renew_reason,
+            -- Судьба разговора про возврат (05.09.2026, миграция 070). Тот же приём,
+            -- что у неявок: список должен отвечать не на «кому мы написали», а на
+            -- «кому звонить сейчас», и без ответа клиента это разные списки
+            c.renew_reply, c.renew_reply_at, c.renew_decline_reason, c.renew_outreach_at,
+            m.status AS msg_status, m.sent_at::date AS msg_sent_date
      FROM last_visit l
      LEFT JOIN agg a ON a.client_id = l.client_id
-     JOIN clients c ON c.id = l.client_id`,
+     JOIN clients c ON c.id = l.client_id
+     -- Последнее письмо про возврат этому человеку. DISTINCT ON по клиенту, потому
+     -- что писем два вида и за жизнь клиента их накапливается много: владельцу важно
+     -- состояние последнего разговора, а не вся переписка
+     LEFT JOIN LATERAL (
+       SELECT status, sent_at FROM client_messages cm
+        WHERE cm.client_id = l.client_id AND cm.kind IN ('renew_due', 'renew_overdue')
+        ORDER BY cm.created_at DESC LIMIT 1
+     ) m ON true`,
     [from, to]
   );
   return res.rows;
@@ -132,6 +145,30 @@ function followupState(row, todayDate) {
   if (row.msg_status === 'sent') {
     const sent = row.msg_sent_date ?? null;
     return { state: 'silent', silentDays: sent ? Math.max(daysBetween(sent, todayDate), 0) : 0 };
+  }
+  if (row.msg_status === 'pending' || row.msg_status === 'sending') return { state: 'queued', silentDays: 0 };
+  if (row.msg_status === 'skipped' || row.msg_status === 'failed') return { state: 'no_channel', silentDays: 0 };
+  return { state: 'none', silentDays: 0 };
+}
+
+// Состояние разговора про возврат. Зеркало followupState, но по клиенту, а не по
+// брони, и с одним отличием в словаре: у неявки есть «rebooked» (человек сам записался
+// на новое время), здесь его роль играет сам факт визита - записавшийся клиент
+// перестаёт быть просроченным и уходит из списка целиком.
+//
+// Пять слов, которыми список объясняет владельцу, что делать с человеком:
+//   replied    - сказал «подберите время»: очередь на прозвон, наверх списка
+//   declined   - сказал «пока не планирую»: звонить не надо, деньги всё равно потеряны
+//   silent     - письмо ушло, ответа нет: звонит живой человек
+//   queued     - письмо в очереди, ждём отправки
+//   no_channel - бота у человека нет: только звонок
+//   none       - повод старше механизма или вне окна: письма не было и не будет
+export function renewState(row, todayDate) {
+  if (row.renew_reply === 'wants_time') return { state: 'replied', silentDays: 0 };
+  if (row.renew_reply === 'not_now') return { state: 'declined', silentDays: 0, reason: row.renew_decline_reason ?? null };
+  if (row.msg_status === 'sent') {
+    const sent = row.msg_sent_date ?? null;
+    return { state: 'silent', silentDays: sent ? Math.max(daysBetween(dstr(sent), todayDate), 0) : 0 };
   }
   if (row.msg_status === 'pending' || row.msg_status === 'sending') return { state: 'queued', silentDays: 0 };
   if (row.msg_status === 'skipped' || row.msg_status === 'failed') return { state: 'no_channel', silentDays: 0 };
@@ -206,7 +243,19 @@ export async function computeMissedProfit(db, from, to, todayDate = new Date().t
       // (потерян раньше и уже показан в прошлом периоде) - в карточку периода он не
       // идёт. Иначе один и тот же человек считался бы потерей каждый месяц заново
       if (missed === 0) continue;
-      overdue.push({ ...base, missedVisits: missed, amount: missed * price, daysLate: daysBetween(lastVisitDate, todayDate) - renewDaysOf(r.renew_days) });
+      const talk = renewState(r, todayDate);
+      overdue.push({
+        ...base,
+        missedVisits: missed,
+        amount: missed * price,
+        daysLate: daysBetween(lastVisitDate, todayDate) - renewDaysOf(r.renew_days),
+        // Имена полей те же, что у неявок (state / silentDays / reason): подпись в
+        // списке рисует одна функция на оба вида потери, и разводить словари ради
+        // одинаковых по смыслу состояний значило бы держать две копии одного
+        state: talk.state,
+        silentDays: talk.silentDays,
+        reason: talk.reason ?? null,
+      });
     } else if (state === 'sparse') {
       const shortfall = shortfallVisits({ visits: r.visits, spanDays, renewDays: r.renew_days, recommendedDays: r.renew_days_recommended });
       sparse.push({ ...base, shortfallVisits: shortfall, amount: shortfall * price });
@@ -242,7 +291,14 @@ export async function computeMissedProfit(db, from, to, todayDate = new Date().t
 // Экспортируется ради теста порядка неявок: очередь работы владельца - это поведение
 // продукта, а не деталь реализации, и проверяться должна прямо, а не через HTTP
 export function sortLists(result) {
-  const overdue = [...result.overdue].sort((a, b) => (a.lastVisit ?? '').localeCompare(b.lastVisit ?? '') || b.amount - a.amount);
+  // Ответившие «подберите время» - наверх: это единственные люди в списке, которые
+  // уже сказали «да», и звонить надо им, а не самому старому в базе (05.09.2026).
+  // Отказавшиеся уходят вниз - они в списке остаются, потому что деньги потеряны,
+  // но звонок им не нужен
+  const talkRank = (c) => (c.state === 'replied' ? 0 : c.state === 'declined' ? 2 : 1);
+  const overdue = [...result.overdue].sort(
+    (a, b) => talkRank(a) - talkRank(b) || (a.lastVisit ?? '').localeCompare(b.lastVisit ?? '') || b.amount - a.amount,
+  );
   const sparse = [...result.sparse].sort((a, b) => b.amount - a.amount || (a.name ?? '').localeCompare(b.name ?? ''));
   // Порядок в списке неявок - это порядок работы владельца, а не хронология.
   // Сначала те, кто ответил боту «подберите время», но ещё не записался: они уже

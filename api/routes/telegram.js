@@ -96,6 +96,93 @@ async function onStop(bot, chatId) {
   return { action: 'unsubscribed' };
 }
 
+
+// Ответы на письмо про возврат. Схема ровно та же, что после неявки (068-069), и это
+// осознанное повторение: человеку всё равно, по какой причине его потеряли, ему
+// важно, чтобы разговор был одинаково коротким и вежливым.
+//
+// Разница одна - здесь нет брони, поэтому ответ ложится на клиента, а заявка
+// администратору уходит с именем и телефоном: звонить он будет живому человеку, а
+// не строке в расписании.
+async function onReturnCallback(bot, cb, chatId, clientId, verb, vertical) {
+  if (verb === 'vb') {
+    await pool.query("UPDATE clients SET renew_reply = 'wants_time', renew_reply_at = now() WHERE id = $1", [clientId]);
+    const bookingUrl = await tenantBookingUrl();
+
+    // Заявку администратору здесь НЕ создаём, если у заведения есть форма записи
+    // (поправка Влада 05.09.2026): «тот, кто согласен записаться - идёт и
+    // записывается на сайте по ссылке сам». Звонок человеку, который через минуту
+    // запишется сам, - это ровно то ручное звено, ради снятия которого схема и
+    // делалась.
+    //
+    // Заявка появится позже и только если он не дошёл: через сутки без записи
+    // сканер положит её в ленту (requestCallsForUnbooked, lib/client-messaging.js).
+    // Формы записи у заведения нет - записаться самому негде, и администратор нужен
+    // сразу
+    if (!bookingUrl) {
+      const client = await pool.connect();
+      try {
+        const info = await client.query('SELECT name, phone FROM clients WHERE id = $1', [clientId]);
+        const who = info.rows[0]?.name || 'Клиент';
+        const phone = info.rows[0]?.phone ? ` · ${info.rows[0].phone}` : '';
+        // Получателей берём своим запросом, а не bookingWatcherIds: тот отбирает
+        // администраторов по локации брони, а у заявки на прозвон брони нет и локация
+        // неизвестна. Звонить будет администратор - значит он и должен её видеть
+        const staff = await client.query(
+          `SELECT id FROM staff
+            WHERE employed = true AND has_system_access = true
+              AND role IN ('owner', 'manager', 'admin')`,
+        );
+        for (const staffId of staff.rows.map((r) => r.id)) {
+          await notifyStaff(client, staffId, 'client_wants_return', {
+            clientId,
+            title: 'Просит записать: давно не был',
+            body: `${who}${phone}`,
+          });
+        }
+        await client.query('UPDATE clients SET renew_call_requested_at = now() WHERE id = $1', [clientId]);
+      } finally {
+        client.release();
+      }
+    }
+
+    await answerCallback(bot.token, cb.id, bookingUrl ? 'Открывайте форму записи' : 'Передали администратору');
+    if (cb.message?.message_id) await dropKeyboard(bot.token, chatId, cb.message.message_id);
+    if (bookingUrl) {
+      await sendMessage(bot.token, chatId, 'Выберите удобное время - свободные окна видны сразу', buttons([
+        [{ text: '📅 Выбрать время', url: bookingUrl }],
+      ]));
+    } else {
+      await sendMessage(bot.token, chatId, 'Передали администратору - он свяжется с вами и подберёт удобное время');
+    }
+    return { action: 'renew_wants_time', clientId, selfBooking: Boolean(bookingUrl) };
+  }
+
+  if (verb === 'vn') {
+    await pool.query("UPDATE clients SET renew_reply = 'not_now', renew_reply_at = now() WHERE id = $1", [clientId]);
+    await answerCallback(bot.token, cb.id, 'Спасибо, поняли');
+    if (cb.message?.message_id) await dropKeyboard(bot.token, chatId, cb.message.message_id);
+    await sendMessage(bot.token, chatId, 'Понятно, не настаиваем\n\nПодскажете, почему? Это поможет нам стать удобнее', buttons([
+      [{ text: 'Дорого', data: `vp:${clientId}` }, { text: 'Неудобное время', data: `vt:${clientId}` }],
+      [{ text: 'Хожу в другое место', data: `vo:${clientId}` }, { text: 'Просто передумал', data: `vm:${clientId}` }],
+    ]));
+    return { action: 'renew_not_now', clientId };
+  }
+
+  const reason = RETURN_REASONS[verb];
+  await pool.query('UPDATE clients SET renew_decline_reason = $2 WHERE id = $1', [clientId, reason]);
+  await answerCallback(bot.token, cb.id, 'Спасибо');
+  if (cb.message?.message_id) await dropKeyboard(bot.token, chatId, cb.message.message_id);
+  await sendMessage(bot.token, chatId, 'Спасибо, что сказали. Будем рады видеть вас, когда будет удобно');
+  return { action: 'renew_reason', clientId, reason };
+}
+
+// Глаголы разговора про возврат (05.09.2026, миграция 070). Отдельным набором,
+// потому что у этих кнопок в callback_data лежит id КЛИЕНТА, а не брони: письмо
+// «пора к нам» отправлено человеку, у которого записи нет вовсе - в этом его смысл
+const RETURN_VERBS = new Set(['vb', 'vn', 'vp', 'vt', 'vo', 'vm']);
+const RETURN_REASONS = { vp: 'price', vt: 'time', vo: 'other_place', vm: 'changed_mind' };
+
 async function onCallback(bot, cb, vertical) {
   const chatId = cb.message?.chat?.id ?? cb.from?.id;
   const [verb, bookingId] = String(cb.data ?? '').split(':');
@@ -103,6 +190,20 @@ async function onCallback(bot, cb, vertical) {
   if (!clientId || !bookingId) {
     await answerCallback(bot.token, cb.id, 'Не нашли вашу запись');
     return { action: 'callback_unknown_client' };
+  }
+
+  // Разговор про возврат разбирается ДО поиска брони: искать её здесь бессмысленно,
+  // а общая проверка ниже отвергла бы каждую такую кнопку как «чужую запись».
+  //
+  // Сверка id обязательна и не декоративна: в callback_data приходит то, что лежало
+  // в кнопке, а привязка chat → клиент берётся из базы. Совпадение доказывает, что
+  // человек нажимает свою кнопку, а не пересланную ему чужую
+  if (RETURN_VERBS.has(verb)) {
+    if (bookingId !== clientId) {
+      await answerCallback(bot.token, cb.id, 'Эта кнопка не ваша');
+      return { action: 'callback_foreign_client' };
+    }
+    return onReturnCallback(bot, cb, chatId, clientId, verb, vertical);
   }
   const booking = await bookingOfClient(bookingId, clientId);
   if (!booking) {

@@ -29,13 +29,17 @@ export async function notifyStaff(
   client,
   staffId,
   type,
-  { bookingId = null, scheduleRequestId = null, relatedMasterId = null, title, body = null, refresh = false }
+  { bookingId = null, scheduleRequestId = null, relatedMasterId = null, clientId = null, title, body = null, refresh = false }
 ) {
-  const params = [`ntf-${randomBytes(8).toString('hex')}`, staffId, type, bookingId, scheduleRequestId, relatedMasterId, title, body];
+  // clientId - события без брони (05.09.2026, миграция 070): заявка на прозвон от
+  // человека, который давно не приходил, брони не имеет по определению. Уникальность
+  // ей даёт свой частичный индекс «сотрудник + тип + клиент + сутки», поэтому дважды
+  // нажатая кнопка не превращается в два одинаковых дела у администратора
+  const params = [`ntf-${randomBytes(8).toString('hex')}`, staffId, type, bookingId, scheduleRequestId, relatedMasterId, title, body, clientId];
   if (!refresh) {
     const inserted = await client.query(
-      `INSERT INTO notifications (id, staff_id, type, booking_id, schedule_request_id, related_master_id, title, body)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO notifications (id, staff_id, type, booking_id, schedule_request_id, related_master_id, title, body, client_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT DO NOTHING
        RETURNING id`,
       params
@@ -56,8 +60,8 @@ export async function notifyStaff(
   // это НОВАЯ информация о ней, и прятать её за прошлое решение нельзя. Строка
   // возвращается в колокольчик так же, как возвращается в непрочитанные.
   await client.query(
-    `INSERT INTO notifications (id, staff_id, type, booking_id, schedule_request_id, related_master_id, title, body)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO notifications (id, staff_id, type, booking_id, schedule_request_id, related_master_id, title, body, client_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (tenant_id, staff_id, type, booking_id) WHERE booking_id IS NOT NULL
      DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, created_at = now(),
                    read_at = NULL, dismissed_at = NULL`,

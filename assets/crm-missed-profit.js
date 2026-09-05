@@ -221,7 +221,10 @@ export function listHtml(data, kind) {
           : kind === 'noshow'
             ? `не пришёл ${dateText(c.date)} - время держали, деньги не пришли`
             : `${c.shortfallVisits} ${plural(c.shortfallVisits, 'визит', 'визита', 'визитов')} мимо, договаривались на ${c.renewDays} ${plural(c.renewDays, 'день', 'дня', 'дней')}${c.renewReason ? ` (${renewReasonShort()[c.renewReason] ?? c.renewReason})` : ''}`;
-      const state = kind === 'noshow' ? followupChip(c) : '';
+      // Подпись состояния разговора - и у неявок, и у просроченных (05.09.2026):
+      // с этого дня система пишет сама по обеим причинам, и владельцу в обоих
+      // случаях нужно одно и то же - кому звонить, а кому уже написали
+      const state = kind === 'noshow' || kind === 'overdue' ? followupChip(c) : '';
       return `<div class="an-lapsed-row">
         <div class="an-lapsed-who">
           <span class="mp-name">${escapeHtml(c.name || 'Без имени')}</span>
