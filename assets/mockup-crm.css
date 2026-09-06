@@ -1655,6 +1655,13 @@ details.staff-card[open] .chevron { transform: rotate(90deg); }
 .wf-client-hint--new { background: var(--surface-3); border: 1px solid var(--border); color: var(--text); }
 .wf-client-hint--pending { color: var(--text-muted); padding-left: 0; }
 
+/* Отмена записи (06.09.2026) - первая строка опасной зоны, обратимый шаг перед
+   необратимым. Верхняя линия и отступ те же, что у удаления ниже: зона отделяется
+   от карточки один раз, а внутри себя двумя линиями не режется */
+.bk-cancel-row { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.bk-cancel-row .note { color: var(--text-muted); font-size: 0.82rem; }
+.bk-cancel-row + .bk-delete-row { margin-top: 8px; padding-top: 0; border-top: 0; }
+
 /* "Удалить запись" (08.08.2026) - отделена от остальной карточки верхней линией,
    тот же приём отступа-границы, что уже держит .toggle-row между строками. */
 .bk-delete-row { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }

@@ -552,6 +552,11 @@
                #wfEditControls (assets/crm-walkin.js) - у ещё не созданной записи
                удалять нечего. -->
           <div class="wf-danger-zone" id="wfDangerZone" hidden>
+            <!-- Отмена записи (06.09.2026). Стоит ПЕРЕД удалением намеренно: в девяти
+                 случаях из десяти визит не состоится, а не был создан по ошибке, и
+                 первым под рукой должен лежать обратимый шаг, оставляющий след в
+                 истории. Рисует assets/crm-booking-status.js wireBookingCancel. -->
+            <div class="bk-cancel-row" id="bkCancelRow"></div>
             <div class="bk-delete-row" id="bkDeleteRow"></div>
           </div>
         </div>

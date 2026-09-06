@@ -21,6 +21,7 @@ import { answerCallback, buttons, dropKeyboard, sendMessage, tenantByWebhookSecr
 import { deliverForClient, redeemInvite } from '../lib/client-messaging.js';
 import { bookingWatcherIds } from './bookings.js';
 import { term } from '../lib/vertical-terms.js';
+import { parseCallbackData } from '../lib/callback-data.js';
 
 // Сравнение секретов постоянного времени: обычное === на строках отвечает тем
 // быстрее, чем раньше расходятся символы, и по этому времени секрет подбирается
@@ -185,7 +186,17 @@ const RETURN_REASONS = { vp: 'price', vt: 'time', vo: 'other_place', vm: 'change
 
 async function onCallback(bot, cb, vertical) {
   const chatId = cb.message?.chat?.id ?? cb.from?.id;
-  const [verb, bookingId] = String(cb.data ?? '').split(':');
+  // Разбор строго по ПЕРВОМУ двоеточию, а не split(':') (06.09.2026, найдено живым
+  // прогоном Влада на кабинете клиники). Идентификатор брони сам содержит двоеточие:
+  // createBookingTx собирает его как `${date}-${startTime}-${masterId}-${hex}`, где
+  // startTime это «10:00». split(':') резал «rb:2026-09-06-10:00-mst-...» на три куска
+  // и отдавал вторым элементом «2026-09-06-10» - брони с таким id нет и быть не может,
+  // поэтому bookingOfClient возвращал null, а человек получал «Не нашли вашу запись».
+  // Ломались ВСЕ кнопки по визиту разом: «Приду», «Перенести», «Отменить»,
+  // «Задержусь», ответы после неявки. Кнопки разговора о возврате (vb/vn/vp/vt/vo/vm)
+  // при этом работали и маскировали дефект: в них лежит id клиента («client-<hex>»),
+  // двоеточия в нём нет.
+  const { verb, id: bookingId } = parseCallbackData(cb.data);
   const clientId = await clientByChat(chatId);
   if (!clientId || !bookingId) {
     await answerCallback(bot.token, cb.id, 'Не нашли вашу запись');

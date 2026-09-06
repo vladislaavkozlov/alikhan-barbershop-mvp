@@ -262,6 +262,87 @@ export function wireBookingServiceEdit(services, masterServices) {
   }
 }
 
+// «Отменить запись» (06.09.2026, живой прогон Влада на кабинете клиники: «не пришло
+// уведомление об отмене записи»). Уведомление и не могло прийти: событие отмены было
+// недостижимо из кабинета вовсе. Роут POST /bookings/:id/cancel существует с 01.08.2026
+// и умеет всё - ставит статус 'cancelled', снимает ещё не отправленные напоминания
+// (cancelPendingForBooking) и рассылает 'booking_cancelled' мастеру, владельцу,
+// управляющему и администратору точки, - но в интерфейсе его никто не звал: из
+// контролов были только статусы визита и НАСТОЯЩЕЕ удаление.
+//
+// Почему это не то же, что «Удалить». Удаление стирает бронь из базы: ни следа в
+// истории, ни уведомления, ни причины - оно для ошибочно созданной записи. Отмена -
+// про визит, который не состоится: строка остаётся в расписании приглушённой
+// (appt--cancelled, assets/crm-calendar.js), время освобождается, все причастные
+// узнают. Ровно этого не хватало и другому механизму: клиент, нажавший в боте
+// «✖️ Отменить», присылает сотруднику заявку 'client_wants_cancel' (api/routes/
+// telegram.js) - а выполнить её сотруднику было нечем.
+//
+// Порог полного возврата (CANCEL_FULL_REFUND_HOURS = 2 часа) сервер считает сам и
+// возвращает флагом refundEligible. Показываем его строкой результата, а не прячем:
+// это то, что сотрудник скажет клиенту вслух в ту же минуту.
+export function wireBookingCancel() {
+  const row = document.getElementById('bkCancelRow');
+  if (!row) return; // страница без этого блока (crm-master.html) - no-op
+
+  function renderIdle() {
+    row.innerHTML = `<button type="button" class="btn btn-ghost btn-sm" id="bkCancelBtn">${escapeHtml(P('booking.cancelAction'))}</button>`;
+    row.querySelector('#bkCancelBtn').addEventListener('click', renderConfirm);
+  }
+
+  // Двухшаговое подтверждение прямо в строке - конвенция проекта (см. wireBookingDelete
+  // выше), а не нативный confirm()
+  function renderConfirm() {
+    row.innerHTML = `<span class="note" style="margin-right:8px">${escapeHtml(P('booking.cancelConfirm'))}</span>
+      <button class="btn btn-danger btn-sm" type="button" id="bkCancelYes">Да, отменить</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="bkCancelNo">Нет</button>`;
+    row.querySelector('#bkCancelYes').addEventListener('click', doCancel);
+    row.querySelector('#bkCancelNo').addEventListener('click', renderIdle);
+  }
+
+  async function doCancel() {
+    const panel = bookingPanel();
+    const bookingId = panel?.dataset.bookingId;
+    if (!bookingId) return;
+    row.innerHTML = '<span class="note">Отменяю…</span>';
+    try {
+      const res = await fetch(`${API}/bookings/${encodeURIComponent(bookingId)}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      // Уже отменённая запись - не ошибка сотрудника, а состояние: говорим прямо,
+      // а не «HTTP 409»
+      if (res.status === 409 && data.error === 'already_cancelled') {
+        row.innerHTML = `<span class="note">${escapeHtml(P('booking.cancelAlready'))}</span>`;
+        return;
+      }
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      panel.dataset.realStatus = 'cancelled';
+      // Что сказать клиенту про деньги - решает порог сервера, не интерфейс
+      const refund = data.refundEligible
+        ? 'полный возврат положен'
+        : 'до начала меньше двух часов - полный возврат не положен';
+      row.innerHTML = `<span class="note">${escapeHtml(P('booking.cancelDone'))}. ${escapeHtml(refund)}</span>`;
+      // Календарь перерисует строку сам: сервер публикует событие bookings/cancelled,
+      // и живое обновление (assets/crm-live.js) приводит день в актуальный вид без
+      // перезагрузки страницы. Форму закрываем - работать с отменённой записью нечего
+      if (panel.tagName === 'DETAILS') {
+        panel.open = false;
+      } else {
+        delete panel.dataset.bookingId;
+        panel.hidden = true;
+      }
+    } catch (err) {
+      row.innerHTML = '';
+      showError(row, errorMessage(err, P('booking.cancelFailed')));
+      setTimeout(renderIdle, 4000);
+    }
+  }
+
+  renderIdle();
+}
+
 // "Удалить запись" (08.08.2026, Влад: "мастер зашёл случайно, сохранил не на ту
 // дату - её же можно спокойно удалить?") - НАСТОЯЩЕЕ удаление (DELETE /bookings/:id,
 // handleBookingDelete), не отмена статуса: отменённая бронь всё равно считалась бы в

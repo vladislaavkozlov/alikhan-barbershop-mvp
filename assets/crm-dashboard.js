@@ -20,7 +20,7 @@ import { wireMasterServiceEditors } from './crm-master-services.js';
 import { renderRevenuePeriods, renderStaffPayrollPeriods } from './crm-payroll.js';
 import { wireMasterSelfView, wireMasterSelfDataTab } from './crm-master-self.js';
 import { wireAdminSelfData } from './crm-admin-self.js';
-import { wireBookingStatusRadios, wireBookingServiceEdit, wireBookingDelete, wireBookingActualPrice } from './crm-booking-status.js';
+import { wireBookingStatusRadios, wireBookingServiceEdit, wireBookingCancel, wireBookingDelete, wireBookingActualPrice } from './crm-booking-status.js';
 import { wireWalkIn } from './crm-walkin.js';
 import { wireMasterBookingView } from './crm-master-booking.js';
 
@@ -253,6 +253,7 @@ export async function renderLiveProof(staff) {
     wireRoleEditors(staffList);
     wireBookingStatusRadios();
     wireBookingServiceEdit(services, masterServices);
+    wireBookingCancel();
     wireBookingDelete();
     wireBookingActualPrice();
     ['master-1', 'master-2', 'master-3'].forEach((masterId) => {
