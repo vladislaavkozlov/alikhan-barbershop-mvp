@@ -281,19 +281,27 @@ export function wireBookingServiceEdit(services, masterServices) {
 // Порог полного возврата (CANCEL_FULL_REFUND_HOURS = 2 часа) сервер считает сам и
 // возвращает флагом refundEligible. Показываем его строкой результата, а не прячем:
 // это то, что сотрудник скажет клиенту вслух в ту же минуту.
+//
+// Подписи собираются из терминов, которые сервер уже отдаёт (T('booking.acc') - «запись»
+// или «приём»), а не из новых фраз словаря. Причина практическая: словарь живёт на
+// бэкенде, и до его выката кабинет клиники подписал бы кнопку барбершопным словом
+// «запись». Формулировки выбраны так, чтобы не согласовываться с родом: «Отменить
+// приём? Время освободится, в истории останется пометка об отмене» читается так же
+// верно, как «Отменить запись? ...». Готовый итог берётся из существующей фразы
+// booking.cancelledShort - она есть в обеих вертикалях с 20.08.2026.
 export function wireBookingCancel() {
   const row = document.getElementById('bkCancelRow');
   if (!row) return; // страница без этого блока (crm-master.html) - no-op
 
   function renderIdle() {
-    row.innerHTML = `<button type="button" class="btn btn-ghost btn-sm" id="bkCancelBtn">${escapeHtml(P('booking.cancelAction'))}</button>`;
+    row.innerHTML = `<button type="button" class="btn btn-ghost btn-sm" id="bkCancelBtn">Отменить ${escapeHtml(T('booking.acc'))}</button>`;
     row.querySelector('#bkCancelBtn').addEventListener('click', renderConfirm);
   }
 
   // Двухшаговое подтверждение прямо в строке - конвенция проекта (см. wireBookingDelete
   // выше), а не нативный confirm()
   function renderConfirm() {
-    row.innerHTML = `<span class="note" style="margin-right:8px">${escapeHtml(P('booking.cancelConfirm'))}</span>
+    row.innerHTML = `<span class="note" style="margin-right:8px">Отменить ${escapeHtml(T('booking.acc'))}? Время в расписании освободится, в истории останется пометка об отмене</span>
       <button class="btn btn-danger btn-sm" type="button" id="bkCancelYes">Да, отменить</button>
       <button class="btn btn-ghost btn-sm" type="button" id="bkCancelNo">Нет</button>`;
     row.querySelector('#bkCancelYes').addEventListener('click', doCancel);
@@ -314,16 +322,16 @@ export function wireBookingCancel() {
       // Уже отменённая запись - не ошибка сотрудника, а состояние: говорим прямо,
       // а не «HTTP 409»
       if (res.status === 409 && data.error === 'already_cancelled') {
-        row.innerHTML = `<span class="note">${escapeHtml(P('booking.cancelAlready'))}</span>`;
+        row.innerHTML = `<span class="note">${escapeHtml(P('booking.cancelledShort'))} ранее</span>`;
         return;
       }
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
       panel.dataset.realStatus = 'cancelled';
       // Что сказать клиенту про деньги - решает порог сервера, не интерфейс
       const refund = data.refundEligible
-        ? 'полный возврат положен'
-        : 'до начала меньше двух часов - полный возврат не положен';
-      row.innerHTML = `<span class="note">${escapeHtml(P('booking.cancelDone'))}. ${escapeHtml(refund)}</span>`;
+        ? 'Полный возврат положен'
+        : 'До начала меньше двух часов - полный возврат не положен';
+      row.innerHTML = `<span class="note">${escapeHtml(P('booking.cancelledShort'))}. ${escapeHtml(refund)}</span>`;
       // Календарь перерисует строку сам: сервер публикует событие bookings/cancelled,
       // и живое обновление (assets/crm-live.js) приводит день в актуальный вид без
       // перезагрузки страницы. Форму закрываем - работать с отменённой записью нечего
@@ -335,7 +343,7 @@ export function wireBookingCancel() {
       }
     } catch (err) {
       row.innerHTML = '';
-      showError(row, errorMessage(err, P('booking.cancelFailed')));
+      showError(row, errorMessage(err, `Не удалось отменить ${T('booking.acc')}`));
       setTimeout(renderIdle, 4000);
     }
   }
