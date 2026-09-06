@@ -408,12 +408,17 @@ async function handleRequest(req, res, url, parts, tenant) {
     }
     if (matchedRoute.auth !== 'public') {
       const gateAuth = await authenticate(req);
+      // 401 значит «мы не знаем, кто ты», 403 - «знаем, но тебе нельзя». Раньше оба
+      // случая отвечали 401, и кабинет показывал сотруднику без прав «Сессия
+      // закончилась. Войдите заново» (assets/crm-toast.js, STATUS_TEXT) - совет,
+      // который не помогает: сессия жива, повторный вход ничего не меняет, а человек
+      // входит по кругу и считает систему сломанной. Найдено 06.09.2026 при разборе
+      // жалобы «сыплются ошибки не удалось загрузить график».
+      if (!gateAuth) return sendJson(res, 401, { error: 'unauthorized' });
       if (matchedRoute.auth === 'management') {
-        if (!canManageStaff(gateAuth)) return sendJson(res, 401, { error: 'unauthorized' });
+        if (!canManageStaff(gateAuth)) return sendJson(res, 403, { error: 'forbidden' });
       } else if (matchedRoute.auth === 'owner') {
-        if (!requireRole(gateAuth, ['owner'])) return sendJson(res, 401, { error: 'unauthorized' });
-      } else if (!gateAuth) {
-        return sendJson(res, 401, { error: 'unauthorized' });
+        if (!requireRole(gateAuth, ['owner'])) return sendJson(res, 403, { error: 'forbidden' });
       }
     }
 

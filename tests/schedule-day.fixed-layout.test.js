@@ -30,8 +30,20 @@ test('День: шкала времени закреплена слева без
   assert.match(styles, /z-index:\s*\d+/);
   assert.match(styles, /background:\s*transparent/);
   assert.match(styles, /box-shadow:\s*none/);
-  assert.match(rowStyles, /width:\s*max-content/);
-  assert.match(rowStyles, /min-width:\s*100%/);
+  // Ширину строки задаёт область прокрутки, а не содержимое (правка 06.09.2026).
+  // Раньше здесь стоял width:max-content, и колонку растягивал самый длинный текст в
+  // карточке записи: на телефоне колонка врача уезжала за правый край экрана. Теперь
+  // разъезжается сетка - по минимуму колонок, то есть от числа врачей
+  assert.match(rowStyles, /width:\s*100%/);
+  assert.doesNotMatch(rowStyles, /max-content/);
+});
+
+test('День: колонки разъезжаются от числа врачей, а не от длины текста в записи', () => {
+  // Минимум колонки живёт в .schedule-grid и остаётся единственным, что включает
+  // горизонтальную прокрутку: три колонки по 220px не помещаются в телефон и дают
+  // скролл, одна занимает всю доступную ширину
+  assert.match(rule('.schedule-grid'), /grid-auto-columns:\s*minmax\(220px,\s*1fr\)/);
+  assert.match(rule('.panel-sp-day .schedule-row-with-gutter > .schedule-grid'), /min-width:\s*0/);
 });
 
 test('День: полупрозрачная панель часов ограничена дорожкой и не обрезает 10:00 или 20:00', () => {

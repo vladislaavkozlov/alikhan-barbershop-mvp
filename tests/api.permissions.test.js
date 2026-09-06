@@ -85,3 +85,22 @@ test('сервер проверяет актуальный доступ и CRM �
   assert.match(client, /manager: 'crm-owner\.html'/);
   assert.match(client, /isManagementIndicator/);
 });
+
+// 06.09.2026, разбор жалобы «сыплются ошибки: не удалось загрузить график». Гейт
+// реестра отвечал 401 и на «нет сессии», и на «сессия есть, но роль не та». Кабинет
+// переводит любой 401 в «Сессия закончилась. Войдите заново» (assets/crm-toast.js,
+// STATUS_TEXT) - и человек с недостающими правами входил по кругу, каждый раз получая
+// тот же совет. Разделение кодов важнее формальности: 401 говорит «войди», 403 -
+// «войти не поможет, дело в роли».
+test('гейт прав: 401 только когда сессии нет, нехватка роли - это 403', async () => {
+  const source = await readFile(new URL('../api/server.mjs', import.meta.url), 'utf8');
+  const gate = source.slice(source.indexOf("if (matchedRoute.auth !== 'public')"), source.indexOf('// /health обработан выше'));
+  assert.match(gate, /if \(!gateAuth\) return sendJson\(res, 401/, 'отсутствие сессии обязано оставаться 401');
+  assert.match(gate, /canManageStaff\(gateAuth\)\) return sendJson\(res, 403/, 'management без прав - 403');
+  assert.match(gate, /requireRole\(gateAuth, \['owner'\]\)\) return sendJson\(res, 403/, 'owner-роуты без прав - 403');
+  // Комментарии из проверки убираем: в них 401 и 403 упоминаются как раз для того,
+  // чтобы объяснить разницу, и ловить их регуляркой значит ловить собственный текст
+  const code = gate.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
+  const codeWithoutNoSession = code.replace(/if \(!gateAuth\) return sendJson\(res, 401[^\n]*\n/, '');
+  assert.doesNotMatch(codeWithoutNoSession, /401/, 'других 401 в гейте быть не должно');
+});
