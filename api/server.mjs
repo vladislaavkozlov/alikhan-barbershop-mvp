@@ -242,10 +242,10 @@ const ROUTES = [
   // Доля обсуждённых сроков по мастерам (Окно 59) - метрика того же круга, что вся
   // остальная аналитика
   { method: 'GET', path: 'analytics/renew-discussed', auth: 'management', module: 'missedProfit' },
-  // Недополученная прибыль (Окно 59) - раздел «Финансы», деньги и телефоны клиентов
+  // Недополученная выручка (Окно 59) - раздел «Финансы», деньги и телефоны клиентов
   { method: 'GET', path: 'finance/missed-profit', auth: 'management', module: 'missedProfit' },
   { method: 'GET', path: 'finance/missed-profit/clients', auth: 'management', module: 'missedProfit' },
-  // «Возвращено» - парная карточка к недополученной прибыли (02.09.2026). Тот же
+  // «Возвращено» - парная карточка к недополученной выручки (02.09.2026). Тот же
   // модуль арендатора: обе цифры про одни и те же деньги, порознь они неполны
   { method: 'GET', path: 'finance/returned', auth: 'management', module: 'missedProfit' },
   { method: 'GET', path: 'finance/returned/visits', auth: 'management', module: 'missedProfit' },
@@ -810,7 +810,7 @@ async function handleRequest(req, res, url, parts, tenant) {
       return handleAnalyticsRenewDiscussed(req, res, url);
     }
 
-    // ── /finance/missed-profit - «Недополученная прибыль» (Окно 59, 22.08.2026).
+    // ── /finance/missed-profit - «Недополученная выручка» (Окно 59, 22.08.2026).
     // Карточка отдаёт только суммы, список людей с телефонами - отдельной ручкой,
     // когда владелец действительно раскрыл список.
     if (parts[0] === 'finance' && parts[1] === 'missed-profit' && parts.length === 2 && req.method === 'GET') {

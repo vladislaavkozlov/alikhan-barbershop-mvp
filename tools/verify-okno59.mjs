@@ -1,4 +1,4 @@
-// Живой прогон Окна 59 «Недополученная прибыль» (22.08.2026).
+// Живой прогон Окна 59 «Недополученная выручка» (22.08.2026).
 //
 // Проверяем на эфемерной базе с заранее посчитанными руками цифрами: сеем визиты так,
 // чтобы правильный ответ был известен до запуска, и сверяем и API, и то, что человек
@@ -256,19 +256,19 @@ try {
         })()`);
         for (let i = 0; i < 80 && !(await s.eval('!!document.querySelector("#crmMain:not([hidden])")')); i++) await sleep(200);
 
-        // Карточка «Недополученная прибыль» в «Финансах»
+        // Карточка «Недополученная выручка» в «Финансах»
         await s.eval(`document.querySelector('.app-nav-item[data-section="finance"], label[for="pt-c"]')?.click()`);
         await sleep(400);
         const cardFound = (
           await s.eval(`(() => {
             const cards = [...document.querySelectorAll('.panel-c details.staff-card')];
-            const card = cards.find((c) => c.querySelector('.name')?.textContent.includes('Недополученная прибыль'));
+            const card = cards.find((c) => c.querySelector('.name')?.textContent.includes('Недополученная выручка'));
             if (!card) return 'нет карточки';
             card.open = true;
             return 'есть';
           })()`)
         );
-        eq('карточка «Недополученная прибыль» стоит в «Финансах»', cardFound, 'есть');
+        eq('карточка «Недополученная выручка» стоит в «Финансах»', cardFound, 'есть');
         // Смотрим вкладку «Год»: фикстура нарочно растянута на 112 дней, и на «Месяце»
         // часть людей в окно не попадает - это правильное поведение (см.
         // missedVisitsInWindow), но проверять списки удобнее там, где видны все

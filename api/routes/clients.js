@@ -550,7 +550,7 @@ export async function handleClientRenew(req, res, parts) {
   );
   const row = saved.rows[0];
   // Живое обновление открытых вкладок - тот же канал, что у статуса брони: срок влияет
-  // на «Недополученную прибыль», и она не должна показывать вчерашнюю картину
+  // на «Недополученную выручку», и она не должна показывать вчерашнюю картину
   publish('bookings', { clientId, reason: 'renew' });
   return sendJson(res, 200, {
     ok: true,

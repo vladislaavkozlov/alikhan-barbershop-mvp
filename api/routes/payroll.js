@@ -68,7 +68,7 @@ export async function computeMasterPayroll(client, masterId, from, to) {
   // Цена - как у /master-services на фронте (priceOf): своя цена мастера в
   // приоритете, общий прайс services - только страховка на случай пары, которую
   // почему-то не завели в master_services. С Окна 59 (22.08.2026) резолвер общий
-  // (api/lib/pricing.js) - его же спрашивает недополученная прибыль, чтобы деньги
+  // (api/lib/pricing.js) - его же спрашивает недополученная выручка, чтобы деньги
   // там и зарплата здесь считались по одной формуле, а не по двум похожим.
   const { visitPrice } = await loadPriceResolver(client, [masterId]);
 

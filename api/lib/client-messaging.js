@@ -354,7 +354,7 @@ export async function scanRenewOutreach(now = new Date(), db = pool) {
   // Кандидаты: у кого есть состоявшиеся визиты, канал и нет будущей записи.
   // Арифметику «пора или нет» здесь не считаем - её считает renewOutreachFor,
   // покрытая офлайн-тестами. SQL достаёт сырьё, решения принимаются в коде: тот
-  // же порядок, что у всей недополученной прибыли
+  // же порядок, что у всей недополученной выручки
   const candidates = await db.query(
     `SELECT c.id, c.renew_days, c.renew_reply, c.renew_reply_at,
             max(b.date) AS last_date
