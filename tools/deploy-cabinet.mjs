@@ -66,13 +66,10 @@ const PHOTO_SKIP = ['interior-honeycomb.jpg'];
 // (crest-hero) намеренно не заменяется ничем: это водяной знак на фоне рабочей
 // области, приём бренда Алихана, и чужой теме он не нужен - тема клиники этот фон
 // переопределяет совсем.
-// 08.09.2026: знак клиента больше не едет вовсе. Кабинет перешёл в собственный
-// бренд продукта (assets/crm-theme-kozlov.css), знак заведения в его шапке скрыт
-// темой, а на экране входа стоит знак продукта - вензель клиента лежал бы в
-// контуре мёртвым грузом. Название заведения кабинет по-прежнему показывает
-// текстом, получая его с сервера. Вернуть = раскомментировать карту и снять
-// правило .brand .brand-wordmark в теме.
-const BRAND_MAP = {};
+const BRAND_MAP = {
+  'wordmark-header.webp': 'brand/wordmark-header.webp',
+  'lockup-footer.webp': 'brand/lockup-footer.webp',
+};
 const ICON_MAP = {
   'favicon.ico': 'favicon.ico',
   'apple-touch-icon-180.png': 'apple-touch-icon.png',
