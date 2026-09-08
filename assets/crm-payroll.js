@@ -58,30 +58,6 @@ export function periodStartStr(period) {
 // как у любого мастера (правка Влада), и их комиссия входит в "Зарплаты мастеров"
 // наравне со всеми. При ставке 100% это значит, что "Чистый доход" по их собственным
 // визитам равен нулю - так и есть по правилу, которое стоит в поле.
-// Подпись периода под цифрами выручки (08.09.2026). Раздел «Финансы» открывается на
-// «Месяце», и в первых числах месяца человек видит три нуля без единого слова о том,
-// за какой отрезок они посчитаны - выглядит поломкой, хотя это правда. Подпись
-// называет отрезок, а когда выручки за него нет - говорит об этом прямо.
-const RV_MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-function humanDate(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return `${d} ${RV_MONTHS[m - 1] ?? ''}`;
-}
-function setPeriodNote(panelClass, startStr, endStr, isEmpty) {
-  const panel = document.querySelector(`.seg-panel.${panelClass}`);
-  if (!panel) return;
-  let note = panel.querySelector('.rv-period-note');
-  if (!note) {
-    note = document.createElement('p');
-    note.className = 'payroll-note rv-period-note';
-    panel.append(note);
-  }
-  const range = startStr === endStr ? humanDate(endStr) : `${humanDate(startStr)} - ${humanDate(endStr)}`;
-  note.textContent = isEmpty
-    ? `${range} · оплаченных визитов за этот период пока нет`
-    : range;
-}
-
 export async function renderRevenuePeriods(priceOf, pctOf, payrollFromActualPrice) {
   if (!el('rvAllWeekRevenue')) return; // элементов нет вне страницы владельца
 
@@ -116,7 +92,6 @@ export async function renderRevenuePeriods(priceOf, pctOf, payrollFromActualPric
     const start = periodStartStr(key);
     const rows = bookings.filter((b) => b.date >= start && b.date <= today);
     fill(`rvAll${label}`, rows);
-    setPeriodNote(`panel-rvpa-${key}`, start, today, rows.length === 0);
   }
 }
 

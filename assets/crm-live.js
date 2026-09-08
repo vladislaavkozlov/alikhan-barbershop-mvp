@@ -46,13 +46,6 @@ let stopped = false;
 let controller = null;
 let usingFallback = false;
 let streamAlive = false;
-// Сервер может отвечать, что поток событий у него выключен вовсе (404
-// events_disabled). До 08.09.2026 клиент этого ответа не отличал от обрыва связи и
-// продолжал стучаться в /events по кругу: в консоли кабинета копились ошибки 404 -
-// по одной каждые полминуты, час за часом. Ответ «выключено» - это не сбой, а
-// решение сервера, и повторять запрос бессмысленно: переходим на опрос-страховку
-// и больше поток не трогаем до перезагрузки страницы.
-let streamDisabled = false;
 let reconnectDelay = RECONNECT_MIN_MS;
 let authenticatedAt = 0;
 let lastChanges = null;
@@ -192,7 +185,7 @@ function handleLine(line) {
 // ── Поток событий ────────────────────────────────────────────────────────────
 async function connectStream() {
   const token = getToken();
-  if (!token || stopped || streamDisabled) return;
+  if (!token || stopped) return;
   controller = new AbortController();
   // Если первая строчка не пришла за STREAM_GRACE_MS - поток до нас не доезжает,
   // поднимаем опрос-страховку (сам поток при этом продолжаем пытаться держать)
@@ -204,12 +197,6 @@ async function connectStream() {
       headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal,
     });
-    if (res.status === 404) {
-      streamDisabled = true;
-      clearTimeout(graceTimer);
-      startFallbackPolling();
-      return;
-    }
     if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
     const reader = res.body.getReader();
     const decoder = new TextDecoder();

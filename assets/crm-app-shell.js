@@ -162,15 +162,7 @@ function sidebarMarkup() {
   // чистит сессию и токен (crm-auth.js), второй такой обработчик рано или поздно
   // разошёлся бы с первым, а цена расхождения здесь - зависшая сессия на телефоне
   // сотрудника. Одна кнопка-источник, вторая - только способ до неё дотянуться.
-  // Знак продукта в шапке панели (08.09.2026). До него верх меню был пустым полем:
-  // кабинет не подписывался никак, а название заведения в шапке читалось как имя
-  // системы. Здесь стоит знак САМОГО продукта - засечная «K» с чертой и словесный
-  // знак, один в один логотип сайта vladkozlovdigital.ru. Заведение остаётся внизу
-  // панели отдельной подписью: чей это кабинет и чем он сделан - разные вопросы
   return `
-    <div class="app-sidebar-brand" aria-label="KOZLOV">
-      <span class="kz-k" aria-hidden="true">K</span><span class="kz-word">KOZLOV</span>
-    </div>
     <nav class="app-nav">${items}</nav>
     <div class="app-sidebar-location">${window.__crmTerms?.tenantName?.() || ''}</div>
     <div class="app-sidebar-profile" id="appShellProfile">${activeConfig.profileLabel}</div>
@@ -334,59 +326,6 @@ export function getCurrentSection() {
   return currentSection;
 }
 
-// Разделы-отчёты открываются с раскрытым первым блоком (08.09.2026). До этого
-// «Финансы» и «Аналитика» встречали человека тремя свёрнутыми строками - раздел про
-// деньги не показывал ни одной цифры, пока по нему не кликнешь, и выглядел
-// оглавлением, а не отчётом. То же самое было в кабинете мастера («Мой день») и
-// администратора («Расписание»): четыре свёрнутые строки вместо самого дня.
-// У владельца «Расписание» раскрывал отдельный слушатель события crm:section
-// (правка 20.08.2026), у двух других кабинетов такого слушателя не было -
-// теперь правило одно на все три. Раскрывается только ПЕРВЫЙ вход в раздел за сессию:
-// дальше человек сам решает, что держать открытым, и переключение туда-обратно
-// больше не разворачивает то, что он свернул.
-const AUTO_OPEN_SECTIONS = new Set(['finance', 'analytics', 'today', 'schedule']);
-const autoOpenedSections = new Set();
-function autoOpenFirstPanel(sectionId) {
-  if (!AUTO_OPEN_SECTIONS.has(sectionId) || autoOpenedSections.has(sectionId)) return;
-  autoOpenedSections.add(sectionId);
-  // Карточки раздела рисует его собственный модуль, и на первом заходе их может ещё
-  // не быть в DOM (кабинет мастера открывается сразу на «Моём дне», данные приезжают
-  // позже). Поэтому не один кадр, а короткая серия попыток - до двух секунд, с
-  // остановкой на первой удачной
-  let attempts = 0;
-  const tryOpen = () => {
-    attempts += 1;
-    const panel = [...document.querySelectorAll('.tab-panel')].find((p) => p.offsetParent !== null);
-    const cards = panel ? [...panel.querySelectorAll('details.staff-card')] : [];
-    if (cards.length) {
-      if (!cards.some((card) => card.open)) cards[0].open = true;
-      return;
-    }
-    if (attempts < 10) setTimeout(tryOpen, 200);
-  };
-  requestAnimationFrame(tryOpen);
-}
-
-// Заголовок раздела над содержимым (08.09.2026). До него человек понимал, где он
-// находится, только по подсвеченному пункту меню слева: содержимое начиналось сразу
-// с поиска, аккордеона или ряда карточек - экран выглядел куском страницы, а не
-// разделом. Заголовок живёт ОДНИМ узлом в #crmMain, а не внутри панелей: панели
-// разделов перерисовываются своими модулями (поиск в «Пациентах» заменяет список
-// целиком), и заголовок внутри них то исчезал бы, то дублировался.
-function renderSectionHead(sectionId) {
-  const main = el('crmMain');
-  if (!main) return;
-  const label = activeConfig.label[sectionId];
-  if (!label) return;
-  let head = main.querySelector(':scope > .crm-section-head');
-  if (!head) {
-    head = document.createElement('header');
-    head.className = 'crm-section-head';
-    main.insertBefore(head, main.firstChild);
-  }
-  head.innerHTML = `<h1 class="crm-section-title">${label}</h1>`;
-}
-
 export function goToSection(sectionId) {
   if (!activeConfig.label[sectionId]) return;
   currentSection = sectionId;
@@ -399,8 +338,6 @@ export function goToSection(sectionId) {
   }
 
   updateActiveNav();
-  renderSectionHead(sectionId);
-  autoOpenFirstPanel(sectionId);
 
   // Выбрал раздел - шторка уходит и открывает то, что ты выбрал. Закрытие живёт
   // именно здесь, а не на клике по пункту меню, потому что в этот же раздел приводят

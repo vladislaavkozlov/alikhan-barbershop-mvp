@@ -345,39 +345,6 @@ function fullItemHtml(n) {
 
 // Сжатая строка - колокольчик. Ровно то же событие, но без кнопок и услуг: сюда
 // заглядывают между клиентами, чтобы понять «что-то новое есть?».
-// Лента раздела «Уведомления» разбита по дням (08.09.2026). Пятьдесят карточек шли
-// сплошным столбцом, и вопрос «что пришло сегодня» решался чтением каждой строки
-// «отменена 8 дн назад». Заголовок дня отвечает на него сразу: дальше человек читает
-// только нужный кусок ленты. День берётся по времени салона (МСК), тем же приёмом,
-// что и остальные даты в этом файле - иначе у сотрудника в другом поясе «сегодня»
-// разъедется с тем, что показывает расписание.
-function feedDayLabel(iso) {
-  if (!iso) return '';
-  const msk = new Date(new Date(iso).getTime() + 3 * 60 * 60 * 1000);
-  if (Number.isNaN(msk.getTime())) return '';
-  const date = msk.toISOString().slice(0, 10);
-  const today = shopTodayStr();
-  if (date === today) return 'Сегодня';
-  if (date === addDaysStr(today, -1)) return 'Вчера';
-  const [y, m, d] = date.split('-').map(Number);
-  const year = String(y) === today.slice(0, 4) ? '' : ` ${y}`;
-  return `${d} ${MONTHS[m - 1] ?? ''}${year}`;
-}
-
-function feedHtml(items) {
-  let currentDay = null;
-  const out = [];
-  for (const n of items) {
-    const day = feedDayLabel(n.createdAt);
-    if (day && day !== currentDay) {
-      currentDay = day;
-      out.push(`<div class="ntf-day">${escapeHtml(day)}</div>`);
-    }
-    out.push(fullItemHtml(n));
-  }
-  return out.join('');
-}
-
 function compactItemHtml(n) {
   const b = n.booking;
   const sub = b ? `${formatBookingWhen(b.date, b.startTime)}${b.clientName ? ' · ' + b.clientName : ''}` : (n.body ?? '');
@@ -521,7 +488,7 @@ export function wireNotifications(staff) {
         center.innerHTML = `<p class="note">${P('booking.emptyFeed')}</p>`;
         return;
       }
-      center.innerHTML = feedHtml(items);
+      center.innerHTML = items.map(fullItemHtml).join('');
       wireMessengerLinks(center); // кнопка MAX копирует номер (см. messengerLinks выше)
 
       center.querySelectorAll('.ntf-card').forEach((card) => {
