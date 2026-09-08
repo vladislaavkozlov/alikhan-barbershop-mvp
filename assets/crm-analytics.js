@@ -85,15 +85,25 @@ function plural(n, one, few, many) {
   return many;
 }
 
-function statCard({ label, value, note, lead = false, action = null }) {
+function statCard({ label, value, note, lead = false, action = null, share = null }) {
   // action - кнопка «N не вернулись» под цифрой. Кнопка, а не ссылка: никакой
   // навигации не происходит, список раскрывается тут же
   const actionHtml = action
     ? `<button type="button" class="sc-action" data-lapsed-months="${escapeHtml(action.months)}" data-lapsed-master="${escapeHtml(action.masterId)}" data-lapsed-title="${escapeHtml(label)}" title="Были один раз и больше месяца не приходили">${escapeHtml(action.count)} не ${plural(action.count, 'вернулся', 'вернулись', 'вернулись')}</button>`
     : '';
+  // Полоса доли под цифрой (08.09.2026). В разделе «Аналитика» не было ни одной
+  // картинки: девять карточек с процентами читались как таблица, и сравнить их
+  // между собой можно было только пересчитывая числа глазами. Полоса - тот же
+  // процент, показанный длиной: ряд карточек сравнивается с одного взгляда.
+  // Это оформление уже посчитанной цифры, отдельных данных она не вводит, поэтому
+  // скрыта от чтения с экрана - процент рядом озвучен словами
+  const shareHtml = share == null
+    ? ''
+    : `<div class="sc-bar" aria-hidden="true"><i style="width:${Math.max(0, Math.min(100, Number(share) || 0)).toFixed(1)}%"></i></div>`;
   return `<div class="stat-card${lead ? ' stat-card--net' : ''}">
     <div class="sc-label">${escapeHtml(label)}</div>
     <div class="sc-value">${escapeHtml(value)}</div>
+    ${shareHtml}
     ${note ? `<div class="sc-note">${escapeHtml(note)}</div>` : ''}
     ${actionHtml}
   </div>`;
@@ -119,6 +129,7 @@ export function retentionHtml(data, periodLabel) {
     lead: true,
     label: 'Вернулись повторно',
     value: pctText(salon.pct),
+    share: salon.pct,
     note: `${salon.returned} из ${salon.clients}`,
     action: lapsedSalon > 0 ? { months: data.months, masterId: '', count: lapsedSalon } : null,
   });
@@ -130,6 +141,7 @@ export function retentionHtml(data, periodLabel) {
         // вопрос «а когда он ушёл» - без этого цифры за период не с чем сопоставить
         label: m.employed ? m.name : `${m.name} (${firedLabel(m).toLowerCase()})`,
         value: pctText(m.pct),
+        share: m.clients === 0 ? null : m.pct,
         note: m.clients === 0 ? 'Нет визитов' : `${m.returned} из ${m.clients}`,
         action: m.clients - m.returned > 0 ? { months: data.months, masterId: m.masterId, count: m.clients - m.returned } : null,
       })
@@ -175,6 +187,7 @@ export function sourcesHtml(data, periodLabel) {
         // незаполненным в карточке
         label: row.key ? CLIENT_SOURCE_LABELS[row.key] ?? row.key : 'Источник не указан',
         value: pctText(row.pct),
+        share: row.pct,
         note: `${row.count} ${C('booking', row.count)}`,
       })
     )
@@ -201,6 +214,7 @@ export function discussedHtml(data, periodLabel) {
     lead: true,
     label: 'Срок проговорили',
     value: pctText(salon.pct),
+    share: salon.pct,
     note: `${salon.discussed} из ${salon.clients}`,
   });
   const masterCards = masters
@@ -208,6 +222,7 @@ export function discussedHtml(data, periodLabel) {
       statCard({
         label: m.employed ? m.name : `${m.name} (${firedLabel(m).toLowerCase()})`,
         value: pctText(m.pct),
+        share: m.clients === 0 ? null : m.pct,
         note: m.clients === 0 ? P('analytics.noClients') : `${m.discussed} из ${m.clients}`,
       })
     )

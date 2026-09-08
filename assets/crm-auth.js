@@ -72,9 +72,14 @@ function buildLoginGate() {
   div.className = 'login-gate';
   div.innerHTML = `
     <div class="login-card">
-      <p class="login-kicker">CRM</p>
-      <img class="login-brand-mark" src="assets/brand/lockup-footer.webp" alt="${tenantName()}" onerror="this.hidden=true;const n=this.nextElementSibling;if(n)n.hidden=false">
-      <p class="login-brand-name" hidden>${tenantName()}</p>
+      <!-- Знак продукта над названием заведения (08.09.2026). Раньше здесь стоял
+           фирменный вензель самого заведения, а подпись «CRM» была единственным
+           словом о системе - вход выглядел частью бренда салона. Теперь наоборот:
+           знак принадлежит продукту, а имя заведения идёт под ним подписью -->
+      <div class="login-brand" aria-label="KOZLOV">
+        <span class="kz-k" aria-hidden="true">K</span><span class="kz-word">KOZLOV</span>
+      </div>
+      <p class="login-brand-name">${tenantName()}</p>
       <p class="login-tag">Вход для сотрудников</p>
       <form id="loginForm" novalidate>
         <div class="field"><label for="loginEmail">Логин</label><input id="loginEmail" type="text" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
