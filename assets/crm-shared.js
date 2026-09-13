@@ -185,3 +185,22 @@ export async function fetchWithWakeup(url, init, options = {}) {
   }
   throw lastError ?? new Error('unreachable');
 }
+
+// Сводка будущих записей сотрудника (13.09.2026). Нужна там, где решение зависит от
+// того, ждут ли этого человека клиенты: снятие галки «Принимает клиентов» убирает его
+// из состава расписания, и живые записи вместе с ним пропадают с глаз (находка
+// владельца). Здесь, а не в assets/crm-team.js, ровно по одной причине: тот модуль
+// тянет за собой браузер, а такую арифметику обязан проверять офлайн-тест.
+//
+// Отменённые не считаются - они уже никого не ждут. Сравнение дат строковое: даты в
+// проекте везде YYYY-MM-DD, и часовой пояс браузера в это не вмешивается.
+export function futureBookingsSummary(bookings, today, formatDate = (iso) => iso) {
+  const alive = (bookings ?? [])
+    .filter((b) => b?.status !== 'cancelled' && String(b?.date ?? '') >= String(today))
+    .sort((a, b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`));
+  const first = alive[0] ?? null;
+  return {
+    total: alive.length,
+    nearest: first ? `${formatDate(first.date)} в ${String(first.startTime ?? '').slice(0, 5)}` : null,
+  };
+}

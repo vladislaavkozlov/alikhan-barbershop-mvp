@@ -487,3 +487,18 @@
 /* Карточка уволенного в «Финансах» - помечена рамкой, а не спрятана: суммы за
    отработанные периоды остаются полноценной строкой отчёта */
 .crm-navigation-ui .payroll-card-fired { border-style: dashed; }
+
+/* Предупреждение у тумблера «Принимает клиентов» (13.09.2026). Появляется только
+   тогда, когда галку снимают у сотрудника с будущими записями: решение принимается
+   у самого переключателя, и кнопки выбора должны стоять здесь же, а не в модальном
+   окне посреди экрана. Оформление - как у подтверждения увольнения в этой же
+   карточке (.team-employment), чтобы два однотипных решения выглядели одинаково */
+.crm-navigation-ui .team-accepts-warn {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface-2);
+}
+.crm-navigation-ui .team-accepts-warn .payroll-note { margin: 0 0 10px; }

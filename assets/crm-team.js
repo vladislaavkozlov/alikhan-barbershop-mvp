@@ -18,8 +18,8 @@ import { avatarMarkup } from './crm-avatar.js';
 import { cropSquareImage } from './crm-image-crop.js';
 import { hasWeeklyScheduleChanges, saveWeeklySchedule, wireWeeklyScheduleEditor } from './crm-schedule-editor.js';
 import { PHONE_PLACEHOLDER, formatStoredPhone, wirePhoneFields } from './crm-phone.js';
-import { todayStr } from './crm-shared.js';
-import { scheduleExceptionLabel } from './crm-schedule-shared.js';
+import { futureBookingsSummary, todayStr } from './crm-shared.js';
+import { addDays, scheduleExceptionLabel } from './crm-schedule-shared.js';
 import { dateSelectValue, renderDateSelect, renderTimeSelect, timeSelectValue } from './crm-widgets.js';
 import { T, Tc, P, C, currentAppearance } from './crm-terms.js';
 
@@ -55,6 +55,63 @@ const today = todayStr;
 // салона это читается хуже, чем привычные "15.08.2026" (тот же вид, что на кнопке
 // самого календаря-виджета).
 const humanDate = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso ?? '') ? iso.split('-').reverse().join('.') : String(iso ?? ''));
+
+// Снятие «Принимает клиентов» у сотрудника, к которому уже записаны люди
+// (13.09.2026, находка владельца). Дословно: «поставил себе галку "принимает
+// клиентов", сделал записи и убрал галку. Расписание исчезло, не уведомив о том, что
+// я больше не принимаю и клиентов нужно перенести».
+//
+// Что происходило. Флаг provides_services решает, попадёт ли человек в состав
+// расписания (mastersOf, assets/crm-calendar.js): снятая галка убирает его колонку из
+// «Дня» и строку из «Недели» с «Месяцем». Записи при этом остаются в базе живыми - их
+// просто негде увидеть. Ни кабинет, ни сервер (PUT /staff, api/routes/staff.js) об
+// этом не предупреждали ни словом, хотя у соседнего действия - увольнения - честное
+// предупреждение есть с самого начала (P('team.fireConfirm')).
+//
+// Горизонт в полгода, а не «все будущие»: столько вперёд реально пишут в клинике, и
+// это тот же потолок, что у напоминаний о повторном визите.
+const GORIZONT_ZAPISEY_DNEY = 180;
+
+// Сама арифметика живёт в assets/crm-shared.js (futureBookingsSummary): этот модуль
+// тянет за собой браузер и офлайн-тестом не проверяется, а считать записи нужно верно
+async function budushchieZapisi(staffId) {
+  const today = todayStr();
+  const po = addDays(today, GORIZONT_ZAPISEY_DNEY);
+  const res = await fetchJson(`/bookings?masterId=${encodeURIComponent(staffId)}&from=${today}&to=${po}`);
+  const svodka = futureBookingsSummary(res?.bookings ?? res ?? [], today, humanDate);
+  return { vsego: svodka.total, blizhayshaya: svodka.nearest };
+}
+
+// Предупреждение живёт у самого тумблера, а не только всплывающим окном: решение
+// принимается здесь, и список действий должен быть под рукой у переключателя. Тот же
+// приём, что у подтверждения увольнения (renderConfirmFire ниже) - две кнопки в самой
+// карточке, без модального окна
+function pokazatjPreduprezhdenie(card, svodka, name) {
+  const mesto = card.querySelector('[data-accepts-warn]');
+  if (!mesto) return;
+  mesto.hidden = false;
+  mesto.innerHTML = `<p class="payroll-note">${esc(P('team.acceptsOffHasBookings', { name, count: svodka.vsego, when: svodka.blizhayshaya ?? '' }))}</p>
+    <div class="team-employment-actions">
+      <button type="button" class="btn btn-danger btn-sm" data-accepts-off-yes>Всё равно снять</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-accepts-off-no>${esc(P('team.acceptsOffKeep'))}</button>
+    </div>`;
+  mesto.querySelector('[data-accepts-off-yes]').addEventListener('click', () => {
+    card.dataset.acceptsOffConfirmed = '1';
+    mesto.hidden = true;
+    mesto.innerHTML = '';
+    saveCard(card);
+  });
+  mesto.querySelector('[data-accepts-off-no]').addEventListener('click', () => {
+    // Галку возвращаем на место сами: человек отказался от действия, а не от
+    // сохранения остальной карточки
+    const tumbler = cardValue(card, 'providesServices');
+    if (tumbler) tumbler.checked = true;
+    mesto.hidden = true;
+    mesto.innerHTML = '';
+    updateSaveState(card);
+  });
+  mesto.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
 function toggleControl({ name, title, description, checked, disabled = false }) {
   return `<label class="toggle-row team-toggle-row"><span><span class="tr-label">${title}</span><span class="tr-sub">${description}</span></span><span class="switch"><input name="${name}" type="checkbox" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span class="track"></span><span class="knob"></span></span></label>`;
@@ -179,7 +236,7 @@ function staffCard(staff, viewerRole, locations, viewerId) {
       ? P('team.servicesOwnerSelf')
       : P('team.pickServices');
   return `<details class="staff-card team-editor-card" data-staff-id="${id}" data-role="${esc(staff.role)}" data-provides-services="${staff.providesServices ? '1' : '0'}" ${locked ? 'data-locked-owner' : ''}><summary>${avatarMarkup(staff)}<div class="summary-meta"><div class="name">${esc(staff.name)}</div><div class="role">${roleLabels()[staff.role] ?? staff.role}${staff.employed === false ? ` · ${esc(firedNote(staff))}` : ''}</div></div><span class="chevron">▸</span></summary><div class="staff-card-body">
-  ${section('Основное', detailsTitle, ICON_DETAILS,`<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Логин для входа</label><input name="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="например renat" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'providesServices', title: P('team.acceptsClients'), description: P('team.acceptsHint'), checked: staff.providesServices, disabled: fieldsLocked })}</div>`)}
+  ${section('Основное', detailsTitle, ICON_DETAILS,`<div class="team-editor-grid"><div class="field"><label>Имя</label><input name="name" autocomplete="name" placeholder="Имя и фамилия" value="${esc(staff.name)}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Телефон</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${PHONE_PLACEHOLDER}" value="${esc(formatStoredPhone(staff.phone))}" ${fieldsLocked ? 'disabled' : ''}></div><div class="field"><label>Логин для входа</label><input name="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="например renat" value="${esc(staff.email)}" ${fieldsLocked ? 'disabled' : ''}></div>${locationControl(staff, locations)}</div><div class="team-toggle-stack">${toggleControl({ name: 'providesServices', title: P('team.acceptsClients'), description: P('team.acceptsHint'), checked: staff.providesServices, disabled: fieldsLocked })}<div class="team-accepts-warn" data-accepts-warn hidden></div></div>`)}
   ${/* Фото, портфолио и витрина на сайте - управление составом медиа, а оно на сервере
        management-only (POST/DELETE /staff/:id/media). Администратору секцию не рисуем
        вовсе: кнопка «Выбрать фото» у него давала бы только 401 в ответ. */''}
@@ -386,6 +443,24 @@ async function saveCardSteps(card) {
         return scheduleResult.message ?? null;
       }
       return noteApiFail(card, scheduleResult, 'Не удалось сохранить график');
+    }
+  }
+  // Галку снимают у человека, к которому уже записаны люди - останавливаемся и
+  // спрашиваем. Проверка идёт ДО PUT: после него сотрудник уже вне расписания, и
+  // показывать список записей было бы поздно
+  if (providesServicesChanged && !value('providesServices').checked && card.dataset.acceptsOffConfirmed !== '1') {
+    const imya = card.querySelector('.summary-meta .name')?.textContent?.trim() || 'сотрудник';
+    let svodka = null;
+    try {
+      svodka = await budushchieZapisi(id);
+    } catch {
+      // Сеть подвела - молчать нельзя, но и запрещать сохранение из-за неудачной
+      // проверки тоже: говорим, что проверить не вышло, и пропускаем дальше
+      showNote(card, P('team.acceptsOffCheckFailed'));
+    }
+    if (svodka?.vsego) {
+      pokazatjPreduprezhdenie(card, svodka, imya);
+      return noteFail(card, P('team.acceptsOffShort', { count: svodka.vsego }));
     }
   }
   const main = await apiSend(`/staff/${encodeURIComponent(id)}`, 'PUT', {
