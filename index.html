@@ -152,7 +152,7 @@
       line-height:.98;
     }
     p{line-height:1.7}
-    .muted{color:var(--muted)}
+    
     .section-head{
       display:grid;
       grid-template-columns:minmax(0,1.1fr) minmax(280px,.65fr);
@@ -162,7 +162,6 @@
     }
     .section-copy{margin:0;color:var(--muted);font-size:1rem;max-width:560px}
     .section-copy strong{color:var(--ink);font-weight:600}
-    .hairline{height:1px;background:var(--line)}
 
     .btn{
       appearance:none;
@@ -184,12 +183,7 @@
     }
     .btn:hover{transform:translateY(-2px);background:var(--gold-soft)}
     .btn:active{transform:translateY(0) scale(.98)}
-    .btn.secondary{
-      background:transparent;
-      color:var(--ink);
-      border-color:var(--line-strong);
-    }
-    .btn.secondary:hover{background:rgba(255,255,255,.04);border-color:rgba(216,179,106,.55)}
+
     .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
     .btn.small{min-height:44px;padding:0 19px;font-size:.86rem}
 
@@ -219,16 +213,7 @@
       gap:12px;
       flex-shrink:0;
     }
-    .brand-word{
-      font-family:"Playfair Display",Georgia,serif;
-      letter-spacing:.11em;
-      font-size:1.22rem;
-    }
-    .brand-dot{
-      width:8px;height:8px;border-radius:50%;
-      background:var(--gold);
-      box-shadow:0 0 0 5px rgba(216,179,106,.1);
-    }
+
     .nav-links{
       margin-left:auto;
       display:flex;
@@ -244,232 +229,6 @@
     .nav-links a:hover{color:var(--ink)}
     .nav .btn{margin-left:10px}
 
-    .hero{
-      position:relative;
-      min-height:900px;
-      padding:146px 0 76px;
-      display:flex;
-      align-items:center;
-    }
-    .hero-grid{
-      display:grid;
-      grid-template-columns:minmax(0,.88fr) minmax(440px,1.12fr);
-      align-items:center;
-      gap:66px;
-    }
-    .hero-copy{position:relative;z-index:4}
-    .hero-kicker{
-      display:inline-flex;
-      align-items:center;
-      gap:10px;
-      margin-bottom:26px;
-      color:var(--gold-soft);
-      font-size:.77rem;
-      letter-spacing:.14em;
-      text-transform:uppercase;
-    }
-    .hero-kicker::before{content:"";width:36px;height:1px;background:var(--gold)}
-    .hero h1{
-      font-size:clamp(3.45rem,5.7vw,6.25rem);
-      line-height:.94;
-      max-width:720px;
-      text-wrap:balance;
-    }
-    .hero h1 .accent{color:var(--gold)}
-    .hero-lead{
-      margin:28px 0 0;
-      max-width:600px;
-      font-size:clamp(1.02rem,1.5vw,1.18rem);
-      color:#c4c2b8;
-      line-height:1.7;
-    }
-    .hero-actions{
-      margin-top:34px;
-      display:flex;
-      flex-wrap:wrap;
-      gap:12px;
-    }
-    .hero-micro{
-      margin-top:24px;
-      color:var(--muted-2);
-      font-size:.82rem;
-      display:flex;
-      flex-wrap:wrap;
-      gap:18px;
-    }
-    .hero-micro span{display:flex;align-items:center;gap:8px}
-    .hero-micro span::before{
-      content:"";
-      width:5px;height:5px;border-radius:50%;
-      background:var(--gold);
-    }
-
-    .hero-media{
-      position:relative;
-      height:690px;
-      min-width:0;
-    }
-    .hero-main{
-      position:absolute;
-      inset:0 0 56px 86px;
-      overflow:hidden;
-      border-radius:170px 24px 24px 24px;
-      box-shadow:var(--shadow);
-      border:1px solid rgba(255,255,255,.09);
-    }
-    .hero-main::after{
-      content:"";
-      position:absolute;
-      inset:0;
-      background:linear-gradient(180deg,transparent 55%,rgba(8,11,9,.52));
-      pointer-events:none;
-    }
-    .hero-main img{width:100%;height:100%;object-fit:cover;object-position:50% 18%}
-    .hero-small{
-      position:absolute;
-      width:250px;
-      left:0;
-      bottom:0;
-      overflow:hidden;
-      border-radius:18px;
-      border:10px solid var(--bg);
-      box-shadow:0 18px 50px rgba(0,0,0,.4);
-    }
-    .hero-small img{width:100%;aspect-ratio:4/5;object-fit:cover}
-    .hero-rating{
-      position:absolute;
-      right:-18px;
-      bottom:25px;
-      z-index:3;
-      width:210px;
-      padding:18px 20px;
-      background:rgba(22,28,24,.9);
-      border:1px solid var(--line-strong);
-      border-radius:18px;
-      backdrop-filter:blur(16px);
-      -webkit-backdrop-filter:blur(16px);
-      box-shadow:0 16px 50px rgba(0,0,0,.3);
-      text-decoration:none;
-    }
-    .hero-rating strong{
-      display:block;
-      font-family:"Playfair Display",Georgia,serif;
-      font-size:1.75rem;
-      line-height:1;
-      color:var(--gold-soft);
-    }
-    .hero-rating span{display:block;margin-top:7px;color:var(--muted);font-size:.78rem}
-    .hero-ornament{
-      position:absolute;
-      width:240px;height:240px;
-      border:1px solid rgba(216,179,106,.23);
-      border-radius:50%;
-      right:10%;
-      top:16%;
-      z-index:-1;
-    }
-    .hero-ornament::after{
-      content:"";
-      position:absolute;inset:28px;
-      border:1px solid rgba(216,179,106,.12);
-      border-radius:50%;
-    }
-
-    .trust{
-      border-top:1px solid var(--line);
-      border-bottom:1px solid var(--line);
-      background:rgba(255,255,255,.015);
-    }
-    .trust-grid{
-      display:grid;
-      grid-template-columns:1.35fr .8fr .8fr .9fr;
-      min-height:112px;
-    }
-    .trust-item{
-      padding:27px 24px;
-      border-left:1px solid var(--line);
-      display:flex;
-      flex-direction:column;
-      justify-content:center;
-    }
-    .trust-item:first-child{border-left:0;padding-left:0}
-    .trust-label{
-      color:var(--muted-2);
-      text-transform:uppercase;
-      letter-spacing:.1em;
-      font-size:.68rem;
-      margin-bottom:7px;
-    }
-    .trust-value{font-size:.92rem}
-    .trust-value a{text-decoration:none}
-    .trust-value a:hover{color:var(--gold)}
-
-    .why-grid{
-      display:grid;
-      grid-template-columns:repeat(3,1fr);
-      gap:1px;
-      background:var(--line);
-      border:1px solid var(--line);
-      border-radius:var(--radius);
-      overflow:hidden;
-    }
-    .why-card{
-      min-height:290px;
-      padding:38px 34px;
-      background:var(--bg-soft);
-      position:relative;
-    }
-    .why-num{
-      color:var(--gold);
-      font-size:.72rem;
-      letter-spacing:.15em;
-      margin-bottom:68px;
-    }
-    .why-card h3{
-      font-size:1.6rem;
-      margin-bottom:14px;
-      letter-spacing:-.02em;
-    }
-    .why-card p{margin:0;color:var(--muted);font-size:.93rem}
-
-    .work-stage{
-      display:grid;
-      grid-template-columns:1.2fr .8fr;
-      gap:18px;
-      align-items:stretch;
-    }
-    .work-main,
-    .work-secondary,
-    .work-interior{
-      overflow:hidden;
-      position:relative;
-      border:1px solid var(--line);
-      background:var(--panel);
-    }
-    .work-main{border-radius:28px;min-height:680px}
-    .work-side{display:grid;grid-template-rows:1fr 1fr;gap:18px}
-    .work-secondary,.work-interior{border-radius:22px;min-height:330px}
-    .work-main img,.work-secondary img,.work-interior img{
-      width:100%;height:100%;object-fit:cover;
-      transition:transform .8s var(--ease);
-    }
-    .work-main:hover img,.work-secondary:hover img,.work-interior:hover img{transform:scale(1.025)}
-    .photo-label{
-      position:absolute;
-      left:14px;bottom:14px;
-      padding:8px 14px;
-      border-radius:999px;
-      background:rgba(15,18,16,.86);
-      backdrop-filter:blur(14px);
-      -webkit-backdrop-filter:blur(14px);
-      border:1px solid rgba(216,179,106,.28);
-      font-size:.72rem;
-      color:#dedbd1;
-      max-width:190px;
-      text-align:center;
-      z-index:2;
-    }
-
     #masters{
       background:
         linear-gradient(180deg,rgba(15,18,16,.98),rgba(15,18,16,.84),rgba(15,18,16,.98)),
@@ -480,25 +239,9 @@
       grid-template-columns:repeat(3,1fr);
       gap:18px;
     }
-    .master-card{
-      background:rgba(24,30,26,.82);
-      border:1px solid var(--line);
-      border-radius:22px;
-      padding:26px;
-      text-align:left;
-      min-width:0;
-      backdrop-filter:blur(8px);
-      -webkit-backdrop-filter:blur(8px);
-      transition:transform .25s var(--ease),border-color .25s var(--ease),background .25s var(--ease);
-    }
-    .master-photo{overflow:hidden;padding:0!important}
-    .master-photo img{width:100%;height:100%;object-fit:cover;display:block}
+    .master-card{text-align:left;min-width:0}
+
     .master-profile-detail{margin:8px 0;color:var(--muted);font-size:.88rem;line-height:1.4}
-    .master-card:hover{
-      transform:translateY(-5px);
-      border-color:rgba(216,179,106,.42);
-      background:rgba(29,37,31,.9);
-    }
     .master-avatar{
       width:100%;
       aspect-ratio:4/4.6;
@@ -544,7 +287,7 @@
       letter-spacing:-.02em;
       margin-bottom:5px;
     }
-    .master-window{font-size:.82rem;color:var(--gold-soft)}
+    
     .master-profile-detail{
       margin:12px 0 0;
       color:var(--muted);
@@ -580,7 +323,6 @@
     }
     .master-cta::after{content:"→";transition:transform .2s var(--ease)}
     .master-card:hover .master-cta::after{transform:translateX(4px)}
-    .masters-disclaimer{display:none}
 
     .price-shell{
       display:grid;
@@ -647,81 +389,6 @@
       inset:0;
       pointer-events:none;
       background:linear-gradient(180deg,rgba(255,255,255,.018),transparent 30%,rgba(0,0,0,.12));
-    }
-    .story-grid{
-      position:relative;
-      display:grid;
-      grid-template-columns:minmax(0,1.06fr) minmax(0,.94fr);
-      align-items:center;
-      gap:72px;
-    }
-    .story-photo{
-      position:relative;
-      min-height:560px;
-      overflow:hidden;
-      border-radius:30px 10px 30px 10px;
-      border:1px solid rgba(216,179,106,.22);
-      box-shadow:0 34px 90px rgba(0,0,0,.34);
-      isolation:isolate;
-    }
-    .story-photo img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
-    .story-photo::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      z-index:1;
-      pointer-events:none;
-      background:
-        linear-gradient(180deg,rgba(8,12,10,.02) 48%,rgba(8,13,10,.62) 100%),
-        linear-gradient(90deg,rgba(216,179,106,.08),transparent 26%);
-    }
-    .story-photo::after{
-      content:"Мастер-класс Kóndor";
-      position:absolute;
-      left:24px;bottom:22px;
-      z-index:2;
-      padding:9px 14px;
-      border-radius:999px;
-      border:1px solid rgba(216,179,106,.30);
-      background:rgba(12,16,14,.72);
-      backdrop-filter:blur(12px);
-      -webkit-backdrop-filter:blur(12px);
-      color:#e7e1d5;
-      font-size:.72rem;
-      letter-spacing:.08em;
-      text-transform:uppercase;
-    }
-    .story-copy{
-      padding:18px 0;
-      display:flex;
-      flex-direction:column;
-      justify-content:center;
-    }
-    .story-copy .eyebrow{color:var(--gold-soft)}
-    .story-copy h2{font-size:clamp(2.75rem,4.4vw,4.75rem);max-width:650px}
-    .story-copy p{color:#c6cbc5;max-width:570px}
-
-    .story-proof{
-      margin:24px 0 0;
-      padding:18px 20px;
-      border:1px solid rgba(216,179,106,.26);
-      border-radius:16px;
-      background:rgba(15,18,16,.16);
-    }
-    .story-proof strong{
-      color:var(--gold-soft);
-      font-family:"Playfair Display",Georgia,serif;
-      font-size:1.28rem;
-      letter-spacing:.01em;
-    }
-    .story-copy .big{
-      margin-top:28px;
-      padding-top:28px;
-      border-top:1px solid rgba(216,179,106,.24);
-      font-family:"Playfair Display",Georgia,serif;
-      font-size:1.45rem;
-      color:var(--ink);
-      line-height:1.35;
     }
 
     .booking{
@@ -973,41 +640,6 @@
     .receipt-row span{color:#667069}
     .receipt-row b{text-align:right}
 
-    .ratings{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:18px;
-    }
-    .rating-card{
-      position:relative;
-      padding:34px;
-      min-height:240px;
-      background:var(--panel);
-      border:1px solid var(--line);
-      border-radius:22px;
-      text-decoration:none;
-      display:flex;
-      flex-direction:column;
-      justify-content:space-between;
-      transition:transform .25s var(--ease),border-color .25s ease;
-    }
-    .rating-card:hover{transform:translateY(-4px);border-color:rgba(216,179,106,.4)}
-    .rating-number{
-      font-family:"Playfair Display",Georgia,serif;
-      font-size:4rem;
-      line-height:.9;
-      color:var(--gold-soft);
-    }
-    .rating-card p{margin:14px 0 0;color:var(--muted)}
-
-    .rating-card.secondary-review .rating-number{
-      font-size:2rem;
-      color:var(--ink);
-      line-height:1;
-    }
-    .rating-number-word{font-size:2.35rem;letter-spacing:-.03em}
-    .rating-arrow{position:absolute;right:28px;top:28px;color:var(--gold);font-size:1.4rem}
-
     .faq{display:grid;grid-template-columns:.7fr 1.3fr;gap:70px}
     .faq h2{font-size:clamp(2.7rem,5vw,4.6rem);position:sticky;top:120px}
     .faq-list{border-top:1px solid var(--line)}
@@ -1029,42 +661,6 @@
 
     .contacts{
       padding:0 0 90px;
-    }
-    .contacts-card{
-      overflow:hidden;
-      border-radius:28px;
-      border:1px solid var(--line);
-      display:grid;
-      grid-template-columns:.85fr 1.15fr;
-      min-height:540px;
-      background:var(--panel);
-    }
-    .contact-content{padding:48px;display:flex;flex-direction:column}
-    .contact-content h2{font-size:clamp(2.6rem,5vw,4.6rem)}
-    .contact-list{
-      list-style:none;
-      margin:34px 0 0;
-      padding:0;
-      border-top:1px solid var(--line);
-    }
-    .contact-list li{
-      padding:17px 0;
-      border-bottom:1px solid var(--line);
-      display:grid;
-      grid-template-columns:100px 1fr;
-      gap:18px;
-      font-size:.88rem;
-    }
-    .contact-list .k{color:var(--muted-2);font-size:.69rem;text-transform:uppercase;letter-spacing:.09em}
-    .contact-list .v{color:#dedbd2}
-    .contact-list a{text-decoration:none}
-    .contact-list a:hover{color:var(--gold)}
-    .contact-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:auto;padding-top:28px}
-    .contact-image{min-height:100%;position:relative}
-    .contact-image img{width:100%;height:100%;object-fit:cover}
-    .contact-image::after{
-      content:"";position:absolute;inset:0;
-      background:linear-gradient(90deg,rgba(25,31,27,.18),transparent 25%)
     }
 
     footer{
@@ -1144,27 +740,12 @@
     @media (max-width:1000px){
       .nav-links{display:none}
       .menu-toggle{display:block}
-      .hero{min-height:auto;padding-top:120px}
-      .hero-grid{grid-template-columns:1fr;gap:46px}
-      .hero-copy{max-width:800px}
-      .hero-media{height:610px;max-width:720px;width:100%;margin:0 auto}
-      .trust-grid{grid-template-columns:1fr 1fr}
-      .trust-item:nth-child(3){border-left:0;border-top:1px solid var(--line)}
-      .trust-item:nth-child(4){border-top:1px solid var(--line)}
-      .trust-item:first-child{padding-left:24px}
-      .why-grid{grid-template-columns:1fr}
-      .why-card{min-height:auto}
-      .why-num{margin-bottom:38px}
+
       .masters-grid{grid-template-columns:repeat(2,1fr)}
       .price-shell,.booking-layout,.faq{grid-template-columns:1fr;gap:44px}
       .price-sticky,.booking-intro,.faq h2{position:static}
       .story{padding:72px 0}
-      .story-grid{grid-template-columns:1fr;gap:34px}
-      .story-photo{min-height:520px}
-      .story-copy{padding:0}
-      .story-photo::after{left:20px;bottom:18px}
-      .contacts-card{grid-template-columns:1fr}
-      .contact-image{min-height:440px;grid-row:1}
+
     }
 
     @media (max-width:720px){
@@ -1174,78 +755,17 @@
       .section-head{grid-template-columns:1fr;gap:18px;margin-bottom:34px}
       .site-header .nav{min-height:68px}
       .nav>.btn{display:none}
-      .brand-word{font-size:1.08rem}
-      .hero{padding:104px 0 46px}
-      .hero h1{font-size:clamp(2.7rem,11.6vw,4.05rem);line-height:.98;max-width:12ch}
-      .hero-lead{font-size:.98rem;margin-top:22px}
-      .hero-actions{display:grid;grid-template-columns:1fr 1fr}
-      .hero-actions .btn{padding:0 14px}
-      .hero-micro{gap:10px 16px}
-      .hero-media{height:510px}
-      .hero-main{inset:0 0 46px 40px;border-radius:100px 18px 18px 18px}
-      .hero-small{width:160px;border-width:7px}
-      .hero-rating{right:10px;bottom:14px;width:175px;padding:14px 16px}
-      .hero-rating strong{font-size:1.45rem}
-      .trust-grid{grid-template-columns:1fr 1fr}
-      .trust-item{padding:20px 12px}
-      .trust-item:first-child{padding-left:12px}
-      .trust-value{font-size:.8rem}
-      .work-stage{grid-template-columns:1fr}
-      .work-main{min-height:540px}
-      .work-side{grid-template-columns:1fr 1fr;grid-template-rows:none}
-      .work-secondary,.work-interior{min-height:240px}
+
       .masters-grid{grid-template-columns:1fr}
-      .master-card{padding:18px}
       .master-avatar{aspect-ratio:4/2.8;min-height:180px}
       .story{padding:56px 0}
-      .story-grid{gap:28px}
-      .story-photo{min-height:370px;border-radius:22px 8px 22px 8px}
-      .story-copy h2{font-size:clamp(2.45rem,11vw,3.7rem)}
-      .story-copy .big{font-size:1.25rem}
+
       .booking-shell{padding:22px;border-radius:20px}
       .option-card{min-width:132px}
-      .ratings{grid-template-columns:1fr}
-      .contact-content{padding:28px 22px}
-      .contact-list li{grid-template-columns:82px 1fr}
-      .contact-image{min-height:360px}
+
       .mobile-cta{display:block}
       footer{padding-bottom:110px}
     }
-
-    @media (max-width:480px){
-      .hero-actions{grid-template-columns:1fr}
-      .hero-media{height:450px}
-      .hero-main{inset:0 0 38px 26px;border-radius:78px 16px 16px 16px}
-      .hero-small{width:138px}
-      .hero-rating{width:158px}
-      .hero-rating span{font-size:.7rem}
-      .work-main{min-height:480px}
-      .work-side{grid-template-columns:1fr}
-      .work-secondary,.work-interior{min-height:360px}
-      .trust-grid{grid-template-columns:1fr}
-      .trust-item,.trust-item:nth-child(3){border-left:0;border-top:1px solid var(--line)}
-      .trust-item:first-child{border-top:0}
-    }
-  
-    .brand-logo {
-      min-width: 0;
-      height: 58px;
-      display: flex;
-      align-items: center;
-    }
-    .brand-logo-wide {
-      width: 188px;
-      height: 50px;
-      object-fit: contain;
-      object-position: left center;
-    }
-    .brand-logo-mark {
-      display: none;
-      width: 46px;
-      height: 40px;
-      object-fit: contain;
-    }
-    .brand-dot,.brand-word { display:none !important; }
 
     .brand-lockup {
       display:flex;
@@ -1264,126 +784,7 @@
 
     /* Если локальный браузер блокирует внешнее фото, не показываем синий "?".
        Вместо него остаётся аккуратная фирменная подложка. */
-    .media-fallback {
-      background:
-        radial-gradient(circle at 70% 20%, rgba(222,193,146,.09), transparent 38%),
-        linear-gradient(145deg,#1E2F1F,#111613);
-      position:relative;
-    }
-    .media-fallback::after {
-      content:"АЛИХАН";
-      position:absolute;
-      inset:0;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      color:rgba(222,193,146,.34);
-      font-family:"Playfair Display",Georgia,serif;
-      font-size:clamp(1.1rem,3vw,2rem);
-      letter-spacing:.18em;
-      pointer-events:none;
-    }
 
-    @media (max-width:720px){
-      .brand-logo {
-        height:50px;
-      }
-      .brand-logo-wide {
-        width:142px;
-        height:40px;
-      }
-    }
-
-    @media (max-width:390px){
-      .brand-logo-wide { display:none; }
-      .brand-logo-mark {
-        display:block;
-        width:56px;
-        height:42px;
-      }
-    }
-
-  
-    .brand-crest-link{
-      height:64px;
-      display:flex;
-      align-items:center;
-      justify-content:flex-start;
-      overflow:visible;
-    }
-    .brand-crest-header{
-      display:block;
-      width:116px;
-      height:60px;
-      object-fit:contain;
-      object-position:left center;
-      filter:drop-shadow(0 4px 14px rgba(0,0,0,.18));
-    }
-    @media (max-width:720px){
-      .brand-crest-link{height:56px}
-      .brand-crest-header{
-        width:96px;
-        height:52px;
-      }
-    }
-    @media (max-width:390px){
-      .brand-crest-header{
-        width:88px;
-        height:48px;
-      }
-    }
-
-  
-    .brand-combo-link{
-      height:64px;
-      display:flex;
-      align-items:center;
-      gap:12px;
-      overflow:visible;
-    }
-    .brand-combo-crest{
-      display:block;
-      width:74px;
-      height:54px;
-      object-fit:contain;
-      flex:0 0 auto;
-      filter:drop-shadow(0 4px 14px rgba(0,0,0,.18));
-    }
-    .brand-combo-wordmark{
-      display:block;
-      width:150px;
-      height:44px;
-      object-fit:contain;
-      object-position:left center;
-      flex:0 0 auto;
-    }
-    @media (max-width:720px){
-      .brand-combo-link{
-        height:56px;
-        gap:9px;
-      }
-      .brand-combo-crest{
-        width:58px;
-        height:46px;
-      }
-      .brand-combo-wordmark{
-        width:128px;
-        height:38px;
-      }
-    }
-    @media (max-width:390px){
-      .brand-combo-link{gap:7px}
-      .brand-combo-crest{
-        width:50px;
-        height:42px;
-      }
-      .brand-combo-wordmark{
-        width:112px;
-        height:34px;
-      }
-    }
-
-  
     .brand-wordmark-link{
       height:64px;
       display:flex;
@@ -1399,30 +800,13 @@
       flex:0 0 auto;
     }
 
-    .hero-brand-mark{
-      position:absolute;
-      right:clamp(18px,5vw,84px);
-      top:112px;
-      width:clamp(170px,22vw,320px);
-      height:auto;
-      opacity:.055;
-      pointer-events:none;
-      user-select:none;
-      z-index:0;
-    }
-
     @media (max-width:720px){
       .brand-wordmark-link{height:56px}
       .brand-wordmark-header{
         width:148px;
         height:40px;
       }
-      .hero-brand-mark{
-        right:-38px;
-        top:118px;
-        width:210px;
-        opacity:.045;
-      }
+      
     }
 
     @media (max-width:390px){
@@ -1432,86 +816,10 @@
       }
     }
 
-
     /* Финальный компактный логотип: обычная буква А + название, без миниатюрной эмблемы */
-    .site-header .brand-simple{
-      height:60px;
-      gap:12px;
-      color:var(--ink);
-    }
-    .site-header .brand-letter{
-      width:42px;
-      height:42px;
-      display:grid;
-      place-items:center;
-      flex:0 0 auto;
-      font-family:"Playfair Display",Georgia,serif;
-      font-size:2.05rem;
-      line-height:1;
-      color:var(--gold-soft);
-      border:1px solid rgba(216,179,106,.30);
-      border-radius:12px;
-      background:rgba(216,179,106,.045);
-    }
-    .site-header .brand-simple .brand-word{
-      display:inline-block !important;
-      font-family:"Playfair Display",Georgia,serif;
-      font-size:1.2rem;
-      letter-spacing:.12em;
-      color:var(--ink);
-    }
 
     /* Продающий слой над динамическим прайсом - не дублирует цены из CRM */
-    .services-showcase{
-      padding:94px 0 38px;
-      background:linear-gradient(180deg,rgba(255,255,255,.012),transparent);
-    }
-    .services-showcase .section-head{margin-bottom:42px}
-    .service-value-grid{
-      display:grid;
-      grid-template-columns:repeat(3,1fr);
-      gap:18px;
-    }
-    .service-value-card{
-      position:relative;
-      min-height:300px;
-      padding:30px;
-      overflow:hidden;
-      border:1px solid var(--line);
-      border-radius:22px;
-      background:
-        radial-gradient(circle at 100% 0%,rgba(216,179,106,.09),transparent 45%),
-        var(--panel);
-      transition:transform .25s var(--ease),border-color .25s ease;
-    }
-    .service-value-card:hover{transform:translateY(-4px);border-color:rgba(216,179,106,.36)}
-    .service-value-num{
-      margin-bottom:72px;
-      font-size:.72rem;
-      letter-spacing:.16em;
-      color:var(--gold);
-    }
-    .service-value-card h3{
-      margin:0 0 13px;
-      font-family:"Playfair Display",Georgia,serif;
-      font-size:1.65rem;
-      line-height:1.05;
-    }
-    .service-value-card p{margin:0;color:var(--muted);font-size:.92rem;line-height:1.62}
-    .services-showcase .services-cta{margin-top:28px}
-    @media (max-width:900px){
-      .service-value-grid{grid-template-columns:1fr}
-      .service-value-card{min-height:auto}
-      .service-value-num{margin-bottom:38px}
-    }
-    @media (max-width:720px){
-      .site-header .brand-simple{height:54px;gap:10px}
-      .site-header .brand-letter{width:38px;height:38px;font-size:1.85rem;border-radius:10px}
-      .site-header .brand-simple .brand-word{font-size:1.08rem}
-      .services-showcase{padding:70px 0 24px}
-      .service-value-card{padding:24px}
-    }
-  
+
 .visible-team .master-card{display:flex!important;flex-direction:column!important;gap:12px;}
 .visible-team .master-avatar img{width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:16px;}
 .master-fallback{display:flex;align-items:center;justify-content:center;font-size:42px;font-weight:600;color:#d8bf8b;background:#1b211e;}
@@ -1519,36 +827,12 @@
 
 <style id="premium-service-stability-fix">
 /* Stabilize service selection panels */
-.service-card,
-.service-item,
-.booking-service,
 [class*="service"] {
   transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
 
-.service-card,
-.service-item,
-.booking-service {
-  min-height: 88px;
-}
-
-.service-card.expanded,
-.service-item.expanded,
-.booking-service.expanded {
-  min-height: 88px;
-}
-
-.booking-service,
-.service-item {
-  overflow-anchor: none;
-}
-
 /* Prevent layout jumps from animated content */
-.service-details,
-.service-description {
-  overflow: hidden;
-  transition: max-height .25s ease, opacity .2s ease;
-}
+
 </style>
 
 
@@ -1569,11 +853,7 @@
     object-position:left center;
     filter:drop-shadow(0 4px 16px rgba(0,0,0,.18));
   }
-  .hero-brand-mark{
-    width:clamp(190px,23vw,340px);
-    opacity:.065;
-    filter:drop-shadow(0 12px 36px rgba(0,0,0,.18));
-  }
+  
   .brand-lockup{
     padding:42px 20px;
     background:
@@ -1587,7 +867,7 @@
   @media (max-width:720px){
     .site-header .brand-wordmark-link{height:54px}
     .site-header .brand-wordmark-header{width:146px;height:38px}
-    .hero-brand-mark{right:-34px;top:116px;width:220px;opacity:.05}
+    
     .brand-lockup{padding:34px 18px}
   }
   @media (max-width:390px){
@@ -1747,7 +1027,6 @@
     .sl-quote{font-size:1.2rem}
   }
 
-
   /* «Ближайшие окна»: строки живого расписания, не карточки. Время крупной засечкой -
      это главное число строки, всё остальное тихим гротеском */
   .nearest{border-top:1px solid var(--line)}
@@ -1794,8 +1073,7 @@
      роль тихим капсом, выбор мастера тонкой ссылкой. Классы общие для разметки и данных из CRM */
   #masters{background:var(--bg)}
   .masters-grid{gap:72px 48px}
-  .master-card{background:none;border:0;border-radius:0;padding:0;backdrop-filter:none;-webkit-backdrop-filter:none;display:flex;flex-direction:column}
-  .master-card:hover{transform:none;background:none}
+  .master-card{display:flex;flex-direction:column}
   .master-avatar,.master-avatar:has(img){aspect-ratio:4/5;border-radius:0;margin:0 0 24px;background:var(--bg-soft)}
   .master-avatar::after{display:none}
   .master-avatar img,.visible-team .master-avatar img{border-radius:0;transition:transform 1.2s cubic-bezier(.2,.7,.2,1)}
