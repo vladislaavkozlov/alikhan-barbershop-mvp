@@ -439,8 +439,20 @@ function renderPrice() {
   priceGrid.replaceChildren();
   let i = 0;
   for (const service of services) {
-    const card = document.createElement('div');
+    // 26.09.2026: строка прайса - кнопка «записаться на эту услугу»: отмечает её
+    // в форме записи (по общим правилам выбора) и ведёт к следующему шагу
+    const card = document.createElement('button');
+    card.type = 'button';
     card.className = 'price-card';
+    card.setAttribute('aria-label', `${service.name} - записаться`);
+    card.addEventListener('click', () => {
+      if (!selectedServiceIds.has(service.id)) {
+        selectedServiceIds = toggleServiceSelection(service.id, new Set());
+        onServicesChanged();
+      }
+      const target = serviceGrid.closest('.field') || document.getElementById('booking');
+      window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - 96, behavior: 'smooth' });
+    });
 
     const head = document.createElement('div');
     head.className = 'price-card-head';
@@ -452,13 +464,17 @@ function renderPrice() {
     price.className = 'price-card-price';
     price.textContent = service.priceLabel;
 
-    head.append(name, price);
-
-    const duration = document.createElement('div');
+    const duration = document.createElement('span');
     duration.className = 'price-card-duration';
     duration.textContent = service.durationLabel;
 
-    card.append(head, duration);
+    const go = document.createElement('span');
+    go.className = 'price-card-go';
+    go.setAttribute('aria-hidden', 'true');
+    go.textContent = 'Записаться';
+
+    head.append(name, duration, price);
+    card.append(head);
 
     // Состава может не быть: у услуги, заведённой владельцем в кабинете, описание
     // никто не писал - пустой абзац на его месте выглядел бы обрывом вёрстки
@@ -468,6 +484,7 @@ function renderPrice() {
       comp.textContent = service.composition;
       card.append(comp);
     }
+    card.append(go);
     priceGrid.append(card);
     armReveal(card, i * 50);
     i += 1;
