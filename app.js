@@ -1222,7 +1222,7 @@ async function renderNearest() {
   if (!picks.length) return;
 
   const serviceName = services.find((s) => s.id === NEAREST_SERVICE_ID)?.name ?? 'Стрижка';
-  nearestTitle.textContent = picks.every((p) => p.date === todayStr()) ? 'Можно прийти сегодня' : 'Ближайшее свободное время';
+  nearestTitle.textContent = picks.every((p) => p.date === todayStr()) ? 'Сегодня' : 'Ближайшее время';
   nearestList.replaceChildren();
   for (const pick of picks) {
     const li = document.createElement('li');
