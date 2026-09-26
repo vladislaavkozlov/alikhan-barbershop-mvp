@@ -1774,6 +1774,75 @@
   .frame-pass .master-avatar:has(img)::after{content:"";display:block;position:absolute;inset:12px;z-index:2;pointer-events:none;
     border:1px solid rgba(216,179,106,.45);border-radius:0;transition:inset .5s cubic-bezier(.2,.7,.2,1),border-color .4s ease}
   .frame-pass .master-card:hover .master-avatar::after{inset:8px;border-color:rgba(216,179,106,.9)}
+
+  /* ── Нижняя половина страницы (26.09.2026): та же система, что наверху ───── */
+  /* цены */
+  .price-card{padding:30px 0;border-color:var(--line)}
+  .price-card-head h3{font-family:"Playfair Display",Georgia,serif;font-weight:400;font-size:1.5rem;letter-spacing:-.01em}
+  .price-card-price{font-family:"Playfair Display",Georgia,serif;font-weight:400;font-size:1.5rem;color:var(--gold-soft);font-variant-numeric:tabular-nums}
+  .price-card-duration{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted-2);margin-top:6px}
+  .price-card-comp{font-weight:300;color:var(--muted);line-height:1.7;max-width:60ch}
+  .price-sticky p{font-weight:300}
+
+  /* запись: светлая секция без плавающей карточки, выбор - почти чёрным, без зелёного */
+  .booking{background:#efe9df}
+  .booking::before,.booking::after{display:none}
+  .booking-shell{background:transparent;border:0;border-radius:0;box-shadow:none;padding:0;border-top:1px solid rgba(29,27,24,.16);padding-top:36px}
+  .booking h2{color:#1d1b18}
+  .field label{font-size:11px;letter-spacing:.22em;color:#7d766b;font-weight:400}
+  .option-card,.slot-btn,.cal-day{border-radius:2px;background:#f7f2ea;border-color:rgba(29,27,24,.14)}
+  .option-card .opt-name{font-family:"Playfair Display",Georgia,serif;font-weight:400;font-size:1.08rem}
+  .option-card:hover,.slot-btn:hover,.cal-day:not(.disabled):hover{border-color:#a4824a;background:#f3ecdf}
+  .option-card.selected,.slot-btn.selected,.cal-day.selected{background:#1d1b18;border-color:#1d1b18;color:#f6f2e8}
+  .option-card.selected .opt-meta{color:#c9c2b6}
+  .booking .field input,.booking .date-toggle{border-radius:2px}
+  .submit-row .btn,.booking button[type="submit"]{border-radius:999px;font-size:12px;letter-spacing:.16em;text-transform:uppercase}
+
+  /* отзывы: две строки-ссылки вместо карточек */
+  .review-links{border-top:1px solid var(--line)}
+  .review-links a{display:grid;grid-template-columns:120px 1fr auto;align-items:center;gap:24px;padding:30px 0;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink);transition:padding .35s cubic-bezier(.2,.7,.2,1)}
+  .review-links a:hover{padding-left:12px}
+  .rl-score{font-family:"Playfair Display",Georgia,serif;font-size:3rem;line-height:1;color:var(--gold-soft)}
+  .rl-word{font-style:italic}
+  .rl-name{font-family:"Playfair Display",Georgia,serif;font-size:1.6rem}
+  .rl-go{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .rl-go i{font-style:normal;color:var(--gold-soft);margin-left:8px}
+
+  /* частые вопросы */
+  .faq summary{font-family:"Playfair Display",Georgia,serif;font-weight:400;font-size:1.25rem}
+  .faq details p{font-weight:300;color:var(--muted);line-height:1.7}
+
+  /* контакты */
+  .cv-grid{display:grid;grid-template-columns:1fr 1.1fr;gap:88px;align-items:center}
+  .contacts-v2 h2 em{font-style:italic;color:var(--gold-soft)}
+  .cv-list{margin:44px 0 0;border-top:1px solid var(--line)}
+  .cv-list div{display:grid;grid-template-columns:140px 1fr;gap:20px;padding:18px 0;border-bottom:1px solid var(--line)}
+  .cv-list dt{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted-2);padding-top:4px}
+  .cv-list dd{margin:0;font-weight:300}
+  .cv-list a{color:var(--ink);text-decoration:none}
+  .cv-routes{display:flex;flex-wrap:wrap;gap:28px;margin-top:30px}
+  .cv-actions{margin-top:40px}
+  .cv-photo{margin:0}
+  .cv-photo img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;object-position:60% 50%}
+  .cv-photo figcaption{padding-top:14px;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+
+  /* подвал: знак на чистом тёмном фоне, без зелёной подложки */
+  .brand-lockup{background:var(--bg);border-top:1px solid var(--line)}
+  footer{font-weight:300}
+
+  @media (max-width:1000px){
+    .cv-grid{grid-template-columns:1fr;gap:56px}
+  }
+  @media (max-width:720px){
+    .review-links a{grid-template-columns:64px 1fr;gap:6px 18px}
+    .rl-score{font-size:2.2rem;grid-row:span 2}
+    .rl-name{font-size:1.3rem}
+    .cv-list div{grid-template-columns:96px 1fr}
+    .price-card-head h3,.price-card-price{font-size:1.25rem}
+  }
+
+  #reviews + .faq-section{padding-top:0}
+  .booking .btn:disabled,.booking button[type="submit"]:disabled{background:#1d1b18;color:#f6f2e8;opacity:.28}
 </style>
 
 </head>
@@ -2004,7 +2073,7 @@
           <p>
             Цена видна до записи. Если она зависит от мастера, в каталоге стоит стартовая, а точная появится, как только вы его выберете.
           </p>
-          <a href="#booking" class="btn" style="margin-top:18px">Перейти к записи</a>
+          <a href="#booking" class="hc-btn" style="margin-top:34px">Перейти к записи</a>
         </div>
 
         <div id="price-grid" class="price-grid">
@@ -2151,29 +2220,22 @@
           </p>
         </div>
 
-        <div class="ratings reveal">
-          <a class="rating-card" href="https://2gis.ru/stavropol/geo/70000001114087480" target="_blank" rel="noopener">
-            <span class="rating-arrow">↗</span>
-            <div>
-              <div class="rating-number">5.0</div>
-              <p>2ГИС</p>
-            </div>
-            <span class="muted">Открыть карточку и отзывы</span>
+        <div class="review-links reveal">
+          <a href="https://2gis.ru/stavropol/geo/70000001114087480" target="_blank" rel="noopener">
+            <span class="rl-score">5.0</span>
+            <span class="rl-name">2ГИС</span>
+            <span class="rl-go">Открыть отзывы <i aria-hidden="true">↗</i></span>
           </a>
-
-          <a class="rating-card" href="https://yandex.ru/maps/-/CTfqYO~P" target="_blank" rel="noopener">
-            <span class="rating-arrow">↗</span>
-            <div>
-              <div class="rating-number rating-number-word">Яндекс</div>
-              <p>Яндекс Карты</p>
-            </div>
-            <span class="muted">Рейтинг 4.1 - открыть независимые отзывы</span>
+          <a href="https://yandex.ru/maps/-/CTfqYO~P" target="_blank" rel="noopener">
+            <span class="rl-score rl-word">Я</span>
+            <span class="rl-name">Яндекс Карты</span>
+            <span class="rl-go">Открыть отзывы <i aria-hidden="true">↗</i></span>
           </a>
         </div>
       </div>
     </section>
 
-    <section class="section compact">
+    <section class="section compact faq-section">
       <div class="wrap faq">
         <div>
           <p class="eyebrow">Коротко о главном</p>
@@ -2204,47 +2266,34 @@
       </div>
     </section>
 
-    <section class="contacts" id="contacts">
-      <div class="wrap">
-        <div class="contacts-card reveal">
-          <div class="contact-content">
-            <p class="eyebrow">Контакты</p>
-            <h2>Ждем вас в АЛИХАНЕ</h2>
+    <section class="section contacts-v2" id="contacts">
+      <div class="wrap cv-grid">
+        <div class="cv-copy reveal">
+          <p class="eyebrow">Контакты</p>
+          <h2>Ждём вас в&nbsp;<em>АЛИХАНЕ</em></h2>
 
-            <ul class="contact-list">
-              <li>
-                <span class="k">Адрес</span>
-                <span class="v">Ставрополь, ул. Андрея Голуба 16 ст1</span>
-              </li>
-              <li>
-                <span class="k">Часы</span>
-                <span class="v">ежедневно 10:00-20:00</span>
-              </li>
-              <li>
-                <span class="k">Телефон</span>
-                <span class="v"><a href="tel:+79899977070">+7 989 997 70 70</a></span>
-              </li>
-              <li>
-                <span class="k">Instagram</span>
-                <span class="v">
-                  <a href="https://instagram.com/ali.khanbarbershop" target="_blank" rel="noopener">@ali.khanbarbershop</a>
-                </span>
-              </li>
-            </ul>
+          <dl class="cv-list">
+            <div><dt>Адрес</dt><dd>Ставрополь, ул. Андрея Голуба 16 ст1</dd></div>
+            <div><dt>Часы</dt><dd>ежедневно 10:00-20:00</dd></div>
+            <div><dt>Телефон</dt><dd><a href="tel:+79899977070">+7 989 997 70 70</a></dd></div>
+            <div><dt>Instagram</dt><dd><a href="https://instagram.com/ali.khanbarbershop" target="_blank" rel="noopener">@ali.khanbarbershop</a></dd></div>
+          </dl>
 
-            <div class="contact-actions">
-              <a class="btn" href="#booking">Записаться</a>
-              <a class="btn secondary" href="tel:+79899977070">Позвонить</a>
-            </div>
+          <div class="cv-routes">
+            <a class="hc-link" href="https://yandex.ru/maps/?text=%D0%A1%D1%82%D0%B0%D0%B2%D1%80%D0%BE%D0%BF%D0%BE%D0%BB%D1%8C%2C%20%D1%83%D0%BB.%20%D0%90%D0%BD%D0%B4%D1%80%D0%B5%D1%8F%20%D0%93%D0%BE%D0%BB%D1%83%D0%B1%D0%B0%2016%20%D1%81%D1%821" target="_blank" rel="noopener">Маршрут в Яндекс Картах</a>
+            <a class="hc-link" href="https://2gis.ru/stavropol/geo/70000001114087480" target="_blank" rel="noopener">Открыть в 2ГИС</a>
           </div>
 
-          <div class="contact-image">
-            <img
-              onerror="this.style.display='none'; this.parentElement.classList.add('media-fallback');" src="assets/hero-night.jpg"
-              alt="Фасад барбершопа АЛИХАН вечером"
-              loading="lazy">
+          <div class="hc-actions cv-actions">
+            <a class="hc-btn" href="#booking">Записаться</a>
+            <a class="hc-link" href="tel:+79899977070">Позвонить</a>
           </div>
         </div>
+
+        <figure class="cv-photo reveal">
+          <img src="assets/hero-night.jpg" alt="Фасад барбершопа АЛИХАН вечером" loading="lazy">
+          <figcaption>Так выглядит вход вечером</figcaption>
+        </figure>
       </div>
     </section>
   </main>
@@ -2255,7 +2304,7 @@
 
   <footer>
     <div class="wrap footer-row">
-      <span>АЛИХАН - премиум мужские стрижки - Ставрополь</span>
+      <span>АЛИХАН · мужские стрижки · Ставрополь</span>
 
       <div class="footer-links">
         <a href="privacy.html" target="_blank" rel="noopener">Политика конфиденциальности</a>
