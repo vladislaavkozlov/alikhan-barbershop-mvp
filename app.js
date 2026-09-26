@@ -503,9 +503,15 @@ function renderMasters() {
   // блок записи ниже). В обоих случаях витрина остаётся на разметке из index.html,
   // без мигания текстом-заглушкой.
   if (!mastersGrid || !masters.length) return;
-  mastersGrid.replaceChildren();
+  // 26.09.2026: витрина команды - выверенная разметка index.html (портреты съёмки 07.09,
+  // тексты, мастера, которых ещё нет в CRM). Данные CRM её не перерисовывают: из CRM
+  // дописываются только те мастера, кого в разметке нет. Без разметки - прежний путь
+  const curated = showcaseFallbackByName.size > 0;
+  const list = curated ? masters.filter((m) => !showcaseFallbackByName.has(m.name)) : masters;
+  if (!list.length) return;
+  if (!curated) mastersGrid.replaceChildren();
   let i = 0;
-  for (const master of masters) {
+  for (const master of list) {
     const design = showcaseFallbackByName.get(master.name) ?? {};
     const card = document.createElement('article');
     card.className = 'master-card';
