@@ -71,6 +71,13 @@
     src: url('assets/fonts/playfair-latin-600.woff2') format('woff2');
     unicode-range: U+0000-00FF, U+2000-206F, U+2122;
   }
+  /* 26.09.2026 первый экран «Кинокадр»: тонкая засечка, курсив акцента и лёгкий гротеск */
+@font-face{font-family:'Manrope';font-style:normal;font-weight:300;font-display:swap;src:url(assets/fonts/manrope-300-cyrillic.woff2) format('woff2');unicode-range:U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:300;font-display:swap;src:url(assets/fonts/manrope-300-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+@font-face{font-family:'Playfair Display';font-style:italic;font-weight:400;font-display:swap;src:url(assets/fonts/playfair-400-italic-cyrillic.woff2) format('woff2');unicode-range:U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116}
+@font-face{font-family:'Playfair Display';font-style:italic;font-weight:400;font-display:swap;src:url(assets/fonts/playfair-400-italic-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:400;font-display:swap;src:url(assets/fonts/playfair-400-cyrillic.woff2) format('woff2');unicode-range:U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:400;font-display:swap;src:url(assets/fonts/playfair-400-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
 
     :root{
       --bg:#0f1210;
@@ -317,7 +324,7 @@
       background:linear-gradient(180deg,transparent 55%,rgba(8,11,9,.52));
       pointer-events:none;
     }
-    .hero-main img{width:100%;height:100%;object-fit:cover}
+    .hero-main img{width:100%;height:100%;object-fit:cover;object-position:50% 18%}
     .hero-small{
       position:absolute;
       width:250px;
@@ -564,9 +571,8 @@
       position:relative;
       overflow:hidden;
     }
-    .master-avatar::after{
-      content:"";position:absolute;inset:16px;border:1px solid rgba(216,179,106,.14);border-radius:12px;pointer-events:none
-    }
+    /* портреты с фотосессии 07.09.2026 - вертикальные 4:5, рамка внутри фото убрана */
+    .master-avatar:has(img){aspect-ratio:4/5}
     .master-cta{
       margin-top:18px;padding-top:16px;border-top:1px solid var(--line);
       display:flex;align-items:center;justify-content:space-between;gap:12px;
@@ -1086,6 +1092,41 @@
       box-shadow:0 16px 44px rgba(0,0,0,.35);
     }
     .mobile-cta .btn{width:100%;min-height:50px}
+    .mobile-cta{transition:opacity .3s var(--ease),transform .3s var(--ease)}
+    /* у формы записи нижняя кнопка дублирует саму форму - уводим её */
+    .mobile-cta.is-hidden{opacity:0;transform:translateY(24px);pointer-events:none}
+
+    /* мобильное меню: на узких экранах ссылки шапки скрыты, без него длинная страница теряет навигацию */
+    .menu-toggle{
+      display:none;position:relative;width:44px;height:44px;margin-left:auto;
+      background:none;border:0;cursor:pointer;color:var(--ink)
+    }
+    .menu-toggle span{
+      position:absolute;left:11px;right:11px;height:1.5px;background:currentColor;
+      transition:transform .3s var(--ease),top .3s var(--ease)
+    }
+    .menu-toggle span:first-child{top:17px}
+    .menu-toggle span:last-child{top:26px}
+    .menu-open .menu-toggle span:first-child{top:21px;transform:rotate(45deg)}
+    .menu-open .menu-toggle span:last-child{top:21px;transform:rotate(-45deg)}
+    .mobile-menu{
+      position:fixed;inset:0;z-index:95;
+      display:flex;flex-direction:column;justify-content:center;gap:40px;
+      padding:110px 28px 40px;
+      background:#0c0e0d;
+      opacity:0;transition:opacity .3s var(--ease)
+    }
+    .mobile-menu[hidden]{display:none}
+    .menu-open .mobile-menu{opacity:1}
+    .mobile-menu nav{display:flex;flex-direction:column;gap:6px}
+    .mobile-menu nav a{
+      font-family:"Playfair Display",Georgia,serif;font-size:2.4rem;line-height:1.25;
+      color:var(--ink);text-decoration:none
+    }
+    .mobile-menu .btn{width:100%;min-height:52px}
+    .menu-open{overflow:hidden}
+    .menu-open .mobile-cta{display:none}
+    .site-header{z-index:96}
 
     .reveal{
       opacity:0;
@@ -1102,6 +1143,7 @@
 
     @media (max-width:1000px){
       .nav-links{display:none}
+      .menu-toggle{display:block}
       .hero{min-height:auto;padding-top:120px}
       .hero-grid{grid-template-columns:1fr;gap:46px}
       .hero-copy{max-width:800px}
@@ -1551,6 +1593,187 @@
   @media (max-width:390px){
     .site-header .brand-wordmark-header{width:132px;height:36px}
   }
+
+  /* ── Первый экран «Кинокадр» (26.09.2026) ─────────────────────────────
+     Одна фотография вместо коллажа: кадр съёмки 07.09 в монохроме, цвет
+     оставлен только пламени, золото заголовка его подхватывает */
+  .hero-cine{position:relative;min-height:max(760px,100svh);max-height:1000px;display:flex;overflow:hidden;background:var(--bg)}
+  .hc-photo{position:absolute;top:0;right:0;bottom:0;width:68%;overflow:hidden}
+  /* кадр снят с запасом снизу (плечи, руки), лицо держим в центре и чуть приближаем вокруг него */
+  .hc-photo img{width:100%;height:100%;object-fit:cover;object-position:50% 45%;display:block;
+    transform:translateY(-6%) scale(1.14);transform-origin:50% 40%;
+    animation:hcPhoto 2.4s cubic-bezier(.2,.7,.2,1) both}
+  .hc-photo::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(90deg,var(--bg) 0,rgba(15,18,16,.55) 18%,transparent 40%),
+               linear-gradient(0deg,var(--bg) 0,rgba(15,18,16,.6) 18%,transparent 40%)}
+  .hc-inner{position:relative;z-index:2;display:flex;flex-direction:column;justify-content:flex-end;padding:150px 0 0}
+  .hc-copy{max-width:560px;margin-bottom:auto;margin-top:auto}
+  .hc-kicker{margin:0;display:flex;align-items:center;gap:14px;color:var(--gold-soft);
+    font-size:11px;letter-spacing:.3em;text-transform:uppercase;font-weight:400}
+  .hc-kicker::before{content:"";width:40px;height:1px;background:var(--gold)}
+  .hero-cine h1{margin:28px 0 36px;font-family:"Playfair Display",Georgia,serif;font-weight:400;
+    font-size:clamp(3.4rem,6.1vw,5.6rem);line-height:1;letter-spacing:-.02em;color:var(--ink)}
+  .hero-cine h1 em{font-style:italic;color:var(--gold-soft)}
+  .hc-actions{display:flex;align-items:center;gap:34px;flex-wrap:wrap}
+  .hc-btn{display:inline-flex;align-items:center;gap:14px;height:56px;padding:0 30px;border-radius:999px;
+    background:var(--gold);color:#16130d;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    transition:background .25s ease,transform .25s ease}
+  .hc-btn::after{content:"→";font-size:15px;letter-spacing:0;transition:transform .25s ease}
+  .hc-btn:hover{background:var(--gold-soft)}
+  .hc-btn:hover::after{transform:translateX(4px)}
+  .hc-link{color:var(--ink);text-decoration:none;font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    padding-bottom:6px;border-bottom:1px solid var(--line-strong);transition:border-color .25s ease}
+  .hc-link:hover{border-color:var(--gold)}
+  .hc-cap{position:absolute;right:0;bottom:150px;margin:0;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:rgba(246,242,232,.5)}
+  .hc-strip{margin-top:60px;height:110px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);align-items:center}
+  .hc-strip > *{display:flex;align-items:center;gap:12px;height:44px;color:var(--muted);font-size:13px;text-decoration:none;font-weight:300}
+  .hc-strip > * + *{border-left:1px solid var(--line);padding-left:36px}
+  .hc-strip a:hover{color:var(--ink)}
+  .hc-strip b{font-family:"Playfair Display",Georgia,serif;font-weight:400;font-size:24px;color:var(--ink)}
+  .hc-copy > *{animation:hcRise 1s cubic-bezier(.2,.7,.2,1) both}
+  .hc-copy > :nth-child(2){animation-delay:.12s}
+  .hc-copy > :nth-child(3){animation-delay:.24s}
+  .hc-strip,.hc-cap{animation:hcRise 1s .4s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes hcPhoto{from{opacity:0;transform:translateY(-6%) scale(1.2)}to{opacity:1;transform:translateY(-6%) scale(1.14)}}
+  @keyframes hcRise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){
+    .hc-photo img,.hc-copy > *,.hc-strip,.hc-cap{animation:none}
+  }
+  /* шапка над первым экраном: одна тонкая кнопка вместо второго золотого пятна */
+  .nav > .btn.small{background:transparent;color:var(--ink);border-color:rgba(216,179,106,.5);
+    font-size:12px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;padding:0 22px}
+  .nav > .btn.small:hover{border-color:var(--gold);background:rgba(216,179,106,.08)}
+  @media (max-width:1000px){
+    .nav > .btn.small{margin-left:auto}
+    .menu-toggle{margin-left:12px}
+    .hc-photo{width:100%}
+    .hc-photo::after{background:linear-gradient(0deg,var(--bg) 0,rgba(15,18,16,.75) 38%,transparent 70%),
+      linear-gradient(180deg,rgba(15,18,16,.7),transparent 22%)}
+    .hc-copy{margin-top:auto;margin-bottom:0}
+    .hc-cap{display:none}
+    .hc-strip{margin-top:36px}
+  }
+  @media (max-width:720px){
+    /* на телефоне кадр идёт первым блоком, текст под ним и лишь слегка заходит на низ фото */
+    .hero-cine{min-height:0;max-height:none;flex-direction:column}
+    .hc-photo{position:relative;width:100%;height:min(560px,64svh)}
+    .hc-photo img{object-position:58% 50%}
+    .hc-photo::after{background:linear-gradient(0deg,var(--bg) 0,rgba(15,18,16,.4) 28%,transparent 55%),
+      linear-gradient(180deg,rgba(15,18,16,.7),transparent 20%)}
+    .hc-inner{margin-top:-96px;padding:0 0 44px}
+    .hero-cine h1{font-size:clamp(2.7rem,12.6vw,3.3rem);margin:18px 0 26px}
+    .hc-actions{gap:22px}
+    .hc-btn{width:100%;justify-content:center}
+    .hc-strip{height:auto;border-top:0;margin-top:22px;display:flex;gap:18px;flex-wrap:wrap}
+    .hc-strip > *{height:auto;font-size:12px}
+    .hc-strip > * + *{border-left:0;padding-left:0}
+    .hc-strip b{font-size:17px}
+    .hc-strip > :last-child{display:none}
+    .menu-toggle{margin-left:auto}
+  }
+
+  /* ── Система разделов (26.09.2026): одна тонкая засечка, один размер заголовка,
+     один отступ секций, подпись с линией - как на первом экране ───────────── */
+  .section,.section.compact{padding:140px 0}
+  h2{font-family:"Playfair Display",Georgia,serif;font-weight:400;font-size:clamp(2.4rem,4.2vw,3.9rem);line-height:1.05;letter-spacing:-.015em}
+  .eyebrow{display:flex;align-items:center;gap:14px;font-size:11px;letter-spacing:.3em;text-transform:uppercase;font-weight:400;color:var(--gold-soft)}
+  .eyebrow::before{content:"";width:40px;height:1px;background:var(--gold)}
+  .section-head{margin-bottom:72px}
+  .section-copy{font-weight:300}
+
+  .mobile-cta .btn{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+
+  /* «Почему мы»: колонки с номерами вместо карточек в рамках */
+  .why-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:56px}
+  .why-cols article{border-top:1px solid var(--line-strong);padding-top:30px}
+  .why-n{display:block;font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:2.6rem;line-height:1;color:var(--gold-soft);margin-bottom:26px}
+  .why-cols h3{font-family:"Playfair Display",Georgia,serif;font-weight:400;font-size:1.55rem;line-height:1.2;margin:0 0 14px;letter-spacing:-.01em}
+  .why-cols p{margin:0;color:var(--muted);font-weight:300;line-height:1.7;max-width:34ch}
+
+  /* «Работы»: редакционная сетка в единой обработке, подпись - кто и что */
+  .works-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:22px}
+  .wg-item{margin:0;grid-column:span 3;min-width:0}
+  .wg-item.wg-wide{grid-column:span 7}
+  .wg-item.wg-tall{grid-column:span 5}
+  .wg-item img{display:block;width:100%;aspect-ratio:3/4;object-fit:cover;transition:transform 1.2s cubic-bezier(.2,.7,.2,1)}
+  .wg-wide img,.wg-tall img{height:640px;aspect-ratio:auto}
+  .wg-item{overflow:hidden}
+  .wg-item:hover img{transform:scale(1.02)}
+  .wg-item figcaption{padding-top:16px;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+  .works-cta{margin-top:64px;display:flex;justify-content:center}
+
+  /* «О нас»: светлая секция - живой цветной кадр братьев и название одной строкой.
+     Светлый фон даёт странице смену тона между тёмными блоками */
+  .story-light{background:#efe9df;color:#1d1b18}
+  .story-light .eyebrow{color:#8a6a33}
+  .story-light .eyebrow::before{background:#b08f55}
+  .sl-grid{display:grid;grid-template-columns:1fr 1fr;gap:88px;align-items:center}
+  .sl-photo{margin:0}
+  .sl-photo img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover}
+  .sl-photo figcaption{padding-top:14px;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#7d766b}
+  .sl-copy h2{color:#1d1b18;margin-top:22px}
+  .sl-name{margin:40px 0 0;display:flex;align-items:center;gap:26px;font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:clamp(2.6rem,4.4vw,3.8rem);line-height:1;color:#a4824a}
+  .sl-name i{width:1px;height:1.1em;background:#b08f55}
+  .sl-lead{margin:28px 0 0;max-width:46ch;font-size:1.05rem;line-height:1.75;color:#4a453e;font-weight:300}
+  .sl-proof{margin-top:40px;padding-top:32px;border-top:1px solid rgba(29,27,24,.14);display:grid;grid-template-columns:112px 1fr;gap:24px;align-items:center}
+  .sl-proof img{width:112px;aspect-ratio:1;object-fit:cover;display:block}
+  .sl-proof p{margin:0;color:#5b554c;font-weight:300;line-height:1.65;font-size:.95rem}
+  .sl-proof b{display:block;font-family:"Playfair Display",Georgia,serif;font-weight:400;font-size:1.25rem;color:#1d1b18;margin-bottom:4px}
+  .sl-quote{margin:36px 0 0;font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:1.35rem;line-height:1.45;color:#1d1b18}
+
+  @media (max-width:1000px){
+    .why-cols{grid-template-columns:1fr;gap:40px}
+    .works-grid{grid-template-columns:repeat(6,1fr)}
+    .wg-item{grid-column:span 3}
+    .wg-item.wg-wide,.wg-item.wg-tall{grid-column:span 6}
+    .wg-wide img,.wg-tall img{height:auto;aspect-ratio:4/3}
+    .sl-grid{grid-template-columns:1fr;gap:48px}
+  }
+  @media (max-width:720px){
+    .section,.section.compact{padding:88px 0}
+    .section-head{margin-bottom:44px}
+    .works-grid{gap:14px}
+    .wg-item figcaption{font-size:10px;letter-spacing:.16em;padding-top:10px}
+    .sl-proof{grid-template-columns:88px 1fr;gap:18px}
+    .sl-proof img{width:88px}
+    .sl-quote{font-size:1.2rem}
+  }
+
+  /* «Команда» (26.09.2026): без карточек-капсул - крупный цветной портрет, имя засечкой,
+     роль тихим капсом, выбор мастера тонкой ссылкой. Классы общие для разметки и данных из CRM */
+  #masters{background:var(--bg)}
+  .masters-grid{gap:72px 48px}
+  .master-card{background:none;border:0;border-radius:0;padding:0;backdrop-filter:none;-webkit-backdrop-filter:none;display:flex;flex-direction:column}
+  .master-card:hover{transform:none;background:none}
+  .master-avatar,.master-avatar:has(img){aspect-ratio:4/5;border-radius:0;margin:0 0 24px;background:var(--bg-soft)}
+  .master-avatar::after{display:none}
+  .master-avatar img,.visible-team .master-avatar img{border-radius:0;transition:transform 1.2s cubic-bezier(.2,.7,.2,1)}
+  .master-card:hover .master-avatar img{transform:scale(1.02)}
+  .master-avatar.master-fallback{font-family:"Playfair Display",Georgia,serif;font-weight:400;font-style:italic;color:var(--gold-soft)}
+  .master-placeholder-tag{padding:0;border:0;border-radius:0;margin:0 0 10px;font-size:11px;letter-spacing:.26em;color:var(--gold-soft)}
+  .master-name{font-weight:400;font-size:2rem;letter-spacing:-.01em;margin-bottom:0}
+  .master-profile-detail,.master-card .master-profile-detail{margin:12px 0 0;font-size:.95rem;font-weight:300;line-height:1.65;color:var(--muted);max-width:34ch}
+  .master-cta{margin-top:auto;padding-top:22px;border-top:0;justify-content:flex-start;gap:14px;font-size:12px;font-weight:400;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
+  .master-cta span,.master-cta{position:relative}
+  .master-cta::after{color:var(--gold-soft)}
+  .master-card .master-cta{align-self:flex-start;border-bottom:1px solid var(--line-strong);padding-bottom:6px;margin-top:22px}
+  .master-card:hover .master-cta{border-color:var(--gold)}
+  @media (max-width:720px){
+    .masters-grid{grid-template-columns:1fr 1fr;gap:44px 16px}
+    .master-name{font-size:1.45rem}
+    .master-profile-detail,.master-card .master-profile-detail{font-size:.85rem}
+    .master-card .master-cta{font-size:10px;letter-spacing:.12em}
+  }
+
+  /* рамки портретов мастеров: паспарту - тонкая золотая рамка внутри кадра, как у линий по всему сайту.
+     Арку не берём: это фирменная форма сайта Карины, у Алихана она не будет своей */
+  .master-avatar{position:relative;isolation:isolate}
+  .master-avatar img{filter:saturate(.86) contrast(1.03)}
+  .master-avatar:has(img)::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+    background:linear-gradient(180deg,transparent 58%,rgba(15,18,16,.55));transition:opacity .4s ease}
+  .frame-pass .master-avatar:has(img)::after{content:"";display:block;position:absolute;inset:12px;z-index:2;pointer-events:none;
+    border:1px solid rgba(216,179,106,.45);border-radius:0;transition:inset .5s cubic-bezier(.2,.7,.2,1),border-color .4s ease}
+  .frame-pass .master-card:hover .master-avatar::after{inset:8px;border-color:rgba(216,179,106,.9)}
 </style>
 
 </head>
@@ -1571,83 +1794,42 @@
       </nav>
 
       <a class="btn small" href="#booking">Выбрать время</a>
+      <button class="menu-toggle" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="mobile-menu">
+        <span></span><span></span>
+      </button>
     </div>
   </header>
 
+  <div class="mobile-menu" id="mobile-menu" hidden>
+    <nav aria-label="Меню">
+      <a href="#works">Работы</a>
+      <a href="#masters">Мастера</a>
+      <a href="#price">Услуги</a>
+      <a href="#story">О нас</a>
+      <a href="#contacts">Контакты</a>
+    </nav>
+    <a class="btn" href="#booking">Выбрать услугу и время</a>
+  </div>
+
   <main id="top">
-    <section class="hero">
-      <span class="hero-ornament" aria-hidden="true"></span>
-      <img class="hero-brand-mark" src="assets/brand/crest-hero.webp" alt="" aria-hidden="true">
-      <div class="wrap">
-        <div class="hero-grid">
-          <div class="hero-copy">
-            <div class="hero-kicker">Премиум-барбершоп в Ставрополе</div>
-
-            <h1>
-              Ваш образ начинается с <span class="accent">правильной формы</span>
-            </h1>
-
-            <p class="hero-lead">
-              Мастер подбирает форму под ваше лицо, стиль и привычный образ. Результат выглядит естественно и его хочется повторить.
-            </p>
-
-            <div class="hero-actions">
-              <a class="btn" href="#booking">Выбрать услугу и время</a>
-              <a class="btn secondary" href="#works">Посмотреть работы</a>
-            </div>
-
-            <div class="hero-micro" aria-label="Преимущества">
-              <span>онлайн-запись без звонка</span>
-              <span>только свободные слоты</span>
-              <span>ежедневно 10:00-20:00</span>
-            </div>
-          </div>
-
-          <div class="hero-media" aria-label="Барбершоп АЛИХАН">
-            <div class="hero-main">
-              <img
-                onerror="this.style.display='none'; this.parentElement.classList.add('media-fallback');" src="assets/portfolio/work-1.jpg"
-                alt="Реальная работа барбершопа АЛИХАН"
-                loading="eager">
-            </div>
-
-            <div class="hero-small">
-              <img
-                onerror="this.style.display='none'; this.parentElement.classList.add('media-fallback');" src="assets/interior-honeycomb.jpg"
-                alt="Интерьер барбершопа АЛИХАН"
-                loading="eager">
-            </div>
-
-            <a
-              class="hero-rating"
-              href="https://2gis.ru/stavropol/geo/70000001114087480"
-              target="_blank"
-              rel="noopener">
-              <strong>5.0 ★</strong>
-              <span>рейтинг в 2ГИС - посмотреть отзывы</span>
-            </a>
-          </div>
-        </div>
+    <section class="hero-cine" aria-label="АЛИХАН - мужские стрижки в Ставрополе">
+      <div class="hc-photo" aria-hidden="true">
+        <img src="assets/hero-cine.jpg" alt="" fetchpriority="high">
       </div>
-    </section>
-
-    <section class="trust" aria-label="Основная информация">
-      <div class="wrap trust-grid">
-        <div class="trust-item">
-          <span class="trust-label">Адрес</span>
-          <span class="trust-value">Ставрополь, ул. Андрея Голуба 16 ст1</span>
+      <div class="wrap hc-inner">
+        <div class="hc-copy">
+          <p class="hc-kicker">Мужские стрижки · Ставрополь</p>
+          <h1>Ваш образ начинается с&nbsp;<em>правильной формы</em></h1>
+          <div class="hc-actions">
+            <a class="hc-btn" href="#booking">Выбрать услугу и время</a>
+            <a class="hc-link" href="#works">Посмотреть работы</a>
+          </div>
         </div>
-        <div class="trust-item">
-          <span class="trust-label">График</span>
-          <span class="trust-value">ежедневно 10:00-20:00</span>
-        </div>
-        <div class="trust-item">
-          <span class="trust-label">Связаться</span>
-          <span class="trust-value"><a href="tel:+79899977070">+7 989 997 70 70</a></span>
-        </div>
-        <div class="trust-item">
-          <span class="trust-label">Запись</span>
-          <span class="trust-value"><a href="#booking">выбрать свободное время →</a></span>
+        <p class="hc-cap">Алиовсад · основатель</p>
+        <div class="hc-strip">
+          <a href="https://2gis.ru/stavropol/geo/70000001114087480" target="_blank" rel="noopener"><b>5.0</b>рейтинг в 2ГИС</a>
+          <span>ежедневно 10:00-20:00</span>
+          <a href="#contacts">ул. Андрея Голуба, 16 ст1</a>
         </div>
       </div>
     </section>
@@ -1664,21 +1846,19 @@
           </p>
         </div>
 
-        <div class="why-grid reveal">
-          <article class="why-card">
-            <div class="why-num">01</div>
+        <div class="why-cols reveal">
+          <article>
+            <span class="why-n">01</span>
             <h3>Сначала форма, потом машинка</h3>
             <p>Мастер учитывает форму лица и подбирает решение под ваш образ.</p>
           </article>
-
-          <article class="why-card">
-            <div class="why-num">02</div>
+          <article>
+            <span class="why-n">02</span>
             <h3>Уход входит в услугу</h3>
             <p>Профессиональный уход и расслабляющий массаж уже входят в процедуру.</p>
           </article>
-
-          <article class="why-card">
-            <div class="why-num">03</div>
+          <article>
+            <span class="why-n">03</span>
             <h3>Запись без переписки</h3>
             <p>Вы выбираете мастера, услугу и дату - система показывает только свободное время.</p>
           </article>
@@ -1686,7 +1866,7 @@
       </div>
     </section>
 
-    <section class="section compact" id="works">
+    <section class="section" id="works">
       <div class="wrap">
         <div class="section-head reveal">
           <div>
@@ -1694,33 +1874,65 @@
             <h2>Лучше один реальный результат, чем десять красивых обещаний</h2>
           </div>
           <p class="section-copy">
-            Реальные работы и интерьер АЛИХАНА - без стоковых моделей.
+            Работы и мастера АЛИХАНА в процессе - без стоковых моделей.
           </p>
         </div>
 
-        <div class="work-stage reveal">
-          <figure class="work-main">
-            <img
-              onerror="this.style.display='none'; this.parentElement.classList.add('media-fallback');" src="assets/portfolio/work-1.jpg"
-              alt="Классическая мужская стрижка с фейдом">
-            <figcaption class="photo-label">реальная работа салона</figcaption>
+        <div class="works-grid reveal">
+          <figure class="wg-item wg-wide">
+            <img src="assets/works/result-fade.jpg" alt="Классическая мужская стрижка с фейдом" loading="lazy">
+            <figcaption>Результат · классическая стрижка с фейдом</figcaption>
           </figure>
+          <figure class="wg-item wg-tall">
+            <img src="assets/works/mamedhan-beard.jpg" alt="Мамедхан работает с бородой клиента" loading="lazy">
+            <figcaption>Мамедхан · борода</figcaption>
+          </figure>
+          <figure class="wg-item">
+            <img src="assets/works/aliovsad-cut.jpg" alt="Алиовсад стрижёт клиента ножницами" loading="lazy">
+            <figcaption>Алиовсад · стрижка</figcaption>
+          </figure>
+          <figure class="wg-item">
+            <img src="assets/works/result-styling.jpg" alt="Удлинённая мужская стрижка с укладкой" loading="lazy">
+            <figcaption>Результат · удлинённая стрижка с укладкой</figcaption>
+          </figure>
+          <figure class="wg-item">
+            <img src="assets/works/marusya-cut.jpg" alt="Маруся стрижёт клиента" loading="lazy">
+            <figcaption>Маруся · стрижка</figcaption>
+          </figure>
+          <figure class="wg-item">
+            <img src="assets/works/zlata-cut.jpg" alt="Злата стрижёт клиента" loading="lazy">
+            <figcaption>Злата · стрижка</figcaption>
+          </figure>
+        </div>
 
-          <div class="work-side">
-            <figure class="work-secondary">
-              <img
-                onerror="this.style.display='none'; this.parentElement.classList.add('media-fallback');" src="assets/portfolio/work-2.jpg"
-                alt="Удлиненная мужская стрижка с укладкой">
-              <figcaption class="photo-label">реальная работа салона</figcaption>
-            </figure>
+        <div class="works-cta reveal">
+          <a class="hc-btn" href="#booking">Выбрать услугу и время</a>
+        </div>
+      </div>
+    </section>
 
-            <figure class="work-interior">
-              <img
-                onerror="this.style.display='none'; this.parentElement.classList.add('media-fallback');" src="assets/interior-honeycomb.jpg"
-                alt="Интерьер барбершопа АЛИХАН">
-              <figcaption class="photo-label">интерьер АЛИХАН</figcaption>
-            </figure>
+    <section class="section story-light" id="story">
+      <div class="wrap sl-grid">
+        <figure class="sl-photo reveal">
+          <img src="assets/works/brothers-color.jpg" alt="Алиовсад и Мамедхан, основатели АЛИХАНА, у фирменной стены" loading="lazy">
+          <figcaption>Алиовсад и Мамедхан</figcaption>
+        </figure>
+
+        <div class="sl-copy reveal">
+          <p class="eyebrow">О нас</p>
+          <h2>Два брата. Одна планка качества.</h2>
+
+          <p class="sl-name" aria-label="Али плюс Хан">
+            <span>Али</span><i aria-hidden="true"></i><span>Хан</span>
+          </p>
+          <p class="sl-lead">«Али» - от Алиовсада, «Хан» - от Мамедхана. За названием стоят два брата и команда, которая отвечает за результат лично.</p>
+
+          <div class="sl-proof">
+            <img src="assets/works/kondor-color.jpg" alt="Команда АЛИХАН на мастер-классе Kóndor" loading="lazy">
+            <p><b>Kóndor</b>Команда регулярно повышает квалификацию. На фото - мастер-класс и сертификаты школы.</p>
           </div>
+
+          <p class="sl-quote">Техника меняется. Планка одна - результат должен подходить именно вам.</p>
         </div>
       </div>
     </section>
@@ -1737,26 +1949,47 @@
           </p>
         </div>
 
-        <div id="masters-grid" class="masters-grid visible-team">
+        <div id="masters-grid" class="masters-grid visible-team frame-pass">
 <article class="master-card">
-<div class="master-avatar master-fallback">А</div>
-<div class="master-placeholder-tag">ВЛАДЕЛЕЦ</div>
+<div class="master-avatar"><img src="assets/team/alihan-aliovsad.jpg" alt="Мастер Алиовсад" loading="lazy"></div>
+<div class="master-placeholder-tag">Владелец</div>
 <div class="master-name">Алиовсад</div>
 <div class="master-profile-detail">Основатель АЛИХАН. Подбор формы, мужские стрижки и работа с образом.</div>
 <a class="master-cta" href="#booking">Выбрать мастера</a>
 </article>
 <article class="master-card">
-<div class="master-avatar master-fallback">М</div>
-<div class="master-placeholder-tag">МАСТЕР</div>
+<div class="master-avatar"><img src="assets/team/alihan-mamedhan.jpg" alt="Мастер Мамедхан" loading="lazy"></div>
+<div class="master-placeholder-tag">Мастер</div>
 <div class="master-name">Мамедхан</div>
 <div class="master-profile-detail">Классические формы, переходы и аккуратный результат.</div>
 <a class="master-cta" href="#booking">Выбрать мастера</a>
 </article>
 <article class="master-card">
-<div class="master-avatar master-fallback">Е</div>
-<div class="master-placeholder-tag">МАСТЕР</div>
+<div class="master-avatar"><img src="assets/team/elizaveta.jpg" alt="Мастер Елизавета" loading="lazy"></div>
+<div class="master-placeholder-tag">Мастер</div>
 <div class="master-name">Елизавета</div>
 <div class="master-profile-detail">Внимание к деталям и комфортный подход к клиенту.</div>
+<a class="master-cta" href="#booking">Выбрать мастера</a>
+</article>
+<article class="master-card">
+<div class="master-avatar"><img src="assets/team/zlata.jpg" alt="Мастер Злата" loading="lazy"></div>
+<div class="master-placeholder-tag">Мастер</div>
+<div class="master-name">Злата</div>
+
+<a class="master-cta" href="#booking">Выбрать мастера</a>
+</article>
+<article class="master-card">
+<div class="master-avatar"><img src="assets/team/marusya.jpg" alt="Мастер Маруся" loading="lazy"></div>
+<div class="master-placeholder-tag">Мастер</div>
+<div class="master-name">Маруся</div>
+
+<a class="master-cta" href="#booking">Выбрать мастера</a>
+</article>
+<article class="master-card">
+<div class="master-avatar"><img src="assets/team/renat.jpg" alt="Мастер Ренат" loading="lazy"></div>
+<div class="master-placeholder-tag">Мастер</div>
+<div class="master-name">Ренат</div>
+
 <a class="master-cta" href="#booking">Выбрать мастера</a>
 </article>
 </div>
@@ -1769,7 +2002,7 @@
           <p class="eyebrow">Услуги и цены</p>
           <h2>Понятно до записи</h2>
           <p>
-            Без «от» ради красивой рекламы. Актуальные услуги и длительность загружаются из каталога, а итоговая стоимость видна до подтверждения записи.
+            Цена видна до записи. Если она зависит от мастера, в каталоге стоит стартовая, а точная появится, как только вы его выберете.
           </p>
           <a href="#booking" class="btn" style="margin-top:18px">Перейти к записи</a>
         </div>
@@ -1783,35 +2016,6 @@
           <article class="price-card static-price-fallback"><div class="price-card-head"><h3>Тонировка седых волос</h3><span class="price-card-price">от 1500₽</span></div><div class="price-card-duration">1 час</div><p class="price-card-comp">Консультация, подбор цвета и мытьё зоны тонировки.</p></article>
           <article class="price-card static-price-fallback"><div class="price-card-head"><h3>Воск</h3><span class="price-card-price">от 500₽</span></div><div class="price-card-duration">10-15 мин</div><p class="price-card-comp">Удаление нежелательных волос горячим воском - уши, нос, лицо.</p></article>
           <article class="price-card static-price-fallback"><div class="price-card-head"><h3>СПА уход</h3><span class="price-card-price">3000₽</span></div><div class="price-card-duration">1 час</div><p class="price-card-comp">Профессиональная косметика, распаривание, скрабирование, маски и уход за кожей.</p></article>
-        </div>
-      </div>
-    </section>
-
-    <section class="story" id="story">
-      <div class="wrap story-grid">
-        <div class="story-photo reveal">
-          <img
-            onerror="this.style.display='none'; this.parentElement.classList.add('media-fallback');" src="assets/team-masterclass-kondor.jpg"
-            alt="Команда АЛИХАН на мастер-классе Kóndor"
-            loading="lazy">
-        </div>
-
-        <div class="story-copy reveal">
-          <p class="eyebrow">Али + Хан</p>
-          <h2>Два брата. Одна планка качества.</h2>
-
-          <p>
-            «Али» - от Алиовсада, «Хан» - от Мамедхана. За названием стоят два брата и команда, которая отвечает за результат лично.
-          </p>
-
-          <p class="story-proof">
-            <strong>Kóndor</strong><br>
-            Команда регулярно повышает квалификацию. На фото - мастер-класс и сертификаты школы.
-          </p>
-
-          <p class="big">
-            Техника меняется. Планка одна - результат должен подходить именно вам.
-          </p>
         </div>
       </div>
     </section>
@@ -2063,6 +2267,36 @@
   <div class="mobile-cta">
     <a class="btn" href="#booking">Выбрать услугу и время</a>
   </div>
+
+  <script>
+    (() => {
+      const root = document.documentElement;
+      const toggle = document.querySelector('.menu-toggle');
+      const menu = document.getElementById('mobile-menu');
+      const setOpen = (open) => {
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+        if (open) { menu.hidden = false; requestAnimationFrame(() => root.classList.add('menu-open')); }
+        else { root.classList.remove('menu-open'); setTimeout(() => { menu.hidden = true; }, 300); }
+      };
+      toggle.addEventListener('click', () => setOpen(!root.classList.contains('menu-open')));
+      menu.addEventListener('click', (e) => { if (e.target.closest('a')) setOpen(false); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && root.classList.contains('menu-open')) setOpen(false); });
+
+      // нижняя кнопка записи не нужна там, где своя кнопка уже на экране: первый экран и сама форма
+      const cta = document.querySelector('.mobile-cta');
+      const zones = [document.querySelector('.hero-cine'), document.getElementById('booking')].filter(Boolean);
+      if (cta && zones.length && 'IntersectionObserver' in window) {
+        const visible = new Set();
+        const io = new IntersectionObserver((entries) => {
+          for (const e of entries) e.isIntersecting ? visible.add(e.target) : visible.delete(e.target);
+          cta.classList.toggle('is-hidden', visible.size > 0);
+        }, { threshold: 0.15 });
+        zones.forEach((z) => io.observe(z));
+      }
+    })();
+  </script>
+
 
   <script>
     const header = document.getElementById("site-header");

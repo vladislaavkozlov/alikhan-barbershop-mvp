@@ -537,11 +537,8 @@ function renderMasters() {
     name.className = 'master-name';
     name.textContent = master.name;
 
-    const win = document.createElement('div');
-    win.className = 'master-window';
-    win.textContent = `${master.workWindow.start}-${master.workWindow.end}`;
-
-    card.append(avatar, tag, name, win);
+    // часы работы у всех одинаковые и уже есть в шапке сайта - в карточке не дублируем
+    card.append(avatar, tag, name);
 
     let hasOwnDetails = false;
     for (const [field, label] of [['experienceText', 'Стаж'], ['strengthsText', 'Сильные стороны'], ['certificatesText', 'Курсы и сертификаты']]) {
