@@ -560,8 +560,9 @@ function renderMasters() {
     name.className = 'master-name';
     name.textContent = master.name;
 
-    // часы работы у всех одинаковые и уже есть в шапке сайта - в карточке не дублируем
-    card.append(avatar, tag, name);
+    // часы работы у всех одинаковые и уже есть в шапке сайта - в карточке не дублируем.
+    // Имя и роль над портретом - тот же порядок, что у мастеров из разметки index.html
+    card.append(name, tag, avatar);
 
     let hasOwnDetails = false;
     for (const [field, label] of [['experienceText', 'Стаж'], ['strengthsText', 'Сильные стороны'], ['certificatesText', 'Курсы и сертификаты']]) {
