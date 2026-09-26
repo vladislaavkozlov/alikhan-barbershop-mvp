@@ -4,11 +4,11 @@
   <!-- Brand assets selected from the supplied gold logo family; compact wordmark for header, crest for icon/watermark, full lockup for footer. -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>АЛИХАН - премиум мужские стрижки в Ставрополе</title>
+  <title>АЛИХАН - мужские стрижки в Ставрополе</title>
   <link rel="canonical" href="https://vladislaavkozlov.github.io/alikhan-barbershop-mvp/">
   <meta name="description" content="Барбершоп АЛИХАН в Ставрополе. Индивидуальный подбор формы, профессиональный уход, массаж и онлайн-запись к мастеру на свободное время.">
   <meta name="robots" content="index,follow">
-  <meta property="og:title" content="АЛИХАН - премиум мужские стрижки в Ставрополе">
+  <meta property="og:title" content="АЛИХАН - мужские стрижки в Ставрополе">
   <meta property="og:description" content="Подбор формы под лицо и образ, профессиональный уход и онлайн-запись на свободное время.">
   <meta property="og:type" content="business.business">
   <meta property="og:url" content="https://vladislaavkozlov.github.io/alikhan-barbershop-mvp/">
@@ -1701,6 +1701,11 @@
   .wg-item:hover img{transform:scale(1.02)}
   .wg-item figcaption{padding-top:16px;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
   .works-cta{margin-top:64px;display:flex;justify-content:center}
+  /* Первый кадр лукбука выходит из контейнера на всю ширину экрана */
+  .works-lead{margin:0 0 96px;overflow:hidden}
+  .works-lead img{display:block;width:100%;height:min(82vh,860px);object-fit:cover;object-position:42% 45%;transition:transform 1.4s cubic-bezier(.2,.7,.2,1)}
+  .works-lead:hover img{transform:scale(1.015)}
+  .works-lead figcaption{padding-top:16px;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
 
   /* «О нас»: светлая секция - живой цветной кадр братьев и название одной строкой.
      Светлый фон даёт странице смену тона между тёмными блоками */
@@ -1733,10 +1738,56 @@
     .section,.section.compact{padding:88px 0}
     .section-head{margin-bottom:44px}
     .works-grid{gap:14px}
+    .works-lead{margin-bottom:56px}
+    .works-lead img{height:auto;aspect-ratio:4/5;object-position:40% 50%}
+    .works-lead figcaption{font-size:10px;letter-spacing:.16em;padding-top:10px}
     .wg-item figcaption{font-size:10px;letter-spacing:.16em;padding-top:10px}
     .sl-proof{grid-template-columns:88px 1fr;gap:18px}
     .sl-proof img{width:88px}
     .sl-quote{font-size:1.2rem}
+  }
+
+
+  /* «Ближайшие окна»: строки живого расписания, не карточки. Время крупной засечкой -
+     это главное число строки, всё остальное тихим гротеском */
+  .nearest{border-top:1px solid var(--line)}
+  .nearest[hidden]{display:none}
+  .section.nearest{padding:104px 0 112px}
+  #masters{padding-bottom:104px}
+  .nearest-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:72px;align-items:start}
+  .nearest-head h2{margin-top:22px}
+  .nearest-head .section-copy{margin-top:22px;max-width:38ch}
+  .nearest-more{display:inline-block;margin-top:30px;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--line-strong);padding-bottom:6px}
+  .nearest-more::after{content:" →";transition:margin .3s var(--ease)}
+  .nearest-more:hover::after{margin-left:4px}
+  .nearest-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line-strong)}
+  .nearest-row{all:unset;box-sizing:border-box;width:100%;cursor:pointer;display:grid;grid-template-columns:150px minmax(0,1fr) auto 120px;gap:24px;align-items:center;padding:26px 0;border-bottom:1px solid var(--line-strong);transition:background .3s var(--ease)}
+  .nearest-row:hover{background:rgba(255,255,255,.02)}
+  .nearest-row:focus-visible{outline:1px solid var(--gold);outline-offset:4px}
+  .nr-when{display:flex;align-items:baseline;gap:12px}
+  .nr-time{font-family:"Playfair Display",Georgia,serif;font-weight:400;font-size:2.1rem;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+  .nr-day{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .nr-who{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .nr-master{font-family:"Playfair Display",Georgia,serif;font-size:1.3rem;color:var(--ink)}
+  .nr-svc{font-size:13px;color:var(--muted);font-weight:300}
+  .nr-price{font-family:"Playfair Display",Georgia,serif;font-size:1.2rem;color:var(--gold-soft);font-variant-numeric:tabular-nums}
+  .nr-go{justify-self:end;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);transition:color .3s var(--ease)}
+  .nr-go::after{content:" →";display:inline-block;transition:transform .3s var(--ease)}
+  .nearest-row:hover .nr-go{color:var(--ink)}
+  .nearest-row:hover .nr-go::after{transform:translateX(4px)}
+  @media (max-width:1000px){
+    .nearest-grid{grid-template-columns:1fr;gap:44px}
+  }
+  @media (max-width:720px){
+    .nearest-row{grid-template-columns:auto minmax(0,1fr) auto;gap:16px;padding:20px 0}
+    .nr-when{flex-direction:column;gap:6px}
+    .nr-time{font-size:1.7rem}
+    .nr-day{font-size:10px;letter-spacing:.14em}
+    .section.nearest{padding:72px 0 80px}
+    #masters{padding-bottom:72px}
+    .nearest-row{grid-template-columns:auto minmax(0,1fr) auto auto}
+    .nr-go{font-size:0;letter-spacing:0}
+    .nr-go::after{font-size:14px;color:var(--muted)}
   }
 
   /* «Команда» (26.09.2026): без карточек-капсул - крупный цветной портрет, имя засечкой,
@@ -1964,7 +2015,17 @@
             Работы и мастера АЛИХАНА в процессе - без стоковых моделей.
           </p>
         </div>
+      </div>
 
+      <!-- Лукбук открывается кадром во всю ширину экрана: мастер, ремесло и сам зал в одном кадре -->
+      <figure class="works-lead reveal">
+        <img src="assets/works/aliovsad-wall-2400.jpg"
+             srcset="assets/works/aliovsad-wall-1200.jpg 1200w, assets/works/aliovsad-wall-2400.jpg 2400w"
+             sizes="100vw" alt="Алиовсад стрижёт клиента у фирменной стены АЛИХАНА" loading="lazy">
+        <figcaption class="wrap">Зал АЛИХАНА · Алиовсад за работой</figcaption>
+      </figure>
+
+      <div class="wrap">
         <div class="works-grid reveal">
           <figure class="wg-item wg-wide">
             <img src="assets/works/result-fade.jpg" alt="Классическая мужская стрижка с фейдом" loading="lazy">
@@ -2080,6 +2141,19 @@
 <a class="master-cta" href="#booking">Выбрать мастера</a>
 </article>
 </div>
+      </div>
+    </section>
+
+    <!-- «Ближайшие окна»: заполняется из живого расписания (app.js renderNearest), без данных скрыт -->
+    <section class="section compact nearest" id="nearest" hidden aria-labelledby="nearest-title">
+      <div class="wrap nearest-grid">
+        <div class="nearest-head">
+          <p class="eyebrow">Свободное время</p>
+          <h2 id="nearest-title">Ближайшее свободное время</h2>
+          <p class="section-copy">Живое расписание мастеров. Выберите окно - форма записи заполнится сама, останется оставить имя и телефон.</p>
+          <a class="nearest-more" href="#booking">Другие услуги и даты</a>
+        </div>
+        <ol class="nearest-list" id="nearest-list"></ol>
       </div>
     </section>
 

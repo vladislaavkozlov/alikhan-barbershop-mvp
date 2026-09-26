@@ -1165,6 +1165,112 @@ form.addEventListener('submit', async (event) => {
   await refreshSlots();
 });
 
+// ── «Ближайшие окна» (26.09.2026) ────────────────────────────────────────────
+// Витрина живого расписания между командой и прайсом: у каждого мастера первое
+// свободное время на стрижку, посчитанное тем же getFreeSlots, что и форма записи.
+// Клик заполняет форму целиком - услугу, мастера, дату и время. Нет данных из CRM -
+// блок остаётся скрытым, время не выдумывается.
+const NEAREST_SERVICE_ID = 'strizhka';
+const NEAREST_LIMIT = 4;
+const nearestSection = document.getElementById('nearest');
+const nearestList = document.getElementById('nearest-list');
+const nearestTitle = document.getElementById('nearest-title');
+
+function shiftIso(iso, days) {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return isoDate(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function dayLabel(iso) {
+  const todayIso = todayStr();
+  if (iso === todayIso) return 'сегодня';
+  if (iso === shiftIso(todayIso, 1)) return 'завтра';
+  return formatDateRu(iso);
+}
+
+async function firstFreeSlot(master, durationMin) {
+  const nextDate = masterAvailability.get(master.id);
+  if (!nextDate) return null;
+  // nextAvailableDate считается по дням: сегодняшнее окно могло уже пройти по часам,
+  // тогда смотрим ещё один день вперёд, дальше не ищем
+  for (const date of [nextDate, shiftIso(nextDate, 1)]) {
+    const slots = await store.getFreeSlots(master.id, date, durationMin);
+    if (slots.length) return { date, time: slots[0] };
+  }
+  return null;
+}
+
+async function renderNearest() {
+  if (!nearestSection || !masterServicesReady || !masterAvailabilityReady) return;
+  const bookable = filterBookableMasters(masters, masterWorkingSchedule);
+  const candidates = bookable
+    .map((master) => ({ master, row: masterServices.find((r) => r.masterId === master.id && r.serviceId === NEAREST_SERVICE_ID) }))
+    .filter((c) => c.row);
+  const found = await Promise.all(candidates.map(async ({ master, row }) => {
+    try {
+      const slot = await firstFreeSlot(master, row.durationMin);
+      return slot ? { master, row, ...slot } : null;
+    } catch {
+      return null;
+    }
+  }));
+  const picks = found.filter(Boolean)
+    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+    .slice(0, NEAREST_LIMIT);
+  if (!picks.length) return;
+
+  const serviceName = services.find((s) => s.id === NEAREST_SERVICE_ID)?.name ?? 'Стрижка';
+  nearestTitle.textContent = picks.every((p) => p.date === todayStr()) ? 'Можно прийти сегодня' : 'Ближайшее свободное время';
+  nearestList.replaceChildren();
+  for (const pick of picks) {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'nearest-row';
+    btn.innerHTML = `
+      <span class="nr-when"><b class="nr-time"></b><span class="nr-day"></span></span>
+      <span class="nr-who"><span class="nr-master"></span><span class="nr-svc"></span></span>
+      <span class="nr-price"></span>
+      <span class="nr-go">Записаться</span>`;
+    btn.querySelector('.nr-time').textContent = pick.time;
+    btn.querySelector('.nr-day').textContent = dayLabel(pick.date);
+    btn.querySelector('.nr-master').textContent = pick.master.name;
+    btn.querySelector('.nr-svc').textContent = `${serviceName} · ${pick.row.durationMin} мин`;
+    btn.querySelector('.nr-price').textContent = formatPrice(pick.row.price);
+    btn.addEventListener('click', () => applyNearestPick(pick));
+    li.append(btn);
+    nearestList.append(li);
+  }
+  nearestSection.hidden = false;
+  armReveal(nearestSection.querySelector('.nearest-grid'));
+}
+
+// Проводит форму по тем же шагам, что прошёл бы клиент руками: услуга → мастер →
+// дата → время. Окно успели занять - форма остаётся на этой дате с остальным временем
+async function applyNearestPick(pick) {
+  selectedServiceIds = new Set([NEAREST_SERVICE_ID]);
+  selectedTier = null;
+  onServicesChanged();
+  const available = eligibleMasters();
+  const index = available.findIndex((m) => m.id === pick.master.id);
+  if (index < 0) return;
+  [...masterGrid.querySelectorAll('.option-card')][index]?.click();
+
+  selectedDate = pick.date;
+  const [y, m] = pick.date.split('-').map(Number);
+  calViewYear = y;
+  calViewMonth = m - 1;
+  dateToggleLabel.textContent = formatDateRu(pick.date);
+  dateToggleLabel.classList.remove('placeholder');
+  renderCalendar();
+  renderHolidayHint();
+  await refreshSlots();
+  const slotBtn = [...slotsWrap.querySelectorAll('.slot-btn')].find((b) => b.textContent === pick.time);
+  slotBtn?.click();
+  (slotBtn ?? slotsWrap).scrollIntoView({ behavior: REDUCE_MOTION ? 'auto' : 'smooth', block: 'center' });
+}
+
 renderPrice();
 renderMasters();
 // Услуги - первый шаг формы (20.08.2026), рисуются сразу, не дожидаясь выбора мастера.
@@ -1173,8 +1279,9 @@ renderServiceOptions();
 renderMasterOptions();
 renumberSteps();
 
+let mastersLoaded = Promise.resolve();
 if (window.ALIKHAN_API_URL) {
-  loadPublicMasters(window.ALIKHAN_API_URL).then((rows) => {
+  mastersLoaded = loadPublicMasters(window.ALIKHAN_API_URL).then((rows) => {
     masters = rows.map((m) => ({ ...m, workWindow: { start: '10:00', end: '20:00' }, isPlaceholder: false }));
     // Пустой ответ (никто не назначен на услуги или сеть отдала обрезанные данные) не
     // должен схлопывать прайс сайта в ничто - в этом случае остаёмся на статике
@@ -1204,7 +1311,7 @@ if (window.ALIKHAN_API_URL) {
 // (мастера/цены общего прайса не зависят от этого запроса) - если пользователь
 // уже успел выбрать мастера, пока шёл fetch, перерисовываем список услуг заново
 // с реальными данными вместо legacy-фоллбэка.
-loadMasterServices().then(() => {
+const servicesLoaded = loadMasterServices().then(() => {
   // Реальные цены и признак топа приезжают сюда: до ответа каталог показан по общему
   // прайсу storage.js, тариф не показан вовсе (топов в офлайн-данных нет)
   renderServiceOptions();
@@ -1216,10 +1323,12 @@ loadMasterServices().then(() => {
 // первая отрисовка карточек мастеров не ждёт сеть, бейдж доступности появляется
 // перерисовкой, когда batch-ответ реально пришёл. renderMasterOptions() безопасно
 // перевызывать повторно - сохраняет выбор мастера (selectedMaster === master выше).
-loadMasterNextAvailability().then(() => {
+const availabilityLoaded = loadMasterNextAvailability().then(() => {
   renderTierOptions();
   renderMasterOptions();
 });
+
+Promise.all([mastersLoaded, servicesLoaded, availabilityLoaded]).then(renderNearest).catch(() => {});
 
 // Окно 24: производственный календарь на годы, до которых вообще можно дотянуться
 // в форме. Окно записи (60 дней) в конце декабря заезжает в следующий год - тогда
