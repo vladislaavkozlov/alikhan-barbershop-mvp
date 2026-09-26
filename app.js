@@ -15,6 +15,7 @@ import {
   masterTierForServices,
   masterTotalsForServices,
   minTotalByTier,
+  formatRub,
 } from './storage.js';
 import { rememberClientSource, currentClientSource } from './assets/client-source.js';
 
@@ -435,10 +436,26 @@ phoneInput.addEventListener('input', () => {
   phoneInput.value = formatPhone(phoneInput.value);
 });
 
+// Прайс делится на две группы (26.09.2026), чтобы восемь услуг не шли сплошным списком.
+// Услуга, заведённая в кабинете позже и не попавшая ни в одну группу, встаёт в первую
+const PRICE_GROUPS = [
+  { title: 'Стрижка и борода', ids: null },
+  { title: 'Уход', ids: new Set(['tonirovka', 'vosk', 'spa-uhod']) },
+];
+
 function renderPrice() {
   priceGrid.replaceChildren();
   let i = 0;
-  for (const service of services) {
+  const grouped = PRICE_GROUPS.map((group) => ({
+    ...group,
+    items: services.filter((s) => (group.ids ? group.ids.has(s.id) : !PRICE_GROUPS.some((g) => g.ids?.has(s.id)))),
+  })).filter((group) => group.items.length);
+  for (const group of grouped) {
+  const groupTitle = document.createElement('p');
+  groupTitle.className = 'price-group';
+  groupTitle.textContent = group.title;
+  priceGrid.append(groupTitle);
+  for (const service of group.items) {
     // 26.09.2026: строка прайса - кнопка «записаться на эту услугу»: отмечает её
     // в форме записи (по общим правилам выбора) и ведёт к следующему шагу
     const card = document.createElement('button');
@@ -488,6 +505,7 @@ function renderPrice() {
     priceGrid.append(card);
     armReveal(card, i * 50);
     i += 1;
+  }
   }
 }
 
@@ -628,7 +646,7 @@ function totalsOf(masterId) {
   return masterTotalsForServices(masterServices, masterId, [...selectedServiceIds]);
 }
 
-const formatPrice = (value) => `${value.toLocaleString('ru-RU')}₽`;
+const formatPrice = formatRub;
 
 // Номера шагов проставляются здесь, а не в разметке (20.08.2026): блок тарифа
 // показывается не всегда, и зашитые в HTML цифры давали на живом сайте «1, 3, 4, 5» -
@@ -952,7 +970,7 @@ function renderServiceSummary() {
   const totalPrice = chosen.reduce((sum, s) => sum + s.price, 0);
   const prefix = selectedMaster ? '' : 'от ';
   serviceSummary.hidden = false;
-  serviceSummary.textContent = `Выбрано услуг: ${chosen.length} · итого ${totalDuration} мин · ${prefix}${totalPrice.toLocaleString('ru-RU')}₽`;
+  serviceSummary.textContent = `Выбрано услуг: ${chosen.length} · итого ${totalDuration} мин · ${prefix}${formatRub(totalPrice)}`;
 }
 
 function showMsg(text, type) {
@@ -963,6 +981,7 @@ function showMsg(text, type) {
 function clearMsg() {
   formMsg.textContent = '';
   formMsg.className = 'form-msg';
+  updateStepStates();
 }
 
 // Кнопка "Подтвердить запись" разблокируется только когда выбран слот И отмечено
@@ -971,6 +990,21 @@ function clearMsg() {
 // продублирована в обработчике submit ниже - на случай если чекбокс сняли после выбора слота.
 function updateSubmitState() {
   submitBtn.disabled = !(selectedSlot && consentCheckbox && consentCheckbox.checked);
+  updateStepStates();
+}
+
+// Прогрессивное раскрытие формы (26.09.2026): шаг, до которого клиент ещё не дошёл,
+// приглушён, но виден - понятно, что будет дальше, и ясно, что выбирать сейчас.
+// Вызывается из updateSubmitState и clearMsg: их зовёт каждый обработчик выбора в форме
+function updateStepStates() {
+  const waiting = [
+    [masterGrid, selectedServiceIds.size === 0],
+    [dateToggle, !selectedMaster],
+    [slotsWrap, !selectedDate || !selectedMaster],
+    [nameInput, !selectedSlot],
+    [phoneInput, !selectedSlot],
+  ];
+  for (const [el, isWaiting] of waiting) el?.closest('.field')?.classList.toggle('is-waiting', isWaiting);
 }
 if (consentCheckbox) {
   consentCheckbox.addEventListener('change', () => { updateSubmitState(); clearMsg(); });
@@ -1076,6 +1110,8 @@ function renderReceipt(booking, master, chosenServices) {
     ['Мастер', master.name],
     ['Услуги', chosenServices.map((s) => s.name).join(', ')],
     ['Когда', `${formatDateRu(booking.date)} в ${booking.startTime}`],
+    ['Длительность', `${chosenServices.reduce((sum, s) => sum + (s.durationMin ?? 0), 0)} мин`],
+    ['Итого', formatPrice(chosenServices.reduce((sum, s) => sum + (s.price ?? 0), 0))],
     ['Клиент', `${booking.clientName}, ${booking.clientPhone}`],
   ];
   for (const [k, v] of rows) {
@@ -1159,7 +1195,11 @@ form.addEventListener('submit', async (event) => {
     return;
   }
 
-  const chosenServices = services.filter((s) => serviceIds.includes(s.id));
+  // Цена и длительность - по прайсу ЭТОГО мастера (currentServiceList), а не общего каталога:
+  // итог на экране после записи обязан совпадать с тем, что клиент видел в форме
+  const chosenServices = currentServiceList.length
+    ? currentServiceList.filter((s) => serviceIds.includes(s.id))
+    : services.filter((s) => serviceIds.includes(s.id));
   renderReceipt(result.booking, selectedMaster, chosenServices);
   nameInput.value = '';
   phoneInput.value = '';
@@ -1279,6 +1319,7 @@ renderMasters();
 renderServiceOptions();
 renderMasterOptions();
 renumberSteps();
+updateStepStates();
 
 let mastersLoaded = Promise.resolve();
 if (window.ALIKHAN_API_URL) {

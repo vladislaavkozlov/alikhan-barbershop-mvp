@@ -35,7 +35,7 @@ test('описание услуги из макета сохраняется п�
     STATIC
   );
   assert.equal(service.composition, 'Состав из макета');
-  assert.equal(service.priceLabel, `2${'\u00a0'}000₽`, 'разделитель разрядов - неразрывный пробел, как его ставит toLocaleString');
+  assert.equal(service.priceLabel, `2${'\u00a0'}000${'\u00a0'}₽`, 'разряды и знак рубля - через неразрывный пробел');
 });
 
 test('у разных мастеров разная цена - в каталоге минимальная', () => {
@@ -73,6 +73,17 @@ test('подпись цены в прайсе - минимальная по ма
     ],
     STATIC
   );
-  assert.equal(service.priceLabel, `2${'\u00a0'}000₽`);
+  assert.equal(service.priceLabel, `от 2${'\u00a0'}000${'\u00a0'}₽`, 'цены у мастеров разные - минимальная с «от»');
   assert.equal(service.durationLabel, '45 мин');
+});
+
+test('у всех мастеров одна цена - подпись без «от»', () => {
+  const [service] = catalogFromPublicMasters(
+    [
+      { id: 'm1', services: [{ id: 'boroda', name: 'Борода', price: 1600, durationMin: 30 }] },
+      { id: 'm2', services: [{ id: 'boroda', name: 'Борода', price: 1600, durationMin: 30 }] },
+    ],
+    STATIC
+  );
+  assert.equal(service.priceLabel, `1${'\u00a0'}600${'\u00a0'}₽`);
 });

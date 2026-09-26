@@ -30,7 +30,7 @@ export const SERVICES = [
     name: 'Стрижка',
     durationLabel: '1 час',
     durationMin: 60,
-    priceLabel: '2000₽',
+    priceLabel: '2\u00a0000\u00a0₽',
     price: 2000,
     composition:
       'Консультация по подбору стрижки по форме лица и структуре волос, профессиональное выполнение, мытьё головы, одеколон/бальзам, расслабляющий массаж головы и шейно-воротниковой зоны, укладка проф. средствами',
@@ -40,7 +40,7 @@ export const SERVICES = [
     name: 'Борода',
     durationLabel: '30 мин',
     durationMin: 30,
-    priceLabel: '1600₽',
+    priceLabel: '1\u00a0600\u00a0₽',
     price: 1600,
     composition:
       'Консультация и подбор по форме лица, окантовка с бритвой, укладка проф. средствами, расслабляющий массаж головы и шейно-воротниковой зоны',
@@ -50,7 +50,7 @@ export const SERVICES = [
     name: 'Комплекс стрижка+борода',
     durationLabel: '1 час',
     durationMin: 60,
-    priceLabel: '3500₽',
+    priceLabel: '3\u00a0500\u00a0₽',
     price: 3500,
     composition: 'Объединяет обе услуги выше',
   },
@@ -59,7 +59,7 @@ export const SERVICES = [
     name: 'Бритьё',
     durationLabel: '30-40 мин',
     durationMin: 40,
-    priceLabel: '1500₽',
+    priceLabel: '1\u00a0500\u00a0₽',
     price: 1500,
     composition: 'Сухое бритьё электробритвой головы или бороды, мытьё головы или лица',
   },
@@ -68,7 +68,7 @@ export const SERVICES = [
     name: 'Фирменная окантовка',
     durationLabel: '30 мин',
     durationMin: 30,
-    priceLabel: '1400₽',
+    priceLabel: '1\u00a0400\u00a0₽',
     price: 1400,
     composition: 'Стрижка под одну насадку или окантовка волос и бороды, мытьё головы',
   },
@@ -77,7 +77,7 @@ export const SERVICES = [
     name: 'Тонировка седых волос',
     durationLabel: '1 час',
     durationMin: 60,
-    priceLabel: 'от 1500₽',
+    priceLabel: 'от 1\u00a0500\u00a0₽',
     price: 1500,
     composition: 'Консультация и подбор цвета, мытьё зоны тонировки',
   },
@@ -86,7 +86,7 @@ export const SERVICES = [
     name: 'Воск',
     durationLabel: '10-15 мин',
     durationMin: 15,
-    priceLabel: 'от 500₽',
+    priceLabel: 'от 500\u00a0₽',
     price: 500,
     composition: 'Удаление нежелательных волос горячим воском (уши, нос, лицо)',
   },
@@ -95,7 +95,7 @@ export const SERVICES = [
     name: 'СПА уход',
     durationLabel: '1 час',
     durationMin: 60,
-    priceLabel: '3000₽',
+    priceLabel: '3\u00a0000\u00a0₽',
     price: 3000,
     composition:
       'Профессиональная косметика, распаривание лица, скрабирование кожи, чёрная маска против чёрных точек, патчи, гидрогелевая маска, мытьё лица',
@@ -127,13 +127,13 @@ export function priceForMaster(masterId, serviceId) {
   return override ?? findService(serviceId).price;
 }
 
-// Тот же формат, что и service.priceLabel ("2000₽" / "от 1500₽") - сохраняет
-// префикс "от", если он был у базовой услуги.
+// Тот же формат, что и service.priceLabel («2 000 ₽» / «от 1 500 ₽») - сохраняет
+// префикс «от», если он был у базовой услуги.
 export function priceLabelForMaster(masterId, serviceId) {
   const service = findService(serviceId);
   const price = priceForMaster(masterId, serviceId);
   const prefix = service.priceLabel.trim().startsWith('от') ? 'от ' : '';
-  return `${prefix}${price}₽`;
+  return `${prefix}${formatRub(price)}`;
 }
 
 function toMinutes(value) {
@@ -381,6 +381,12 @@ export function durationLabel(min) {
 // Описание состава и подпись длительности берём из статики по совпадению id: у услуг
 // барбершопа они написаны вручную и в базе не живут, а у новой услуги описания просто
 // нет - карточка прайса тогда идёт без него, а не с пустой строкой.
+// Деньги на сайте пишутся одинаково везде: разряды и знак рубля через неразрывный
+// пробел - «2 000 ₽», а не «2000₽»
+export function formatRub(value) {
+  return `${Number(value).toLocaleString('ru-RU')}\u00a0₽`;
+}
+
 export function catalogFromPublicMasters(masterRows, staticServices) {
   const staticById = new Map(staticServices.map((s) => [s.id, s]));
   const catalog = new Map();
@@ -391,6 +397,7 @@ export function catalogFromPublicMasters(masterRows, staticServices) {
         // остаётся минимальная цена, как и в самой форме записи («от»)
         const known = catalog.get(service.id);
         known.price = Math.min(known.price, service.price);
+        known.maxPrice = Math.max(known.maxPrice, service.price);
         known.durationMin = Math.min(known.durationMin, service.durationMin);
         continue;
       }
@@ -398,6 +405,7 @@ export function catalogFromPublicMasters(masterRows, staticServices) {
         id: service.id,
         name: service.name,
         price: service.price,
+        maxPrice: service.price,
         durationMin: service.durationMin,
         composition: staticById.get(service.id)?.composition ?? '',
       });
@@ -406,9 +414,12 @@ export function catalogFromPublicMasters(masterRows, staticServices) {
   // Подписи считаем в конце, а не при первой встрече услуги: цена и длительность к
   // этому моменту уже сведены к минимальным по всем мастерам, а собранные раньше
   // подписи показывали бы цену того мастера, кто просто оказался первым в списке
-  return [...catalog.values()].map((service) => ({
+  // «от» - когда мастера берут за услугу по-разному: минимальная цена не окончательная,
+  // точную клиент увидит, выбрав мастера (26.09.2026, до этого стрижка у топ-мастера
+  // за 2 600 показывалась в прайсе как просто «2 000»)
+  return [...catalog.values()].map(({ maxPrice, ...service }) => ({
     ...service,
-    priceLabel: `${service.price.toLocaleString('ru-RU')}₽`,
+    priceLabel: `${maxPrice > service.price ? 'от ' : ''}${formatRub(service.price)}`,
     durationLabel: durationLabel(service.durationMin),
   }));
 }
