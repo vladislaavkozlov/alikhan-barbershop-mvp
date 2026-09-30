@@ -44,7 +44,7 @@
   <link rel="shortcut icon" href="assets/brand/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/brand/apple-touch-icon-180.png">
 
-  <link rel="preconnect" href="https://alikhancrm1-vladislaavkozlov.amvera.io">
+  <link rel="preconnect" href="https://app.vladkozlovdigital.ru">
 
   <style>
   @font-face{
@@ -1815,7 +1815,14 @@
   </script>
 
   <script>
-    window.ALIKHAN_API_URL = "https://alikhancrm1-vladislaavkozlov.amvera.io";
+    // Сервер записи - система Stage (30.09.2026). С домена барбершопа сайт пишет в
+    // рабочую систему, с любого другого адреса (тестовая копия на GitHub) - в тестовую:
+    // один и тот же код проверяется на тесте и работает на домене без правок.
+    window.ALIKHAN_API_URL = /(^|\.)alikhanbarbershop\.ru$/.test(location.hostname)
+      ? "https://app.vladkozlovdigital.ru"
+      : "https://demo.vladkozlovdigital.ru";
+    // Ключ заведения: по нему сервер узнаёт, чей это сайт (см. withTenantKey в storage.js)
+    window.ALIKHAN_TENANT_KEY = "alikhan";
   </script>
   <script type="module" src="app.js"></script>
 </body>

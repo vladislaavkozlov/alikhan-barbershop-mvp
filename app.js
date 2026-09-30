@@ -3,6 +3,7 @@ import {
   createHttpBackend,
   getMasters,
   loadPublicMasters,
+  withTenantKey,
   getServices,
   priceLabelForMaster,
   priceForMaster,
@@ -135,7 +136,7 @@ let masterWorkingSchedule = null;
 async function loadMasterNextAvailability() {
   if (!window.ALIKHAN_API_URL) return; // офлайн-демо режим - бейдж не показываем, не выдумываем данные
   try {
-    const res = await fetch(`${window.ALIKHAN_API_URL}/masters-next-availability`);
+    const res = await fetch(withTenantKey(`${window.ALIKHAN_API_URL}/masters-next-availability`));
     if (!res.ok) return;
     const rows = await res.json();
     if (!Array.isArray(rows)) return;
@@ -150,7 +151,7 @@ async function loadMasterNextAvailability() {
 async function loadMasterServices() {
   if (!window.ALIKHAN_API_URL) return; // офлайн-демо режим - остаёмся на легаси-фоллбэке ниже
   try {
-    const res = await fetch(`${window.ALIKHAN_API_URL}/master-services`);
+    const res = await fetch(withTenantKey(`${window.ALIKHAN_API_URL}/master-services`));
     if (!res.ok) return;
     const rows = await res.json();
     if (Array.isArray(rows) && rows.length > 0) {
@@ -297,7 +298,7 @@ let holidayNames = new Map();
 async function loadHolidays(year) {
   if (!window.ALIKHAN_API_URL) return;
   try {
-    const res = await fetch(`${window.ALIKHAN_API_URL}/holidays?year=${year}`);
+    const res = await fetch(withTenantKey(`${window.ALIKHAN_API_URL}/holidays?year=${year}`));
     if (!res.ok) return; // подсказка не критична - виджет записи работает и без неё
     for (const h of await res.json()) holidayNames.set(h.date, h.name);
   } catch {
@@ -347,7 +348,7 @@ async function refreshCalendarAvailability() {
 
   let days;
   try {
-    const res = await fetch(`${window.ALIKHAN_API_URL}/schedule-availability?${params}`);
+    const res = await fetch(withTenantKey(`${window.ALIKHAN_API_URL}/schedule-availability?${params}`));
     if (!res.ok) return; // сеть/сервер подвели - календарь остаётся на прежних данных, не ломаем виджет
     days = await res.json();
   } catch {

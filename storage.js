@@ -174,6 +174,16 @@ export function defaultBackend() {
 // Без неё (или пока не залогинен) запросы анонимные - ровно то, что нужно
 // публичному виджету записи клиента (index.html): сервер сам решает, какие поля
 // отдавать анонимному запросу (Окно 8, роли на бэкенде).
+// Ключ заведения для сайта записи (30.09.2026, переезд на систему Stage). Новый сервер
+// обслуживает много заведений и узнаёт сайт не по адресу страницы, а по ключу в
+// запросе (?t=…) плюс списку сайтов заведения. Ключ задаёт только страница сайта
+// (window.ALIKHAN_TENANT_KEY в index.html); без него адрес уходит как раньше.
+export function withTenantKey(url) {
+  const key = globalThis.ALIKHAN_TENANT_KEY;
+  if (!key) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}t=${encodeURIComponent(key)}`;
+}
+
 export function createHttpBackend(apiBaseUrl, getToken) {
   function authHeaders() {
     const token = typeof getToken === 'function' ? getToken() : null;
@@ -191,7 +201,7 @@ export function createHttpBackend(apiBaseUrl, getToken) {
       const params = new URLSearchParams();
       if (date) params.set('date', date);
       if (masterId) params.set('masterId', masterId);
-      const res = await fetch(`${apiBaseUrl}/bookings?${params.toString()}`, { headers: authHeaders() });
+      const res = await fetch(withTenantKey(`${apiBaseUrl}/bookings?${params.toString()}`), { headers: authHeaders() });
       if (!res.ok) throw new Error(`storage.js: GET /bookings → ${res.status}`);
       const data = await res.json();
       return data.bookings;
@@ -203,7 +213,7 @@ export function createHttpBackend(apiBaseUrl, getToken) {
     // определился - в тело не кладём вовсе, сервер запишет NULL и примет бронь как
     // раньше (старые открытые вкладки шлют запрос без этого поля и работают).
     async createBooking({ masterId, serviceIds, date, startTime, clientName, clientPhone, source }) {
-      const res = await fetch(`${apiBaseUrl}/bookings`, {
+      const res = await fetch(withTenantKey(`${apiBaseUrl}/bookings`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ masterId, serviceIds, date, startTime, clientName, clientPhone, ...(source ? { source } : {}) }),
@@ -223,7 +233,7 @@ export function createHttpBackend(apiBaseUrl, getToken) {
     // (api/server.mjs). Без токена (публичный сайт) authHeaders() просто вернёт {}.
     async getSchedule({ masterId, date }) {
       const params = new URLSearchParams({ masterId, date });
-      const res = await fetch(`${apiBaseUrl}/schedule?${params.toString()}`, { headers: authHeaders() });
+      const res = await fetch(withTenantKey(`${apiBaseUrl}/schedule?${params.toString()}`), { headers: authHeaders() });
       if (!res.ok) throw new Error(`storage.js: GET /schedule → ${res.status}`);
       return res.json();
     },
@@ -241,11 +251,16 @@ export function getMasters() {
 // публичный сайт и CRM, чтобы они не разъехались (найдено живьём 13.08.2026).
 export function mediaUrl(apiBaseUrl, url) {
   if (!url || /^(https?:)?\/\//.test(url) || url.startsWith('data:')) return url;
-  return `${String(apiBaseUrl ?? '').replace(/\/+$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
+  // В системе Stage фото заведения отдаются по его ссылке (/<заведение>/api/media/…),
+  // а ключ сайта совпадает со ссылкой. Картинку браузер грузит без ключа в запросе,
+  // поэтому заведение называем прямо в адресе.
+  const key = globalThis.ALIKHAN_TENANT_KEY;
+  const base = `${String(apiBaseUrl ?? '').replace(/\/+$/, '')}${key ? `/${encodeURIComponent(key)}/api` : ''}`;
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
 export async function loadPublicMasters(apiBaseUrl) {
-  const res = await fetch(`${apiBaseUrl}/public/masters`);
+  const res = await fetch(withTenantKey(`${apiBaseUrl}/public/masters`));
   if (!res.ok) throw new Error(`storage.js: GET /public/masters → ${res.status}`);
   const rows = await res.json();
   return rows.map((master) => ({
