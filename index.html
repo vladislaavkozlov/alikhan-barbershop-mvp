@@ -1702,7 +1702,7 @@
 
       <div class="footer-links">
         <a href="privacy.html" target="_blank" rel="noopener">Политика конфиденциальности</a>
-        <a href="crm-owner.html">Вход для сотрудников</a>
+        <a id="staff-login" href="https://app.vladkozlovdigital.ru/alikhan/">Вход для сотрудников</a>
       </div>
     </div>
   </footer>
@@ -1823,6 +1823,9 @@
       : "https://demo.vladkozlovdigital.ru";
     // Ключ заведения: по нему сервер узнаёт, чей это сайт (см. withTenantKey в storage.js)
     window.ALIKHAN_TENANT_KEY = "alikhan";
+    // Кабинет сотрудников живёт в системе Stage, а не на сайте: с домена ссылка ведёт
+    // в рабочий кабинет, с тестовой копии - в тестовый
+    document.getElementById("staff-login").href = window.ALIKHAN_API_URL + "/" + window.ALIKHAN_TENANT_KEY + "/";
   </script>
   <script type="module" src="app.js"></script>
 </body>
